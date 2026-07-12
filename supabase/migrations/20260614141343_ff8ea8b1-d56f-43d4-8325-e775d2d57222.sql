@@ -1,0 +1,5 @@
+UPDATE public.products SET thumbnail_url='/__l5e/assets-v1/8a095c32-fd4e-4593-8dd2-54370fd8e537/kis-8163216e.png' WHERE id='8163216e-96e3-4030-a630-8ecd97d77414';
+UPDATE public.products SET thumbnail_url='/__l5e/assets-v1/d988a20d-ab5f-4715-b366-865e6bbac7d6/kis-248782df.png' WHERE id='248782df-2421-4ea3-b739-aac83b9e8c7c';
+UPDATE public.products SET thumbnail_url='/__l5e/assets-v1/629b0349-0fd2-4e5e-94a7-d999e522a562/kis-d9de6698.png' WHERE id='d9de6698-23f3-4645-9680-a67bf2871147';
+UPDATE public.products SET thumbnail_url='/__l5e/assets-v1/61cb7d1d-96f5-4e60-a553-7646d0dce061/kis-7cb8b9b7.png' WHERE id='7cb8b9b7-f0a0-414b-a4f0-26a11ca385c5';
+UPDATE public.products SET thumbnail_url='/__l5e/assets-v1/2bead855-405b-4767-a887-b2004c0612ab/kis-b6b147d5.png' WHERE id='b6b147d5-0783-4fe8-9924-04174f46d694';

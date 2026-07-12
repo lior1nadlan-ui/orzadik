@@ -1,0 +1,2 @@
+UPDATE public.categories SET name='כיסויים לטלית ותפילין', image_url=NULL WHERE slug='talit-tefillin-sets';
+UPDATE public.categories SET name='טליתות', image_url=NULL WHERE slug='%d7%98%d7%9c%d7%99%d7%aa%d7%95%d7%aa-%d7%95%d7%a6%d7%99%d7%a6%d7%99%d7%95%d7%aa';

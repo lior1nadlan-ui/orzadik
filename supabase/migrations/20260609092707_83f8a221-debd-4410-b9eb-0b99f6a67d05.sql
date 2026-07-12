@@ -1,0 +1,1 @@
+UPDATE public.products SET price = 786 WHERE id IN ('e80d5316-f196-483d-927d-4227c116e121','ff8d77db-71c5-4e86-93a5-e3c3bdf082dc');

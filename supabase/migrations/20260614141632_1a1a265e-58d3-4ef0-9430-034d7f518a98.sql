@@ -1,0 +1,10 @@
+UPDATE products SET thumbnail_url='/__l5e/assets-v1/591d2840-4d6b-4adb-8148-f758ca195966/bag1.png' WHERE id='91648c71-dd20-4dac-a5a7-f6ac3b969257';
+UPDATE products SET thumbnail_url='/__l5e/assets-v1/2cb4904d-d078-47d1-81e2-da4b440cda01/bag2.png' WHERE id='4fadb58e-4550-4149-8150-89ec01e92e2c';
+UPDATE products SET thumbnail_url='/__l5e/assets-v1/190b5383-1d7b-4211-9e15-13297ff318ec/bag3.png' WHERE id='45b70f6b-0667-4a6e-bd17-523c51328ee2';
+UPDATE products SET thumbnail_url='/__l5e/assets-v1/871f1df1-b5da-427c-85e1-476e8e81ea00/bag4.png' WHERE id='2c15fffc-bb5b-48b8-a6a7-232e05541508';
+UPDATE products SET thumbnail_url='/__l5e/assets-v1/028cb5fc-7a60-402c-bdad-3e647c12f5fe/bag5.png' WHERE id='57dd7c0f-13a0-48f2-9420-ebbfacaf85e1';
+UPDATE products SET thumbnail_url='/__l5e/assets-v1/a6385d72-f8c2-4823-9403-be3932f549b0/bag6.png' WHERE id='dbad3836-c71e-432d-9ad5-ea21ba2097e8';
+UPDATE products SET thumbnail_url='/__l5e/assets-v1/2ca05fa0-7227-43d9-92c2-454ba70d393d/bag7.png' WHERE id='56d9a806-21b6-49d0-aee0-aff3c4ee731a';
+UPDATE products SET thumbnail_url='/__l5e/assets-v1/b5808db5-ef90-46a9-b741-c3ae5da8dec1/bag8.png' WHERE id='65eac89c-31f9-425d-92c6-108f1f72b91e';
+UPDATE products SET thumbnail_url='/__l5e/assets-v1/f5a629b6-d9f5-49c8-a86a-20d77248e539/bag9.png' WHERE id='65792e35-87bf-4520-8d86-e488b00a08f5';
+UPDATE products SET thumbnail_url='/__l5e/assets-v1/5e7ebfbd-316e-4376-838a-7148d483db21/bag10.png' WHERE id='328d7f9b-a807-45b4-b732-bd5fe3ef9d8f';

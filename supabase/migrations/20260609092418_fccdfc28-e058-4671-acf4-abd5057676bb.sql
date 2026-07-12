@@ -1,0 +1,1 @@
+UPDATE public.products SET price = 1286 WHERE price = 1572 AND name LIKE '%פרימיום בחריטת לייזר%';

@@ -1,0 +1,134 @@
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { toast } from "sonner";
+import { getProductReviews, submitReview } from "@/lib/reviews.functions";
+import { Stars, StarInput } from "@/components/Stars";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+
+export function ProductReviews({
+  productId,
+  initialSummary,
+}: {
+  productId: string;
+  initialSummary?: { average: number; count: number };
+}) {
+  const qc = useQueryClient();
+  const load = useServerFn(getProductReviews);
+  const send = useServerFn(submitReview);
+
+  const { data } = useQuery({
+    queryKey: ["reviews", productId],
+    queryFn: () => load({ data: { product_id: productId } }),
+  });
+
+  const summary = data?.summary ?? initialSummary ?? { average: 0, count: 0 };
+  const reviews = data?.reviews ?? [];
+
+  const [open, setOpen] = useState(false);
+  const [rating, setRating] = useState(5);
+  const [name, setName] = useState("");
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) {
+      toast.error("נא להזין שם");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await send({ data: { product_id: productId, rating, author_name: name, title: title || null, body: body || null } });
+      toast.success("תודה! חוות הדעת התקבלה ותפורסם לאחר אישור.");
+      setOpen(false);
+      setName(""); setTitle(""); setBody(""); setRating(5);
+      qc.invalidateQueries({ queryKey: ["reviews", productId] });
+    } catch (err: any) {
+      toast.error(err?.message ?? "שגיאה בשליחת חוות הדעת");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <section id="reviews" className="mt-16 relative">
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#D4AF37]/40 to-transparent" />
+      <div className="pt-10">
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+          <div>
+            <h2 className="font-display text-2xl md:text-3xl font-bold text-foreground">חוות דעת</h2>
+            {summary.count > 0 ? (
+              <div className="mt-2 flex items-center gap-2">
+                <Stars value={summary.average} size={20} />
+                <span className="text-sm text-muted-foreground">
+                  {summary.average} מתוך 5 · {summary.count} חוות דעת
+                </span>
+              </div>
+            ) : (
+              <p className="mt-2 text-sm text-muted-foreground">היו הראשונים לחוות דעה על המוצר.</p>
+            )}
+          </div>
+          <Button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            className="bg-[#D4AF37] hover:bg-[#A8862A] text-white"
+          >
+            כתיבת חוות דעת
+          </Button>
+        </div>
+
+        {open && (
+          <form onSubmit={onSubmit} className="mb-8 rounded-lg border bg-card p-5 space-y-4 max-w-xl">
+            <div>
+              <Label className="mb-1 block">הדירוג שלך</Label>
+              <StarInput value={rating} onChange={setRating} />
+            </div>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="rv-name">שם *</Label>
+                <Input id="rv-name" value={name} onChange={(e) => setName(e.target.value)} required maxLength={80} />
+              </div>
+              <div>
+                <Label htmlFor="rv-title">כותרת</Label>
+                <Input id="rv-title" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} />
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="rv-body">חוות הדעת</Label>
+              <Textarea id="rv-body" value={body} onChange={(e) => setBody(e.target.value)} maxLength={2000} rows={4} />
+            </div>
+            <div className="flex items-center gap-3">
+              <Button type="submit" disabled={submitting} className="bg-[#D4AF37] hover:bg-[#A8862A] text-white">
+                {submitting ? "שולח..." : "שליחה"}
+              </Button>
+              <span className="text-xs text-muted-foreground">חוות הדעת תפורסם לאחר בדיקה.</span>
+            </div>
+          </form>
+        )}
+
+        {reviews.length > 0 && (
+          <ul className="space-y-5">
+            {reviews.map((r) => (
+              <li key={r.id} className="border-b border-border/50 pb-5">
+                <div className="flex items-center gap-2">
+                  <Stars value={r.rating} size={15} />
+                  <span className="font-semibold text-sm">{r.author_name}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {new Date(r.created_at).toLocaleDateString("he-IL")}
+                  </span>
+                </div>
+                {r.title && <div className="mt-1.5 font-medium text-sm">{r.title}</div>}
+                {r.body && <p className="mt-1 text-sm text-foreground/80 leading-relaxed whitespace-pre-line">{r.body}</p>}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </section>
+  );
+}

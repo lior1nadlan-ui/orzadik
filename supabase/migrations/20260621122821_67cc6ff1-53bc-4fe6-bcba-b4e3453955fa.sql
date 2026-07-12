@@ -1,0 +1,1 @@
+UPDATE public.categories SET name = 'תמונות בלייזר' WHERE name = 'ברכות הבית';
