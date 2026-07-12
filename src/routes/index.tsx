@@ -4,14 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import heroVideoAsset from "@/assets/hero-video.mp4.asset.json";
 const heroVideo = heroVideoAsset.url;
-import imgSiddur from "@/assets/cat-siddur.jpg";
-import imgTallit from "@/assets/cat-tallit.jpg";
-import imgChatan from "@/assets/cat-chatan.jpg";
-import imgChalaka from "@/assets/cat-chalaka.jpg";
-import imgBooks from "@/assets/cat-books.jpg";
-import imgGoldJewelry from "@/assets/cat-gold-jewelry.jpg";
-import imgTallitTefillinCovers from "@/assets/cat-tallit-tefillin-covers.jpg";
-import imgJudaica from "@/assets/cat-judaica.jpg";
+import imgSiddur from "@/assets/cat-siddur.webp";
+import imgTallit from "@/assets/cat-tallit.webp";
+import imgChatan from "@/assets/cat-chatan.webp";
+import imgChalaka from "@/assets/cat-chalaka.webp";
+import imgBooks from "@/assets/cat-books.webp";
+import imgGoldJewelry from "@/assets/cat-gold-jewelry.webp";
+import imgTallitTefillinCovers from "@/assets/cat-tallit-tefillin-covers.webp";
+import imgJudaica from "@/assets/cat-judaica.webp";
 import imgWallArtAsset from "@/assets/categories/wall-art.jpeg.asset.json";
 const imgWallArt = imgWallArtAsset.url;
 import igPost1 from "@/assets/ig/post-1.jpg";
@@ -104,7 +104,11 @@ export const Route = createFileRoute("/")({
       { name: "twitter:title", content: "אור זרוע לצדיק | תשמישי קדושה ויודאיקה מהודרת" },
       { name: "twitter:description", content: "טליתות, תפילין, מזוזות, גביעי קידוש ומארזים לחתנים בכשרות מהודרת." },
     ],
-    links: [{ rel: "canonical", href: "https://orzadik.com/" }],
+    links: [
+      { rel: "canonical", href: "https://orzadik.com/" },
+      // The hero poster is the homepage LCP paint — preload it so it shows fast.
+      { rel: "preload", as: "image", href: "/media/hero-poster.jpg", fetchpriority: "high" },
+    ],
     scripts: [
       {
         type: "application/ld+json",
@@ -230,7 +234,6 @@ function HomePage() {
       {/* Hero */}
       <section>
         <video
-          src={heroVideo}
           poster="/media/hero-poster.jpg"
           autoPlay
           muted
@@ -239,7 +242,11 @@ function HomePage() {
           preload="metadata"
           aria-label="אור זרוע לצדיק — תשמישי קדושה ויודאיקה מהודרת"
           className="block w-full h-[40vh] md:h-[60vh] object-cover bg-cream"
-        />
+        >
+          {/* WebM (VP9) first — ~66% smaller; browsers that can't play it fall back to the MP4. */}
+          <source src="/media/hero-video.webm" type="video/webm" />
+          <source src={heroVideo} type="video/mp4" />
+        </video>
       </section>
 
       {/* Featured categories */}

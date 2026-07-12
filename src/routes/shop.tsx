@@ -43,6 +43,11 @@ function ShopPage() {
 
   const term = sanitizeTerm(debouncedQ);
 
+  // Render the grid incrementally so /shop doesn't mount all ~464 cards at once
+  // (keeps DOM light and INP fast on mobile). Reset the page on a new search.
+  const [visibleCount, setVisibleCount] = useState(24);
+  useEffect(() => { setVisibleCount(24); }, [term]);
+
   const { data = [], isLoading, isFetching, isError, refetch } = useQuery({
     queryKey: ["shop-products", term],
     placeholderData: keepPreviousData,
@@ -103,9 +108,23 @@ function ShopPage() {
           לא נמצאו מוצרים{term ? ` עבור "${term}"` : ""}. נסו מונח חיפוש אחר.
         </div>
       ) : (
-        <div className={`grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 transition-opacity ${isFetching ? "opacity-60" : ""}`}>
-          {data.map((p) => <ProductCard key={p.id} p={p} />)}
-        </div>
+        <>
+          <div className={`grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 transition-opacity ${isFetching ? "opacity-60" : ""}`}>
+            {data.slice(0, visibleCount).map((p, i) => (
+              <ProductCard key={p.id} p={p} priority={i < 8} />
+            ))}
+          </div>
+          {data.length > visibleCount && (
+            <div className="mt-10 text-center">
+              <button
+                onClick={() => setVisibleCount((v) => v + 24)}
+                className="rounded-full border border-foreground/70 px-8 py-3 text-sm font-medium hover:bg-foreground hover:text-background transition-colors"
+              >
+                טען עוד מוצרים ({data.length - visibleCount})
+              </button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

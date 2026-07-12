@@ -76,7 +76,7 @@ const SECURITY_HEADERS: Record<string, string> = {
     "script-src 'self' 'unsafe-inline'",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
-    "img-src 'self' data: blob: https:",
+    "img-src 'self' data: blob: https://*.supabase.co https://secure.cardcom.solutions",
     "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://secure.cardcom.solutions",
     "frame-src https://secure.cardcom.solutions",
     "frame-ancestors 'none'",

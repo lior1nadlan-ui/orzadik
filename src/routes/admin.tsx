@@ -35,11 +35,12 @@ function AdminLayout() {
   const path = useRouterState({ select: (s) => s.location.pathname });
 
   useEffect(() => {
-    // `beforeLoad` is the authoritative admin gate (verified server-side before
-    // this renders). Here we only handle a fully signed-out state — we must NOT
-    // redirect on the transient `!isAdmin` window, because `loading` flips false
-    // (from getSession) before the isAdmin role round-trip resolves, which used
-    // to bounce genuine admins to the homepage on hard refresh.
+    // The real gate is the DB: RLS `has_role('admin')` policies on every admin
+    // table. `beforeLoad` and this effect are client-side UX redirects only
+    // (beforeLoad early-returns during SSR). We only handle a fully signed-out
+    // state here — we must NOT redirect on the transient `!isAdmin` window,
+    // because `loading` flips false (from getSession) before the isAdmin role
+    // round-trip resolves, which used to bounce genuine admins on hard refresh.
     if (!loading && !user) navigate({ to: "/auth" });
   }, [user, loading, navigate]);
 
