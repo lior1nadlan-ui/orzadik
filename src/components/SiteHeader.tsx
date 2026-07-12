@@ -5,7 +5,7 @@ import { useAuth } from "@/lib/auth";
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { ClubBadge } from "@/components/ClubBadge";
 import { openCookieSettings } from "@/components/CookieConsent";
 import { BUSINESS } from "@/lib/business";
@@ -66,6 +66,7 @@ export function SiteHeader() {
               </button>
             </SheetTrigger>
             <SheetContent side="right" className="w-[320px] sm:w-[380px] p-0 overflow-y-auto">
+              <SheetTitle className="sr-only">תפריט ניווט</SheetTitle>
               <div className="flex flex-col h-full">
                 <div className="px-6 py-5 border-b">
                   <div className="font-display text-lg text-foreground">תפריט</div>

@@ -55,12 +55,12 @@ function ResetPasswordPage() {
       ) : (
         <form onSubmit={onSubmit} className="space-y-4 rounded-lg border bg-card p-6">
           <div>
-            <Label htmlFor="pw">סיסמה חדשה (לפחות 6 תווים)</Label>
-            <Input id="pw" type="password" minLength={6} required value={password} onChange={(e) => setPassword(e.target.value)} />
+            <Label htmlFor="pw">סיסמה חדשה (לפחות 8 תווים)</Label>
+            <Input id="pw" type="password" minLength={8} required value={password} onChange={(e) => setPassword(e.target.value)} />
           </div>
           <div>
             <Label htmlFor="pw2">אימות סיסמה</Label>
-            <Input id="pw2" type="password" minLength={6} required value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+            <Input id="pw2" type="password" minLength={8} required value={confirm} onChange={(e) => setConfirm(e.target.value)} />
           </div>
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? "..." : "עדכנו סיסמה"}

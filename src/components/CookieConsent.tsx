@@ -80,7 +80,7 @@ export function CookieConsent() {
       role="dialog"
       aria-modal="false"
       aria-label="הגדרות עוגיות"
-      className="fixed inset-x-0 bottom-0 z-50 px-3 pb-3 sm:px-4 sm:pb-4 pointer-events-none animate-in fade-in slide-in-from-bottom-4 duration-300"
+      className="fixed inset-x-0 bottom-0 z-[60] px-3 pb-3 sm:px-4 sm:pb-4 pointer-events-none animate-in fade-in slide-in-from-bottom-4 duration-300"
     >
       <div className="pointer-events-auto mx-auto max-w-md bg-background/95 backdrop-blur-md border border-border rounded-2xl shadow-2xl p-4 sm:p-5 relative">
         <button

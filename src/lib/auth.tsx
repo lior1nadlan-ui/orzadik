@@ -34,10 +34,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsAdmin(false);
       }
     });
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setLoading(false);
-    });
+    supabase.auth.getSession()
+      .then(({ data }) => {
+        setSession(data.session);
+      })
+      // If the session read fails (blocked storage, lock timeout), fall back to
+      // a signed-out state instead of hanging every gated page on "טוען…".
+      .catch(() => setSession(null))
+      .finally(() => setLoading(false));
     return () => sub.subscription.unsubscribe();
   }, []);
 

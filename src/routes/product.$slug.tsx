@@ -10,7 +10,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTrigger, DialogTitle } from "@/components/ui/dialog";
 import { formatILS, useCart, getEffectivePrice, getDisplayOriginal, getDiscountPct, FREE_SHIPPING_THRESHOLD, SHIPPING_FLAT, type CustomMethod } from "@/lib/cart";
 import { ProductCard, ProductCardData } from "@/components/ProductCard";
 import { BundleOffer } from "@/components/BundleOffer";
@@ -19,7 +19,7 @@ import { Stars } from "@/components/Stars";
 import { ClubBadge } from "@/components/ClubBadge";
 import { CROSS_SELL_MAP, DEFAULT_CROSS_SELL_CATEGORY } from "@/lib/cross-sells";
 import { ShoppingCart, Minus, Plus, Check, Truck, RotateCcw, ZoomIn } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import DOMPurify from "isomorphic-dompurify";
 
@@ -182,6 +182,7 @@ export const Route = createFileRoute("/product/$slug")({
         { title: `${p.name} | אור זרוע לצדיק` },
         { name: "description", content: desc.slice(0, 160) },
         { property: "og:title", content: `${p.name} | אור זרוע לצדיק` },
+        { name: "twitter:title", content: `${p.name} | אור זרוע לצדיק` },
         { property: "og:description", content: desc },
         { property: "og:type", content: "product" },
         { property: "og:url", content: url },
@@ -254,6 +255,14 @@ function ProductPage() {
   const [customText, setCustomText] = useState("");
   const [customMethod, setCustomMethod] = useState<CustomMethod>("embroidery");
 
+  // The router reuses this component instance across /product/$slug navigations,
+  // so per-product UI state would otherwise bleed from one product to the next
+  // (e.g. product B showing product A's selected image / quantity / custom text).
+  useEffect(() => {
+    setActiveImg(null);
+    setQty(1);
+    setCustomText("");
+  }, [slug]);
 
   const { data: product, isLoading } = useQuery({
     queryKey: ["product", slug],
@@ -530,6 +539,7 @@ function ProductPage() {
               </button>
             </DialogTrigger>
             <DialogContent className="max-w-4xl p-2 bg-white">
+              <DialogTitle className="sr-only">{product.name}</DialogTitle>
               {mainImg && (
                 <img
                   src={mainImg}

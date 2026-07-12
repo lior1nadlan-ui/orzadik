@@ -7,7 +7,9 @@ export const Route = createFileRoute("/terms")({
     meta: [
       { title: "תקנון ותנאי שימוש | אור זרוע לצדיק" },
       { name: "description", content: "תקנון ותנאי השימוש של אור זרוע לצדיק — תנאי רכישה, תשלום, משלוח, זכות ביטול ואחריות, לפי חוק הגנת הצרכן." },
+      { property: "og:url", content: "https://orzadik.com/terms" },
     ],
+    links: [{ rel: "canonical", href: "https://orzadik.com/terms" }],
   }),
 });
 

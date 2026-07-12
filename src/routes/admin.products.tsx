@@ -80,11 +80,11 @@ function AdminProducts() {
           <DialogTrigger asChild>
             <Button onClick={() => { setEditing(null); setOpen(true); }} className="gap-2"><Plus className="h-4 w-4" /> חדש</Button>
           </DialogTrigger>
-          <ProductDialog product={editing} onSave={onSave} />
+          <ProductDialog key={editing?.id ?? "new"} product={editing} onSave={onSave} />
         </Dialog>
       </div>
       <Input placeholder="חיפוש..." value={search} onChange={(e) => setSearch(e.target.value)} className="mb-4 max-w-sm" />
-      <div className="rounded-lg border bg-card overflow-hidden">
+      <div className="rounded-lg border bg-card overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-muted/50">
             <tr className="text-right">

@@ -7,7 +7,9 @@ export const Route = createFileRoute("/privacy")({
     meta: [
       { title: "מדיניות פרטיות | אור זרוע לצדיק" },
       { name: "description", content: "מדיניות הפרטיות של אור זרוע לצדיק — איסוף, שמירה, שימוש והעברת מידע, וזכויות המשתמש לפי חוק הגנת הפרטיות ותיקון 13." },
+      { property: "og:url", content: "https://orzadik.com/privacy" },
     ],
+    links: [{ rel: "canonical", href: "https://orzadik.com/privacy" }],
   }),
 });
 

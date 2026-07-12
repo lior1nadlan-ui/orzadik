@@ -43,7 +43,7 @@ function ShopPage() {
 
   const term = sanitizeTerm(debouncedQ);
 
-  const { data = [], isLoading, isFetching } = useQuery({
+  const { data = [], isLoading, isFetching, isError, refetch } = useQuery({
     queryKey: ["shop-products", term],
     placeholderData: keepPreviousData,
     queryFn: async () => {
@@ -90,6 +90,13 @@ function ShopPage() {
           {Array.from({ length: 8 }).map((_, i) => (
             <div key={i} className="aspect-square animate-pulse rounded-lg bg-muted" />
           ))}
+        </div>
+      ) : isError ? (
+        <div className="py-20 text-center space-y-3">
+          <p className="text-muted-foreground">אירעה שגיאה בטעינת המוצרים. בדקו את החיבור ונסו שוב.</p>
+          <button onClick={() => refetch()} className="rounded-md border px-4 py-2 text-sm hover:bg-muted transition-colors">
+            נסו שוב
+          </button>
         </div>
       ) : data.length === 0 ? (
         <div className="py-20 text-center text-muted-foreground">

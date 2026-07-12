@@ -26,7 +26,7 @@ export function ClubBadge({ variant = "inline", className = "" }: Props) {
       >
         {/* Jewel shimmer */}
         <div className="absolute inset-0 pointer-events-none opacity-40">
-          <div className="absolute inset-0 bg-[conic-gradient(from_0deg_at_50%_50%,transparent_0%,rgba(212,175,55,0.10)_25%,transparent_50%,rgba(212,175,55,0.10)_75%,transparent_100%)] animate-[spin_8s_linear_infinite]" />
+          <div className="absolute inset-0 bg-[conic-gradient(from_0deg_at_50%_50%,transparent_0%,rgba(212,175,55,0.10)_25%,transparent_50%,rgba(212,175,55,0.10)_75%,transparent_100%)] motion-safe:animate-[spin_8s_linear_infinite]" />
         </div>
 
         <div className="container mx-auto px-6 flex items-center justify-center gap-3 sm:gap-4 relative z-10">

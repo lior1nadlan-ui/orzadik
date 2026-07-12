@@ -59,10 +59,10 @@ function AdminCategories() {
           <DialogTrigger asChild>
             <Button onClick={() => { setEditing(null); setOpen(true); }} className="gap-2"><Plus className="h-4 w-4" /> חדש</Button>
           </DialogTrigger>
-          <CatDialog cat={editing} onSave={onSave} />
+          <CatDialog key={editing?.id ?? "new"} cat={editing} onSave={onSave} />
         </Dialog>
       </div>
-      <div className="rounded-lg border bg-card overflow-hidden">
+      <div className="rounded-lg border bg-card overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-muted/50"><tr className="text-right">
             <th className="p-3">שם</th><th className="p-3">Slug</th><th className="p-3">סדר</th><th></th>
