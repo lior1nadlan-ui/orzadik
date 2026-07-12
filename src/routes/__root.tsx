@@ -141,7 +141,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
             "מארזים לחתנים ולבר מצווה",
             "רקמה וחריטה אישית",
           ],
-          sameAs: ["https://www.instagram.com/or_zarua_latzadik/"],
+          sameAs: [
+            "https://www.instagram.com/or_zarua_latzadik/",
+            "https://www.facebook.com/profile.php?id=61576488921081",
+          ],
           areaServed: { "@type": "Country", name: "IL" },
           contactPoint: {
             "@type": "ContactPoint",
@@ -204,7 +207,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           priceRange: "₪₪",
           areaServed: { "@type": "Country", name: "IL" },
           hasMap: "https://www.google.com/maps/search/?api=1&query=%D7%93%D7%A8%D7%9A+%D7%A2%D7%9B%D7%95+190+%D7%A7%D7%A8%D7%99%D7%AA+%D7%91%D7%99%D7%90%D7%9C%D7%99%D7%A7",
-          sameAs: ["https://www.instagram.com/or_zarua_latzadik/"],
+          sameAs: [
+            "https://www.instagram.com/or_zarua_latzadik/",
+            "https://www.facebook.com/profile.php?id=61576488921081",
+          ],
           parentOrganization: { "@id": "https://orzadik.com/#organization" },
         }),
       },
