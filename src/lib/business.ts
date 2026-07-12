@@ -25,6 +25,13 @@ export const BUSINESS = {
   /** Accessibility coordinator contact. */
   accessibilityEmail: "accessibility@orzadik.com",
   site: "https://orzadik.com",
+  /**
+   * Search-engine verification tokens. Fill from Google Search Console
+   * ("HTML tag" method) and Bing Webmaster Tools; the meta tag is only
+   * rendered when a token is set. Empty = tag omitted.
+   */
+  googleSiteVerification: "",
+  bingSiteVerification: "",
 } as const;
 
 /** Consumer-law policy constants (Consumer Protection Law §14ג–§14ה). */

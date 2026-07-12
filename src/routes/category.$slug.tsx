@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ProductCard, ProductCardData } from "@/components/ProductCard";
@@ -38,7 +38,8 @@ async function fetchCategoryWithRetry(slug: string, maxRetries = 2) {
       return { cat, products };
     } catch (err: any) {
       if (i === maxRetries || !["ECONNREFUSED", "ETIMEDOUT", "network"].some(m => String(err).includes(m))) {
-        return { cat: null, products: [] };
+        // Real error → route error boundary, not a soft-404 "category not found".
+        throw err;
       }
       await new Promise(r => setTimeout(r, Math.pow(2, i) * 100));
     }
@@ -48,7 +49,9 @@ async function fetchCategoryWithRetry(slug: string, maxRetries = 2) {
 
 export const Route = createFileRoute("/category/$slug")({
   loader: async ({ params }) => {
-    return await fetchCategoryWithRetry(params.slug);
+    const result = await fetchCategoryWithRetry(params.slug);
+    if (!result.cat) throw notFound(); // real HTTP 404 for non-existent categories
+    return result;
   },
   head: ({ loaderData, params }) => {
     const url = `https://orzadik.com/category/${params.slug}`;
