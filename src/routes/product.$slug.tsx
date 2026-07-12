@@ -191,7 +191,13 @@ export const Route = createFileRoute("/product/$slug")({
       ],
       links: [{ rel: "canonical", href: url }],
       scripts: [
-        { type: "application/ld+json", children: JSON.stringify(productLd) },
+        // Google requires a Product to carry at least one of offers/review/
+        // aggregateRating. Call-only (gold) products have no offers, so only
+        // emit the Product node when it also has an aggregateRating; otherwise
+        // it would be flagged invalid in Search Console.
+        ...(!isCallOnly || (reviewSummary && reviewSummary.count > 0)
+          ? [{ type: "application/ld+json", children: JSON.stringify(productLd) }]
+          : []),
         { type: "application/ld+json", children: JSON.stringify(breadcrumbLd) },
       ],
     };
