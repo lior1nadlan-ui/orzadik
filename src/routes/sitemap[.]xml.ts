@@ -44,14 +44,32 @@ export const Route = createFileRoute("/sitemap.xml")({
               ? `<image:image><image:loc>${esc(u)}</image:loc></image:image>`
               : "";
 
+          // Freshest content date across the catalog — used as lastmod for the
+          // homepage/shop/etc. so crawlers see a real freshness signal.
+          const contentDates = [
+            ...(products ?? []).map((p) => (p as any).updated_at),
+            ...(articles ?? []).map((a) => (a as any).published_at),
+          ]
+            .filter(Boolean)
+            .map((d) => new Date(d as string).getTime())
+            .filter((t) => !Number.isNaN(t));
+          const freshest = (
+            contentDates.length ? new Date(Math.max(...contentDates)) : new Date()
+          )
+            .toISOString()
+            .slice(0, 10);
+
+          // Thin/placeholder categories that shouldn't be advertised for indexing.
+          const CAT_BLACKLIST = new Set(["sale", "uncategorized"]);
+
           const urls: string[] = [];
           for (const s of STATIC) {
             urls.push(
-              `<url><loc>${loc(s.path)}</loc><changefreq>${s.freq}</changefreq><priority>${s.pri}</priority></url>`,
+              `<url><loc>${loc(s.path)}</loc><lastmod>${freshest}</lastmod><changefreq>${s.freq}</changefreq><priority>${s.pri}</priority></url>`,
             );
           }
           for (const c of categories ?? []) {
-            if (!c.slug) continue;
+            if (!c.slug || CAT_BLACKLIST.has(c.slug)) continue;
             urls.push(
               `<url><loc>${esc(loc(`/category/${c.slug}`))}</loc>${imgTag((c as any).image_url)}<changefreq>weekly</changefreq><priority>0.7</priority></url>`,
             );

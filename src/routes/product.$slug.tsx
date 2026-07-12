@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, notFound } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -38,7 +38,9 @@ async function fetchProductWithRetry(slug: string, maxRetries = 2) {
       return data;
     } catch (err: any) {
       if (i === maxRetries || !["ECONNREFUSED", "ETIMEDOUT", "network"].some(m => String(err).includes(m))) {
-        return null;
+        // A real error (not a missing row) — surface it to the route error
+        // boundary rather than masquerading as "product not found" (soft-404).
+        throw err;
       }
       await new Promise(r => setTimeout(r, Math.pow(2, i) * 100));
     }
@@ -65,7 +67,8 @@ async function fetchReviewSummary(productId: string): Promise<{ average: number;
 export const Route = createFileRoute("/product/$slug")({
   loader: async ({ params }) => {
     const product = await fetchProductWithRetry(params.slug);
-    const reviewSummary = product?.id
+    if (!product) throw notFound(); // real HTTP 404 for non-existent slugs, not a soft-404
+    const reviewSummary = product.id
       ? await fetchReviewSummary(product.id as string)
       : { average: 0, count: 0 };
     return { product, reviewSummary };

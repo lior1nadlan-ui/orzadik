@@ -147,6 +147,13 @@ function applyCachePolicy(request: Request, response: Response): Response {
 
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
+    // Canonicalize host: 301-redirect www → apex so all SEO signals concentrate
+    // on https://orzadik.com and there's no crawlable duplicate host.
+    const reqUrl = new URL(request.url);
+    if (reqUrl.hostname === "www.orzadik.com") {
+      reqUrl.hostname = "orzadik.com";
+      return new Response(null, { status: 301, headers: { Location: reqUrl.toString() } });
+    }
     try {
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);

@@ -14,6 +14,7 @@ import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { CookieConsent } from "@/components/CookieConsent";
 import { WhatsAppButton } from "@/components/WhatsAppButton";
 import { AccessibilityWidget } from "@/components/AccessibilityWidget";
+import { BUSINESS } from "@/lib/business";
 import appCss from "../styles.css?url";
 
 function NotFoundComponent() {
@@ -59,6 +60,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { name: "referrer", content: "strict-origin-when-cross-origin" },
       { name: "format-detection", content: "telephone=no" },
+      // Search-engine ownership verification — rendered only when a token is set
+      // (fill in src/lib/business.ts). GSC unlocks sitemap submission + indexing.
+      ...(BUSINESS.googleSiteVerification
+        ? [{ name: "google-site-verification", content: BUSINESS.googleSiteVerification }]
+        : []),
+      ...(BUSINESS.bingSiteVerification
+        ? [{ name: "msvalidate.01", content: BUSINESS.bingSiteVerification }]
+        : []),
       { title: "אור זרוע לצדיק - תשמישי קדושה" },
       { name: "description", content: "חנות תשמישי קדושה - כלי כסף, כוסות קידוש, חנוכיות, מזוזות ועוד." },
       { property: "og:title", content: "אור זרוע לצדיק - תשמישי קדושה" },
@@ -96,19 +105,50 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           "@type": "Organization",
           "@id": "https://orzadik.com/#organization",
           name: "אור זרוע לצדיק",
-          alternateName: "Or Zarua LaTzadik",
+          alternateName: ["Or Zarua LaTzadik", "אור זרוע לצדיק - תשמישי קדושה"],
           url: "https://orzadik.com/",
-          logo: "https://orzadik.com/logo.png",
+          logo: {
+            "@type": "ImageObject",
+            url: "https://orzadik.com/logo.png",
+            width: 512,
+            height: 512,
+          },
           image: "https://orzadik.com/og-default.jpg",
           description:
-            "חנות תשמישי קדושה ויודאיקה — טליתות, תפילין, מזוזות, גביעי קידוש, חנוכיות, מארזים לחתנים ותכשיטי זהב.",
+            "חנות תשמישי קדושה ויודאיקה — טליתות, תפילין, מזוזות, גביעי קידוש, חנוכיות, מארזים לחתנים ותכשיטי זהב, עם אפשרות רקמה וחריטה אישית.",
+          slogan: "אור זרוע לצדיק — תשמישי קדושה ויודאיקה מהודרת בהתאמה אישית",
           telephone: "+972-54-581-8486",
+          email: "orzarualachatz@gmail.com",
+          address: {
+            "@type": "PostalAddress",
+            streetAddress: "דרך עכו 190",
+            addressLocality: "קרית ביאליק",
+            addressRegion: "מחוז חיפה",
+            addressCountry: "IL",
+          },
+          founder: { "@type": "Person", name: "ליאור בן עמי" },
+          vatID: "039553623",
+          taxID: "039553623",
+          knowsAbout: [
+            "תשמישי קדושה",
+            "יודאיקה",
+            "טליתות וציציות",
+            "תפילין וכיסויים",
+            "מזוזות",
+            "גביעי קידוש וכלי כסף",
+            "חנוכיות ופמוטים",
+            "סידורים",
+            "מארזים לחתנים ולבר מצווה",
+            "רקמה וחריטה אישית",
+          ],
           sameAs: ["https://www.instagram.com/or_zarua_latzadik/"],
           areaServed: { "@type": "Country", name: "IL" },
           contactPoint: {
             "@type": "ContactPoint",
             telephone: "+972-54-581-8486",
+            email: "orzarualachatz@gmail.com",
             contactType: "customer service",
+            areaServed: "IL",
             availableLanguage: ["he"],
           },
         }),
@@ -141,17 +181,29 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           "@id": "https://orzadik.com/#store",
           name: "אור זרוע לצדיק",
           url: "https://orzadik.com/",
-          logo: "https://orzadik.com/logo.png",
+          logo: {
+            "@type": "ImageObject",
+            url: "https://orzadik.com/logo.png",
+            width: 512,
+            height: 512,
+          },
           image: "https://orzadik.com/og-default.jpg",
           description:
             "חנות תשמישי קדושה ויודאיקה — טליתות, תפילין, מזוזות, גביעי קידוש, חנוכיות ומארזים לחתנים.",
           telephone: "+972-54-581-8486",
           email: "orzarualachatz@gmail.com",
+          address: {
+            "@type": "PostalAddress",
+            streetAddress: "דרך עכו 190",
+            addressLocality: "קרית ביאליק",
+            addressRegion: "מחוז חיפה",
+            addressCountry: "IL",
+          },
           currenciesAccepted: "ILS",
           paymentAccepted: "Cash, Credit Card",
           priceRange: "₪₪",
           areaServed: { "@type": "Country", name: "IL" },
-          hasMap: "https://orzadik.com/",
+          hasMap: "https://www.google.com/maps/search/?api=1&query=%D7%93%D7%A8%D7%9A+%D7%A2%D7%9B%D7%95+190+%D7%A7%D7%A8%D7%99%D7%AA+%D7%91%D7%99%D7%90%D7%9C%D7%99%D7%A7",
           sameAs: ["https://www.instagram.com/or_zarua_latzadik/"],
           parentOrganization: { "@id": "https://orzadik.com/#organization" },
         }),

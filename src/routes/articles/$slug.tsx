@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, notFound } from "@tanstack/react-router";
 import { fetchArticleWithRetry, fetchArticlesByCategoryWithRetry } from "@/lib/articles.server";
 import { ArticleCard } from "@/components/ArticleCard";
 import { Link } from "@tanstack/react-router";
@@ -8,8 +8,9 @@ import DOMPurify from "isomorphic-dompurify";
 export const Route = createFileRoute("/articles/$slug")({
   loader: async ({ params }) => {
     const article = await fetchArticleWithRetry(params.slug);
+    if (!article) throw notFound(); // real HTTP 404 for non-existent articles
     let relatedArticles: Awaited<ReturnType<typeof fetchArticlesByCategoryWithRetry>> = [];
-    if (article?.category_id) {
+    if (article.category_id) {
       relatedArticles = await fetchArticlesByCategoryWithRetry(article.category_id, 2, 2);
     }
     return { article, relatedArticles };
