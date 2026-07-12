@@ -93,7 +93,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       // and conflicted with each page's own canonical, so they were removed.
       {
         rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;500;600;700;800&family=Noto+Serif+Hebrew:wght@400;500;600;700;800&family=Cormorant+Garamond:wght@400;500;600;700&display=swap",
+        href: "https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;500;600;700&family=Noto+Serif+Hebrew:wght@400;500;600;700&family=Cormorant+Garamond:wght@400;600&display=swap",
       },
       { rel: "stylesheet", href: appCss },
     ],

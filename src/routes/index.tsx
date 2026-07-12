@@ -104,7 +104,11 @@ export const Route = createFileRoute("/")({
       { name: "twitter:title", content: "אור זרוע לצדיק | תשמישי קדושה ויודאיקה מהודרת" },
       { name: "twitter:description", content: "טליתות, תפילין, מזוזות, גביעי קידוש ומארזים לחתנים בכשרות מהודרת." },
     ],
-    links: [{ rel: "canonical", href: "https://orzadik.com/" }],
+    links: [
+      { rel: "canonical", href: "https://orzadik.com/" },
+      // The hero poster is the homepage LCP paint — preload it so it shows fast.
+      { rel: "preload", as: "image", href: "/media/hero-poster.jpg", fetchpriority: "high" },
+    ],
     scripts: [
       {
         type: "application/ld+json",

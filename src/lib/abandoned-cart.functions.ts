@@ -1,7 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
+import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getOptionalAuthInfo } from "@/integrations/supabase/optional-auth";
+import { checkOrderRateLimitByIp } from "@/lib/rate-limit.server";
 import {
   sendEmail,
   emailShell,
@@ -36,6 +38,16 @@ const Schema = z.object({
 export const saveAbandonedCart = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) => Schema.parse(i))
   .handler(async ({ data }) => {
+    // Per-IP rate limit — this is an unauthenticated, state-changing insert;
+    // without it an attacker could flood arbitrary-email cart rows.
+    const req = getRequest();
+    const ip =
+      req?.headers.get("cf-connecting-ip") ??
+      req?.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+      "unknown";
+    const { limited } = await checkOrderRateLimitByIp(ip);
+    if (limited) throw new Error("יותר מדי בקשות מהכתובת הזו. אנא נסו מאוחר יותר.");
+
     const authed = await getOptionalAuthInfo();
     const authedUserId = authed?.userId ?? null;
 

@@ -4,15 +4,45 @@ import { notifyShippingCompany } from "@/lib/shipping.server";
 import { sendOrderConfirmationEmails } from "@/lib/order-emails.server";
 import { checkWebhookRateLimit } from "@/lib/rate-limit.server";
 
-// CardCom sends webhooks from these IP ranges.
-// Set CARDCOM_ALLOWED_IPS env var to a comma-separated list to enable enforcement.
-// Confirm current IPs from: https://kb.cardcom.solutions/article/AA-01510
-// Leave unset to skip the check (fail-open) while you confirm the exact IPs.
-function getCardcomAllowedIps(): Set<string> | null {
+// CardCom sends webhooks from a set of source IPs / CIDR ranges.
+// Set CARDCOM_ALLOWED_IPS to a comma-separated list of exact IPs and/or CIDR
+// ranges (e.g. "82.80.227.16/29, 1.2.3.4") to enable enforcement.
+// Confirm current ranges from CardCom support. Leave unset to skip (fail-open).
+function getCardcomAllowedList(): string[] | null {
   const raw = process.env.CARDCOM_ALLOWED_IPS;
   if (!raw) return null; // not configured → skip check
-  const ips = raw.split(",").map((s) => s.trim()).filter(Boolean);
-  return ips.length > 0 ? new Set(ips) : null;
+  const list = raw.split(",").map((s) => s.trim()).filter(Boolean);
+  return list.length > 0 ? list : null;
+}
+
+function ipv4ToInt(ip: string): number | null {
+  const parts = ip.split(".");
+  if (parts.length !== 4) return null;
+  let n = 0;
+  for (const p of parts) {
+    const o = Number(p);
+    if (!Number.isInteger(o) || o < 0 || o > 255) return null;
+    n = (n << 8) | o;
+  }
+  return n >>> 0;
+}
+
+// True if `ip` matches any entry in `list` (exact IP or a.b.c.d/nn CIDR range).
+function ipInAllowlist(ip: string, list: string[]): boolean {
+  const ipInt = ipv4ToInt(ip);
+  for (const entry of list) {
+    if (entry.includes("/")) {
+      const [base, bitsStr] = entry.split("/");
+      const baseInt = ipv4ToInt(base);
+      const bits = Number(bitsStr);
+      if (ipInt === null || baseInt === null || !Number.isInteger(bits) || bits < 0 || bits > 32) continue;
+      const mask = bits === 0 ? 0 : (0xffffffff << (32 - bits)) >>> 0;
+      if ((ipInt & mask) === (baseInt & mask)) return true;
+    } else if (entry === ip) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function getClientIp(request: Request): string {
@@ -74,8 +104,8 @@ export const Route = createFileRoute("/api/public/cardcom-webhook")({
           const clientIp = getClientIp(request);
 
           // 1. IP allowlist (enforced only when CARDCOM_ALLOWED_IPS env var is set)
-          const allowedIps = getCardcomAllowedIps();
-          if (allowedIps && !allowedIps.has(clientIp)) {
+          const allowlist = getCardcomAllowedList();
+          if (allowlist && !ipInAllowlist(clientIp, allowlist)) {
             console.error(`[cardcom-webhook] BLOCKED: request from unlisted IP ${clientIp}`);
             return new Response("forbidden", { status: 403 });
           }

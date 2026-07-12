@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { useState } from "react";
 import { formatILS, useCart, getEffectivePrice, getDisplayOriginal, getDiscountPct } from "@/lib/cart";
 import { toast } from "sonner";
 
@@ -12,8 +13,9 @@ export type ProductCardData = {
   stock_status?: string | null;
 };
 
-export function ProductCard({ p }: { p: ProductCardData }) {
+export function ProductCard({ p, priority = false }: { p: ProductCardData; priority?: boolean }) {
   const { add } = useCart();
+  const [imgError, setImgError] = useState(false);
   const isCallOnly = Number(p.price) === 0;
   const isOutOfStock = p.stock_status === "outofstock";
   const effective = getEffectivePrice(p.price);
@@ -41,11 +43,14 @@ export function ProductCard({ p }: { p: ProductCardData }) {
         params={{ slug: p.slug }}
         className="relative aspect-square overflow-hidden bg-muted block"
       >
-        {p.thumbnail_url ? (
+        {p.thumbnail_url && !imgError ? (
           <img
             src={p.thumbnail_url}
             alt={p.name}
-            loading="lazy"
+            loading={priority ? "eager" : "lazy"}
+            fetchPriority={priority ? "high" : "auto"}
+            decoding="async"
+            onError={() => setImgError(true)}
             className="h-full w-full object-cover transition-transform duration-[1200ms] ease-out group-hover:scale-105"
           />
         ) : (

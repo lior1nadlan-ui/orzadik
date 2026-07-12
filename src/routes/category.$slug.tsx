@@ -323,7 +323,7 @@ function CategoryPage() {
 
             {/* Grid */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {visible.map((p) => <ProductCard key={p.id} p={p} />)}
+              {visible.map((p, i) => <ProductCard key={p.id} p={p} priority={i < 8} />)}
             </div>
             {visible.length === 0 && (
               <p className="text-center py-10 text-muted-foreground">לא נמצאו מוצרים תואמים.</p>
