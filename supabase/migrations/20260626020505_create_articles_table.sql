@@ -34,8 +34,21 @@ create policy "Only admin can manage articles"
   using (auth.jwt() ->> 'role' = 'admin')
   with check (auth.jwt() ->> 'role' = 'admin');
 
--- Timestamp trigger to auto-update updated_at
+-- Timestamp trigger to auto-update updated_at.
+-- Define the trigger function (it was created outside migrations on the
+-- original project, so it must be created here for a clean apply).
+create or replace function public.update_updated_at_column()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
 create trigger update_articles_updated_at
   before update on articles
   for each row
-  execute function update_updated_at_column();
+  execute function public.update_updated_at_column();
