@@ -238,6 +238,7 @@ function Toggle({ label, active, onClick }: { label: string; active: boolean; on
       <span>{label}</span>
       <span
         aria-hidden="true"
+        dir="ltr"
         className={
           "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition " +
           (active ? "bg-primary" : "bg-muted-foreground/30")

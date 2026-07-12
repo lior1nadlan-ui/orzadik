@@ -35,14 +35,21 @@ function AdminLayout() {
   const path = useRouterState({ select: (s) => s.location.pathname });
 
   useEffect(() => {
-    if (!loading) {
-      if (!user) navigate({ to: "/auth" });
-      else if (!isAdmin) navigate({ to: "/" });
-    }
-  }, [user, isAdmin, loading, navigate]);
+    // `beforeLoad` is the authoritative admin gate (verified server-side before
+    // this renders). Here we only handle a fully signed-out state — we must NOT
+    // redirect on the transient `!isAdmin` window, because `loading` flips false
+    // (from getSession) before the isAdmin role round-trip resolves, which used
+    // to bounce genuine admins to the homepage on hard refresh.
+    if (!loading && !user) navigate({ to: "/auth" });
+  }, [user, loading, navigate]);
 
-  if (loading) return <div className="container mx-auto px-4 py-20 text-center">טוען...</div>;
-  if (!user || !isAdmin) return <div className="container mx-auto px-4 py-20 text-center">אין הרשאה</div>;
+  // Show a loader while auth is resolving OR while the admin-role check is still
+  // in flight (user present but isAdmin not yet true). beforeLoad guarantees a
+  // non-admin never reaches this component.
+  if (loading || (user && !isAdmin)) {
+    return <div className="container mx-auto px-4 py-20 text-center">טוען...</div>;
+  }
+  if (!user) return <div className="container mx-auto px-4 py-20 text-center">אין הרשאה</div>;
 
   return (
     <div className="container mx-auto px-4 py-6 grid lg:grid-cols-[220px_1fr] gap-6">

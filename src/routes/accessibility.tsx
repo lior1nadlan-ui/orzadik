@@ -6,7 +6,9 @@ export const Route = createFileRoute("/accessibility")({
     meta: [
       { title: "הצהרת נגישות | אור זרוע לצדיק" },
       { name: "description", content: "הצהרת הנגישות המלאה של אתר אור זרוע לצדיק לפי ת״י 5568 ברמת AA ו-WCAG 2.1 — התאמות, מגבלות ופרטי רכז נגישות." },
+      { property: "og:url", content: "https://orzadik.com/accessibility" },
     ],
+    links: [{ rel: "canonical", href: "https://orzadik.com/accessibility" }],
   }),
 });
 

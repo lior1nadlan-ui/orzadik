@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, useCallback, useMemo, ReactNode } from "react";
 
 // Price math lives in a single shared module (client + server). Re-exported
 // here so existing `@/lib/cart` imports keep working unchanged.
@@ -105,7 +105,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(key, JSON.stringify(items));
   }, [items, user?.id, hydrated]);
 
-  const add: CartCtx["add"] = (item, qty = 1) => {
+  // Stable callback identities — consumers depend on these in effect deps
+  // (e.g. the order-confirmation page clears the cart in a useEffect). A fresh
+  // identity each render there caused an infinite render loop.
+  const add = useCallback<CartCtx["add"]>((item, qty = 1) => {
     setItems((cur) => {
       const k = lineKey(item);
       const idx = cur.findIndex((c) => lineKey(c) === k);
@@ -116,11 +119,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
       }
       return [...cur, { ...item, quantity: qty }];
     });
-  };
-  const remove: CartCtx["remove"] = (k) => setItems((c) => c.filter((i) => lineKey(i) !== k));
-  const setQty: CartCtx["setQty"] = (k, qty) =>
-    setItems((c) => c.map((i) => (lineKey(i) === k ? { ...i, quantity: Math.max(1, qty) } : i)));
-  const clear = () => setItems([]);
+  }, []);
+  const remove = useCallback<CartCtx["remove"]>((k) => setItems((c) => c.filter((i) => lineKey(i) !== k)), []);
+  const setQty = useCallback<CartCtx["setQty"]>(
+    (k, qty) => setItems((c) => c.map((i) => (lineKey(i) === k ? { ...i, quantity: Math.max(1, qty) } : i))),
+    [],
+  );
+  const clear = useCallback<CartCtx["clear"]>(() => setItems([]), []);
   const count = items.reduce((s, i) => s + i.quantity, 0);
   const subtotalBase = items.reduce((s, i) => s + getDisplayOriginal(i.price, i.salePrice) * i.quantity, 0);
   const subtotal = items.reduce((s, i) => s + getEffectivePrice(i.price) * i.quantity, 0);
@@ -128,11 +133,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const shipping = getShipping(subtotal);
   const grandTotal = subtotal + shipping;
 
-  return (
-    <Ctx.Provider value={{ items, add, remove, setQty, clear, count, subtotalBase, subtotal, discountAmount, shipping, grandTotal }}>
-      {children}
-    </Ctx.Provider>
+  // Memoize so consumers don't re-render on every unrelated provider render.
+  const value = useMemo<CartCtx>(
+    () => ({ items, add, remove, setQty, clear, count, subtotalBase, subtotal, discountAmount, shipping, grandTotal }),
+    [items, add, remove, setQty, clear, count, subtotalBase, subtotal, discountAmount, shipping, grandTotal],
   );
+
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 
 }
 

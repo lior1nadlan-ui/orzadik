@@ -117,6 +117,7 @@ export function ProductReviews({
               <li key={r.id} className="border-b border-border/50 pb-5">
                 <div className="flex items-center gap-2">
                   <Stars value={r.rating} size={15} />
+                  <span className="sr-only">דירוג {r.rating} מתוך 5</span>
                   <span className="font-semibold text-sm">{r.author_name}</span>
                   <span className="text-xs text-muted-foreground">
                     {new Date(r.created_at).toLocaleDateString("he-IL")}

@@ -37,6 +37,12 @@ function CheckoutPage() {
     notes: "",
   });
 
+  // On hard loads the session resolves after first render, so the initializer
+  // above sees user=null. Pre-fill the email once auth resolves (if still empty).
+  useEffect(() => {
+    if (user?.email) setForm((f) => (f.email ? f : { ...f, email: user.email! }));
+  }, [user?.email]);
+
   // Signed-in users are auto-enrolled as members
   const isMember = !!user;
   const memberSubtotal = applyMemberDiscount(subtotal, isMember);
