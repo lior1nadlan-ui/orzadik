@@ -77,8 +77,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "" },
       // Supabase serves product images + data — warm the connection early (LCP).
-      { rel: "preconnect", href: "https://kekspqdnhnivojivrwvy.supabase.co", crossOrigin: "" },
-      { rel: "dns-prefetch", href: "https://kekspqdnhnivojivrwvy.supabase.co" },
+      { rel: "preconnect", href: "https://deyidkzuvwniioxjisdr.supabase.co", crossOrigin: "" },
+      { rel: "dns-prefetch", href: "https://deyidkzuvwniioxjisdr.supabase.co" },
       // NOTE: no hreflang tags — the site is single-language (he-IL). Static
       // self-referential-to-homepage alternates on every page were incorrect
       // and conflicted with each page's own canonical, so they were removed.
