@@ -223,6 +223,7 @@ function HomePage() {
       <section>
         <video
           src={heroVideo}
+          poster="/media/hero-poster.jpg"
           autoPlay
           muted
           loop
