@@ -1,0 +1,221 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <!-- head is metadata for the source file only; the runtime ignores it -->
+  </head>
+  <body>
+    <template>
+      <style>
+        @font-face{font-family:"Assistant";font-weight:300;font-style:normal;font-display:block;src:url("assets/fonts/2sDPZGJYnIjSi6H75xkZZE1I0yCmYzzQtrhnEGE.ttf") format("truetype");}
+        @font-face{font-family:"Assistant";font-weight:400;font-style:normal;font-display:block;src:url("assets/fonts/2sDPZGJYnIjSi6H75xkZZE1I0yCmYzzQtuZnEGE.ttf") format("truetype");}
+        @font-face{font-family:"Assistant";font-weight:500;font-style:normal;font-display:block;src:url("assets/fonts/2sDPZGJYnIjSi6H75xkZZE1I0yCmYzzQttRnEGE.ttf") format("truetype");}
+        @font-face{font-family:"Assistant";font-weight:600;font-style:normal;font-display:block;src:url("assets/fonts/2sDPZGJYnIjSi6H75xkZZE1I0yCmYzzQtjhgEGE.ttf") format("truetype");}
+        @font-face{font-family:"Assistant";font-weight:700;font-style:normal;font-display:block;src:url("assets/fonts/2sDPZGJYnIjSi6H75xkZZE1I0yCmYzzQtgFgEGE.ttf") format("truetype");}
+
+        /* Root styled by #root (never a class) — see sub-composition scoping rule. */
+        #root {
+          position: absolute;
+          inset: 0;
+          width: 1080px;
+          height: 1920px;
+          overflow: hidden;
+          direction: rtl;
+          font-family: "Assistant", sans-serif;
+          background: transparent;
+        }
+
+        /* Full-bleed cream ground on a class="clip" layer (never on #root). */
+        .bg {
+          position: absolute;
+          inset: 0;
+          background: #fcfaf6;
+        }
+        /* Faint gold bloom — atmosphere per frame.md; scarce, low in the quiet zone
+           so it warms the seams + bottom without competing with the gold chips. */
+        .bloom {
+          position: absolute;
+          left: 50%;
+          bottom: -140px;
+          width: 1180px;
+          height: 900px;
+          margin-left: -590px;
+          background: radial-gradient(
+            ellipse at center,
+            rgba(212, 175, 55, 0.20) 0%,
+            rgba(236, 220, 167, 0.12) 34%,
+            rgba(229, 207, 135, 0.05) 60%,
+            rgba(252, 250, 246, 0) 78%
+          );
+          pointer-events: none;
+        }
+
+        /* Three stacked full-width product bands; cream gaps are the seams. */
+        .band {
+          position: absolute;
+          left: 0;
+          width: 1080px;
+          height: 494px;
+          overflow: hidden;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          will-change: transform, opacity;
+        }
+        #band1 { top: 60px; }
+        #band2 { top: 572px; }
+        #band3 { top: 1084px; }
+
+        /* Product strip — the color; sits soft + dimmed behind its chip (DoF).
+           Inset negative so the blur bleed is clipped by the band, no soft edge. */
+        .band-photo {
+          position: absolute;
+          inset: -16px;
+          width: calc(100% + 32px);
+          height: calc(100% + 32px);
+          object-fit: cover;
+          object-position: center 40%;
+          --dof: 2px;
+          filter: blur(var(--dof));
+          will-change: filter;
+          z-index: 1;
+        }
+        /* Cream scrim dims the strip ~40% so the gold chip reads as forward. */
+        .scrim {
+          position: absolute;
+          inset: 0;
+          background: rgba(252, 250, 246, 0.40);
+          z-index: 2;
+          pointer-events: none;
+        }
+
+        /* Gold trust chip — a flat yellow-panel (0 radius, ink on gold, 1px gold
+           hairline; no shadow) per frame.md. Centered in its band. */
+        .chip {
+          position: relative;
+          z-index: 3;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          padding: 30px 54px;
+          max-width: 760px;
+          background: linear-gradient(180deg, #D4AF37 0%, #ac7b49 100%);
+          border: 1px solid #ac7b49;
+          color: #1f1915;
+          font-size: 62px;
+          font-weight: 700;
+          line-height: 1.0;
+          letter-spacing: 0.005em;
+          white-space: nowrap;
+          transform-origin: 50% 50%;
+          will-change: transform, opacity;
+        }
+      </style>
+
+      <div id="root" data-composition-id="05-trust" data-duration="3.7" data-width="1080" data-height="1920">
+        <!-- Cream ground + faint gold bloom -->
+        <div class="bg clip" data-start="0" data-duration="3.7" data-track-index="0">
+          <div class="bloom" aria-hidden="true"></div>
+        </div>
+
+        <!-- Band 1 — gold Judaica jewelry -->
+        <div id="band1" class="band clip" data-start="0" data-duration="3.7" data-track-index="1">
+          <img
+            id="photo1"
+            class="band-photo"
+            src="assets/cat-gold-jewelry-c-ctazyj.webp"
+            alt="תכשיטי זהב יודאיקה"
+          />
+          <div class="scrim" aria-hidden="true"></div>
+          <div id="chip1" class="chip">כשרות מהודרת</div>
+        </div>
+
+        <!-- Band 2 — fine siddur -->
+        <div id="band2" class="band clip" data-start="0" data-duration="3.7" data-track-index="2">
+          <img
+            id="photo2"
+            class="band-photo"
+            src="assets/cat-siddur-zkg1hpcu.webp"
+            alt="סידור מהודר"
+          />
+          <div class="scrim" aria-hidden="true"></div>
+          <div id="chip2" class="chip">מעל 1,000 פריטים</div>
+        </div>
+
+        <!-- Band 3 — Judaica -->
+        <div id="band3" class="band clip" data-start="0" data-duration="3.7" data-track-index="3">
+          <img
+            id="photo3"
+            class="band-photo"
+            src="assets/cat-judaica-9pv3hhya.webp"
+            alt="יודאיקה"
+          />
+          <div class="scrim" aria-hidden="true"></div>
+          <div id="chip3" class="chip">משלוח עד הבית</div>
+        </div>
+      </div>
+
+      <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+      <script>
+        window.__timelines = window.__timelines || {};
+        const tl = gsap.timeline({ paused: true });
+
+        // One triad spine — one-two-three. Each band slides in RTL on its beat;
+        // its gold chip snaps in a beat-fraction later (kinetic-beat-slam signature).
+        const BAND_IN   = [0.06, 1.02, 2.02]; // band slide-in onsets (RTL)
+        const CHIP_SNAP = [0.38, 1.34, 2.34]; // chip snap onsets (distinct per chip)
+
+        const bands  = ["#band1", "#band2", "#band3"];
+        const photos = ["#photo1", "#photo2", "#photo3"];
+        const chips  = ["#chip1", "#chip2", "#chip3"];
+
+        // Bands: uniform RTL slide-in (premium, smooth power3 — no overshoot).
+        bands.forEach((sel, i) => {
+          tl.fromTo(
+            sel,
+            { x: 150, opacity: 0 },
+            { x: 0, opacity: 1, duration: 0.62, ease: "power3.out" },
+            BAND_IN[i]
+          );
+        });
+
+        // Depth-of-field focal pull: as each chip lands, its strip softens +
+        // recedes behind the sharp chip. --dof (filter blur) is paint-only + seek-safe.
+        photos.forEach((sel, i) => {
+          tl.fromTo(
+            sel,
+            { "--dof": "2px" },
+            { "--dof": "7px", duration: 0.55, ease: "power2.inOut" },
+            CHIP_SNAP[i]
+          );
+        });
+
+        // Chips: gentle spring-pop (scale, no overshoot) with a DISTINCT entrance
+        // per chip — different secondary axis + ease family across the triad.
+        tl.fromTo(
+          "#chip1",
+          { scale: 0.6, opacity: 0 },
+          { scale: 1, opacity: 1, duration: 0.42, ease: "power3.out" },
+          CHIP_SNAP[0]
+        );
+        tl.fromTo(
+          "#chip2",
+          { scale: 0.6, y: 26, opacity: 0 },
+          { scale: 1, y: 0, opacity: 1, duration: 0.44, ease: "expo.out" },
+          CHIP_SNAP[1]
+        );
+        tl.fromTo(
+          "#chip3",
+          { scale: 0.6, x: 44, opacity: 0 },
+          { scale: 1, x: 0, opacity: 1, duration: 0.46, ease: "power4.out" },
+          CHIP_SNAP[2]
+        );
+
+        // Triad complete → the three read together, then a beat of stillness
+        // (held to 3.2s; no exit — this is not the final frame).
+
+        window.__timelines["05-trust"] = tl;
+      </script>
+    </template>
+  </body>
+</html>

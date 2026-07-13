@@ -1,0 +1,262 @@
+<template>
+  <div id="root" data-composition-id="03-showcase" data-duration="4" data-width="1080" data-height="1920">
+    <style>
+      @font-face{font-family:"Assistant";font-weight:300;font-style:normal;font-display:block;src:url("assets/fonts/2sDPZGJYnIjSi6H75xkZZE1I0yCmYzzQtrhnEGE.ttf") format("truetype");}
+      @font-face{font-family:"Assistant";font-weight:400;font-style:normal;font-display:block;src:url("assets/fonts/2sDPZGJYnIjSi6H75xkZZE1I0yCmYzzQtuZnEGE.ttf") format("truetype");}
+      @font-face{font-family:"Assistant";font-weight:500;font-style:normal;font-display:block;src:url("assets/fonts/2sDPZGJYnIjSi6H75xkZZE1I0yCmYzzQttRnEGE.ttf") format("truetype");}
+      @font-face{font-family:"Assistant";font-weight:600;font-style:normal;font-display:block;src:url("assets/fonts/2sDPZGJYnIjSi6H75xkZZE1I0yCmYzzQtjhgEGE.ttf") format("truetype");}
+      @font-face{font-family:"Assistant";font-weight:700;font-style:normal;font-display:block;src:url("assets/fonts/2sDPZGJYnIjSi6H75xkZZE1I0yCmYzzQtgFgEGE.ttf") format("truetype");}
+
+      #root {
+        position: relative;
+        width: 1080px;
+        height: 1920px;
+        overflow: hidden;
+        font-family: "Assistant", sans-serif;
+        background: #fcfaf6; /* safety ground; real full-bleed ground is the .clip below */
+      }
+
+      #root * { box-sizing: border-box; }
+
+      /* ---- ground (full-bleed clip, never on #root) ---- */
+      .ground {
+        position: absolute;
+        inset: 0;
+        background: #fcfaf6;
+      }
+
+      /* ---- gold radial bloom (mid depth layer) ---- */
+      .bloom {
+        position: absolute;
+        left: 50%;
+        top: 42%;
+        width: 1180px;
+        height: 1180px;
+        margin-left: -590px;
+        margin-top: -590px;
+        border-radius: 50%;
+        background: radial-gradient(circle at 50% 50%,
+          rgba(212,175,55,0.26) 0%,
+          rgba(236,220,167,0.14) 34%,
+          rgba(236,220,167,0.05) 52%,
+          rgba(252,250,246,0) 66%);
+        transform-origin: 50% 50%;
+        will-change: transform, opacity;
+      }
+
+      /* ---- product tiles (photo + gold hairline frame) ---- */
+      .tile {
+        position: absolute;
+        left: 110px;
+        width: 860px;
+        height: 640px;
+        background: #f2eee7;
+        transform-origin: 50% 50%;
+        will-change: transform, opacity;
+      }
+      #s3-tile1 { top: 150px; }
+      #s3-tile2 { top: 830px; }
+
+      .tile-photo {
+        position: absolute;
+        inset: 18px;
+        width: calc(100% - 36px);
+        height: calc(100% - 36px);
+        object-fit: cover;
+        display: block;
+        will-change: filter;
+      }
+      #s3-tile1 .tile-photo { object-position: center 44%; filter: url(#s3-streak-1); }
+      #s3-tile2 .tile-photo { object-position: center 36%; filter: url(#s3-streak-2); }
+
+      .tile-frame {
+        position: absolute;
+        inset: 0;
+        width: 860px;
+        height: 640px;
+        pointer-events: none;
+      }
+      .tile-frame rect {
+        fill: none;
+        stroke: #D4AF37;
+        stroke-width: 3;
+        vector-effect: non-scaling-stroke;
+      }
+
+      /* ---- tile labels (ink, scarce-gold marker) ---- */
+      .label {
+        position: absolute;
+        right: 110px;
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 14px;
+        direction: rtl;
+        will-change: transform, opacity;
+      }
+      #s3-label1 { top: 92px; }
+      #s3-label2 { top: 1486px; }
+
+      .label-mark {
+        width: 16px;
+        height: 16px;
+        background: #D4AF37;
+        flex: 0 0 auto;
+      }
+      .label-text {
+        font-size: 34px;
+        font-weight: 600;
+        color: #1f1915;
+        letter-spacing: 0.02em;
+        line-height: 1;
+      }
+
+      /* ---- payoff phrase (gold, lands last, over the seam) ---- */
+      .payoff {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 754px;
+        margin-inline: auto;
+        width: 600px;
+        height: 112px;
+        background: #1f1915;
+        border-top: 2px solid #D4AF37;
+        border-bottom: 2px solid #D4AF37;
+        box-shadow: 0 18px 44px rgba(31,25,21,0.28);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        direction: rtl;
+        transform-origin: 50% 50%;
+        will-change: transform, opacity;
+      }
+      .payoff-text {
+        font-size: 66px;
+        font-weight: 600;
+        color: #D4AF37;
+        letter-spacing: 0.01em;
+        line-height: 1;
+      }
+    </style>
+
+    <!-- directional velocity-blur filters (one per tile; no timing = not a clip) -->
+    <svg width="0" height="0" aria-hidden="true" style="position:absolute;width:0;height:0;">
+      <defs>
+        <filter id="s3-streak-1" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur id="s3-streak-blur-1" in="SourceGraphic" stdDeviation="0 0" />
+        </filter>
+        <filter id="s3-streak-2" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur id="s3-streak-blur-2" in="SourceGraphic" stdDeviation="0 0" />
+        </filter>
+      </defs>
+    </svg>
+
+    <!-- ground -->
+    <div class="ground clip" data-start="0" data-duration="4" data-track-index="0"></div>
+
+    <!-- gold bloom -->
+    <div class="bloom clip" id="s3-bloom" data-start="0" data-duration="4" data-track-index="1"></div>
+
+    <!-- top tile: מארז לחתן -->
+    <div class="tile clip" id="s3-tile1" data-start="0" data-duration="4" data-track-index="2">
+      <img class="tile-photo" id="s3-tile1-photo" src="assets/cat-chatan-mveaizjf.webp" alt="" />
+      <svg class="tile-frame" viewBox="0 0 860 640" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+        <rect id="s3-tile1-rect" x="9" y="9" width="842" height="622" rx="0" />
+      </svg>
+    </div>
+
+    <!-- bottom tile: סט חלאקה -->
+    <div class="tile clip" id="s3-tile2" data-start="0" data-duration="4" data-track-index="3">
+      <img class="tile-photo" id="s3-tile2-photo" src="assets/cat-chalaka-d4oif-im.webp" alt="" />
+      <svg class="tile-frame" viewBox="0 0 860 640" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+        <rect id="s3-tile2-rect" x="9" y="9" width="842" height="622" rx="0" />
+      </svg>
+    </div>
+
+    <!-- labels -->
+    <div class="label clip" id="s3-label1" data-start="0" data-duration="4" data-track-index="4">
+      <span class="label-mark"></span>
+      <span class="label-text">מארזים לחתן</span>
+    </div>
+    <div class="label clip" id="s3-label2" data-start="0" data-duration="4" data-track-index="5">
+      <span class="label-mark"></span>
+      <span class="label-text">סטי חלאקה</span>
+    </div>
+
+    <!-- payoff -->
+    <div class="payoff clip" id="s3-payoff" data-start="0" data-duration="4" data-track-index="6">
+      <span class="payoff-text">בעיצוב אישי</span>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script>
+      (function () {
+        window.__timelines = window.__timelines || {};
+        var tl = gsap.timeline({ paused: true });
+
+        // ---- gold hairline frames: measure each rect, set dash pattern ----
+        var rects = [
+          document.getElementById("s3-tile1-rect"),
+          document.getElementById("s3-tile2-rect")
+        ];
+        rects.forEach(function (r) {
+          var len = r.getTotalLength();
+          r.style.strokeDasharray = len;
+          r.style.strokeDashoffset = len;
+        });
+
+        // ---- directional velocity-blur proxies (write stdDeviation each frame) ----
+        var PEAK_BLUR = 14;
+        var blur1 = document.getElementById("s3-streak-blur-1");
+        var blur2 = document.getElementById("s3-streak-blur-2");
+        var p1 = { v: PEAK_BLUR };
+        var p2 = { v: PEAK_BLUR };
+        function writeBlur1() { blur1.setAttribute("stdDeviation", p1.v + " 0"); }
+        function writeBlur2() { blur2.setAttribute("stdDeviation", p2.v + " 0"); }
+        writeBlur1(); // seed frame 0 so a seek to t=0 shows the streaked start
+        writeBlur2();
+
+        var ENTER_X = 360;      // slide in from the right (RTL)
+        var MOVE_DUR = 0.72;
+        var MOVE_EASE = "power3.out";
+
+        // ---- gold bloom breathes up behind (single pass, finite) ----
+        tl.fromTo("#s3-bloom",
+          { opacity: 0, scale: 0.9 },
+          { opacity: 1, scale: 1, duration: 1.1, ease: "power2.out" }, 0);
+
+        // ============ Scene 1 (0.0-1.2s): top tile assembles from the right ============
+        tl.fromTo("#s3-tile1",
+          { x: ENTER_X, scale: 0.92, opacity: 0 },
+          { x: 0, scale: 1, opacity: 1, duration: MOVE_DUR, ease: MOVE_EASE }, 0.05);
+        tl.to(p1, { v: 0, duration: MOVE_DUR, ease: MOVE_EASE, onUpdate: writeBlur1 }, 0.05);
+        // gold hairline frame draws around the tile
+        tl.to("#s3-tile1-rect",
+          { strokeDashoffset: 0, duration: 0.72, ease: "power2.out" }, 0.55);
+        // label fades in on its cue
+        tl.fromTo("#s3-label1",
+          { opacity: 0, y: 14 },
+          { opacity: 1, y: 0, duration: 0.48, ease: "power2.out" }, 0.92);
+
+        // ============ Scene 2 (1.2-2.4s): bottom tile assembles, staggered ============
+        tl.fromTo("#s3-tile2",
+          { x: ENTER_X, scale: 0.92, opacity: 0 },
+          { x: 0, scale: 1, opacity: 1, duration: MOVE_DUR, ease: MOVE_EASE }, 1.2);
+        tl.to(p2, { v: 0, duration: MOVE_DUR, ease: MOVE_EASE, onUpdate: writeBlur2 }, 1.2);
+        tl.to("#s3-tile2-rect",
+          { strokeDashoffset: 0, duration: 0.72, ease: "power2.out" }, 1.72);
+        tl.fromTo("#s3-label2",
+          { opacity: 0, y: 14 },
+          { opacity: 1, y: 0, duration: 0.48, ease: "power2.out" }, 2.08);
+
+        // ============ Scene 3 (2.4-3.5s): payoff phrase slides up & settles last ======
+        tl.fromTo("#s3-payoff",
+          { opacity: 0, y: 48, scale: 0.96 },
+          { opacity: 1, y: 0, scale: 1, duration: 0.8, ease: "power3.out" }, 2.5);
+
+        window.__timelines["03-showcase"] = tl;
+      })();
+    </script>
+  </div>
+</template>

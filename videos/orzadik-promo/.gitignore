@@ -1,0 +1,18 @@
+# HyperFrames project — ignore regenerable / heavy artifacts.
+# Kept in git: project source (compositions/, index.html, frame.md, STORYBOARD.md,
+# *.json), the staged render inputs (assets/), and the final render (renders/).
+
+# npm deps
+node_modules/
+
+# Raw site capture — ~45MB of scraped product photos + fonts; regenerable via
+# `npx hyperframes capture`, and the pieces the video actually uses are already
+# copied into assets/. Not appropriate to vendor into the app repo.
+capture/
+
+# QA contact sheets / per-frame PNGs — reviewer artifacts only.
+snapshots/
+
+# transient logs / caches
+*.log
+.DS_Store

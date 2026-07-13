@@ -1,0 +1,43 @@
+{
+  "lines": [
+    {
+      "id": "01",
+      "sfx": [
+        "riser-soft"
+      ]
+    },
+    {
+      "id": "02",
+      "sfx": [
+        "chime-soft"
+      ]
+    },
+    {
+      "id": "03",
+      "sfx": [
+        "impact-soft"
+      ]
+    },
+    {
+      "id": "04",
+      "sfx": [
+        "shimmer-soft"
+      ]
+    },
+    {
+      "id": "05",
+      "sfx": [
+        "tick-soft"
+      ]
+    },
+    {
+      "id": "06",
+      "sfx": [
+        "chime-bright"
+      ]
+    }
+  ],
+  "bgm": {
+    "mode": "none"
+  }
+}
