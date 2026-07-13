@@ -4,44 +4,33 @@ import { BUSINESS } from "@/lib/business";
 
 const GA_ID = BUSINESS.gaMeasurementId;
 
-let loaded = false;
-
 /**
- * Inject gtag.js + initialize GA4 exactly once. Called only after the visitor
- * has granted analytics consent (see the privacy policy §7: analytics cookies
- * fire only after consent). GA4 anonymizes IPs by default.
- */
-function loadGa() {
-  if (loaded || !GA_ID || typeof window === "undefined") return;
-  loaded = true;
-  const w = window as unknown as { dataLayer: unknown[]; gtag: (...args: unknown[]) => void };
-  w.dataLayer = w.dataLayer || [];
-  w.gtag = function gtag() {
-    // eslint-disable-next-line prefer-rest-params
-    w.dataLayer.push(arguments);
-  };
-  w.gtag("js", new Date());
-  w.gtag("config", GA_ID);
-  const s = document.createElement("script");
-  s.async = true;
-  s.src = `https://www.googletagmanager.com/gtag/js?id=${GA_ID}`;
-  document.head.appendChild(s);
-}
-
-/**
- * Consent-gated Google Analytics loader. Renders nothing. Loads GA4 only when
- * the stored cookie consent has `analytics: true`, and also reacts to the user
- * changing their choice later via the cookie banner. Never loads before consent.
+ * Google Consent Mode v2 bridge.
+ *
+ * gtag.js and the consent DEFAULT ("denied", seeded from the stored choice) are
+ * set in the SSR <head> (see __root.tsx) so the tag loads on every page without
+ * writing any analytics/ad storage before consent. This component pushes a
+ * `consent update` whenever the visitor changes their cookie-banner choice, so
+ * granting analytics/marketing consent immediately unlocks GA storage — and
+ * revoking it turns storage back off. Renders nothing.
  */
 export function GoogleAnalytics() {
   useEffect(() => {
     if (!GA_ID) return;
-    if (readCookieConsent()?.analytics) loadGa();
-    const onChange = () => {
-      if (readCookieConsent()?.analytics) loadGa();
+    const applyConsent = () => {
+      const w = window as unknown as { gtag?: (...args: unknown[]) => void };
+      if (typeof w.gtag !== "function") return;
+      const c = readCookieConsent();
+      w.gtag("consent", "update", {
+        analytics_storage: c?.analytics ? "granted" : "denied",
+        ad_storage: c?.marketing ? "granted" : "denied",
+        ad_user_data: c?.marketing ? "granted" : "denied",
+        ad_personalization: c?.marketing ? "granted" : "denied",
+      });
     };
-    window.addEventListener("ozl:cookie-consent-changed", onChange);
-    return () => window.removeEventListener("ozl:cookie-consent-changed", onChange);
+    applyConsent();
+    window.addEventListener("ozl:cookie-consent-changed", applyConsent);
+    return () => window.removeEventListener("ozl:cookie-consent-changed", applyConsent);
   }, []);
   return null;
 }
