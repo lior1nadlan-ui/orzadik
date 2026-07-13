@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="he">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- head is metadata for the source file only; the runtime clones <template> contents -->
+  </head>
+  <body>
+    <template>
+      <style>
+        @font-face{font-family:"Assistant";font-weight:300;font-style:normal;font-display:block;src:url("assets/fonts/2sDPZGJYnIjSi6H75xkZZE1I0yCmYzzQtrhnEGE.ttf") format("truetype");}
+        @font-face{font-family:"Assistant";font-weight:400;font-style:normal;font-display:block;src:url("assets/fonts/2sDPZGJYnIjSi6H75xkZZE1I0yCmYzzQtuZnEGE.ttf") format("truetype");}
+        @font-face{font-family:"Assistant";font-weight:500;font-style:normal;font-display:block;src:url("assets/fonts/2sDPZGJYnIjSi6H75xkZZE1I0yCmYzzQttRnEGE.ttf") format("truetype");}
+        @font-face{font-family:"Assistant";font-weight:600;font-style:normal;font-display:block;src:url("assets/fonts/2sDPZGJYnIjSi6H75xkZZE1I0yCmYzzQtjhgEGE.ttf") format("truetype");}
+        @font-face{font-family:"Assistant";font-weight:700;font-style:normal;font-display:block;src:url("assets/fonts/2sDPZGJYnIjSi6H75xkZZE1I0yCmYzzQtgFgEGE.ttf") format("truetype");}
+
+        /* Root styled via #root (never a class — scoping would drop a class rule). */
+        #root {
+          position: absolute;
+          inset: 0;
+          width: 1080px;
+          height: 1920px;
+          overflow: hidden;
+          background: #fcfaf6; /* warm cream ground */
+          font-family: "Assistant", sans-serif;
+        }
+
+        /* ── Full-bleed ground (dedicated class="clip" layer, lowest track) ── */
+        #bg {
+          position: absolute;
+          inset: 0;
+          background: #fcfaf6;
+        }
+        #bg .poster {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          filter: brightness(0.95) saturate(0.92);
+        }
+        #bg .veil {
+          /* Cream veil dims the brand poster to ~35% presence (~65% dim). */
+          position: absolute;
+          inset: 0;
+          background: rgba(252, 250, 246, 0.68);
+        }
+
+        /* ── Content stage (transparent, above the ground) ── */
+        #stage {
+          position: absolute;
+          inset: 0;
+          background: transparent;
+        }
+
+        /* Gold ambient bloom — sits behind the lockup. */
+        .bloom {
+          position: absolute;
+          left: -40px;
+          top: 240px;
+          width: 1160px;
+          height: 1160px;
+          z-index: 1;
+          background: radial-gradient(
+            circle at 50% 50%,
+            rgba(212, 175, 55, 0.42) 0%,
+            rgba(236, 220, 167, 0.26) 34%,
+            rgba(229, 207, 135, 0.11) 60%,
+            rgba(252, 250, 246, 0) 78%
+          );
+          opacity: 0;
+          transform-origin: 50% 50%;
+          pointer-events: none;
+          will-change: transform, opacity;
+        }
+
+        /* Morph box — logo and URL overlap here, sharing one center (540, 820). */
+        .morph {
+          position: absolute;
+          left: 0;
+          right: 0;
+          top: 710px;
+          height: 220px;
+          z-index: 3;
+        }
+        .morph-item {
+          position: absolute;
+          inset: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transform-origin: 50% 50%;
+          will-change: transform, opacity;
+        }
+        .logo img {
+          width: 560px;
+          height: auto;
+          /* logo art is gold-on-light; multiply drops any white ground onto the cream */
+          mix-blend-mode: multiply;
+        }
+        .url {
+          font-size: 140px;
+          font-weight: 700;
+          line-height: 1;
+          letter-spacing: -0.005em;
+          direction: ltr;
+          /* flat gold gradient fill — no shadow (paper system) */
+          background: linear-gradient(180deg, #D4AF37 0%, #c79a3f 55%, #ac7b49 100%);
+          -webkit-background-clip: text;
+          background-clip: text;
+          color: transparent;
+          -webkit-text-fill-color: transparent;
+          opacity: 0;
+        }
+
+        /* Gold pill / underline drawn beneath the URL. */
+        .pill {
+          position: absolute;
+          left: 320px;
+          top: 944px;
+          width: 440px;
+          height: 24px;
+          z-index: 3;
+        }
+        .pill path {
+          fill: none;
+          stroke: #D4AF37;
+          stroke-width: 6;
+          stroke-linecap: round;
+        }
+
+        /* CTA line — ink, RTL Hebrew. */
+        .cta {
+          position: absolute;
+          left: 0;
+          right: 0;
+          top: 1024px;
+          text-align: center;
+          direction: rtl;
+          font-size: 52px;
+          font-weight: 600;
+          letter-spacing: 0.02em;
+          color: #1f1915;
+          opacity: 0;
+          will-change: transform, opacity;
+        }
+      </style>
+
+      <div
+        id="root"
+        data-composition-id="06-cta"
+        data-start="0"
+        data-width="1080"
+        data-height="1920"
+        data-duration="3.3"
+      >
+        <!-- Full-bleed brand ground (dimmed poster on cream) -->
+        <div id="bg" class="clip" data-start="0" data-duration="3.3" data-track-index="0">
+          <img class="poster" src="assets/hero-poster.webp" alt="" />
+          <div class="veil"></div>
+        </div>
+
+        <!-- Content stage -->
+        <div id="stage" class="clip" data-start="0" data-duration="3.3" data-track-index="1">
+          <div class="bloom" id="bloom"></div>
+
+          <div class="morph">
+            <div class="morph-item logo" id="logo">
+              <img src="assets/logo-c8h4s61c.webp" alt="אור זרוע לצדיק" />
+            </div>
+            <div class="morph-item url" id="url">orzadik.com</div>
+          </div>
+
+          <svg class="pill" id="pill" viewBox="0 0 440 24" xmlns="http://www.w3.org/2000/svg">
+            <path id="pill-line" d="M 12 12 L 428 12" />
+          </svg>
+
+          <div class="cta" id="cta">הזמינו עכשיו</div>
+        </div>
+      </div>
+
+      <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+      <script>
+        window.__timelines = window.__timelines || {};
+        const tl = gsap.timeline({ paused: true });
+
+        const bloom = document.getElementById("bloom");
+
+        /* Measure the pill underline so the stroke draw matches its geometry. */
+        const pillLine = document.getElementById("pill-line");
+        const pillLen = pillLine.getTotalLength();
+        pillLine.style.strokeDasharray = String(pillLen);
+        pillLine.style.strokeDashoffset = String(pillLen);
+
+        /* ── Scene 1 (0.0–1.1s) — presence: logo rests, gold bloom re-ignites ── */
+        tl.fromTo(
+          bloom,
+          { opacity: 0, scale: 0.86 },
+          { opacity: 0.85, scale: 1, duration: 0.9, ease: "power2.out" },
+          0.05
+        );
+        tl.fromTo(
+          "#logo",
+          { opacity: 0, scale: 0.92 },
+          { opacity: 1, scale: 1, duration: 0.6, ease: "power3.out" },
+          0.1
+        );
+
+        /* ── Scene 2 (1.1–2.2s) — the morph: mark condenses, URL scales up (same center) ── */
+        const TRIGGER = 1.15;
+        const EXIT_DUR = 0.42;
+        const OVERLAP = 0.16;
+        // Outgoing mark condenses (shrink + fade) — premium, no bounce.
+        tl.to(
+          "#logo",
+          { opacity: 0, scale: 0.6, duration: EXIT_DUR, ease: "power2.in" },
+          TRIGGER
+        );
+        // Incoming URL scales up huge at the same center — smooth, no overshoot.
+        tl.fromTo(
+          "#url",
+          { opacity: 0, scale: 0.6 },
+          { opacity: 1, scale: 1, duration: 0.62, ease: "power3.out" },
+          TRIGGER + EXIT_DUR - OVERLAP
+        );
+        // Gold underline draws beneath the URL as it lands.
+        tl.fromTo(
+          pillLine,
+          { strokeDashoffset: pillLen },
+          { strokeDashoffset: 0, duration: 0.5, ease: "power2.out" },
+          1.9
+        );
+
+        /* ── Scene 3 (2.2–3.3s) — CTA settles, one final bloom pulse, hold still ── */
+        tl.fromTo(
+          "#cta",
+          { opacity: 0, y: 18 },
+          { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" },
+          2.25
+        );
+        // One final faint bloom pulse, then a gentle settle (final-frame hold).
+        tl.to(
+          bloom,
+          { opacity: 1, scale: 1.05, duration: 0.4, ease: "sine.inOut" },
+          2.35
+        );
+        tl.to(
+          bloom,
+          { opacity: 0.9, scale: 1, duration: 0.55, ease: "sine.inOut" },
+          2.75
+        );
+
+        window.__timelines["06-cta"] = tl;
+      </script>
+    </template>
+  </body>
+</html>

@@ -1,0 +1,281 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <!-- head is metadata for the source file only; the runtime clones ONLY <template> contents -->
+  </head>
+  <body>
+    <template>
+      <style>
+        /* ---- Assistant (the only shipped font — covers Hebrew + Latin + digits) ---- */
+        @font-face{font-family:"Assistant";font-weight:300;font-style:normal;font-display:block;src:url("assets/fonts/2sDPZGJYnIjSi6H75xkZZE1I0yCmYzzQtrhnEGE.ttf") format("truetype");}
+        @font-face{font-family:"Assistant";font-weight:400;font-style:normal;font-display:block;src:url("assets/fonts/2sDPZGJYnIjSi6H75xkZZE1I0yCmYzzQtuZnEGE.ttf") format("truetype");}
+        @font-face{font-family:"Assistant";font-weight:500;font-style:normal;font-display:block;src:url("assets/fonts/2sDPZGJYnIjSi6H75xkZZE1I0yCmYzzQttRnEGE.ttf") format("truetype");}
+        @font-face{font-family:"Assistant";font-weight:600;font-style:normal;font-display:block;src:url("assets/fonts/2sDPZGJYnIjSi6H75xkZZE1I0yCmYzzQtjhgEGE.ttf") format("truetype");}
+        @font-face{font-family:"Assistant";font-weight:700;font-style:normal;font-display:block;src:url("assets/fonts/2sDPZGJYnIjSi6H75xkZZE1I0yCmYzzQtgFgEGE.ttf") format("truetype");}
+
+        /* Root styled via #root (never a class on the composition-id element) */
+        #root {
+          position: relative;
+          width: 1080px;
+          height: 1920px;
+          overflow: hidden;
+          font-family: "Assistant", sans-serif;
+        }
+
+        /* Full-bleed cream ground carried by a class="clip" layer (not #root) */
+        #hk-stage {
+          position: absolute;
+          inset: 0;
+          width: 1080px;
+          height: 1920px;
+          background: #fcfaf6;
+          overflow: hidden;
+        }
+
+        /* Camera wraps EVERYTHING for the subtle push-in + micro-drift */
+        #hk-camera {
+          position: absolute;
+          inset: 0;
+          transform-origin: 50% 50%;
+          will-change: transform;
+        }
+
+        /* Dimmed product photo — the full-bleed ground colour */
+        #hk-bg {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          object-position: 50% 42%;
+          filter: brightness(0.96) saturate(0.95);
+          transform-origin: 50% 50%;
+          will-change: transform, opacity;
+          z-index: 1;
+        }
+        /* Cream veil dims the photo ~45% so the ink line + gold word stay legible */
+        #hk-veil {
+          position: absolute;
+          inset: 0;
+          background: #fcfaf6;
+          opacity: 0.45;
+          z-index: 2;
+        }
+
+        /* Gold radial bloom — behind the text (scarce gold voltage) */
+        #hk-bloom {
+          position: absolute;
+          inset: 0;
+          background: radial-gradient(circle 560px at 50% 49%,
+            rgba(212,175,55,0.58) 0%,
+            rgba(212,175,55,0.32) 30%,
+            rgba(236,220,167,0.15) 55%,
+            rgba(236,220,167,0) 72%);
+          opacity: 0;
+          transform-origin: 50% 50%;
+          pointer-events: none;
+          will-change: transform, opacity;
+          z-index: 3;
+        }
+        /* Dark ink "spotlight" scrim directly behind the hero word so the gold
+           glyph reads clearly (lifts WCAG contrast from ~1:1 to well past 3:1)
+           — a pool of shadow under the word is the premium, not-flat look. */
+        #hk-heroplate {
+          position: absolute;
+          inset: 0;
+          background: radial-gradient(ellipse 660px 360px at 50% 50%,
+            rgba(31,25,21,0.90) 0%,
+            rgba(31,25,21,0.87) 42%,
+            rgba(31,25,21,0.55) 66%,
+            rgba(31,25,21,0.14) 82%,
+            rgba(31,25,21,0) 92%);
+          opacity: 0;
+          pointer-events: none;
+          will-change: opacity;
+          z-index: 4;
+        }
+
+        /* Scene-1 line — ink, upper third, RTL */
+        #hk-line {
+          position: absolute;
+          top: 23.5%;
+          left: 0;
+          right: 0;
+          padding: 0 90px;
+          text-align: center;
+          color: #1f1915;
+          font-size: 66px;
+          font-weight: 500;
+          letter-spacing: 0.005em;
+          line-height: 1.2;
+          box-sizing: border-box;
+          will-change: transform, opacity;
+          z-index: 4;
+        }
+
+        /* Hero word lockup — centered */
+        #hk-heroWrap {
+          position: absolute;
+          inset: 0;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 30px;
+          z-index: 5;
+        }
+        #hk-hero {
+          display: block;
+          color: #D4AF37;
+          font-size: 300px;
+          font-weight: 600;
+          letter-spacing: -0.01em;
+          line-height: 1;
+          text-shadow: 0 0 46px rgba(31,25,21,0.60), 0 6px 22px rgba(31,25,21,0.45);
+          will-change: transform, opacity, filter;
+        }
+        /* 1px gold hairline drawn under the word (drawn from center) */
+        #hk-hairline {
+          width: 240px;
+          height: 2px;
+          background: #D4AF37;
+          opacity: 0;
+          transform-origin: 50% 50%;
+          will-change: transform, opacity;
+        }
+      </style>
+
+      <div
+        id="root"
+        data-composition-id="01-hook"
+        data-start="0"
+        data-duration="4"
+        data-width="1080"
+        data-height="1920"
+      >
+        <section
+          id="hk-stage"
+          class="clip"
+          data-start="0"
+          data-duration="4"
+          data-track-index="0"
+        >
+          <div id="hk-camera">
+            <img id="hk-bg" src="assets/cat-chatan-mveaizjf.webp" alt="" />
+            <div id="hk-veil"></div>
+            <div id="hk-bloom"></div>
+            <div id="hk-heroplate"></div>
+
+            <div id="hk-line" dir="rtl">לרגעים הכי קדושים</div>
+
+            <div id="hk-heroWrap">
+              <div id="hk-hero" dir="rtl">מהודר</div>
+              <div id="hk-hairline"></div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+      <script>
+        window.__timelines = window.__timelines || {};
+        const tl = gsap.timeline({ paused: true });
+
+        const camera = document.getElementById("hk-camera");
+        const bloom = document.getElementById("hk-bloom");
+
+        /* ── Camera: subtle push-in (multi-phase-camera, push only so no <1 edge leak) ── */
+        const phase = { scale: 1.0 };
+        tl.to(phase, { scale: 1.025, duration: 1.1, ease: "power2.out" }, 0.2);
+        tl.to(phase, { scale: 1.06, duration: 2.2, ease: "power2.inOut" }, 1.3);
+
+        /* continuous micro-drift added on top of the phase scale */
+        const drift = { p: 0 };
+        tl.to(
+          drift,
+          {
+            p: Math.PI * 2,
+            duration: 3.5,
+            ease: "none",
+            onUpdate: () => {
+              const dx = Math.sin(drift.p) * 5;
+              const dy = Math.sin(drift.p * 1.3) * 3;
+              camera.style.transform = `scale(${phase.scale}) translate(${dx}px, ${dy}px)`;
+            },
+          },
+          0
+        );
+
+        /* ── Scene 1 (0.0–1.3s): ground ignites, bloom blooms, line fades up ── */
+        // dimmed product photo settles in (gentle Ken-Burns ease-down)
+        tl.fromTo(
+          "#hk-bg",
+          { opacity: 0, scale: 1.06 },
+          { opacity: 1, scale: 1, duration: 0.8, ease: "power2.out" },
+          0
+        );
+        // gold bloom igniting from center (ambient-glow-bloom: bloom-in, peak ≤ 0.45)
+        tl.fromTo(
+          bloom,
+          { opacity: 0, scale: 0.85 },
+          { opacity: 0.30, scale: 1.0, duration: 0.9, ease: "power2.out" },
+          0.15
+        );
+        // Scene-1 line, one calm reveal
+        tl.fromTo(
+          "#hk-line",
+          { opacity: 0, y: 26 },
+          { opacity: 1, y: 0, duration: 0.7, ease: "power3.out" },
+          0.35
+        );
+        // dark spotlight scrim eases in ahead of the hero word so the gold reads
+        tl.fromTo(
+          "#hk-heroplate",
+          { opacity: 0 },
+          { opacity: 1, duration: 0.7, ease: "power2.out" },
+          0.7
+        );
+
+        /* ── Scene 2 (1.3–2.6s): hero word slams in huge & gold (kinetic-beat-slam) ── */
+        tl.fromTo(
+          "#hk-hero",
+          { opacity: 0, scale: 1.5, filter: "blur(16px)" },
+          { opacity: 1, scale: 1, filter: "blur(0px)", duration: 0.5, ease: "power4.out" },
+          1.3
+        );
+        // the bloom pulses once behind the word (ambient-glow-bloom: pulse-on-arrival)
+        tl.to(bloom, { opacity: 0.42, scale: 1.07, duration: 0.28, ease: "power2.out" }, 1.30);
+        tl.to(bloom, { opacity: 0.30, scale: 1.0, duration: 0.55, ease: "power2.inOut" }, 1.58);
+
+        /* ── Scene 3 (2.6–3.5s): word holds STILL; hairline draws; bloom breathes faintly ── */
+        // 1px gold hairline drawn out from center under the word
+        tl.fromTo(
+          "#hk-hairline",
+          { scaleX: 0, opacity: 0 },
+          { scaleX: 1, opacity: 1, duration: 0.6, ease: "power3.out" },
+          2.62
+        );
+        // bounded faint bloom breathe (sine-wave-loop / ambient breathe) — one gentle swell,
+        // half-cycle so sin(0)=sin(π)=0 → starts AND ends at the resting state, no jump/snap.
+        const bphase = { p: 0 };
+        tl.to(
+          bphase,
+          {
+            p: Math.PI,
+            duration: 0.9,
+            ease: "none",
+            onUpdate: () => {
+              const s = Math.sin(bphase.p);
+              bloom.style.opacity = String(0.30 + s * 0.03);
+              bloom.style.transform = `scale(${1 + s * 0.012})`;
+            },
+          },
+          2.6
+        );
+
+        window.__timelines["01-hook"] = tl;
+      </script>
+    </template>
+  </body>
+</html>

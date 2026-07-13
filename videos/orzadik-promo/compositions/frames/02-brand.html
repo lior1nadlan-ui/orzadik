@@ -1,0 +1,250 @@
+<template>
+  <div id="root" data-composition-id="02-brand" data-duration="3.6" data-width="1080" data-height="1920">
+    <!-- ============================ GROUND (full-bleed clips, lowest tracks) ============================ -->
+    <!-- Cream base — the required full-bleed ground on a class="clip" layer (never on #root) -->
+    <div class="clip bg-cream" data-start="0" data-duration="3.6" data-track-index="0"></div>
+
+    <!-- Brand poster, far behind, blurred + dimmed ~60% -->
+    <div class="clip bg-poster" data-start="0" data-duration="3.6" data-track-index="1">
+      <img src="assets/hero-poster.webp" alt="" />
+    </div>
+    <!-- Cream veil over the poster to push it far back (keeps the quiet cream ground) -->
+    <div class="clip bg-veil" data-start="0" data-duration="3.6" data-track-index="2"></div>
+
+    <!-- Subordinate ember counter-bloom, opposite corner (static, faint) -->
+    <div class="clip f02b-ember" data-start="0" data-duration="3.6" data-track-index="3"></div>
+
+    <!-- Primary gold sun-bloom behind the lockup -->
+    <div class="clip f02b-glow" id="f02b-glow" data-start="0" data-duration="3.6" data-track-index="4"></div>
+
+    <!-- ============================ LOCKUP (single clip, animated children) ============================ -->
+    <div class="clip f02b-lockup" data-start="0" data-duration="3.6" data-track-index="5">
+      <!-- centered mark / seal -->
+      <img class="f02b-logo" id="f02b-logo" src="assets/logo-c8h4s61c.webp" alt="אור זרוע לצדיק" />
+
+      <!-- wordmark cascades beneath the mark (RTL, word-by-word) -->
+      <div class="f02b-wordmark" id="f02b-wordmark" dir="rtl" lang="he">
+        <span class="f02b-word">אור</span>
+        <span class="f02b-word">זרוע</span>
+        <span class="f02b-word">לצדיק</span>
+      </div>
+
+      <!-- gold hairline rules flanking the wordmark, drawing outward from the center -->
+      <svg class="f02b-divider" viewBox="0 0 820 40" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path id="f02b-rule-left" d="M 410 20 L 118 20" />
+        <path id="f02b-rule-right" d="M 410 20 L 702 20" />
+        <rect class="f02b-dia" id="f02b-dia-c" x="402" y="12" width="16" height="16" />
+        <rect class="f02b-dia f02b-dia-end" id="f02b-dia-l" x="111" y="13" width="14" height="14" />
+        <rect class="f02b-dia f02b-dia-end" id="f02b-dia-r" x="695" y="13" width="14" height="14" />
+      </svg>
+
+      <!-- sub-line in ink -->
+      <div class="f02b-subline" id="f02b-subline" dir="rtl" lang="he">תשמישי קדושה ויודאיקה מהודרת</div>
+    </div>
+  </div>
+
+  <style>
+    @font-face{font-family:"Assistant";font-weight:300;font-style:normal;font-display:block;src:url("assets/fonts/2sDPZGJYnIjSi6H75xkZZE1I0yCmYzzQtrhnEGE.ttf") format("truetype");}
+    @font-face{font-family:"Assistant";font-weight:400;font-style:normal;font-display:block;src:url("assets/fonts/2sDPZGJYnIjSi6H75xkZZE1I0yCmYzzQtuZnEGE.ttf") format("truetype");}
+    @font-face{font-family:"Assistant";font-weight:500;font-style:normal;font-display:block;src:url("assets/fonts/2sDPZGJYnIjSi6H75xkZZE1I0yCmYzzQttRnEGE.ttf") format("truetype");}
+    @font-face{font-family:"Assistant";font-weight:600;font-style:normal;font-display:block;src:url("assets/fonts/2sDPZGJYnIjSi6H75xkZZE1I0yCmYzzQtjhgEGE.ttf") format("truetype");}
+    @font-face{font-family:"Assistant";font-weight:700;font-style:normal;font-display:block;src:url("assets/fonts/2sDPZGJYnIjSi6H75xkZZE1I0yCmYzzQtgFgEGE.ttf") format("truetype");}
+
+    /* Root: explicit sized box, styled via #root (never a class on the root element). No background here. */
+    #root {
+      position: relative;
+      width: 1080px;
+      height: 1920px;
+      overflow: hidden;
+      font-family: "Assistant", sans-serif;
+      color: #1f1915;
+    }
+
+    .clip { position: absolute; }
+
+    /* ---- ground ---- */
+    .bg-cream { inset: 0; background: #fcfaf6; }
+
+    .bg-poster { inset: 0; }
+    .bg-poster img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      filter: blur(22px) brightness(1.08) saturate(0.92);
+      transform: scale(1.08); /* hide blurred edges; static, not GSAP-animated */
+    }
+    .bg-veil {
+      inset: 0;
+      background: rgba(252, 250, 246, 0.72);
+    }
+
+    /* subordinate ember counter-bloom, bottom-left */
+    .f02b-ember {
+      width: 760px;
+      height: 760px;
+      left: -180px;
+      bottom: -200px;
+      background: radial-gradient(circle at 50% 50%,
+        rgba(172, 123, 73, 0.20) 0%,
+        rgba(172, 123, 73, 0.10) 40%,
+        rgba(172, 123, 73, 0) 70%);
+      pointer-events: none;
+    }
+
+    /* primary gold sun-bloom behind the lockup */
+    .f02b-glow {
+      width: 1320px;
+      height: 1320px;
+      left: 50%;
+      margin-left: -660px;
+      top: 190px;
+      background: radial-gradient(circle at 50% 46%,
+        rgba(212, 175, 55, 0.40) 0%,
+        rgba(236, 220, 167, 0.26) 26%,
+        rgba(229, 207, 135, 0.12) 50%,
+        rgba(212, 175, 55, 0) 72%);
+      opacity: 0;
+      transform-origin: 50% 50%;
+      pointer-events: none;
+      will-change: transform, opacity;
+    }
+
+    /* ---- lockup ---- */
+    .f02b-lockup {
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding-bottom: 240px; /* nudge the stack slightly above center */
+    }
+
+    .f02b-logo {
+      width: 220px;
+      height: auto;
+      opacity: 0;
+      transform-origin: 50% 50%;
+      will-change: transform, opacity;
+    }
+
+    .f02b-wordmark {
+      margin-top: 44px;
+      display: flex;
+      flex-direction: row;
+      gap: 34px;
+      font-size: 104px;
+      font-weight: 600;
+      line-height: 1.0;
+      letter-spacing: -0.01em;
+      color: #1f1915;
+    }
+    .f02b-word {
+      display: inline-block;
+      opacity: 0;
+      transform-origin: 50% 50%;
+      will-change: transform, opacity;
+    }
+
+    .f02b-divider {
+      margin-top: 30px;
+      width: 760px;
+      height: 38px;
+      overflow: visible;
+    }
+    .f02b-divider path {
+      fill: none;
+      stroke: #D4AF37;
+      stroke-width: 2;
+      stroke-linecap: round;
+    }
+    .f02b-dia {
+      fill: #D4AF37;
+      transform-box: fill-box;
+      transform-origin: 50% 50%;
+      transform: rotate(45deg);
+    }
+    .f02b-dia-end { opacity: 0; }
+
+    .f02b-subline {
+      margin-top: 34px;
+      font-size: 33px;
+      font-weight: 500;
+      letter-spacing: 0.02em;
+      color: #1f1915;
+      opacity: 0;
+      will-change: transform, opacity;
+    }
+  </style>
+
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+  <script>
+    window.__timelines = window.__timelines || {};
+    const tl = gsap.timeline({ paused: true });
+
+    // ---------- Scene 1 (0.0–1.2s): logo mark fades + gently scales into center ----------
+    // fromTo so the collapsed/soft start is exact at t=0 under seek. Calm long-tail settle
+    // (power3.out, 0.9→1.0) — premium, no overshoot. Visible well before t=0.5s.
+    tl.fromTo("#f02b-logo",
+      { opacity: 0, scale: 0.9 },
+      { opacity: 1, scale: 1, duration: 1.0, ease: "power3.out" },
+      0.0);
+
+    // Gold sun-bloom blooms in behind the mark, landing on its settle (one beat).
+    const glow = document.getElementById("f02b-glow");
+    tl.fromTo(glow,
+      { opacity: 0, scale: 0.9 },
+      { opacity: 0.9, scale: 1, duration: 1.1, ease: "power2.out" },
+      0.0);
+
+    // ---------- Scene 3 tail: bounded idle breathe on the bloom (NOT a loop) ----------
+    // A single finite tween advances a phase; onUpdate nudges opacity + scale a hair.
+    // sin(0)=0 so the breathe begins exactly at the bloom's resting state — no jump.
+    const GLOW_PEAK = 0.9, OP_AMP = 0.06, SC_AMP = 0.02, CYCLES = 0.7;
+    const phase = { p: 0 };
+    tl.to(phase,
+      { p: Math.PI * 2 * CYCLES, duration: 1.9, ease: "none",
+        onUpdate: () => {
+          const s = Math.sin(phase.p);
+          glow.style.opacity = String(GLOW_PEAK + s * OP_AMP);
+          glow.style.transform = "scale(" + (1 + s * SC_AMP) + ")";
+        } },
+      1.1);
+
+    // ---------- Scene 2 (1.2–2.2s): wordmark cascades in beneath the mark (RTL) ----------
+    // Words reveal in reading order (right→left = DOM order) on a deterministic stagger.
+    const words = gsap.utils.toArray(".f02b-word");
+    words.forEach((el, i) => {
+      tl.fromTo(el,
+        { opacity: 0, y: 20 },
+        { opacity: 1, y: 0, duration: 0.55, ease: "power3.out" },
+        1.2 + i * 0.12);
+    });
+
+    // Gold hairline rules draw OUTWARD from the center (svg-path-draw).
+    document.querySelectorAll(".f02b-divider path").forEach((p) => {
+      const len = p.getTotalLength();
+      p.style.strokeDasharray = String(len);
+      p.style.strokeDashoffset = String(len); // start hidden; grows from the center (M point) outward
+    });
+    // Center diamond pops first, then the two rules draw outward.
+    tl.fromTo("#f02b-dia-c",
+      { opacity: 0 },
+      { opacity: 1, duration: 0.35, ease: "power2.out" },
+      1.48);
+    tl.to("#f02b-rule-left",  { strokeDashoffset: 0, duration: 0.55, ease: "power2.out" }, 1.55);
+    tl.to("#f02b-rule-right", { strokeDashoffset: 0, duration: 0.55, ease: "power2.out" }, 1.55);
+    // Terminal diamonds settle in as the rules reach the ends.
+    tl.fromTo(".f02b-dia-end",
+      { opacity: 0 },
+      { opacity: 1, duration: 0.3, ease: "power1.out" },
+      2.0);
+
+    // ---------- Scene 3 (2.2–3.0s): sub-line fades up; full lockup holds STILL ----------
+    tl.fromTo("#f02b-subline",
+      { opacity: 0, y: 14 },
+      { opacity: 1, y: 0, duration: 0.7, ease: "power2.out" },
+      2.2);
+
+    window.__timelines["02-brand"] = tl;
+  </script>
+</template>

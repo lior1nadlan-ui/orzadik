@@ -1,0 +1,53 @@
+{
+  "bgm": {
+    "path": "assets/bgm/track.mp3",
+    "volume": 0.9,
+    "query": "warm elegant uplifting cinematic",
+    "duration_s": 80
+  },
+  "voices": [],
+  "sfx": [
+    {
+      "frame": 1,
+      "file": "assets/sfx/riser-soft.mp3",
+      "offset_s": 0,
+      "duration_s": 4.97,
+      "volume": 0.35
+    },
+    {
+      "frame": 2,
+      "file": "assets/sfx/chime-soft.mp3",
+      "offset_s": 0,
+      "duration_s": 1.273,
+      "volume": 0.35
+    },
+    {
+      "frame": 3,
+      "file": "assets/sfx/impact-soft.mp3",
+      "offset_s": 0,
+      "duration_s": 2.758,
+      "volume": 0.35
+    },
+    {
+      "frame": 4,
+      "file": "assets/sfx/shimmer-soft.mp3",
+      "offset_s": 0,
+      "duration_s": 3.329,
+      "volume": 0.35
+    },
+    {
+      "frame": 5,
+      "file": "assets/sfx/tick-soft.mp3",
+      "offset_s": 0,
+      "duration_s": 7.778,
+      "volume": 0.35
+    },
+    {
+      "frame": 6,
+      "file": "assets/sfx/chime-bright.mp3",
+      "offset_s": 0,
+      "duration_s": 1.334,
+      "volume": 0.35
+    }
+  ]
+}
