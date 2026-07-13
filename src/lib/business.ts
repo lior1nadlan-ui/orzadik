@@ -32,6 +32,12 @@ export const BUSINESS = {
    */
   googleSiteVerification: "",
   bingSiteVerification: "",
+  /**
+   * Google Analytics 4 Measurement ID (format "G-XXXXXXXXXX"), from the GA4
+   * property's Data Stream. The gtag.js tag is only injected when this is set.
+   * Empty = no analytics loaded (and no analytics cookies).
+   */
+  gaMeasurementId: "G-SNVN50FGWL",
 } as const;
 
 /** Consumer-law policy constants (Consumer Protection Law §14ג–§14ה). */

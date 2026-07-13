@@ -73,11 +73,11 @@ async function normalizeCatastrophicSsrResponse(response: Response): Promise<Res
 const SECURITY_HEADERS: Record<string, string> = {
   "Content-Security-Policy": [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com",
+    "script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://www.googletagmanager.com",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
-    "img-src 'self' data: blob: https://*.supabase.co https://secure.cardcom.solutions",
-    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://secure.cardcom.solutions https://cloudflareinsights.com",
+    "img-src 'self' data: blob: https://*.supabase.co https://secure.cardcom.solutions https://*.google-analytics.com https://www.googletagmanager.com",
+    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://secure.cardcom.solutions https://cloudflareinsights.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com",
     "frame-src https://secure.cardcom.solutions",
     "frame-ancestors 'none'",
     "object-src 'none'",
