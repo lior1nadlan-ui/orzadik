@@ -13,6 +13,7 @@ import { AuthProvider } from "@/lib/auth";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { CookieConsent } from "@/components/CookieConsent";
 import { GoogleAnalytics } from "@/components/GoogleAnalytics";
+import { MetaPixel } from "@/components/MetaPixel";
 import { WhatsAppButton } from "@/components/WhatsAppButton";
 import { AccessibilityWidget } from "@/components/AccessibilityWidget";
 import { BUSINESS } from "@/lib/business";
@@ -116,6 +117,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
             {
               src: `https://www.googletagmanager.com/gtag/js?id=${BUSINESS.gaMeasurementId}`,
               async: true,
+            },
+          ]
+        : []),
+      // Meta (Facebook/Instagram) Pixel with consent gating. fbevents.js loads on
+      // every page, but `fbq('consent', ...)` is set to "revoke" by default (seeded
+      // from the stored choice) so NO ad cookies are written and NO events fire
+      // until the visitor grants marketing consent — MetaPixel.tsx flips it to
+      // "grant" via `fbq('consent','grant')` when the cookie banner choice changes.
+      ...(BUSINESS.metaPixelId
+        ? [
+            {
+              children: `!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version="2.0";n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,"script","https://connect.facebook.net/en_US/fbevents.js");var _fc=null;try{_fc=JSON.parse(localStorage.getItem("cookie-consent-v2"));}catch(e){}fbq("consent",_fc&&_fc.marketing?"grant":"revoke");fbq("init","${BUSINESS.metaPixelId}");fbq("track","PageView");`,
             },
           ]
         : []),
@@ -308,6 +321,7 @@ function RootComponent() {
           <Toaster position="top-center" richColors />
           <CookieConsent />
           <GoogleAnalytics />
+          <MetaPixel />
           <WhatsAppButton />
           <AccessibilityWidget />
         </CartProvider>
