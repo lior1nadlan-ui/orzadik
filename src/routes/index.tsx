@@ -21,38 +21,38 @@ import igReel3 from "@/assets/ig/reel-3.mp4";
 import igReel4 from "@/assets/ig/reel-4.mp4";
 import igReel5 from "@/assets/ig/reel-5.mp4";
 
-import oc_aluminum from "@/assets/other-cats/aluminum.jpg";
-import oc_accessories from "@/assets/other-cats/accessories.jpg";
-import oc_blessings from "@/assets/other-cats/blessings.jpg";
-import oc_metalKiddush from "@/assets/other-cats/metal-kiddush.jpg";
-import oc_crystalKiddush from "@/assets/other-cats/crystal-kiddush.jpg";
-import oc_havdalah from "@/assets/other-cats/havdalah.jpg";
-import oc_hanukkah from "@/assets/other-cats/hanukkah.jpg";
-import oc_wedding from "@/assets/other-cats/wedding.jpg";
-import oc_tallitTzitzit from "@/assets/other-cats/tallit-tzitzit.jpg";
-import oc_challahCover from "@/assets/other-cats/challah-cover.jpg";
-import oc_kippot from "@/assets/other-cats/kippot.jpg";
-import oc_holidays from "@/assets/other-cats/holidays.jpg";
-import oc_mezuzot from "@/assets/other-cats/mezuzot.jpg";
-import oc_wineDividers from "@/assets/other-cats/wine-dividers.jpg";
-import oc_maimAchronim from "@/assets/other-cats/maim-achronim.jpg";
-import oc_branding from "@/assets/other-cats/branding.jpg";
-import oc_bencherStands from "@/assets/other-cats/bencher-stands.jpg";
-import oc_mirrors from "@/assets/other-cats/mirrors.jpg";
-import oc_washingCups from "@/assets/other-cats/washing-cups.jpg";
-import oc_talitTefillinSet from "@/assets/other-cats/talit-tefillin-set.jpg";
-import oc_talitTefillinSets from "@/assets/other-cats/talit-tefillin-sets.jpg";
-import oc_liqueurSets from "@/assets/other-cats/liqueur-sets.jpg";
-import oc_atara from "@/assets/other-cats/atara.jpg";
-import oc_polyrasin from "@/assets/other-cats/polyrasin-stone.jpg";
-import oc_purim from "@/assets/other-cats/purim.jpg";
-import oc_plastic from "@/assets/other-cats/plastic.jpg";
-import oc_candlesticks from "@/assets/other-cats/candlesticks.jpg";
-import oc_passover from "@/assets/other-cats/passover.jpg";
-import oc_talitClips from "@/assets/other-cats/talit-clips.jpg";
-import oc_roshHashana from "@/assets/other-cats/rosh-hashana.jpg";
-import oc_pvcBags from "@/assets/other-cats/pvc-bags.jpg";
-import oc_tefillinCases from "@/assets/other-cats/tefillin-cases.jpg";
+import oc_aluminum from "@/assets/other-cats/aluminum.webp";
+import oc_accessories from "@/assets/other-cats/accessories.webp";
+import oc_blessings from "@/assets/other-cats/blessings.webp";
+import oc_metalKiddush from "@/assets/other-cats/metal-kiddush.webp";
+import oc_crystalKiddush from "@/assets/other-cats/crystal-kiddush.webp";
+import oc_havdalah from "@/assets/other-cats/havdalah.webp";
+import oc_hanukkah from "@/assets/other-cats/hanukkah.webp";
+import oc_wedding from "@/assets/other-cats/wedding.webp";
+import oc_tallitTzitzit from "@/assets/other-cats/tallit-tzitzit.webp";
+import oc_challahCover from "@/assets/other-cats/challah-cover.webp";
+import oc_kippot from "@/assets/other-cats/kippot.webp";
+import oc_holidays from "@/assets/other-cats/holidays.webp";
+import oc_mezuzot from "@/assets/other-cats/mezuzot.webp";
+import oc_wineDividers from "@/assets/other-cats/wine-dividers.webp";
+import oc_maimAchronim from "@/assets/other-cats/maim-achronim.webp";
+import oc_branding from "@/assets/other-cats/branding.webp";
+import oc_bencherStands from "@/assets/other-cats/bencher-stands.webp";
+import oc_mirrors from "@/assets/other-cats/mirrors.webp";
+import oc_washingCups from "@/assets/other-cats/washing-cups.webp";
+import oc_talitTefillinSet from "@/assets/other-cats/talit-tefillin-set.webp";
+import oc_talitTefillinSets from "@/assets/other-cats/talit-tefillin-sets.webp";
+import oc_liqueurSets from "@/assets/other-cats/liqueur-sets.webp";
+import oc_atara from "@/assets/other-cats/atara.webp";
+import oc_polyrasin from "@/assets/other-cats/polyrasin-stone.webp";
+import oc_purim from "@/assets/other-cats/purim.webp";
+import oc_plastic from "@/assets/other-cats/plastic.webp";
+import oc_candlesticks from "@/assets/other-cats/candlesticks.webp";
+import oc_passover from "@/assets/other-cats/passover.webp";
+import oc_talitClips from "@/assets/other-cats/talit-clips.webp";
+import oc_roshHashana from "@/assets/other-cats/rosh-hashana.webp";
+import oc_pvcBags from "@/assets/other-cats/pvc-bags.webp";
+import oc_tefillinCases from "@/assets/other-cats/tefillin-cases.webp";
 
 const OTHER_CATS_IMAGES: Record<string, string> = {
   "aluminum": oc_aluminum,
@@ -107,7 +107,7 @@ export const Route = createFileRoute("/")({
     links: [
       { rel: "canonical", href: "https://orzadik.com/" },
       // The hero poster is the homepage LCP paint — preload it so it shows fast.
-      { rel: "preload", as: "image", href: "/media/hero-poster.jpg", fetchpriority: "high" },
+      { rel: "preload", as: "image", href: "/media/hero-poster.webp", fetchpriority: "high" },
     ],
     scripts: [
       {
@@ -173,18 +173,18 @@ export const Route = createFileRoute("/")({
 
 type CatTile = { slug: string; name: string; img: string };
 
-const FEATURED: { id: string; name: string; img: string }[] = [
-  { id: "ac72c907-8981-404d-b776-642467e43110", name: "טליתות", img: imgTallit },
-  { id: "51fd0522-192a-4ec2-bfc3-abf891b2e35e", name: "מארזים לחתנים", img: imgChatan },
-  { id: "f48e44e3-eab6-4281-a09d-cac9a96a8e96", name: "כיסויים לטלית ותפילין", img: imgTallitTefillinCovers },
-  { id: "3109eed6-32e3-40eb-9fe4-874029b8ab4d", name: "סט חלאקה", img: imgChalaka },
-  { id: "c78aea58-8a38-43ee-a236-3aa2f1942225", name: "מוצרי יודאיקה", img: imgJudaica },
-  { id: "b6854069-9746-4490-b6ea-ef7debe4d795", name: "סידורים ותהילים", img: imgSiddur },
-  { id: "f356bae8-de78-45c6-ab68-f9b2e82444cf", name: "ספרי לימוד", img: imgBooks },
-  { id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890", name: "אש שלי - תכשיטי זהב", img: imgGoldJewelry },
-  
-  { id: "b1e55fa1-0000-4000-8000-000000000002", name: "חיתוך בלייזר", img: imgWallArt },
-
+// Curated featured categories. `slug` is hardcoded (verified against the DB) so
+// the section renders at SSR — no client round-trip, no post-hydration CLS.
+const FEATURED: { id: string; slug: string; name: string; img: string }[] = [
+  { id: "ac72c907-8981-404d-b776-642467e43110", slug: "%d7%98%d7%9c%d7%99%d7%aa%d7%95%d7%aa-%d7%95%d7%a6%d7%99%d7%a6%d7%99%d7%95%d7%aa", name: "טליתות", img: imgTallit },
+  { id: "51fd0522-192a-4ec2-bfc3-abf891b2e35e", slug: "%d7%9e%d7%95%d7%a6%d7%a8%d7%99-%d7%97%d7%aa%d7%95%d7%a0%d7%94-%d7%95%d7%91%d7%a8-%d7%9e%d7%a6%d7%95%d7%95%d7%94", name: "מארזים לחתנים", img: imgChatan },
+  { id: "f48e44e3-eab6-4281-a09d-cac9a96a8e96", slug: "talit-tefillin-sets", name: "כיסויים לטלית ותפילין", img: imgTallitTefillinCovers },
+  { id: "3109eed6-32e3-40eb-9fe4-874029b8ab4d", slug: "chalaka-set", name: "סט חלאקה", img: imgChalaka },
+  { id: "c78aea58-8a38-43ee-a236-3aa2f1942225", slug: "%d7%9e%d7%95%d7%a6%d7%a8%d7%99-%d7%99%d7%95%d7%93%d7%90%d7%99%d7%a7%d7%94", name: "מוצרי יודאיקה", img: imgJudaica },
+  { id: "b6854069-9746-4490-b6ea-ef7debe4d795", slug: "%d7%a1%d7%99%d7%93%d7%95%d7%a8%d7%99%d7%9d", name: "סידורים ותהילים", img: imgSiddur },
+  { id: "f356bae8-de78-45c6-ab68-f9b2e82444cf", slug: "study-books", name: "ספרי לימוד", img: imgBooks },
+  { id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890", slug: "esh-sheli-gold", name: "אש שלי - תכשיטי זהב", img: imgGoldJewelry },
+  { id: "b1e55fa1-0000-4000-8000-000000000002", slug: "laser-cut", name: "חיתוך בלייזר", img: imgWallArt },
 ];
 
 
@@ -211,30 +211,16 @@ function HomePage() {
 
 
 
-  const { data: cats = [] } = useQuery({
-    queryKey: ["home-featured-cats-static"],
-    queryFn: async (): Promise<CatTile[]> => {
-      const ids = FEATURED.map((f) => f.id);
-      const { data: catRows, error } = await supabase
-        .from("categories")
-        .select("id, slug")
-        .in("id", ids);
-      if (error) throw error;
-      const slugById = new Map((catRows || []).map((c) => [c.id, c.slug]));
-      return FEATURED.map((f) => ({
-        slug: slugById.get(f.id) ?? "",
-        name: f.name,
-        img: f.img,
-      })).filter((t) => t.slug);
-    },
-  });
+  // Static — rendered at SSR from the curated FEATURED list (slugs hardcoded), so
+  // the tiles are in the initial HTML and the section never shifts after hydration.
+  const cats: CatTile[] = FEATURED.map((f) => ({ slug: f.slug, name: f.name, img: f.img }));
 
   return (
     <>
       {/* Hero */}
       <section>
         <video
-          poster="/media/hero-poster.jpg"
+          poster="/media/hero-poster.webp"
           autoPlay
           muted
           loop
@@ -608,6 +594,7 @@ function InstagramFeed() {
           href={INSTAGRAM_URL}
           target="_blank"
           rel="noopener noreferrer"
+          aria-label={`אור זרוע לצדיק באינסטגרם — ${m.type === "video" ? "סרטון" : "תמונה"} ${i + 1}`}
           className="group relative block aspect-[4/5] overflow-hidden rounded-xl bg-muted shadow-[var(--shadow-card)]"
         >
           {m.type === "video" ? (
