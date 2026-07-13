@@ -12,6 +12,7 @@ import { CartProvider } from "@/lib/cart";
 import { AuthProvider } from "@/lib/auth";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { CookieConsent } from "@/components/CookieConsent";
+import { GoogleAnalytics } from "@/components/GoogleAnalytics";
 import { WhatsAppButton } from "@/components/WhatsAppButton";
 import { AccessibilityWidget } from "@/components/AccessibilityWidget";
 import { BUSINESS } from "@/lib/business";
@@ -290,6 +291,7 @@ function RootComponent() {
           </div>
           <Toaster position="top-center" richColors />
           <CookieConsent />
+          <GoogleAnalytics />
           <WhatsAppButton />
           <AccessibilityWidget />
         </CartProvider>
