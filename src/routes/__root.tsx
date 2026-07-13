@@ -91,13 +91,24 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       // NOTE: no hreflang tags — the site is single-language (he-IL). Static
       // self-referential-to-homepage alternates on every page were incorrect
       // and conflicted with each page's own canonical, so they were removed.
+      // Google Fonts preloaded + injected async (script below) so the external
+      // round-trip does NOT block first paint. display=swap keeps text visible
+      // in a fallback face until the web fonts arrive.
       {
-        rel: "stylesheet",
+        rel: "preload",
+        as: "style",
         href: "https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;500;600;700&family=Noto+Serif+Hebrew:wght@400;500;600;700&family=Cormorant+Garamond:wght@400;600&display=swap",
       },
       { rel: "stylesheet", href: appCss },
     ],
     scripts: [
+      {
+        // Load Google Fonts without blocking first paint: append the stylesheet
+        // after the document parses. The <link rel="preload" as="style"> above
+        // warms the fetch so the swap is instant.
+        children:
+          '(function(){var l=document.createElement("link");l.rel="stylesheet";l.href="https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;500;600;700&family=Noto+Serif+Hebrew:wght@400;500;600;700&family=Cormorant+Garamond:wght@400;600&display=swap";document.head.appendChild(l);})();',
+      },
       {
         type: "application/ld+json",
         children: JSON.stringify({

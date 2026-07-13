@@ -9,7 +9,7 @@ import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/s
 import { ClubBadge } from "@/components/ClubBadge";
 import { openCookieSettings } from "@/components/CookieConsent";
 import { BUSINESS } from "@/lib/business";
-import logoUrl from "@/assets/logo.png";
+import logoUrl from "@/assets/logo.webp";
 
 type Cat = { id: string; slug: string; name: string };
 
