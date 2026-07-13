@@ -34,6 +34,37 @@ function OrderConfirmationPage() {
     if (isPaid) clear();
   }, [isPaid, clear]);
 
+  // Fire the GA4 `purchase` event once when payment is confirmed, so Analytics
+  // (and, once the GA4 property is linked to Google Ads and this event imported
+  // as a conversion, the ad campaign) can measure real revenue — not just clicks.
+  // Consent Mode v2 decides whether it uses cookies. Guarded per order id so a
+  // page refresh never double-counts.
+  useEffect(() => {
+    if (!isPaid || !order) return;
+    const w = window as unknown as { gtag?: (...args: unknown[]) => void };
+    if (typeof w.gtag !== "function") return;
+    const key = `ga_purchase_sent_${id}`;
+    try {
+      if (localStorage.getItem(key)) return;
+      localStorage.setItem(key, "1");
+    } catch {
+      // storage blocked — still fire (at most once per page load)
+    }
+    w.gtag("event", "purchase", {
+      transaction_id: order.order_number ?? id,
+      value: Number(order.total) || 0,
+      currency: "ILS",
+      items: (order.order_items ?? []).map((it: any) => ({
+        item_name: it.product_name,
+        quantity: Number(it.quantity) || 1,
+        price:
+          Number(it.quantity) > 0
+            ? Number(it.line_total) / Number(it.quantity)
+            : Number(it.line_total) || 0,
+      })),
+    });
+  }, [isPaid, order, id]);
+
   if (isLoading) return <div className="container mx-auto px-4 py-20 text-center">טוען...</div>;
   if (isError || !order) {
     return (
