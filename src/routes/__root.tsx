@@ -103,6 +103,22 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "stylesheet", href: appCss },
     ],
     scripts: [
+      // Google Analytics 4 with Consent Mode v2. gtag.js loads on every page, but
+      // the consent DEFAULT is "denied" so NO analytics/ad storage (cookies) is set
+      // until the visitor grants consent — the default is seeded from the stored
+      // choice so returning consenters aren't reset. GoogleAnalytics.tsx flips it to
+      // "granted" via `consent update` when the cookie banner choice changes.
+      ...(BUSINESS.gaMeasurementId
+        ? [
+            {
+              children: `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}var _c=null;try{_c=JSON.parse(localStorage.getItem("cookie-consent-v2"));}catch(e){}gtag("consent","default",{analytics_storage:_c&&_c.analytics?"granted":"denied",ad_storage:_c&&_c.marketing?"granted":"denied",ad_user_data:_c&&_c.marketing?"granted":"denied",ad_personalization:_c&&_c.marketing?"granted":"denied",wait_for_update:500});gtag("js",new Date());gtag("config","${BUSINESS.gaMeasurementId}");`,
+            },
+            {
+              src: `https://www.googletagmanager.com/gtag/js?id=${BUSINESS.gaMeasurementId}`,
+              async: true,
+            },
+          ]
+        : []),
       {
         // Load Google Fonts without blocking first paint: append the stylesheet
         // after the document parses. The <link rel="preload" as="style"> above
