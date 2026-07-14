@@ -38,6 +38,15 @@ export const BUSINESS = {
    * Empty = no analytics loaded (and no analytics cookies).
    */
   gaMeasurementId: "G-SNVN50FGWL",
+  /**
+   * Meta (Facebook/Instagram) Pixel ID — the ~15-digit numeric ID from Meta
+   * Events Manager (Data Sources → Web → your Pixel → Settings). Powers the
+   * Meta ad campaign: conversion optimization, retargeting, and Lookalike
+   * audiences. Loaded consent-gated (marketing category) with Meta's consent
+   * API — the tag loads on every page but sets NO ad cookies and fires NO
+   * events until the visitor grants marketing consent. Empty = pixel omitted.
+   */
+  metaPixelId: "",
 } as const;
 
 /** Consumer-law policy constants (Consumer Protection Law §14ג–§14ה). */

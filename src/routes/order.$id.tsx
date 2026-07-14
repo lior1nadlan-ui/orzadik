@@ -34,35 +34,57 @@ function OrderConfirmationPage() {
     if (isPaid) clear();
   }, [isPaid, clear]);
 
-  // Fire the GA4 `purchase` event once when payment is confirmed, so Analytics
-  // (and, once the GA4 property is linked to Google Ads and this event imported
-  // as a conversion, the ad campaign) can measure real revenue — not just clicks.
-  // Consent Mode v2 decides whether it uses cookies. Guarded per order id so a
-  // page refresh never double-counts.
+  // Fire the `purchase` conversion once when payment is confirmed — to BOTH GA4
+  // (`gtag`) and the Meta Pixel (`fbq`) — so Analytics and the ad platforms
+  // (Google Ads once the GA4 event is imported; Meta Ads via the Pixel) can
+  // measure real revenue, not just clicks. Consent Mode / fbq-consent decide
+  // whether cookies are used. Guarded per order id so a refresh never
+  // double-counts; each tag fires only if it's actually loaded.
   useEffect(() => {
     if (!isPaid || !order) return;
-    const w = window as unknown as { gtag?: (...args: unknown[]) => void };
-    if (typeof w.gtag !== "function") return;
-    const key = `ga_purchase_sent_${id}`;
+    const w = window as unknown as {
+      gtag?: (...args: unknown[]) => void;
+      fbq?: (...args: unknown[]) => void;
+    };
+    if (typeof w.gtag !== "function" && typeof w.fbq !== "function") return;
+    const key = `purchase_tracked_${id}`;
     try {
       if (localStorage.getItem(key)) return;
       localStorage.setItem(key, "1");
     } catch {
       // storage blocked — still fire (at most once per page load)
     }
-    w.gtag("event", "purchase", {
-      transaction_id: order.order_number ?? id,
-      value: Number(order.total) || 0,
-      currency: "ILS",
-      items: (order.order_items ?? []).map((it: any) => ({
-        item_name: it.product_name,
-        quantity: Number(it.quantity) || 1,
-        price:
-          Number(it.quantity) > 0
-            ? Number(it.line_total) / Number(it.quantity)
-            : Number(it.line_total) || 0,
-      })),
-    });
+    const value = Number(order.total) || 0;
+    const items = (order.order_items ?? []) as any[];
+    const unitPrice = (it: any) =>
+      Number(it.quantity) > 0
+        ? Number(it.line_total) / Number(it.quantity)
+        : Number(it.line_total) || 0;
+    if (typeof w.gtag === "function") {
+      w.gtag("event", "purchase", {
+        transaction_id: order.order_number ?? id,
+        value,
+        currency: "ILS",
+        items: items.map((it: any) => ({
+          item_name: it.product_name,
+          quantity: Number(it.quantity) || 1,
+          price: unitPrice(it),
+        })),
+      });
+    }
+    if (typeof w.fbq === "function") {
+      w.fbq("track", "Purchase", {
+        value,
+        currency: "ILS",
+        num_items: items.reduce((n, it) => n + (Number(it.quantity) || 1), 0),
+        content_type: "product",
+        contents: items.map((it: any) => ({
+          id: String(it.product_id ?? it.product_name ?? ""),
+          quantity: Number(it.quantity) || 1,
+          item_price: unitPrice(it),
+        })),
+      });
+    }
   }, [isPaid, order, id]);
 
   if (isLoading) return <div className="container mx-auto px-4 py-20 text-center">טוען...</div>;
