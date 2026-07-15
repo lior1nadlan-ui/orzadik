@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect } from "react";
 import { getOrderConfirmation } from "@/lib/order.functions";
 import { formatILS, useCart } from "@/lib/cart";
+import { BUSINESS } from "@/lib/business";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, Clock } from "lucide-react";
 
@@ -61,6 +62,7 @@ function OrderConfirmationPage() {
         ? Number(it.line_total) / Number(it.quantity)
         : Number(it.line_total) || 0;
     if (typeof w.gtag === "function") {
+      // GA4 ecommerce purchase (also importable into Google Ads as a conversion).
       w.gtag("event", "purchase", {
         transaction_id: order.order_number ?? id,
         value,
@@ -71,6 +73,16 @@ function OrderConfirmationPage() {
           price: unitPrice(it),
         })),
       });
+      // Google Ads conversion action (the "רכישה" event snippet). transaction_id
+      // dedupes so each order counts once; value/currency feed conversion value.
+      if (BUSINESS.googleAdsId && BUSINESS.googleAdsPurchaseLabel) {
+        w.gtag("event", "conversion", {
+          send_to: `${BUSINESS.googleAdsId}/${BUSINESS.googleAdsPurchaseLabel}`,
+          value,
+          currency: "ILS",
+          transaction_id: order.order_number ?? id,
+        });
+      }
     }
     if (typeof w.fbq === "function") {
       w.fbq("track", "Purchase", {
