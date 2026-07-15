@@ -47,6 +47,17 @@ export const BUSINESS = {
    * events until the visitor grants marketing consent. Empty = pixel omitted.
    */
   metaPixelId: "",
+  /**
+   * Google Ads conversion tracking. `googleAdsId` is the account conversion ID
+   * ("AW-XXXXXXXXXX"); `googleAdsPurchaseLabel` is the conversion action's label
+   * (the part after the slash in `send_to`). Both run through the SAME gtag.js
+   * already loaded for GA4, so no extra tag is needed — the base just adds a
+   * `config` for the Ads ID, and the order page fires the `conversion` event.
+   * Consent Mode v2 (ad_storage/ad_user_data) gates the ad cookies. Empty =
+   * Google Ads conversion tracking disabled.
+   */
+  googleAdsId: "AW-18319944861",
+  googleAdsPurchaseLabel: "pjKcCKOC19AcEJ3Z0J9E",
 } as const;
 
 /** Consumer-law policy constants (Consumer Protection Law §14ג–§14ה). */
