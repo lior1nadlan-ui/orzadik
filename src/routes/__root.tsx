@@ -112,7 +112,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       ...(BUSINESS.gaMeasurementId
         ? [
             {
-              children: `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}var _c=null;try{_c=JSON.parse(localStorage.getItem("cookie-consent-v2"));}catch(e){}gtag("consent","default",{analytics_storage:_c&&_c.analytics?"granted":"denied",ad_storage:_c&&_c.marketing?"granted":"denied",ad_user_data:_c&&_c.marketing?"granted":"denied",ad_personalization:_c&&_c.marketing?"granted":"denied",wait_for_update:500});gtag("js",new Date());gtag("config","${BUSINESS.gaMeasurementId}");`,
+              children: `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}var _c=null;try{_c=JSON.parse(localStorage.getItem("cookie-consent-v2"));}catch(e){}gtag("consent","default",{analytics_storage:_c&&_c.analytics?"granted":"denied",ad_storage:_c&&_c.marketing?"granted":"denied",ad_user_data:_c&&_c.marketing?"granted":"denied",ad_personalization:_c&&_c.marketing?"granted":"denied",wait_for_update:500});gtag("js",new Date());gtag("config","${BUSINESS.gaMeasurementId}");${BUSINESS.googleAdsId ? `gtag("config","${BUSINESS.googleAdsId}");` : ""}`,
             },
             {
               src: `https://www.googletagmanager.com/gtag/js?id=${BUSINESS.gaMeasurementId}`,
