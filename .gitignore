@@ -38,3 +38,6 @@ dist-ssr
 
 # Supabase CLI local cache
 supabase/.temp/
+
+# Locally fetched supplier images (uploaded to Supabase Storage, not committed)
+.catalog-images/

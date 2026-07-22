@@ -240,6 +240,12 @@ def main():
     ap.add_argument("--markup", type=float, default=1.0)
     ap.add_argument("--inactive", action="store_true",
                     help="import products with is_active = false (staging)")
+    ap.add_argument("--image-base", default=None,
+                    help="serve images from here instead of the supplier host, "
+                         "e.g. https://<ref>.supabase.co/storage/v1/object/public/"
+                         "product-images/catalog/ (see scripts/fetch_product_images.py)")
+    ap.add_argument("--image-ext", default=".webp",
+                    help="file extension used with --image-base")
     args = ap.parse_args()
 
     import openpyxl
@@ -330,7 +336,11 @@ def main():
         seen_slug.add(slug)
 
         description, short = build_descriptions(row)
-        main_url = f"{IMG_BASE}{num}.jpg"
+        # Validity is always judged against the supplier URL (that is what was
+        # HEAD-checked); only the published URL changes with --image-base.
+        main_src = f"{IMG_BASE}{num}.jpg"
+        main_url = (f"{args.image_base}{num}{args.image_ext}"
+                    if args.image_base else main_src)
 
         products.append({
             "wp_id": wp_id,
@@ -341,7 +351,7 @@ def main():
             "price": convert_price(row.get("PRICE") or 0, args.price_mode,
                                    args.fx, args.markup),
             "sku": clean(row.get("ITEMKEY")),
-            "thumbnail_url": main_url if img_ok(main_url) else None,
+            "thumbnail_url": main_url if img_ok(main_src) else None,
             "is_active": not args.inactive,
         })
         # Link to the subcategory *and* its parent. The storefront queries
@@ -356,9 +366,11 @@ def main():
         for i in (1, 2, 3, 4):
             if not clean(row.get(f"Imageexist_{i}")):
                 continue
-            gurl = f"{IMG_BASE}{num}_{i}.jpg"
-            if img_ok(gurl):
+            gsrc = f"{IMG_BASE}{num}_{i}.jpg"
+            if img_ok(gsrc):
                 order += 1
+                gurl = (f"{args.image_base}{num}_{i}{args.image_ext}"
+                        if args.image_base else gsrc)
                 prod_imgs.append((wp_id, gurl, order))
 
     print(f"products: {len(products)}  skipped={skipped}")
