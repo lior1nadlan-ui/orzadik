@@ -41,3 +41,6 @@ supabase/.temp/
 
 # Locally fetched supplier images (uploaded to Supabase Storage, not committed)
 .catalog-images/
+
+# Local deploy credentials — never commit
+.deploy-secrets
