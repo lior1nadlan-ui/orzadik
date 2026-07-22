@@ -11,10 +11,11 @@ Usage:
         --out   supabase/migrations/<timestamp>_import_art_judaica_catalog.sql \
         [--image-status image_status.json]   # cached HEAD-check results
         [--validate-images]                  # re-check every image URL over HTTP
-        [--price-mode ils|usd] [--fx 3.7] [--markup 1.0]
+        [--markup 1.0]                       # on top of per-category markup
 
-The generated SQL is idempotent: re-running the migration updates existing rows
-instead of duplicating them (products keyed on wp_id, categories on slug).
+The generated SQL is idempotent: products key on sku and categories on slug, so
+re-running never duplicates. Products the store already sells are left entirely
+alone (ON CONFLICT DO NOTHING) and only gain category links.
 """
 
 import argparse
@@ -210,6 +211,21 @@ def clean(v):
     return "" if s in ("_", "-", "0", "") else s
 
 
+def clean_name(name):
+    """Strip the supplier's internal annotations out of a display title.
+
+    ~970 rows arrive as '[[ כיפה ...' or '[ כיפה ... אין החזרת סחורה' — bracket
+    markers and a note meant for the retailer, not the shopper. A few start with
+    a bare '(12345)' item number.
+    """
+    s = str(name or "").strip()
+    s = re.sub(r"^[\[\]\s]+", "", s)          # leading [ / [[
+    s = re.sub(r"^\(\d+\)\s*", "", s)         # leading (12345)
+    s = re.sub(r"^\(\s*כמו\s*\d+\s*\)\s*", "", s)   # leading (כמו 16409)
+    s = re.sub(r"\s{2,}", " ", s)
+    return s.strip(" -–,")
+
+
 def item_number(row):
     m = re.search(r"/big/(\d+)\.jpg", str(row.get(URL_COL) or ""))
     if m:
@@ -236,7 +252,7 @@ def build_descriptions(row):
 
     spec_line = " | ".join(specs)
     info = clean(row.get("MORE_INFO"))
-    name = clean(row.get("Items_Name"))
+    name = clean_name(clean(row.get("Items_Name")))
 
     if info:
         description = info + (("\n\n" + spec_line) if spec_line else "")
@@ -397,7 +413,7 @@ def main():
 
         products.append({
             "slug": slug,
-            "name": clean(row.get("Items_Name")) or clean(row.get("FORIGNNAME")),
+            "name": clean_name(clean(row.get("Items_Name")) or clean(row.get("FORIGNNAME"))),
             "description": description,
             "short_description": short,
             "price": convert_price(row.get("PRICE") or 0,

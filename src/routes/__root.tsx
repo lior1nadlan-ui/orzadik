@@ -16,6 +16,12 @@ import { GoogleAnalytics } from "@/components/GoogleAnalytics";
 import { MetaPixel } from "@/components/MetaPixel";
 import { WhatsAppButton } from "@/components/WhatsAppButton";
 import { AccessibilityWidget } from "@/components/AccessibilityWidget";
+
+// Origin of the Supabase project, for the preconnect/dns-prefetch hints below.
+// Falls back to the current project ref so the hint is still correct if the
+// build runs without VITE_SUPABASE_URL set.
+const SUPABASE_ORIGIN =
+  import.meta.env.VITE_SUPABASE_URL || "https://whtjslgrrfzehivrknuv.supabase.co";
 import { BUSINESS } from "@/lib/business";
 import appCss from "../styles.css?url";
 
@@ -88,8 +94,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "" },
       // Supabase serves product images + data — warm the connection early (LCP).
-      { rel: "preconnect", href: "https://deyidkzuvwniioxjisdr.supabase.co", crossOrigin: "" },
-      { rel: "dns-prefetch", href: "https://deyidkzuvwniioxjisdr.supabase.co" },
+      // Derived from the same env the client uses: this was hardcoded to the
+      // old project ref and silently kept preconnecting to a dead host after
+      // the migration, warming the wrong origin and wasting the LCP hint.
+      { rel: "preconnect", href: SUPABASE_ORIGIN, crossOrigin: "" },
+      { rel: "dns-prefetch", href: SUPABASE_ORIGIN },
       // NOTE: no hreflang tags — the site is single-language (he-IL). Static
       // self-referential-to-homepage alternates on every page were incorrect
       // and conflicted with each page's own canonical, so they were removed.
