@@ -1,1 +1,29 @@
 project_id = "whtjslgrrfzehivrknuv"
+
+# Auth redirect targets. Without these the project falls back to localhost, so
+# confirmation and password-reset emails would send customers to a dead link.
+# Push with: npx supabase config push --project-ref whtjslgrrfzehivrknuv
+#
+# NOTE: `config push` sends the WHOLE auth block, filling anything unset with
+# CLI defaults — which are weaker than the project defaults (it silently turned
+# email confirmation off, cut the OTP to 6 digits and dropped the resend
+# throttle to 1s). Every security-relevant field is therefore pinned explicitly
+# below. Do not delete one assuming it will keep its current value.
+[auth]
+site_url = "https://orzadik.com"
+additional_redirect_urls = [
+  "https://orzadik.com",
+  "https://orzadik.com/**",
+  "https://www.orzadik.com",
+  "https://www.orzadik.com/**",
+]
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+enable_confirmations = true
+double_confirm_changes = true
+secure_password_change = false
+max_frequency = "1m0s"
+otp_length = 8
+otp_expiry = 3600
