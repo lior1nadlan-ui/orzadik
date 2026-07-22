@@ -8,8 +8,8 @@
   // Secrets (SUPABASE_SERVICE_ROLE_KEY, CARDCOM_*, RESEND_API_KEY, CRON_SECRET,
   // UNSUBSCRIBE_SECRET) must be set with `wrangler secret put` — never here.
   "vars": {
-    "SUPABASE_URL": "https://deyidkzuvwniioxjisdr.supabase.co",
-    "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_F6rI9SMyOR4TQ8BtlfJ3cA_APTZI8rc",
+    "SUPABASE_URL": "https://whtjslgrrfzehivrknuv.supabase.co",
+    "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_iIXlA6UOH_jEMubtd2nW9A_bG9hPbaF",
     "APP_URL": "https://orzadik.com",
   },
   // Serve the Worker on the real domain (Cloudflare auto-creates DNS + TLS).

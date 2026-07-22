@@ -25,28 +25,52 @@ function CategoriesPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("categories")
-        .select("id, slug, name, description")
+        .select("id, slug, name, description, parent_slug, sort_order")
+        .order("sort_order")
         .order("name");
       if (error) throw error;
       return data;
     },
   });
 
+  // Render one card per top-level category with its subcategories inside it.
+  // A flat list would interleave the 25 parents and 47 children alphabetically,
+  // which reads as noise once the full supplier catalog is loaded.
+  const tops = data.filter((c) => !c.parent_slug);
+  const childrenOf = (slug: string) => data.filter((c) => c.parent_slug === slug);
+
   return (
     <div className="container mx-auto px-4 py-10">
       <h1 className="font-display text-3xl md:text-4xl font-bold mb-6">קטגוריות</h1>
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-        {data.map((c) => (
-          <Link
-            key={c.id}
-            to="/category/$slug"
-            params={{ slug: c.slug }}
-            className="rounded-lg border bg-card p-5 shadow-[var(--shadow-card)] transition-all hover:border-accent hover:shadow-[var(--shadow-soft)]"
-          >
-            <div className="font-medium">{c.name}</div>
-            {c.description && <div className="text-xs text-muted-foreground mt-1 line-clamp-2">{c.description}</div>}
-          </Link>
-        ))}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        {tops.map((c) => {
+          const kids = childrenOf(c.slug);
+          return (
+            <div
+              key={c.id}
+              className="rounded-lg border bg-card p-5 shadow-[var(--shadow-card)] transition-all hover:border-accent hover:shadow-[var(--shadow-soft)]"
+            >
+              <Link to="/category/$slug" params={{ slug: c.slug }} className="font-medium hover:text-accent transition-colors">
+                {c.name}
+              </Link>
+              {c.description && <div className="text-xs text-muted-foreground mt-1 line-clamp-2">{c.description}</div>}
+              {kids.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1">
+                  {kids.map((k) => (
+                    <Link
+                      key={k.id}
+                      to="/category/$slug"
+                      params={{ slug: k.slug }}
+                      className="text-xs text-muted-foreground hover:text-accent transition-colors"
+                    >
+                      {k.name}
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

@@ -24,9 +24,13 @@ export function SiteHeader() {
   const { data: categories = [] } = useQuery({
     queryKey: ["header-categories"],
     queryFn: async () => {
+      // Top level only. With the full supplier catalog loaded there are 72
+      // categories, and listing every subcategory turns the drawer into a
+      // 70-item scroll. Subcategories are reachable from /categories.
       const { data, error } = await supabase
         .from("categories")
         .select("id, slug, name")
+        .is("parent_slug", null)
         .not("slug", "in", "(uncategorized)")
         .order("sort_order")
         .order("name");
