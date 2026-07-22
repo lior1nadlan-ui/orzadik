@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ProductCard, ProductCardData } from "@/components/ProductCard";
 import { useEffect, useState } from "react";
@@ -43,18 +43,23 @@ function ShopPage() {
 
   const term = sanitizeTerm(debouncedQ);
 
-  // Render the grid incrementally so /shop doesn't mount all ~464 cards at once
-  // (keeps DOM light and INP fast on mobile). Reset the page on a new search.
-  const [visibleCount, setVisibleCount] = useState(24);
-  useEffect(() => { setVisibleCount(24); }, [term]);
+  // Fetch a page at a time rather than the whole catalog. This used to pull a
+  // flat .limit(500) and slice it client-side, which capped /shop at 500 of the
+  // 4,672 products and made the header report "500 מוצרים". Paging server-side
+  // keeps the DOM light *and* reachable across the full catalog.
+  const PAGE = 24;
 
-  const { data = [], isLoading, isFetching, isError, refetch } = useQuery({
+  const {
+    data, isLoading, isFetching, isError, refetch,
+    fetchNextPage, hasNextPage, isFetchingNextPage,
+  } = useInfiniteQuery({
     queryKey: ["shop-products", term],
     placeholderData: keepPreviousData,
-    queryFn: async () => {
+    initialPageParam: 0,
+    queryFn: async ({ pageParam }) => {
       let query = supabase
         .from("products")
-        .select("id, slug, name, price, sale_price, thumbnail_url, stock_status")
+        .select("id, slug, name, price, sale_price, thumbnail_url, stock_status", { count: "exact" })
         .eq("is_active", true);
 
       // Server-side (DB) search across the whole catalog — name, both
@@ -66,13 +71,18 @@ function ShopPage() {
         );
       }
 
-      const { data, error } = await query
+      const { data, error, count } = await query
         .order("created_at", { ascending: false })
-        .limit(500);
+        .range(pageParam, pageParam + PAGE - 1);
       if (error) throw error;
-      return data as ProductCardData[];
+      return { rows: (data ?? []) as ProductCardData[], total: count ?? 0, next: pageParam + PAGE };
     },
+    getNextPageParam: (last) => (last.next < last.total ? last.next : undefined),
   });
+
+  const products = data?.pages.flatMap((p) => p.rows) ?? [];
+  // Total across the whole result set, not just what has been loaded.
+  const total = data?.pages[0]?.total ?? 0;
 
   return (
     <div className="container mx-auto px-4 py-10">
@@ -80,7 +90,7 @@ function ShopPage() {
         <div>
           <h1 className="font-display text-3xl md:text-4xl font-bold">כל המוצרים</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {term ? `${data.length} תוצאות עבור "${term}"` : `${data.length} מוצרים`}
+            {term ? `${total} תוצאות עבור "${term}"` : `${total} מוצרים`}
           </p>
         </div>
         <Input
@@ -103,24 +113,25 @@ function ShopPage() {
             נסו שוב
           </button>
         </div>
-      ) : data.length === 0 ? (
+      ) : products.length === 0 ? (
         <div className="py-20 text-center text-muted-foreground">
           לא נמצאו מוצרים{term ? ` עבור "${term}"` : ""}. נסו מונח חיפוש אחר.
         </div>
       ) : (
         <>
           <div className={`grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 transition-opacity ${isFetching ? "opacity-60" : ""}`}>
-            {data.slice(0, visibleCount).map((p, i) => (
+            {products.map((p, i) => (
               <ProductCard key={p.id} p={p} priority={i < 8} />
             ))}
           </div>
-          {data.length > visibleCount && (
+          {hasNextPage && (
             <div className="mt-10 text-center">
               <button
-                onClick={() => setVisibleCount((v) => v + 24)}
-                className="rounded-full border border-foreground/70 px-8 py-3 text-sm font-medium hover:bg-foreground hover:text-background transition-colors"
+                onClick={() => fetchNextPage()}
+                disabled={isFetchingNextPage}
+                className="rounded-full border border-foreground/70 px-8 py-3 text-sm font-medium hover:bg-foreground hover:text-background transition-colors disabled:opacity-60"
               >
-                טען עוד מוצרים ({data.length - visibleCount})
+                {isFetchingNextPage ? "טוען..." : `טען עוד מוצרים (${total - products.length})`}
               </button>
             </div>
           )}

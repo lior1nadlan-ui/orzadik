@@ -219,7 +219,9 @@ def clean_name(name):
     a bare '(12345)' item number.
     """
     s = str(name or "").strip()
-    s = re.sub(r"^[\[\]\s]+", "", s)          # leading [ / [[
+    # Leading [, ], *, . — supplier markers. NOT " — names legitimately start
+    # with a quoted phrase, e.g. '"פיטום הקטורת" בלוק אקריליק'.
+    s = re.sub(r"^[\[\]\*\.\s]+", "", s)
     s = re.sub(r"^\(\d+\)\s*", "", s)         # leading (12345)
     s = re.sub(r"^\(\s*כמו\s*\d+\s*\)\s*", "", s)   # leading (כמו 16409)
     s = re.sub(r"\s{2,}", " ", s)

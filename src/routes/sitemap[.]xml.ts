@@ -27,15 +27,44 @@ const esc = (s: string) =>
 
 const loc = (path: string) => `${SITE}${path.startsWith("/") ? path : "/" + path}`;
 
+// PostgREST caps an unbounded select at 1000 rows. That was invisible while the
+// catalog was small, but after the supplier import only 1000 of 4672 products
+// reached the sitemap — the rest were silently missing from indexing. Page
+// through explicitly instead of trusting the default.
+const PAGE = 1000;
+async function fetchAll<T>(
+  build: () => { range: (from: number, to: number) => PromiseLike<{ data: T[] | null }> },
+): Promise<T[]> {
+  const out: T[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data } = await build().range(from, from + PAGE - 1);
+    const batch = data ?? [];
+    out.push(...batch);
+    if (batch.length < PAGE) return out;
+  }
+}
+
 export const Route = createFileRoute("/sitemap.xml")({
   server: {
     handlers: {
       GET: async () => {
         try {
-          const [{ data: products }, { data: categories }, { data: articles }] = await Promise.all([
-            supabaseAdmin.from("products").select("slug, updated_at, thumbnail_url").eq("is_active", true),
-            supabaseAdmin.from("categories").select("slug, image_url"),
-            supabaseAdmin.from("articles").select("slug, published_at, featured_image").eq("is_published", true),
+          const [products, categories, articles] = await Promise.all([
+            fetchAll<any>(() =>
+              supabaseAdmin
+                .from("products")
+                .select("slug, updated_at, thumbnail_url")
+                .eq("is_active", true)
+                .order("slug"),
+            ),
+            fetchAll<any>(() => supabaseAdmin.from("categories").select("slug, image_url").order("slug")),
+            fetchAll<any>(() =>
+              supabaseAdmin
+                .from("articles")
+                .select("slug, published_at, featured_image")
+                .eq("is_published", true)
+                .order("slug"),
+            ),
           ]);
 
           // Google Image sitemap extension helper.
