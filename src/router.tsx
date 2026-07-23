@@ -20,6 +20,12 @@ export const getRouter = () => {
     routeTree,
     context: { queryClient },
     scrollRestoration: true,
+    // Prefetch a route's code+data as soon as the pointer/focus lands on a
+    // Link. On a catalog this size the click-to-paint gap is dominated by the
+    // product-page chunk plus its Supabase round trip, and hovering is a
+    // reliable intent signal. defaultPreloadStaleTime stays 0 so the prefetched
+    // data is still revalidated on navigation — we buy latency, not staleness.
+    defaultPreload: "intent",
     defaultPreloadStaleTime: 0,
   });
 

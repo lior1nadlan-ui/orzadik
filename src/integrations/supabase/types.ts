@@ -118,6 +118,92 @@ export type Database = {
           },
         ]
       }
+      campaign_recipients: {
+        Row: {
+          campaign_id: string
+          created_at: string
+          email: string
+          error: string | null
+          id: string
+          name: string | null
+          sent_at: string | null
+          status: string
+        }
+        Insert: {
+          campaign_id: string
+          created_at?: string
+          email: string
+          error?: string | null
+          id?: string
+          name?: string | null
+          sent_at?: string | null
+          status?: string
+        }
+        Update: {
+          campaign_id?: string
+          created_at?: string
+          email?: string
+          error?: string | null
+          id?: string
+          name?: string | null
+          sent_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_recipients_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      campaigns: {
+        Row: {
+          content: Json
+          created_at: string
+          created_by: string | null
+          failed_count: number
+          finished_at: string | null
+          id: string
+          intro_html: string
+          recipient_count: number
+          sent_count: number
+          started_at: string | null
+          status: string
+          subject: string
+        }
+        Insert: {
+          content?: Json
+          created_at?: string
+          created_by?: string | null
+          failed_count?: number
+          finished_at?: string | null
+          id?: string
+          intro_html?: string
+          recipient_count?: number
+          sent_count?: number
+          started_at?: string | null
+          status?: string
+          subject: string
+        }
+        Update: {
+          content?: Json
+          created_at?: string
+          created_by?: string | null
+          failed_count?: number
+          finished_at?: string | null
+          id?: string
+          intro_html?: string
+          recipient_count?: number
+          sent_count?: number
+          started_at?: string | null
+          status?: string
+          subject?: string
+        }
+        Relationships: []
+      }
       categories: {
         Row: {
           created_at: string
@@ -181,6 +267,51 @@ export type Database = {
           customer_email?: string
           id?: string
           note?: string
+        }
+        Relationships: []
+      }
+      email_suppressions: {
+        Row: {
+          created_at: string
+          email: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+        }
+        Relationships: []
+      }
+      newsletter_subscribers: {
+        Row: {
+          consented_at: string
+          created_at: string
+          email: string
+          id: string
+          name: string | null
+          source: string
+          unsubscribed_at: string | null
+        }
+        Insert: {
+          consented_at?: string
+          created_at?: string
+          email: string
+          id?: string
+          name?: string | null
+          source: string
+          unsubscribed_at?: string | null
+        }
+        Update: {
+          consented_at?: string
+          created_at?: string
+          email?: string
+          id?: string
+          name?: string | null
+          source?: string
+          unsubscribed_at?: string | null
         }
         Relationships: []
       }
@@ -299,7 +430,10 @@ export type Database = {
           customer_email: string
           customer_name: string
           customer_phone: string
+          gift_note: string | null
+          gift_wrap: boolean
           id: string
+          is_gift: boolean
           notes: string | null
           order_number: string
           paid_at: string | null
@@ -307,12 +441,14 @@ export type Database = {
           payment_provider: string | null
           payment_status: string
           payment_txn_id: string | null
+          review_request_sent_at: string | null
           shipped_at: string | null
           shipping: number
           shipping_carrier: string | null
           shipping_notified_at: string | null
           shipping_status: string
           status: string
+          stock_decremented_at: string | null
           subtotal: number
           total: number
           tracking_number: string | null
@@ -335,7 +471,10 @@ export type Database = {
           customer_email: string
           customer_name: string
           customer_phone: string
+          gift_note?: string | null
+          gift_wrap?: boolean
           id?: string
+          is_gift?: boolean
           notes?: string | null
           order_number?: string
           paid_at?: string | null
@@ -343,12 +482,14 @@ export type Database = {
           payment_provider?: string | null
           payment_status?: string
           payment_txn_id?: string | null
+          review_request_sent_at?: string | null
           shipped_at?: string | null
           shipping?: number
           shipping_carrier?: string | null
           shipping_notified_at?: string | null
           shipping_status?: string
           status?: string
+          stock_decremented_at?: string | null
           subtotal?: number
           total?: number
           tracking_number?: string | null
@@ -371,7 +512,10 @@ export type Database = {
           customer_email?: string
           customer_name?: string
           customer_phone?: string
+          gift_note?: string | null
+          gift_wrap?: boolean
           id?: string
+          is_gift?: boolean
           notes?: string | null
           order_number?: string
           paid_at?: string | null
@@ -379,12 +523,14 @@ export type Database = {
           payment_provider?: string | null
           payment_status?: string
           payment_txn_id?: string | null
+          review_request_sent_at?: string | null
           shipped_at?: string | null
           shipping?: number
           shipping_carrier?: string | null
           shipping_notified_at?: string | null
           shipping_status?: string
           status?: string
+          stock_decremented_at?: string | null
           subtotal?: number
           total?: number
           tracking_number?: string | null
@@ -509,14 +655,17 @@ export type Database = {
           id: string
           is_active: boolean
           name: string
+          name_norm: string | null
           price: number
           sale_price: number | null
+          search_blob: string | null
           short_description: string | null
           sku: string | null
           slug: string
           stock_qty: number | null
           stock_status: string
           thumbnail_url: string | null
+          track_stock: boolean
           updated_at: string
           wp_id: number | null
         }
@@ -526,14 +675,17 @@ export type Database = {
           id?: string
           is_active?: boolean
           name: string
+          name_norm?: string | null
           price?: number
           sale_price?: number | null
+          search_blob?: string | null
           short_description?: string | null
           sku?: string | null
           slug: string
           stock_qty?: number | null
           stock_status?: string
           thumbnail_url?: string | null
+          track_stock?: boolean
           updated_at?: string
           wp_id?: number | null
         }
@@ -543,14 +695,17 @@ export type Database = {
           id?: string
           is_active?: boolean
           name?: string
+          name_norm?: string | null
           price?: number
           sale_price?: number | null
+          search_blob?: string | null
           short_description?: string | null
           sku?: string | null
           slug?: string
           stock_qty?: number | null
           stock_status?: string
           thumbnail_url?: string | null
+          track_stock?: boolean
           updated_at?: string
           wp_id?: number | null
         }
@@ -693,7 +848,27 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      claim_campaign_recipients: {
+        Args: { p_campaign_id: string; p_limit: number }
+        Returns: {
+          campaign_id: string
+          created_at: string
+          email: string
+          error: string | null
+          id: string
+          name: string | null
+          sent_at: string | null
+          status: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "campaign_recipients"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       cleanup_old_abandoned_carts: { Args: never; Returns: undefined }
+      decrement_order_stock: { Args: { p_order_id: string }; Returns: number }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -704,6 +879,25 @@ export type Database = {
       increment_rate_limit: {
         Args: { p_key: string; p_ttl_seconds: number }
         Returns: number
+      }
+      norm_he: { Args: { t: string }; Returns: string }
+      search_products: {
+        Args: {
+          p_limit?: number
+          p_offset?: number
+          p_sort?: string
+          p_term: string
+        }
+        Returns: {
+          id: string
+          name: string
+          price: number
+          sale_price: number
+          slug: string
+          stock_status: string
+          thumbnail_url: string
+          total_count: number
+        }[]
       }
     }
     Enums: {
