@@ -305,7 +305,7 @@ function CheckoutPage() {
             className="mt-0.5"
           />
           <span className="text-xs leading-relaxed text-muted-foreground">
-            אשמח לקבל דיוור שיווקי — מדריכים, עדכונים ומבצעים בדוא"ל (אופציונלי, ניתן להסרה בכל עת).
+            אשמח לקבל דיוור שיווקי — מדריכים, תוכן לקראת החגים ועדכונים בדוא"ל (אופציונלי, ניתן להסרה בכל עת).
           </span>
         </label>
         <PrivacyNotice context="checkout" />

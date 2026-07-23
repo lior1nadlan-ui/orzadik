@@ -200,7 +200,7 @@ function AuthPage() {
                   className="mt-0.5"
                 />
                 <span className="text-xs leading-relaxed text-foreground/90">
-                  אני מאשר/ת קבלת <strong>תוכן שיווקי — מדריכים, עדכונים ומבצעים</strong> מאור זרוע
+                  אני מאשר/ת קבלת <strong>דיוור שיווקי — מדריכים, תוכן ועדכונים</strong> מאור זרוע
                   באימייל וב-SMS. ניתן להסיר את ההסכמה בכל עת מתוך אזור החשבון
                   או בקישור ההסרה שבכל הודעה.
                 </span>
