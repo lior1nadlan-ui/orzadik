@@ -12,6 +12,14 @@
     "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_iIXlA6UOH_jEMubtd2nW9A_bG9hPbaF",
     "APP_URL": "https://orzadik.com",
   },
+  // Scheduled jobs. The `scheduled` handler in src/server.ts fans these out to
+  // the existing /api/cron/* endpoints (which stay externally callable with the
+  // same CRON_SECRET), so there is exactly one auth model for both paths.
+  //   "0 7 * * *"   → daily 07:00 UTC: post-delivery review requests
+  //   "*/5 * * * *" → every 5 min: send the next campaign batch (~240 mails/hr)
+  "triggers": {
+    "crons": ["0 7 * * *", "*/5 * * * *"],
+  },
   // Serve the Worker on the real domain (Cloudflare auto-creates DNS + TLS).
   "routes": [
     { "pattern": "orzadik.com", "custom_domain": true },

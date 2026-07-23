@@ -121,6 +121,7 @@ export type Database = {
       campaign_recipients: {
         Row: {
           campaign_id: string
+          claimed_at: string | null
           created_at: string
           email: string
           error: string | null
@@ -131,6 +132,7 @@ export type Database = {
         }
         Insert: {
           campaign_id: string
+          claimed_at?: string | null
           created_at?: string
           email: string
           error?: string | null
@@ -141,6 +143,7 @@ export type Database = {
         }
         Update: {
           campaign_id?: string
+          claimed_at?: string | null
           created_at?: string
           email?: string
           error?: string | null
@@ -852,6 +855,7 @@ export type Database = {
         Args: { p_campaign_id: string; p_limit: number }
         Returns: {
           campaign_id: string
+          claimed_at: string | null
           created_at: string
           email: string
           error: string | null

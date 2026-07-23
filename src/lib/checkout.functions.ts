@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getOptionalUserId } from "@/integrations/supabase/optional-auth";
 import { checkOrderRateLimit, checkOrderRateLimitByIp } from "@/lib/rate-limit.server";
 import { sendOrderCreatedOwnerAlert } from "@/lib/order-emails.server";
+import { recordNewsletterConsent } from "@/lib/newsletter.functions";
 import {
   SHIPPING_FLAT,
   getEffectivePrice as effectivePrice,
@@ -36,6 +37,9 @@ const CheckoutSchema = z.object({
   customer_city: z.string().trim().max(200).transform(stripHtml).optional().nullable(),
   notes: z.string().trim().max(2000).transform(stripHtml).optional().nullable(),
   contact_consent: z.boolean().optional(),
+  // Separate, optional marketing consent. Unrelated to contact_consent, whose
+  // checkout label explicitly promises the details are NOT used for marketing.
+  marketing_consent: z.boolean().optional(),
   // Gift options are FREE and data-only — deliberately so. They are recorded on
   // the order for packing, and are read by nothing in the price path.
   is_gift: z.boolean().optional(),
@@ -197,6 +201,22 @@ export const placeOrder = createServerFn({ method: "POST" })
       .update({ converted_order_id: order.id })
       .ilike("email", normalizedEmail)
       .is("converted_order_id", null);
+
+    // Optional marketing opt-in ticked at checkout. Fully isolated: the order
+    // is already committed at this point, and nothing in here may surface an
+    // error to the customer or interrupt the payment redirect.
+    if (data.marketing_consent) {
+      try {
+        await recordNewsletterConsent({
+          email: normalizedEmail,
+          name: data.customer_name,
+          source: "checkout",
+          userId: authedUserId,
+        });
+      } catch (e) {
+        console.error("[placeOrder] newsletter opt-in failed (non-fatal):", e);
+      }
+    }
 
     // Owner alert on creation (owner asked to hear about EVERY order, not only
     // paid ones — the paid confirmation still arrives from the webhook).

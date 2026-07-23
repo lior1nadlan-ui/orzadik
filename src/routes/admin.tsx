@@ -2,7 +2,7 @@ import { createFileRoute, Outlet, Link, useNavigate, useRouterState, redirect } 
 import { useEffect } from "react";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
-import { Package, FolderTree, ShoppingBag, ShoppingCart, LayoutDashboard, Star, Users } from "lucide-react";
+import { Package, FolderTree, ShoppingBag, ShoppingCart, LayoutDashboard, Star, Users, Mail } from "lucide-react";
 
 export const Route = createFileRoute("/admin")({
   beforeLoad: async () => {
@@ -28,6 +28,7 @@ const items = [
   { to: "/admin/orders", label: "הזמנות", icon: ShoppingBag },
   { to: "/admin/customers", label: "לקוחות", icon: Users },
   { to: "/admin/abandoned", label: "עגלות נטושות", icon: ShoppingCart },
+  { to: "/admin/campaigns", label: "דיוור", icon: Mail },
   { to: "/admin/reviews", label: "חוות דעת", icon: Star },
 ];
 

@@ -38,9 +38,12 @@ import { Route as AdminProductsRouteImport } from './routes/admin.products'
 import { Route as AdminOrdersRouteImport } from './routes/admin.orders'
 import { Route as AdminCustomersRouteImport } from './routes/admin.customers'
 import { Route as AdminCategoriesRouteImport } from './routes/admin.categories'
+import { Route as AdminCampaignsRouteImport } from './routes/admin.campaigns'
 import { Route as AdminAbandonedRouteImport } from './routes/admin.abandoned'
 import { Route as ApiPublicUnsubscribeRouteImport } from './routes/api/public/unsubscribe'
 import { Route as ApiPublicCardcomWebhookRouteImport } from './routes/api/public/cardcom-webhook'
+import { Route as ApiCronReviewRequestsRouteImport } from './routes/api/cron/review-requests'
+import { Route as ApiCronCampaignTickRouteImport } from './routes/api/cron/campaign-tick'
 import { Route as ApiCronAbandonedCartRemindersRouteImport } from './routes/api/cron/abandoned-cart-reminders'
 
 const TrackRoute = TrackRouteImport.update({
@@ -188,6 +191,11 @@ const AdminCategoriesRoute = AdminCategoriesRouteImport.update({
   path: '/categories',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminCampaignsRoute = AdminCampaignsRouteImport.update({
+  id: '/campaigns',
+  path: '/campaigns',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminAbandonedRoute = AdminAbandonedRouteImport.update({
   id: '/abandoned',
   path: '/abandoned',
@@ -201,6 +209,16 @@ const ApiPublicUnsubscribeRoute = ApiPublicUnsubscribeRouteImport.update({
 const ApiPublicCardcomWebhookRoute = ApiPublicCardcomWebhookRouteImport.update({
   id: '/api/public/cardcom-webhook',
   path: '/api/public/cardcom-webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCronReviewRequestsRoute = ApiCronReviewRequestsRouteImport.update({
+  id: '/api/cron/review-requests',
+  path: '/api/cron/review-requests',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCronCampaignTickRoute = ApiCronCampaignTickRouteImport.update({
+  id: '/api/cron/campaign-tick',
+  path: '/api/cron/campaign-tick',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiCronAbandonedCartRemindersRoute =
@@ -230,6 +248,7 @@ export interface FileRoutesByFullPath {
   '/terms': typeof TermsRoute
   '/track': typeof TrackRoute
   '/admin/abandoned': typeof AdminAbandonedRoute
+  '/admin/campaigns': typeof AdminCampaignsRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/customers': typeof AdminCustomersRoute
   '/admin/orders': typeof AdminOrdersRoute
@@ -242,6 +261,8 @@ export interface FileRoutesByFullPath {
   '/admin/': typeof AdminIndexRoute
   '/articles/': typeof ArticlesIndexRoute
   '/api/cron/abandoned-cart-reminders': typeof ApiCronAbandonedCartRemindersRoute
+  '/api/cron/campaign-tick': typeof ApiCronCampaignTickRoute
+  '/api/cron/review-requests': typeof ApiCronReviewRequestsRoute
   '/api/public/cardcom-webhook': typeof ApiPublicCardcomWebhookRoute
   '/api/public/unsubscribe': typeof ApiPublicUnsubscribeRoute
 }
@@ -264,6 +285,7 @@ export interface FileRoutesByTo {
   '/terms': typeof TermsRoute
   '/track': typeof TrackRoute
   '/admin/abandoned': typeof AdminAbandonedRoute
+  '/admin/campaigns': typeof AdminCampaignsRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/customers': typeof AdminCustomersRoute
   '/admin/orders': typeof AdminOrdersRoute
@@ -276,6 +298,8 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminIndexRoute
   '/articles': typeof ArticlesIndexRoute
   '/api/cron/abandoned-cart-reminders': typeof ApiCronAbandonedCartRemindersRoute
+  '/api/cron/campaign-tick': typeof ApiCronCampaignTickRoute
+  '/api/cron/review-requests': typeof ApiCronReviewRequestsRoute
   '/api/public/cardcom-webhook': typeof ApiPublicCardcomWebhookRoute
   '/api/public/unsubscribe': typeof ApiPublicUnsubscribeRoute
 }
@@ -300,6 +324,7 @@ export interface FileRoutesById {
   '/terms': typeof TermsRoute
   '/track': typeof TrackRoute
   '/admin/abandoned': typeof AdminAbandonedRoute
+  '/admin/campaigns': typeof AdminCampaignsRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/customers': typeof AdminCustomersRoute
   '/admin/orders': typeof AdminOrdersRoute
@@ -312,6 +337,8 @@ export interface FileRoutesById {
   '/admin/': typeof AdminIndexRoute
   '/articles/': typeof ArticlesIndexRoute
   '/api/cron/abandoned-cart-reminders': typeof ApiCronAbandonedCartRemindersRoute
+  '/api/cron/campaign-tick': typeof ApiCronCampaignTickRoute
+  '/api/cron/review-requests': typeof ApiCronReviewRequestsRoute
   '/api/public/cardcom-webhook': typeof ApiPublicCardcomWebhookRoute
   '/api/public/unsubscribe': typeof ApiPublicUnsubscribeRoute
 }
@@ -337,6 +364,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/track'
     | '/admin/abandoned'
+    | '/admin/campaigns'
     | '/admin/categories'
     | '/admin/customers'
     | '/admin/orders'
@@ -349,6 +377,8 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/articles/'
     | '/api/cron/abandoned-cart-reminders'
+    | '/api/cron/campaign-tick'
+    | '/api/cron/review-requests'
     | '/api/public/cardcom-webhook'
     | '/api/public/unsubscribe'
   fileRoutesByTo: FileRoutesByTo
@@ -371,6 +401,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/track'
     | '/admin/abandoned'
+    | '/admin/campaigns'
     | '/admin/categories'
     | '/admin/customers'
     | '/admin/orders'
@@ -383,6 +414,8 @@ export interface FileRouteTypes {
     | '/admin'
     | '/articles'
     | '/api/cron/abandoned-cart-reminders'
+    | '/api/cron/campaign-tick'
+    | '/api/cron/review-requests'
     | '/api/public/cardcom-webhook'
     | '/api/public/unsubscribe'
   id:
@@ -406,6 +439,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/track'
     | '/admin/abandoned'
+    | '/admin/campaigns'
     | '/admin/categories'
     | '/admin/customers'
     | '/admin/orders'
@@ -418,6 +452,8 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/articles/'
     | '/api/cron/abandoned-cart-reminders'
+    | '/api/cron/campaign-tick'
+    | '/api/cron/review-requests'
     | '/api/public/cardcom-webhook'
     | '/api/public/unsubscribe'
   fileRoutesById: FileRoutesById
@@ -447,6 +483,8 @@ export interface RootRouteChildren {
   ProductSlugRoute: typeof ProductSlugRoute
   ArticlesIndexRoute: typeof ArticlesIndexRoute
   ApiCronAbandonedCartRemindersRoute: typeof ApiCronAbandonedCartRemindersRoute
+  ApiCronCampaignTickRoute: typeof ApiCronCampaignTickRoute
+  ApiCronReviewRequestsRoute: typeof ApiCronReviewRequestsRoute
   ApiPublicCardcomWebhookRoute: typeof ApiPublicCardcomWebhookRoute
   ApiPublicUnsubscribeRoute: typeof ApiPublicUnsubscribeRoute
 }
@@ -656,6 +694,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminCategoriesRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/campaigns': {
+      id: '/admin/campaigns'
+      path: '/campaigns'
+      fullPath: '/admin/campaigns'
+      preLoaderRoute: typeof AdminCampaignsRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/abandoned': {
       id: '/admin/abandoned'
       path: '/abandoned'
@@ -677,6 +722,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicCardcomWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/cron/review-requests': {
+      id: '/api/cron/review-requests'
+      path: '/api/cron/review-requests'
+      fullPath: '/api/cron/review-requests'
+      preLoaderRoute: typeof ApiCronReviewRequestsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/cron/campaign-tick': {
+      id: '/api/cron/campaign-tick'
+      path: '/api/cron/campaign-tick'
+      fullPath: '/api/cron/campaign-tick'
+      preLoaderRoute: typeof ApiCronCampaignTickRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/cron/abandoned-cart-reminders': {
       id: '/api/cron/abandoned-cart-reminders'
       path: '/api/cron/abandoned-cart-reminders'
@@ -689,6 +748,7 @@ declare module '@tanstack/react-router' {
 
 interface AdminRouteChildren {
   AdminAbandonedRoute: typeof AdminAbandonedRoute
+  AdminCampaignsRoute: typeof AdminCampaignsRoute
   AdminCategoriesRoute: typeof AdminCategoriesRoute
   AdminCustomersRoute: typeof AdminCustomersRoute
   AdminOrdersRoute: typeof AdminOrdersRoute
@@ -699,6 +759,7 @@ interface AdminRouteChildren {
 
 const AdminRouteChildren: AdminRouteChildren = {
   AdminAbandonedRoute: AdminAbandonedRoute,
+  AdminCampaignsRoute: AdminCampaignsRoute,
   AdminCategoriesRoute: AdminCategoriesRoute,
   AdminCustomersRoute: AdminCustomersRoute,
   AdminOrdersRoute: AdminOrdersRoute,
@@ -734,6 +795,8 @@ const rootRouteChildren: RootRouteChildren = {
   ProductSlugRoute: ProductSlugRoute,
   ArticlesIndexRoute: ArticlesIndexRoute,
   ApiCronAbandonedCartRemindersRoute: ApiCronAbandonedCartRemindersRoute,
+  ApiCronCampaignTickRoute: ApiCronCampaignTickRoute,
+  ApiCronReviewRequestsRoute: ApiCronReviewRequestsRoute,
   ApiPublicCardcomWebhookRoute: ApiPublicCardcomWebhookRoute,
   ApiPublicUnsubscribeRoute: ApiPublicUnsubscribeRoute,
 }

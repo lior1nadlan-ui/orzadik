@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { sanitizeTerm } from "@/routes/shop";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { ClubBadge } from "@/components/ClubBadge";
+import { NewsletterSignup } from "@/components/NewsletterSignup";
 import { openCookieSettings } from "@/components/CookieConsent";
 import { BUSINESS } from "@/lib/business";
 import logoUrl from "@/assets/logo.webp";
@@ -477,6 +478,18 @@ export function SiteFooter() {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Newsletter capture — marketing consent, separate from the
+            operational contact consent collected at checkout. */}
+        <div className="mt-12 mx-auto max-w-lg text-center">
+          <div className="text-xs tracking-[0.35em] text-accent uppercase mb-3">
+            הצטרפו לרשימת התפוצה
+          </div>
+          <p className="text-sm text-muted-foreground mb-4">
+            מבצעים ועדכונים — בלי ספאם, אפשר להסיר בכל רגע.
+          </p>
+          <NewsletterSignup />
         </div>
 
         {/* Divider */}

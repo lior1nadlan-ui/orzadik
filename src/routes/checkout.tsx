@@ -31,6 +31,9 @@ function CheckoutPage() {
   const saveCart = useServerFn(saveAbandonedCart);
   const [submitting, setSubmitting] = useState(false);
   const [contactConsent, setContactConsent] = useState(false);
+  // Optional and unchecked by default — never bundled with the required
+  // operational consent above it.
+  const [marketingConsent, setMarketingConsent] = useState(false);
   // Gift options — free, so none of this touches the summary column below.
   const [isGift, setIsGift] = useState(false);
   const [giftNote, setGiftNote] = useState("");
@@ -150,6 +153,7 @@ function CheckoutPage() {
           customer_city: form.city || null,
           notes: form.notes || null,
           contact_consent: contactConsent,
+          marketing_consent: marketingConsent,
           is_gift: isGift,
           gift_note: isGift ? giftNote || null : null,
           gift_wrap: isGift ? giftWrap : false,
@@ -267,6 +271,18 @@ function CheckoutPage() {
             אני מאשר/ת שלצורך טיפול בהזמנה — אישור, תיאום משלוח ובירורים — ייצרו עמי קשר
             בטלפון או בדוא"ל שמסרתי. הפרטים נדרשים להשלמת ההזמנה ואינם משמשים לדיוור שיווקי
             ללא הסכמה נפרדת.
+          </span>
+        </label>
+        {/* Marketing consent — lighter, optional, and visually secondary to the
+            required consent above so the two can't be mistaken for one. */}
+        <label className="flex items-start gap-2 rounded-md border border-border bg-muted/30 p-3 cursor-pointer">
+          <Checkbox
+            checked={marketingConsent}
+            onCheckedChange={(v) => setMarketingConsent(v === true)}
+            className="mt-0.5"
+          />
+          <span className="text-xs leading-relaxed text-muted-foreground">
+            אשמח לקבל דיוור שיווקי — מבצעים ועדכונים בדוא"ל (אופציונלי, ניתן להסרה בכל עת).
           </span>
         </label>
         <PrivacyNotice context="checkout" />
