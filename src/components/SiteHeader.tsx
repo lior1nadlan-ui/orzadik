@@ -1,6 +1,6 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ShoppingBag, User as UserIcon, Search, Menu, X, Heart } from "lucide-react";
-import { useCart, formatILS, getEffectivePrice, getDisplayOriginal } from "@/lib/cart";
+import { useCart, formatILS, getEffectivePrice } from "@/lib/cart";
 import { useFavorites } from "@/components/engagement/favorites";
 import { useAuth } from "@/lib/auth";
 import { useState, useEffect, useRef } from "react";
@@ -376,7 +376,6 @@ export function SiteHeader() {
                   )}
                   {(suggestions?.rows ?? []).map((p) => {
                     const effective = getEffectivePrice(p.price);
-                    const original = getDisplayOriginal(p.price, p.sale_price);
                     return (
                       <Link
                         key={p.id}
@@ -407,9 +406,6 @@ export function SiteHeader() {
                           <span className="shrink-0 text-xs font-semibold text-accent">לפי שער הזהב</span>
                         ) : (
                           <span className="flex shrink-0 items-center gap-1.5">
-                            {original > effective && (
-                              <span className="text-xs text-muted-foreground line-through">{formatILS(original)}</span>
-                            )}
                             <span className="text-sm font-semibold text-accent">{formatILS(effective)}</span>
                           </span>
                         )}

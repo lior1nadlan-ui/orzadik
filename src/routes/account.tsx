@@ -259,10 +259,10 @@ function AccountPage() {
           </div>
           <div className="flex flex-col items-start md:items-end gap-1">
             <span className="rounded-full bg-[#D4AF37] text-white text-sm font-bold px-4 py-1.5 shadow">
-              5% הנחת מועדון
+              חבר/ת מועדון
             </span>
             <span className="text-xs text-muted-foreground">
-              ההנחה חלה אוטומטית בכל הזמנה
+              ההטבות חלות אוטומטית בכל הזמנה
             </span>
           </div>
         </div>

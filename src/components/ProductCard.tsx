@@ -1,6 +1,6 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { formatILS, useCart, getEffectivePrice, getDisplayOriginal, getDiscountPct } from "@/lib/cart";
+import { formatILS, useCart, getEffectivePrice } from "@/lib/cart";
 import { useFavorites } from "@/components/engagement/favorites";
 import { ProductThumb } from "@/components/ProductThumb";
 import { Heart } from "lucide-react";
@@ -27,18 +27,9 @@ export function ProductCard({ p, priority = false }: { p: ProductCardData; prior
   const isCallOnly = Number(p.price) === 0;
   const isOutOfStock = p.stock_status === "outofstock";
   const effective = getEffectivePrice(p.price);
-  const original = getDisplayOriginal(p.price, p.sale_price);
-  const discountPct = getDiscountPct(p.price, p.sale_price);
-  const hasDiscount = discountPct > 0;
 
   return (
     <div className="group relative flex flex-col h-full bg-card rounded-lg shadow-[var(--shadow-card)] overflow-hidden border border-border transition-all duration-300 hover:shadow-[var(--shadow-soft)] hover:-translate-y-1">
-      {/* Discount badge — burgundy (sale-signal), distinct from the gold luxury accents */}
-      {!isCallOnly && !isOutOfStock && hasDiscount && (
-        <div className="absolute top-3 right-3 z-10 rounded-full bg-argaman text-white text-xs font-bold px-2.5 py-1 shadow">
-          {discountPct}%-
-        </div>
-      )}
       {isOutOfStock && (
         <div className="absolute top-3 right-3 z-10 rounded-full bg-muted text-muted-foreground text-xs font-bold px-2.5 py-1 shadow">
           אזל מהמלאי
@@ -97,9 +88,6 @@ export function ProductCard({ p, priority = false }: { p: ProductCardData; prior
           </div>
         ) : (
           <div className="mt-3 flex flex-col items-center gap-0.5">
-            {hasDiscount && (
-              <span className="text-xs text-muted-foreground line-through">{formatILS(original)}</span>
-            )}
             <span className="text-lg font-bold text-accent">
               {formatILS(effective)}
             </span>

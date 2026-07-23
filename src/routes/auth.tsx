@@ -117,7 +117,7 @@ function AuthPage() {
       <div className="mb-6 rounded-lg border border-[#D4AF37]/40 bg-gradient-to-br from-[#FAF6E9] to-white p-4 text-center">
         <p className="text-sm font-semibold text-[#A8862A]">✦ חבר מועדון אור זרוע</p>
         <p className="text-xs text-foreground/80 mt-1 leading-relaxed">
-          הצטרפות חינם — מקבלים <span className="font-bold text-[#A8862A]">5% הנחה נוספת</span> על כל הזמנה,
+          הצטרפות חינם — <span className="font-bold text-accent">מועדון הלקוחות</span> מעניק מעקב הזמנות והטבות,
           תזכורות לעגלות שלא הושלמו, ועדכונים על מבצעים, מוצרים חדשים ותוכן מיוחד לחברי המועדון
           באימייל וב-SMS.
         </p>

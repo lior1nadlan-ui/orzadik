@@ -292,7 +292,7 @@ function HomePage() {
             </h2>
             <span aria-hidden="true" className="block h-px w-24 mx-auto my-4 bg-[image:var(--gradient-gold-line)]" />
             <p className="text-cream/90 text-sm md:text-lg">
-              עד 15% הנחה על כל האתר
+              כשרות מהודרת ומשלוח עד הבית
             </p>
             <div className="mt-6 flex flex-wrap justify-center gap-3">
               <Link to="/shop" className={BTN_DARK_SOLID}>

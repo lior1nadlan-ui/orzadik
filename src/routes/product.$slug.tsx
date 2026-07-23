@@ -19,7 +19,7 @@ import {
   CarouselPrevious,
   type CarouselApi,
 } from "@/components/ui/carousel";
-import { formatILS, useCart, getEffectivePrice, getDisplayOriginal, getDiscountPct, FREE_SHIPPING_THRESHOLD, SHIPPING_FLAT, type CustomMethod } from "@/lib/cart";
+import { formatILS, useCart, getEffectivePrice, FREE_SHIPPING_THRESHOLD, SHIPPING_FLAT, type CustomMethod } from "@/lib/cart";
 import { ProductCardData } from "@/components/ProductCard";
 import { ProductCarousel } from "@/components/product/ProductCarousel";
 import { BundleOffer } from "@/components/BundleOffer";
@@ -562,9 +562,6 @@ function ProductPage() {
   // Honest strike-through: only vs. a genuine recorded former price (sale_price)
   // for the base product; a selected size variant has no recorded former price.
   const baseSalePrice = selectedVariant ? null : (product.sale_price ?? null);
-  const original = getDisplayOriginal(effectiveBase, baseSalePrice);
-  const discountPct = getDiscountPct(effectiveBase, baseSalePrice);
-  const hasDiscount = discountPct > 0;
   const inStock = product.stock_status !== "outofstock";
   const firstCategory: any = (product.product_categories ?? [])[0]?.categories;
   const isCallOnly = (product.product_categories ?? []).some(
@@ -724,11 +721,6 @@ function ProductPage() {
                     </CarouselItem>
                   ))}
                 </CarouselContent>
-                {hasDiscount && (
-                  <span className="absolute top-3 right-3 z-10 rounded-full bg-argaman text-white text-xs font-bold px-3 py-1.5 shadow pointer-events-none">
-                    {discountPct}%- הנחה
-                  </span>
-                )}
                 <DialogTrigger asChild>
                   <button
                     type="button"
@@ -811,14 +803,6 @@ function ProductPage() {
           ) : (
             <div className="flex items-baseline gap-3 mb-3 flex-wrap">
               <span className="text-3xl font-bold text-accent">{formatILS(effective)}</span>
-              {hasDiscount && (
-                <>
-                  <span className="text-lg text-muted-foreground line-through">{formatILS(original)}</span>
-                  <span className="rounded-full bg-argaman/10 text-argaman text-sm font-bold px-3 py-1">
-                    חיסכון {formatILS(original - effective)}
-                  </span>
-                </>
-              )}
             </div>
           )}
 

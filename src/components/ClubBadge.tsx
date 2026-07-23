@@ -30,10 +30,9 @@ export function ClubBadge({ variant = "inline", className = "" }: Props) {
         className={`group flex h-9 w-full items-center justify-center bg-argaman-deep px-4 text-[13px] tracking-wide text-cream ${className}`}
       >
         <span className="truncate">
-          <span className="hidden sm:inline">הצטרפו לחבר מועדון בחינם וקבלו </span>
-          <span className="font-bold text-gold-bright">5% הנחה נוספת</span>
-          <span className="sm:hidden"> לחברי מועדון</span>
-          <span className="hidden md:inline"> מעבר ל-<span className="font-bold text-gold-bright">15%</span> הקיימים</span>
+          <span className="hidden sm:inline">הצטרפו למועדון הלקוחות שלנו — </span>
+          <span className="font-bold text-gold-bright">חברות חינם</span>
+          <span className="hidden md:inline"> · מעקב הזמנות והטבות לחברי מועדון</span>
           <span aria-hidden="true"> · </span>
           <span className="font-bold text-gold-bright underline decoration-gold-bright/50 underline-offset-4 group-hover:decoration-gold-bright transition-colors">
             הרשמה
@@ -56,8 +55,8 @@ export function ClubBadge({ variant = "inline", className = "" }: Props) {
           חבר מועדון • חינם
         </div>
         <div className="text-xs text-foreground/85 leading-snug">
-          קבלו <strong className="text-accent">5% הנחה נוספת</strong> על המוצר הזה ועל כל הזמנה,
-          מעבר ל-15% הקיימים
+          הצטרפו <strong className="text-accent">בחינם</strong> ותיהנו ממעקב הזמנות באזור האישי
+          ומהטבות לחברי מועדון
         </div>
       </div>
       <span className="text-xs font-semibold text-accent whitespace-nowrap underline group-hover:no-underline">

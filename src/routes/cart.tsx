@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { formatILS, useCart, getEffectivePrice, getDisplayOriginal, applyMemberDiscount, lineKey } from "@/lib/cart";
+import { formatILS, useCart, getEffectivePrice, applyMemberDiscount, lineKey } from "@/lib/cart";
 import { useAuth } from "@/lib/auth";
 
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,7 @@ export const Route = createFileRoute("/cart")({
 });
 
 function CartPage() {
-  const { items, remove, setQty, subtotal, subtotalBase, discountAmount, shipping } = useCart();
+  const { items, remove, setQty, subtotal, shipping } = useCart();
   const { user } = useAuth();
   const isMember = !!user;
   const memberSubtotal = applyMemberDiscount(subtotal, isMember);
@@ -40,7 +40,6 @@ function CartPage() {
         <h1 className="font-display text-3xl font-bold mb-4">העגלה שלי</h1>
         {items.map((item) => {
           const effective = getEffectivePrice(item.price);
-          const itemOriginal = getDisplayOriginal(item.price, item.salePrice);
           const k = lineKey(item);
           return (
             <div key={k} className="flex gap-3 sm:gap-4 rounded-lg border bg-card p-3 sm:p-4">
@@ -82,9 +81,6 @@ function CartPage() {
                 )}
 
                 <div className="text-xs sm:text-sm mt-1 flex items-baseline gap-2">
-                  {itemOriginal > effective && (
-                    <span className="text-muted-foreground line-through">{formatILS(itemOriginal)}</span>
-                  )}
                   <span className="font-semibold text-[#A8862A]">{formatILS(effective)}</span>
                 </div>
 
@@ -109,24 +105,6 @@ function CartPage() {
       </div>
       <div className="rounded-lg border bg-card p-6 h-fit sticky top-20">
         <h2 className="font-display text-xl font-bold mb-4">סיכום הזמנה</h2>
-        {discountAmount > 0 && (
-          <>
-            <div className="flex justify-between mb-2 text-sm">
-              <span className="text-muted-foreground">סכום מקורי</span>
-              <span className="line-through">{formatILS(subtotalBase)}</span>
-            </div>
-            <div className="flex justify-between mb-2 text-sm">
-              <span className="text-[#A8862A] font-medium">הנחת מבצע</span>
-              <span className="text-[#A8862A] font-medium">-{formatILS(discountAmount)}</span>
-            </div>
-          </>
-        )}
-        {isMember && memberSavings > 0 && (
-          <div className="flex justify-between mb-2 text-sm">
-            <span className="text-[#A8862A] font-medium">✦ הנחת חבר מועדון (5%)</span>
-            <span className="text-[#A8862A] font-medium">-{formatILS(memberSavings)}</span>
-          </div>
-        )}
         <div className="flex justify-between text-sm mb-2">
           <span className="text-muted-foreground">משלוח (תעריף אחיד לכל הזמנה)</span>
           <span>{formatILS(shipping)}</span>
@@ -138,14 +116,6 @@ function CartPage() {
           <span className="font-bold">סך הכל</span>
           <span className="font-bold text-[#A8862A]">{formatILS(finalTotal)}</span>
         </div>
-        {!isMember && (
-          <div className="mb-4 rounded-md border border-[#D4AF37]/30 bg-[#FAF6E9] p-3 text-xs">
-            <Link to="/auth" className="font-semibold text-[#A8862A] hover:underline">
-              הצטרפו בחינם כחבר מועדון
-            </Link>
-            <span className="text-foreground/80"> וקבלו 5% הנחה נוספת ✦</span>
-          </div>
-        )}
 
         <Link to="/checkout"><Button className="w-full bg-[#D4AF37] hover:bg-[#A8862A] text-white" size="lg">מעבר לתשלום · {formatILS(finalTotal)}</Button></Link>
         <TrustBadges compact />

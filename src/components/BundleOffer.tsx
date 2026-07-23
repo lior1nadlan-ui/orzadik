@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { formatILS, useCart, getEffectivePrice, getDisplayOriginal } from "@/lib/cart";
+import { formatILS, useCart, getEffectivePrice } from "@/lib/cart";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -45,7 +45,6 @@ export function BundleOffer({
 
   const all = useMemo(() => [main, ...addons], [main, addons]);
   const chosen = all.filter((p) => selected[p.id]);
-  const totalBase = chosen.reduce((s, p) => s + getDisplayOriginal(p.price, p.sale_price), 0);
   const totalEff = chosen.reduce((s, p) => s + getEffectivePrice(p.price), 0);
 
   function addBundle() {
@@ -124,9 +123,6 @@ export function BundleOffer({
             <div className="text-[10px] text-muted-foreground leading-none">סה״כ ערכה</div>
             <div className="flex items-baseline gap-1.5 mt-0.5">
               <span className="text-base font-bold text-[#A8862A]">{formatILS(totalEff)}</span>
-              {totalBase > totalEff && (
-                <span className="text-[10px] text-muted-foreground line-through">{formatILS(totalBase)}</span>
-              )}
             </div>
           </div>
           <Button
@@ -202,9 +198,6 @@ export function BundleOffer({
           </span>
           <div className="flex items-baseline gap-2 mt-0.5">
             <span className="text-2xl font-bold text-[#A8862A]">{formatILS(totalEff)}</span>
-            {totalBase > totalEff && (
-              <span className="text-sm text-muted-foreground line-through">{formatILS(totalBase)}</span>
-            )}
           </div>
         </div>
         <Button

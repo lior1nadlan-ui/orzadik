@@ -289,22 +289,6 @@ function RootShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-function SalePromoBar() {
-  return (
-    <div
-      className="w-full text-center text-[13px] md:text-sm font-semibold tracking-wide py-2 px-3"
-      style={{
-        background: "linear-gradient(90deg, #E8C76B 0%, #D4AF37 50%, #A8862A 100%)",
-        color: "#1a1a1a",
-      }}
-      role="region"
-      aria-label="מבצע מיוחד"
-    >
-      ✨ מבצע השקת אתר | 15% הנחה על כל האתר — ההנחה חלה אוטומטית בעגלה ✨
-    </div>
-  );
-}
-
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   return (
@@ -318,11 +302,9 @@ function RootComponent() {
             >
               דלג לתוכן המרכזי
             </a>
-            {/* Promo bar scrolls away; the header pins itself (sticky -top-9 —
-                the club strip scrolls off while the parchment-glass bar stays).
-                No sticky wrapper here: sticky can't travel beyond its parent,
-                so the header must sit directly in the full-height app root. */}
-            <SalePromoBar />
+            {/* The header pins itself (sticky -top-9). No sticky wrapper here:
+                sticky can't travel beyond its parent, so the header must sit
+                directly in the full-height app root. */}
             <SiteHeader />
             <main id="main-content" tabIndex={-1} className="flex-1 scroll-mt-24 lg:scroll-mt-32">
               <Outlet />

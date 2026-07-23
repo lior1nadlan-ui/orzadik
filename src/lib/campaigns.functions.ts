@@ -26,9 +26,9 @@ import {
   unsubscribeUrl,
 } from "@/lib/email.server";
 import { sellerIdentityLine, BUSINESS } from "@/lib/business";
-// Read-only price helpers — display formatting for the product cards. This
+// Read-only price helper — display formatting for the product cards. This
 // module never computes or charges anything.
-import { getEffectivePrice, getDisplayOriginal } from "@/lib/pricing";
+import { getEffectivePrice } from "@/lib/pricing";
 
 /** PostgREST silently caps unbounded selects at 1000 — page every full walk. */
 const DB_PAGE = 1000;
@@ -59,14 +59,10 @@ function productCards(products: SnapshotProduct[]): string {
   const cells = products.map((p) => {
     const url = `https://orzadik.com/product/${encodeURIComponent(p.slug)}`;
     const effective = getEffectivePrice(Number(p.price));
-    const original = getDisplayOriginal(Number(p.price), p.sale_price);
     const isCallOnly = Number(p.price) === 0;
     const priceHtml = isCallOnly
       ? `<div style="font-size:13px;color:#A8862A;">לפי שער הזהב</div>`
-      : `<div style="font-size:13px;">
-           ${original > effective ? `<span style="color:#999;text-decoration:line-through;margin-left:6px;">${ils(original)}</span>` : ""}
-           <strong style="color:#A8862A;">${ils(effective)}</strong>
-         </div>`;
+      : `<div style="font-size:13px;"><strong style="color:#A8862A;">${ils(effective)}</strong></div>`;
     return `<td width="50%" valign="top" style="padding:8px;">
       <a href="${esc(url)}" style="text-decoration:none;color:inherit;">
         ${p.thumbnail_url ? `<img src="${esc(p.thumbnail_url)}" width="240" alt="" style="width:100%;max-width:240px;border-radius:8px;display:block;">` : ""}

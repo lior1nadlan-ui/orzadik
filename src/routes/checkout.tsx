@@ -23,7 +23,7 @@ export const Route = createFileRoute("/checkout")({
 });
 
 function CheckoutPage() {
-  const { items, subtotal, subtotalBase, discountAmount, shipping, grandTotal } = useCart();
+  const { items, subtotal, shipping, grandTotal } = useCart();
   const { user } = useAuth();
   const navigate = useNavigate();
   const submitOrder = useServerFn(placeOrder);
@@ -312,24 +312,6 @@ function CheckoutPage() {
             </div>
           ))}
         </div>
-        {discountAmount > 0 && (
-          <>
-            <div className="flex justify-between text-xs text-muted-foreground mb-1">
-              <span>מחיר מקורי</span>
-              <span className="line-through">{formatILS(subtotalBase)}</span>
-            </div>
-            <div className="flex justify-between text-xs text-[#A8862A] font-medium mb-2">
-              <span>הנחת מבצע</span>
-              <span>-{formatILS(discountAmount)}</span>
-            </div>
-          </>
-        )}
-        {isMember && memberSavings > 0 && (
-          <div className="flex justify-between text-xs text-[#A8862A] font-medium mb-2">
-            <span>✦ הנחת חבר מועדון (5%)</span>
-            <span>-{formatILS(memberSavings)}</span>
-          </div>
-        )}
         <div className="flex justify-between text-sm mb-2">
           <span className="text-muted-foreground">משלוח</span>
           <span>{formatILS(shipping)}</span>
@@ -339,14 +321,6 @@ function CheckoutPage() {
           <span className="font-bold text-[#A8862A]">{formatILS(finalTotal)}</span>
         </div>
         <p className="mt-1 text-[11px] text-muted-foreground">כל המחירים בשקלים (₪) וכוללים מע"מ.</p>
-        {!isMember && (
-          <div className="mt-3 rounded-md border border-[#D4AF37]/30 bg-[#FAF6E9] p-3 text-xs">
-            <Link to="/auth" className="font-semibold text-[#A8862A] hover:underline">
-              הצטרפו בחינם כחבר מועדון
-            </Link>
-            <span className="text-foreground/80"> וקבלו 5% הנחה נוספת על ההזמנה הזו</span>
-          </div>
-        )}
 
         {/* Trust signals — reduce checkout anxiety */}
         <TrustBadges />

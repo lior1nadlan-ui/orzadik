@@ -175,7 +175,7 @@ export async function runAbandonedCartReminders(): Promise<{ sent: number; scann
       <p style="font-size:11px;color:#999;margin:0 0 8px;">פרסומת</p>
       <h1 style="font-size:20px;margin:0 0 8px;">שכחתם משהו בעגלה? 🛍️</h1>
       <p style="font-size:14px;color:#555;margin:0 0 16px;">
-        ${cart.name ? esc(cart.name) + ", " : ""}העגלה שלכם עדיין ממתינה — המוצרים שמורים לכם וההנחה עדיין בתוקף.
+        ${cart.name ? esc(cart.name) + ", " : ""}העגלה שלכם עדיין ממתינה — המוצרים שבחרתם שמורים לכם.
       </p>
       <table style="width:100%;border-collapse:collapse;font-size:14px;">${rows}</table>
       <div style="text-align:center;margin-top:20px;">
