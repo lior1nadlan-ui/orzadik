@@ -68,7 +68,12 @@ function CartPage() {
     // order also produces the unchanged desktop layout: lines and summary share
     // the first row, the cross-sell wraps to the row beneath them.
     <div className="container mx-auto px-4 py-10 grid lg:grid-cols-3 gap-8">
-      <div className="lg:col-span-2 space-y-3">
+      {/* min-w-0: a grid item defaults to min-width:auto, so the cross-sell
+          carousel's intrinsic track width (3000px+ of slides) would push this
+          column — and the whole page — wider than the viewport, causing
+          horizontal scroll on mobile. min-w-0 lets the column shrink so the
+          carousel's own overflow-hidden clip does its job. */}
+      <div className="lg:col-span-2 space-y-3 min-w-0">
         <h1 className="font-display text-3xl font-bold mb-4">העגלה שלי</h1>
         {items.map((item) => {
           const effective = getEffectivePrice(item.price);
@@ -170,7 +175,7 @@ function CartPage() {
         <Link to="/checkout"><Button className="press w-full" size="lg">מעבר לתשלום · {formatILS(finalTotal)}</Button></Link>
         <TrustBadges compact />
       </div>
-      <div className="lg:col-span-2">
+      <div className="lg:col-span-2 min-w-0">
         <CartCrossSell productIds={productIds} />
       </div>
     </div>
