@@ -1,20 +1,28 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { formatILS } from "@/lib/cart";
+import { bulkUpdateProducts, listCategoriesForBulk } from "@/lib/admin-products.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter,
 } from "@/components/ui/dialog";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Pencil, Trash2, Plus } from "lucide-react";
+import { Pencil, Trash2, Plus, Layers } from "lucide-react";
 
 export const Route = createFileRoute("/admin/products")({
+  // Lets the dashboard's low-stock and catalog-health cards deep-link to a
+  // pre-filtered list (e.g. /admin/products?q=<sku>).
+  validateSearch: (s: Record<string, unknown>): { q?: string } => ({
+    q: typeof s.q === "string" && s.q ? s.q : undefined,
+  }),
   component: AdminProducts,
 });
 
@@ -22,26 +30,38 @@ type Product = {
   id: string; slug: string; name: string; description: string | null; short_description: string | null;
   price: number; sale_price: number | null; sku: string | null; stock_status: string;
   stock_qty: number | null; thumbnail_url: string | null; is_active: boolean;
+  track_stock: boolean;
 };
 
 const PAGE_SIZE = 25;
 
+type BulkKind = "price_pct" | "price_set" | "category" | "active" | "stock_status" | "restock";
+
 function AdminProducts() {
   const qc = useQueryClient();
-  const [search, setSearch] = useState("");
-  const [debounced, setDebounced] = useState("");
+  const { q: qFromUrl } = Route.useSearch();
+  const [search, setSearch] = useState(qFromUrl ?? "");
+  const [debounced, setDebounced] = useState(qFromUrl ?? "");
   const [page, setPage] = useState(0);
   const [editing, setEditing] = useState<Product | null>(null);
   const [open, setOpen] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkOpen, setBulkOpen] = useState(false);
 
+  const runBulk = useServerFn(bulkUpdateProducts);
+  const loadCategories = useServerFn(listCategoriesForBulk);
+
+  useEffect(() => { setSearch(qFromUrl ?? ""); }, [qFromUrl]);
   useEffect(() => {
     const t = setTimeout(() => setDebounced(search), 300);
     return () => clearTimeout(t);
   }, [search]);
   useEffect(() => setPage(0), [debounced]);
+  // A selection only makes sense for rows the admin can currently see — the
+  // action applies to ids, not to "the filter", so carrying it across a search
+  // or page change would act on rows that scrolled out of view.
+  useEffect(() => { setSelected(new Set()); }, [debounced, page]);
 
-  // Server-side search + pagination. The old flat .limit(1000) silently hid
-  // 3,672 of the 4,672 products from the admin after the supplier import.
   const { data, isFetching } = useQuery({
     queryKey: ["admin-products", debounced, page],
     placeholderData: keepPreviousData,
@@ -64,6 +84,29 @@ function AdminProducts() {
   const total = data?.total ?? 0;
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
+  const { data: categories = [] } = useQuery({
+    queryKey: ["bulk-categories"],
+    enabled: bulkOpen,
+    queryFn: () => loadCategories(),
+  });
+
+  const allOnPageSelected = filtered.length > 0 && filtered.every((p) => selected.has(p.id));
+  const toggleAll = () => {
+    setSelected((cur) => {
+      const next = new Set(cur);
+      if (allOnPageSelected) filtered.forEach((p) => next.delete(p.id));
+      else filtered.forEach((p) => next.add(p.id));
+      return next;
+    });
+  };
+  const toggleOne = (id: string) => {
+    setSelected((cur) => {
+      const next = new Set(cur);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
   const onSave = async (form: Partial<Product>) => {
     if (editing) {
       const { error } = await supabase.from("products").update(form).eq("id", editing.id);
@@ -75,6 +118,8 @@ function AdminProducts() {
         sku: form.sku ?? null, description: form.description ?? null, short_description: form.short_description ?? null,
         thumbnail_url: form.thumbnail_url ?? null, stock_status: form.stock_status ?? "instock",
         is_active: form.is_active ?? true,
+        track_stock: form.track_stock ?? false,
+        stock_qty: form.stock_qty ?? null,
       });
       if (error) return toast.error(error.message);
       toast.success("נוסף");
@@ -103,10 +148,28 @@ function AdminProducts() {
         </Dialog>
       </div>
       <Input placeholder="חיפוש: שם / מק״ט / slug..." value={search} onChange={(e) => setSearch(e.target.value)} className="mb-4 max-w-sm" />
+
+      {selected.size > 0 && (
+        <div className="sticky top-16 z-20 mb-3 flex flex-wrap items-center gap-3 rounded-lg border border-primary/40 bg-primary/5 px-4 py-3 backdrop-blur">
+          <span className="text-sm font-medium">נבחרו {selected.size} מוצרים</span>
+          <Button size="sm" className="gap-2" onClick={() => setBulkOpen(true)}>
+            <Layers className="h-4 w-4" /> פעולות מרובות
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>נקה בחירה</Button>
+        </div>
+      )}
+
       <div className={`rounded-lg border bg-card overflow-x-auto transition-opacity ${isFetching ? "opacity-60" : ""}`}>
         <table className="w-full text-sm">
           <thead className="bg-muted/50">
             <tr className="text-right">
+              <th className="p-3 w-10">
+                <Checkbox
+                  checked={allOnPageSelected}
+                  onCheckedChange={toggleAll}
+                  aria-label="בחר את כל המוצרים בעמוד"
+                />
+              </th>
               <th className="p-3 font-medium">תמונה</th>
               <th className="p-3 font-medium">שם</th>
               <th className="p-3 font-medium">מחיר</th>
@@ -117,13 +180,27 @@ function AdminProducts() {
           </thead>
           <tbody>
             {filtered.map((p) => (
-              <tr key={p.id} className="border-t">
+              <tr key={p.id} className={`border-t ${selected.has(p.id) ? "bg-primary/5" : ""}`}>
+                <td className="p-3">
+                  <Checkbox
+                    checked={selected.has(p.id)}
+                    onCheckedChange={() => toggleOne(p.id)}
+                    aria-label={`בחר ${p.name}`}
+                  />
+                </td>
                 <td className="p-2">
                   {p.thumbnail_url && <img src={p.thumbnail_url} alt="" loading="lazy" decoding="async" className="h-12 w-12 rounded object-cover" />}
                 </td>
                 <td className="p-3 max-w-xs"><div className="line-clamp-2">{p.name}</div></td>
                 <td className="p-3 whitespace-nowrap">{formatILS(p.sale_price ?? p.price)}</td>
-                <td className="p-3"><span className={p.stock_status === "instock" ? "text-green-600" : "text-destructive"}>{p.stock_status === "instock" ? "במלאי" : "אזל"}</span></td>
+                <td className="p-3">
+                  <span className={p.stock_status === "instock" ? "text-green-600" : "text-destructive"}>
+                    {p.stock_status === "instock" ? "במלאי" : "אזל"}
+                  </span>
+                  {p.track_stock && (
+                    <span className="block text-[11px] text-muted-foreground">במעקב · {p.stock_qty ?? 0}</span>
+                  )}
+                </td>
                 <td className="p-3">{p.is_active ? "✓" : "✗"}</td>
                 <td className="p-3 flex gap-2 justify-end">
                   <Button size="sm" variant="outline" onClick={() => { setEditing(p); setOpen(true); }}>
@@ -145,13 +222,174 @@ function AdminProducts() {
           <Button size="sm" variant="outline" disabled={page >= pages - 1} onClick={() => setPage((p) => p + 1)}>הבא</Button>
         </div>
       )}
+
+      <BulkDialog
+        open={bulkOpen}
+        onOpenChange={setBulkOpen}
+        count={selected.size}
+        categories={categories}
+        onApply={async (action) => {
+          try {
+            const res: any = await runBulk({ data: { ids: [...selected], action } });
+            toast.success(
+              `עודכנו ${res.updated} מוצרים${res.skipped ? ` (${res.skipped} דולגו)` : ""}`,
+            );
+            setBulkOpen(false);
+            setSelected(new Set());
+            qc.invalidateQueries({ queryKey: ["admin-products"] });
+          } catch (e: any) {
+            toast.error(e?.message ?? "שגיאה בעדכון המוצרים");
+          }
+        }}
+      />
     </div>
+  );
+}
+
+function BulkDialog({
+  open, onOpenChange, count, categories, onApply,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  count: number;
+  categories: Array<{ id: string; name: string }>;
+  onApply: (action: any) => Promise<void>;
+}) {
+  const [kind, setKind] = useState<BulkKind>("active");
+  const [pct, setPct] = useState(0);
+  const [price, setPrice] = useState(0);
+  const [qty, setQty] = useState(0);
+  const [activeValue, setActiveValue] = useState(true);
+  const [stockValue, setStockValue] = useState<"instock" | "outofstock">("instock");
+  const [categoryId, setCategoryId] = useState("");
+  const [categoryMode, setCategoryMode] = useState<"add" | "remove">("add");
+  const [busy, setBusy] = useState(false);
+
+  const isPriceAction = kind === "price_pct" || kind === "price_set";
+
+  const build = () => {
+    switch (kind) {
+      case "price_pct": return { kind, pct };
+      case "price_set": return { kind, price };
+      case "restock": return { kind, qty };
+      case "active": return { kind, value: activeValue };
+      case "stock_status": return { kind, value: stockValue };
+      case "category": return { kind, category_id: categoryId, mode: categoryMode };
+    }
+  };
+
+  const apply = async () => {
+    if (kind === "category" && !categoryId) {
+      toast.error("יש לבחור קטגוריה");
+      return;
+    }
+    setBusy(true);
+    try { await onApply(build()); } finally { setBusy(false); }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader><DialogTitle>פעולות מרובות · {count} מוצרים</DialogTitle></DialogHeader>
+        <div className="space-y-4">
+          <div>
+            <Label htmlFor="bulk-kind">פעולה</Label>
+            <select
+              id="bulk-kind"
+              value={kind}
+              onChange={(e) => setKind(e.target.value as BulkKind)}
+              className="flex h-10 w-full rounded-md border bg-background px-3 text-sm"
+            >
+              <option value="active">שינוי סטטוס פעיל</option>
+              <option value="stock_status">שינוי סטטוס מלאי</option>
+              <option value="restock">עדכון כמות במלאי</option>
+              <option value="price_pct">שינוי מחיר באחוזים</option>
+              <option value="price_set">קביעת מחיר אחיד</option>
+              <option value="category">שיוך / הסרה מקטגוריה</option>
+            </select>
+          </div>
+
+          {kind === "active" && (
+            <div className="flex items-center gap-2">
+              <Switch checked={activeValue} onCheckedChange={setActiveValue} />
+              <Label>{activeValue ? "הפוך לפעילים" : "הפוך ללא פעילים"}</Label>
+            </div>
+          )}
+
+          {kind === "stock_status" && (
+            <select
+              value={stockValue}
+              onChange={(e) => setStockValue(e.target.value as any)}
+              className="flex h-10 w-full rounded-md border bg-background px-3 text-sm"
+            >
+              <option value="instock">במלאי</option>
+              <option value="outofstock">אזל</option>
+            </select>
+          )}
+
+          {kind === "restock" && (
+            <div>
+              <Label htmlFor="bulk-qty">כמות במלאי</Label>
+              <Input id="bulk-qty" type="number" min={0} value={qty} onChange={(e) => setQty(Number(e.target.value))} />
+            </div>
+          )}
+
+          {kind === "price_pct" && (
+            <div>
+              <Label htmlFor="bulk-pct">שינוי באחוזים (למשל 10 או 15-)</Label>
+              <Input id="bulk-pct" type="number" value={pct} onChange={(e) => setPct(Number(e.target.value))} />
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                מוצרים במחיר 0 ("לפי שער הזהב") לא ישונו.
+              </p>
+            </div>
+          )}
+
+          {kind === "price_set" && (
+            <div>
+              <Label htmlFor="bulk-price">מחיר אחיד (₪)</Label>
+              <Input id="bulk-price" type="number" min={0} value={price} onChange={(e) => setPrice(Number(e.target.value))} />
+            </div>
+          )}
+
+          {kind === "category" && (
+            <div className="space-y-2">
+              <select
+                value={categoryMode}
+                onChange={(e) => setCategoryMode(e.target.value as any)}
+                className="flex h-10 w-full rounded-md border bg-background px-3 text-sm"
+              >
+                <option value="add">הוסף לקטגוריה</option>
+                <option value="remove">הסר מקטגוריה</option>
+              </select>
+              <select
+                value={categoryId}
+                onChange={(e) => setCategoryId(e.target.value)}
+                className="flex h-10 w-full rounded-md border bg-background px-3 text-sm"
+              >
+                <option value="">— בחרו קטגוריה —</option>
+                {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+          )}
+
+          {isPriceAction && (
+            <div className="rounded-md border border-destructive/50 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+              שימו לב: פעולה זו משנה את מחיר המדף של {count} מוצרים ואינה הפיכה בלחיצה אחת.
+              ודאו שהבחירה נכונה לפני האישור.
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button onClick={apply} disabled={busy}>{busy ? "מעדכן..." : `החל על ${count} מוצרים`}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
 function ProductDialog({ product, onSave }: { product: Product | null; onSave: (f: Partial<Product>) => void }) {
   const [form, setForm] = useState<Partial<Product>>(
-    product ?? { name: "", slug: "", price: 0, stock_status: "instock", is_active: true }
+    product ?? { name: "", slug: "", price: 0, stock_status: "instock", is_active: true, track_stock: false }
   );
   return (
     <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -176,6 +414,33 @@ function ProductDialog({ product, onSave }: { product: Product | null; onSave: (
         <div><Label>תיאור קצר</Label><Textarea rows={3} value={form.short_description ?? ""} onChange={(e) => setForm({ ...form, short_description: e.target.value })} /></div>
         <div><Label>תיאור מלא</Label><Textarea rows={6} value={form.description ?? ""} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
         <div className="flex items-center gap-2"><Switch checked={form.is_active ?? true} onCheckedChange={(v) => setForm({ ...form, is_active: v })} /><Label>פעיל</Label></div>
+
+        {/* Inventory. Off by default: with tracking on, a paid order decrements
+            stock_qty and flips the product to "אזל" at zero. Leave it off for
+            supplier items that are ordered on demand. */}
+        <div className="rounded-md border p-3 space-y-3">
+          <div className="flex items-center gap-2">
+            <Switch
+              checked={form.track_stock ?? false}
+              onCheckedChange={(v) => setForm({ ...form, track_stock: v })}
+            />
+            <Label>מעקב מלאי</Label>
+          </div>
+          {form.track_stock && (
+            <div>
+              <Label>כמות במלאי</Label>
+              <Input
+                type="number"
+                min={0}
+                value={form.stock_qty ?? 0}
+                onChange={(e) => setForm({ ...form, stock_qty: Number(e.target.value) })}
+              />
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                הכמות תרד אוטומטית עם כל הזמנה ששולמה. באפס המוצר יסומן כאזל.
+              </p>
+            </div>
+          )}
+        </div>
       </div>
       <DialogFooter>
         <Button onClick={() => onSave(form)}>שמור</Button>

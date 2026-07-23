@@ -280,6 +280,24 @@ export const Route = createFileRoute("/api/public/cardcom-webhook")({
             return new Response("order update failed", { status: 500 });
           }
 
+          // Stock decrement for products that opt into tracking. Placed here
+          // deliberately: the payment is already committed and the order row is
+          // already 'paid', so nothing below may change the payment outcome —
+          // hence log-only on failure. Double-decrement is impossible: the
+          // webhook returns early on a replay (cardcom_tranzaction_id above),
+          // and the RPC itself claims orders.stock_decremented_at before
+          // touching any product row.
+          try {
+            const { data: touched, error: stockErr } = await supabaseAdmin.rpc(
+              "decrement_order_stock",
+              { p_order_id: updated.id },
+            );
+            if (stockErr) console.error("[cardcom-webhook] stock decrement failed:", stockErr);
+            else if (touched) console.log(`[cardcom-webhook] stock decremented for ${touched} product(s)`);
+          } catch (e) {
+            console.error("[cardcom-webhook] stock decrement threw:", e);
+          }
+
           try {
             await notifyShippingCompany(updated.id);
           } catch (e) {

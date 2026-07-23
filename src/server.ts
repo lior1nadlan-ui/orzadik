@@ -145,47 +145,11 @@ function applyCachePolicy(request: Request, response: Response): Response {
   });
 }
 
-// Cloudflare cron triggers (see wrangler.jsonc) land here. Rather than import
-// the job functions directly — which would pull the mail senders into the
-// Worker's top-level module graph — each tick self-fetches the matching
-// /api/cron/* endpoint with the shared secret. One auth model, one code path,
-// and the endpoints stay callable from an external scheduler too.
-const CRON_ROUTES: Record<string, string> = {
-  "0 7 * * *": "/api/cron/review-requests",
-  "*/5 * * * *": "/api/cron/campaign-tick",
-};
-
-async function runScheduled(cron: string, env: Record<string, string | undefined>) {
-  const path = CRON_ROUTES[cron];
-  if (!path) {
-    console.error(`[scheduled] no route mapped for cron "${cron}"`);
-    return;
-  }
-  const secret = env?.CRON_SECRET ?? process.env.CRON_SECRET;
-  if (!secret) {
-    console.error(`[scheduled] CRON_SECRET not set — skipping ${path}`);
-    return;
-  }
-  try {
-    const res = await fetch(`https://orzadik.com${path}`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${secret}` },
-    });
-    console.log(`[scheduled] ${path} -> ${res.status} ${(await res.text()).slice(0, 200)}`);
-  } catch (e) {
-    console.error(`[scheduled] ${path} failed:`, e);
-  }
-}
-
+// NOTE: cron triggers are NOT handled here. Nitro overrides wrangler's `main`
+// and emits its own Cloudflare module, so a `scheduled` export on this object
+// would never be invoked. The handler lives in src/nitro/cron.ts, registered on
+// Nitro's `cloudflare:scheduled` hook.
 export default {
-  async scheduled(
-    controller: { cron: string },
-    env: Record<string, string | undefined>,
-    ctx: { waitUntil: (p: Promise<unknown>) => void },
-  ) {
-    ctx.waitUntil(runScheduled(controller.cron, env));
-  },
-
   async fetch(request: Request, env: unknown, ctx: unknown) {
     // Canonicalize host: 301-redirect www → apex so all SEO signals concentrate
     // on https://orzadik.com and there's no crawlable duplicate host.

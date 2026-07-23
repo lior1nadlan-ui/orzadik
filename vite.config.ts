@@ -19,5 +19,10 @@ export default defineConfig({
     preset: "cloudflare-module",
     output: { dir: "dist", serverDir: "dist/server", publicDir: "dist/client" },
     cloudflare: { nodeCompat: true, deployConfig: true },
+    // Cron triggers. Nitro generates its own Cloudflare worker entry (it
+    // overrides wrangler's `main`), so a `scheduled` export on src/server.ts is
+    // never invoked — the only hook that runs is `cloudflare:scheduled`, which
+    // this plugin registers. See src/nitro/cron.ts.
+    plugins: ["./src/nitro/cron.ts"],
   },
 });

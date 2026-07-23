@@ -179,6 +179,79 @@ function AdminHome() {
         })()}
       </div>
 
+      {/* Repeat customers + low stock */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Link to="/admin/customers" className="block rounded-lg border bg-card p-5 transition-colors hover:border-primary/50">
+          <div className="text-sm text-muted-foreground">לקוחות חוזרים</div>
+          <div className="text-2xl font-bold mt-1">{s.repeat.repeatRate}%</div>
+          <div className="text-xs text-muted-foreground mt-1">
+            {s.repeat.returningCustomers} מתוך {s.repeat.totalCustomers} לקוחות הזמינו יותר מפעם אחת
+          </div>
+          {s.repeat.totalCustomers > 0 && (
+            <>
+              <div className="mt-3 flex gap-4 text-xs">
+                <div>
+                  <div className="text-muted-foreground">מלקוחות חוזרים</div>
+                  <div className="font-semibold">{formatILS(s.repeat.returningRevenue)}</div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground">מלקוחות חדשים</div>
+                  <div className="font-semibold">{formatILS(s.repeat.newRevenue)}</div>
+                </div>
+              </div>
+              {s.repeat.topCustomers.length > 0 && (
+                <div className="mt-3 border-t pt-3">
+                  <div className="text-xs text-muted-foreground mb-1.5">לקוחות מובילים</div>
+                  <ul className="space-y-1 text-xs">
+                    {s.repeat.topCustomers.map((c: any, i: number) => (
+                      <li key={i} className="flex justify-between gap-3">
+                        <span className="line-clamp-1">{c.name} · {c.orders} הזמנות</span>
+                        <strong className="whitespace-nowrap">{formatILS(c.revenue)}</strong>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </>
+          )}
+        </Link>
+
+        {/* Low stock — only products with tracking enabled. */}
+        <div
+          className={`rounded-lg border p-5 ${
+            s.lowStock.length > 0 ? "border-amber-400/60 bg-amber-50 dark:bg-amber-950/20" : "bg-card"
+          }`}
+        >
+          <div
+            className={`text-sm font-semibold ${
+              s.lowStock.length > 0 ? "text-amber-800 dark:text-amber-300" : ""
+            }`}
+          >
+            📦 מלאי נמוך
+          </div>
+          {s.lowStock.length === 0 ? (
+            <div className="text-xs text-muted-foreground mt-2">
+              אין מוצרים במעקב מלאי עם כמות נמוכה.
+            </div>
+          ) : (
+            <ul className="mt-2 space-y-1 text-sm">
+              {s.lowStock.map((p: any) => (
+                <li key={p.id} className="flex justify-between gap-3">
+                  <Link
+                    to="/admin/products"
+                    search={{ q: p.sku ?? p.name }}
+                    className="line-clamp-1 hover:underline"
+                  >
+                    {p.name}
+                  </Link>
+                  <strong className="whitespace-nowrap">נותרו {p.qty}</strong>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
       {/* Stuck-unpaid alert */}
       {s.stuckUnpaidCount > 0 && (
         <div className="rounded-lg border border-amber-400/60 bg-amber-50 dark:bg-amber-950/20 p-4">
