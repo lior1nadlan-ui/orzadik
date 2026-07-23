@@ -20,6 +20,7 @@ import {
   type CarouselApi,
 } from "@/components/ui/carousel";
 import { formatILS, useCart, getEffectivePrice, FREE_SHIPPING_THRESHOLD, SHIPPING_FLAT, type CustomMethod } from "@/lib/cart";
+import { trackViewItem } from "@/lib/analytics";
 import { ProductCardData } from "@/components/ProductCard";
 import { ProductCarousel } from "@/components/product/ProductCarousel";
 import { BundleOffer } from "@/components/BundleOffer";
@@ -28,7 +29,8 @@ import { Stars } from "@/components/Stars";
 import { ClubBadge } from "@/components/ClubBadge";
 import { CROSS_SELL_MAP, DEFAULT_CROSS_SELL_CATEGORY } from "@/lib/cross-sells";
 import { thumbUrl } from "@/lib/img";
-import { ShoppingCart, Minus, Plus, Check, Truck, RotateCcw, ZoomIn, Heart } from "lucide-react";
+import { ShoppingCart, Minus, Plus, Check, Truck, RotateCcw, ZoomIn, Heart, Lock, ShieldCheck } from "lucide-react";
+import { sellerIdentityLine, CONSUMER_POLICY } from "@/lib/business";
 import { useFavorites } from "@/components/engagement/favorites";
 import { readRecent, recordRecent } from "@/components/engagement/recently-viewed";
 import { useState, useEffect } from "react";
@@ -375,6 +377,13 @@ function ProductPage() {
       thumbnail_url: product.thumbnail_url,
       stock_status: product.stock_status,
     });
+    // GA4 view_item / Meta ViewContent — one per product view. no-ops on SSR.
+    trackViewItem({
+      id: product.id,
+      name: product.name,
+      price: product.price,
+      category: (product.product_categories ?? [])[0]?.categories?.name ?? null,
+    });
   }, [product?.id]);
 
   // Size variants — supports two styles:
@@ -622,6 +631,7 @@ function ProductPage() {
   const CONTACT_TEL = "+972545818486";
   const CONTACT_WA = "972545818486";
   const QUOTE_WA_TEXT = `שלום, אשמח לפרטים והצעת מחיר על: ${product.name}`;
+  const PRESALE_WA_TEXT = `שלום, יש לי שאלה על המוצר "${product.name}".`;
   // No restock date, no "we'll email you" — only an invitation to ask.
   const RESTOCK_WA_TEXT = `שלום, המוצר "${product.name}" מופיע כאזל באתר. אשמח לבדוק אפשרות לחידוש מלאי או מוצר חלופי.`;
   const contactCtas = (waText: string, compact = false) => (
@@ -1196,27 +1206,80 @@ function ProductPage() {
 
 
 
-          {/* Trust strip */}
-          <div className="mt-6 grid grid-cols-2 gap-3 text-xs text-muted-foreground">
-            <div className="flex items-center gap-2"><Truck className="h-4 w-4 text-accent" /> משלוח לכל הארץ</div>
-            <div className="flex items-center gap-2"><RotateCcw className="h-4 w-4 text-accent" /> 14 יום להחזרה</div>
+          {/* Trust block — the buy/no-buy moment carries the most doubt, and with
+              no reviews yet the reassurance has to come from facts the store
+              already stands behind. Every line is truthful and store-level (never
+              a per-SKU claim): secure Cardcom payment, the statutory 14-day
+              cancellation right, home delivery, and the registered seller
+              identity. Reuses BUSINESS / CONSUMER_POLICY so the copy can't drift
+              from the terms page. */}
+          <div className="mt-6 glass p-4">
+            <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2.5 text-xs text-foreground/90">
+              <li className="flex items-center gap-2">
+                <Lock className="h-4 w-4 shrink-0 text-accent" />
+                תשלום מאובטח בסליקת Cardcom · תקן PCI
+              </li>
+              <li className="flex items-center gap-2">
+                <RotateCcw className="h-4 w-4 shrink-0 text-accent" />
+                זכות ביטול {CONSUMER_POLICY.cancellationDays} יום לפי חוק הגנת הצרכן
+              </li>
+              <li className="flex items-center gap-2">
+                <Truck className="h-4 w-4 shrink-0 text-accent" />
+                משלוח עד הבית לכל רחבי הארץ
+              </li>
+              <li className="flex items-center gap-2">
+                <ShieldCheck className="h-4 w-4 shrink-0 text-accent" />
+                כשרות והידור — מתוך מחויבות לאיכות
+              </li>
+            </ul>
+            <div className="mt-3 border-t border-glass-line pt-2.5 text-[11px] leading-relaxed text-muted-foreground">
+              {sellerIdentityLine()}
+            </div>
           </div>
+
+          {/* Pre-sale contact — a low-key WhatsApp path for a question BEFORE
+              buying (the buy row has no contact CTA). Only on purchasable
+              products; out-of-stock / call-only already surface their own CTAs. */}
+          {canBuy && (
+            <a
+              href={`https://wa.me/${CONTACT_WA}?text=${encodeURIComponent(PRESALE_WA_TEXT)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-[#075E54] [@media(hover:hover)_and_(pointer:fine)]:hover:underline"
+            >
+              💬 שאלה על המוצר? דברו איתנו בוואטסאפ
+            </a>
+          )}
 
           {/* Accordion — one glass pane, hairline dividers between the rows,
               instead of three gold-ruled bands. */}
           <div className="glass mt-8 px-4 md:px-5">
           <Accordion type="single" collapsible defaultValue="desc">
-            {product.description && (
-              <AccordionItem value="desc" className="border-glass-line last:border-b-0">
-                <AccordionTrigger className="font-display text-base">תיאור המוצר</AccordionTrigger>
-                <AccordionContent>
+            <AccordionItem value="desc" className="border-glass-line last:border-b-0">
+              <AccordionTrigger className="font-display text-base">תיאור המוצר</AccordionTrigger>
+              <AccordionContent>
+                {product.description ? (
                   <div
                     className="prose prose-sm max-w-none text-foreground"
                     dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(product.description) }}
                   />
-                </AccordionContent>
-              </AccordionItem>
-            )}
+                ) : (
+                  // 142 products have no long description. Rather than omit the
+                  // section, build a truthful fallback from facts the page
+                  // already holds — the product name, its category, the store's
+                  // kashrut/quality stance, and (when applicable) that
+                  // personalization is offered. Deliberately generic: it invents
+                  // no material, dimension, or availability the DB doesn't have.
+                  <p className="text-sm text-foreground/90 leading-relaxed">
+                    {product.name}
+                    {firstCategory ? ` מתוך מבחר ה${firstCategory.name}` : ""} של אור זרוע לצדיק —
+                    תשמישי קדושה ויודאיקה הנבחרים בהקפדה על כשרות והידור.
+                    {showEmbroidery ? " לפריט זה ניתן להוסיף התאמה אישית (רקמה/חריטה) בעמוד ההזמנה." : ""}
+                    {" "}יש לכם שאלה על הפריט? נשמח לעזור בטלפון או בוואטסאפ.
+                  </p>
+                )}
+              </AccordionContent>
+            </AccordionItem>
             <AccordionItem value="ship" className="border-glass-line last:border-b-0">
               <AccordionTrigger className="font-display text-base">משלוחים</AccordionTrigger>
               <AccordionContent>

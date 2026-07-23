@@ -11,7 +11,9 @@ import { toast } from "sonner";
  * Plain useState only — no window/localStorage access, so it renders
  * identically on the server and hydrates without a mismatch.
  */
-export function NewsletterSignup({ source = "footer" as const }) {
+type NewsletterSource = "footer" | "checkout" | "account" | "article" | "home" | "category";
+
+export function NewsletterSignup({ source = "footer" }: { source?: NewsletterSource } = {}) {
   const subscribe = useServerFn(subscribeNewsletter);
   const [email, setEmail] = useState("");
   const [website, setWebsite] = useState(""); // honeypot

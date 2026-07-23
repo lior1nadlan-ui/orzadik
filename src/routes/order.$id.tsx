@@ -68,6 +68,10 @@ function OrderConfirmationPage() {
         value,
         currency: "ILS",
         items: items.map((it: any) => ({
+          // item_id ties the purchase line to the same id used by view_item /
+          // add_to_cart, so GA4 can attribute revenue to a product across the
+          // whole funnel. product_id is the display-safe id on order_items.
+          item_id: String(it.product_id ?? ""),
           item_name: it.product_name,
           quantity: Number(it.quantity) || 1,
           price: unitPrice(it),

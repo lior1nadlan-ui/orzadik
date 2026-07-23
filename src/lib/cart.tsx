@@ -14,6 +14,7 @@ export {
   getShipping,
 } from "@/lib/pricing";
 import { getEffectivePrice, getDisplayOriginal, getShipping } from "@/lib/pricing";
+import { trackAddToCart } from "@/lib/analytics";
 
 export type CustomMethod = "embroidery" | "laser";
 
@@ -119,6 +120,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
       }
       return [...cur, { ...item, quantity: qty }];
     });
+    // Fire add_to_cart once per add() call, centrally — every "add to cart"
+    // path (product card, product page, cross-sell, bundle) routes through here,
+    // so there is one place to instrument instead of many. no-ops on SSR / no
+    // gtag+fbq.
+    trackAddToCart({ id: item.productId, name: item.name, price: item.price, quantity: qty });
   }, []);
   const remove = useCallback<CartCtx["remove"]>((k) => setItems((c) => c.filter((i) => lineKey(i) !== k)), []);
   const setQty = useCallback<CartCtx["setQty"]>(

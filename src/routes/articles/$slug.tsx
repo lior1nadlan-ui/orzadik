@@ -2,21 +2,53 @@ import { createFileRoute, notFound } from "@tanstack/react-router";
 import { useState } from "react";
 import { fetchArticleWithRetry, fetchArticlesByCategoryWithRetry } from "@/lib/articles.server";
 import { ArticleCard } from "@/components/ArticleCard";
+import { ProductCarousel } from "@/components/product/ProductCarousel";
+import { NewsletterSignup } from "@/components/NewsletterSignup";
+import { ProductCardData } from "@/components/ProductCard";
+import { supabase } from "@/integrations/supabase/client";
 import { Link } from "@tanstack/react-router";
 import { ArrowRight, Share2, Calendar, Clock, User } from "lucide-react";
 import DOMPurify from "isomorphic-dompurify";
+
+/** In-stock, imaged products from an article's category — a live rail so a
+ *  guide sends real link equity to the shop AND never points at a hidden SKU
+ *  (a hardcoded product slug in article HTML would 404 once the item is
+ *  deactivated; this always reflects the current catalog). */
+async function fetchArticleProducts(categoryId: string): Promise<ProductCardData[]> {
+  const { data, error } = await supabase
+    .from("product_categories")
+    .select("products!inner(id, slug, name, price, sale_price, thumbnail_url, is_active, stock_status)")
+    .eq("category_id", categoryId)
+    .limit(24);
+  if (error) return [];
+  const seen = new Set<string>();
+  const out: ProductCardData[] = [];
+  for (const r of data ?? []) {
+    const p: any = (r as any).products;
+    if (!p?.is_active || !p.thumbnail_url || p.stock_status === "outofstock") continue;
+    if (seen.has(p.id)) continue;
+    seen.add(p.id);
+    out.push(p as ProductCardData);
+    if (out.length >= 8) break;
+  }
+  return out;
+}
 
 export const Route = createFileRoute("/articles/$slug")({
   loader: async ({ params }) => {
     const article = await fetchArticleWithRetry(params.slug);
     if (!article) throw notFound(); // real HTTP 404 for non-existent articles
     let relatedArticles: Awaited<ReturnType<typeof fetchArticlesByCategoryWithRetry>> = [];
+    let categoryProducts: ProductCardData[] = [];
     if (article.category_id) {
       // Fetch 3, render 2: the category query also returns the article being
       // read, which is filtered out in the component.
-      relatedArticles = await fetchArticlesByCategoryWithRetry(article.category_id, 2, 3);
+      [relatedArticles, categoryProducts] = await Promise.all([
+        fetchArticlesByCategoryWithRetry(article.category_id, 2, 3),
+        fetchArticleProducts(article.category_id),
+      ]);
     }
-    return { article, relatedArticles };
+    return { article, relatedArticles, categoryProducts };
   },
   head: ({ loaderData, params }) => {
     const a = loaderData?.article as any;
@@ -96,7 +128,7 @@ export const Route = createFileRoute("/articles/$slug")({
 });
 
 function ArticleDetailPage() {
-  const { article, relatedArticles } = Route.useLoaderData();
+  const { article, relatedArticles, categoryProducts } = Route.useLoaderData();
   // `featured_image` is nullable AND may point at a URL that 404s. The `null`
   // case is handled by the render guard below; this covers the broken-URL case
   // so a dead link doesn't leave a 400px empty grey band above the headline.
@@ -211,6 +243,22 @@ function ArticleDetailPage() {
           dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(a.body_html) }}
         />
 
+        {/* Live product rail from the guide's category — the reader's direct
+            path from "what to look for" to buyable items. Always current: only
+            active, in-stock, imaged products, so it can never link to a hidden
+            SKU. Rendered only when the article is category-linked and the
+            category has presentable stock. */}
+        {(categoryProducts ?? []).length > 0 && (
+          <div className="not-prose">
+            <ProductCarousel
+              eyebrow="מהמדריך אל החנות"
+              heading="מוצרים מהקטגוריה"
+              items={categoryProducts as ProductCardData[]}
+              itemClassName="basis-1/2 md:basis-1/3 lg:basis-1/4"
+            />
+          </div>
+        )}
+
         {/* Related articles — the loader only fills this when the article has a
             category_id, so while that column is null the whole section is
             omitted rather than rendering an empty heading. */}
@@ -264,6 +312,22 @@ function ArticleDetailPage() {
               לכל הקטגוריות
               <ArrowRight className="w-4 h-4" aria-hidden="true" />
             </Link>
+          </div>
+        </section>
+
+        {/* Email capture — a guide reader is high-intent and content-motivated,
+            the exact audience the newsletter is FOR, yet the form previously
+            rendered only in the footer. Value proposition is content/holidays,
+            not deals (see item 3). */}
+        <section className="mt-10 text-center">
+          <div className="text-xs tracking-[0.35em] text-accent uppercase mb-2">
+            רוצים עוד תוכן כזה?
+          </div>
+          <p className="text-sm text-muted-foreground mb-4">
+            מדריכים ותוכן לקראת החגים, ופריטים חדשים לפני כולם — בלי ספאם.
+          </p>
+          <div className="mx-auto max-w-md">
+            <NewsletterSignup source="article" />
           </div>
         </section>
       </div>

@@ -22,10 +22,20 @@ const MIN_PRODUCTS = 4;
 const RESERVED_HEIGHT = " min-h-[750px] md:min-h-[820px] xl:min-h-[890px]";
 
 /**
- * The query behind "חדש באתר". Exported so a route loader can run it on the
- * server and hand the result back as `initialProducts` — same function, same
- * shape, so the SSR HTML and the client refetch can never disagree.
+ * The query behind the "מומלצים" rail. Exported so a route loader can run it on
+ * the server and hand the result back as `initialProducts` — same function,
+ * same shape, so the SSR HTML and the client refetch can never disagree.
+ *
+ * NOT ordered by created_at: the whole catalog was bulk-imported at ~one
+ * timestamp, so "newest" was meaningless (and the old "חדש באתר" heading was
+ * untrue). Instead we build a POOL of genuinely presentable items — in stock,
+ * with an image, with a real long description, priced — ordered by price so the
+ * premium pieces surface, then rotate a SHOW-sized window once per UTC day for
+ * freshness. The rotation is a pure function of the day number, so server and
+ * client compute the identical set and there is no hydration mismatch.
  */
+const POOL = 48;
+const SHOW = 10;
 export async function fetchHomeFeaturedProducts(): Promise<ProductCardData[]> {
   const { data, error } = await supabase
     .from("products")
@@ -33,14 +43,24 @@ export async function fetchHomeFeaturedProducts(): Promise<ProductCardData[]> {
     .eq("is_active", true)
     .neq("stock_status", "outofstock")
     .not("thumbnail_url", "is", null)
-    .order("created_at", { ascending: false })
-    .limit(10);
+    .not("description", "is", null)
+    .neq("description", "")
+    .gt("price", 0)
+    .order("price", { ascending: false })
+    .order("id", { ascending: true }) // stable tiebreaker so the pool is deterministic
+    .limit(POOL);
   if (error) throw error;
-  return (data ?? []) as ProductCardData[];
+  const pool = (data ?? []) as ProductCardData[];
+  if (pool.length <= SHOW) return pool;
+  // Days since the UTC epoch — identical on the Worker (UTC) and any client,
+  // since Date.now() is timezone-independent epoch ms.
+  const day = Math.floor(Date.now() / 86_400_000);
+  const start = (day * SHOW) % pool.length;
+  return [...pool.slice(start), ...pool.slice(0, start)].slice(0, SHOW);
 }
 
 /**
- * "חדש באתר" — the newest in-stock products with images, rendered as a
+ * "מומלצים באתר" — a daily-rotated pool of presentable in-stock products,
  * swipeable RTL carousel of buyable ProductCards.
  *
  * Pass `initialProducts` (from a route loader) to have the section rendered
@@ -83,10 +103,10 @@ export function FeaturedProductsCarousel({
             purpose. Keep the two identical: eyebrow → title → .gold-rule. */}
         <div className="text-center mb-10 md:mb-14">
           <p className="text-[10px] md:text-xs tracking-[0.35em] text-accent uppercase mb-3">
-            הגיע עכשיו
+            פריטים נבחרים
           </p>
           <h2 className="font-display text-3xl md:text-4xl tracking-wide text-foreground">
-            חדש באתר
+            מומלצים באתר
           </h2>
           <span aria-hidden="true" className="gold-rule block w-24 mx-auto mt-4" />
         </div>

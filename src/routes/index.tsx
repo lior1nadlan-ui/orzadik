@@ -7,6 +7,7 @@ import {
   fetchHomeFeaturedProducts,
 } from "@/components/home/FeaturedProductsCarousel";
 import { MobileCarousel } from "@/components/MobileCarousel";
+import { NewsletterSignup } from "@/components/NewsletterSignup";
 import { LuxuryShowcase, fetchLuxuryShowcaseThumbs } from "@/components/home/LuxuryShowcase";
 import { HomeReviews, fetchHomeReviews } from "@/components/content/HomeReviews";
 import {
@@ -522,7 +523,7 @@ function HomePage() {
         </div>
       </section>
 
-      {/* 4. חדש באתר — מוצרים אחרונים */}
+      {/* 4. מומלצים באתר — pool איכות מסובב יומית */}
       <FeaturedProductsCarousel
         initialProducts={featuredProducts ?? undefined}
         reserveSpace={featuredProducts === null}
@@ -533,6 +534,27 @@ function HomePage() {
 
       {/* 6. קטגוריות נוספות */}
       <OtherCategoriesSection cats={otherCats} reserveSpace={reserveOtherCats} />
+
+      {/* 6b. Newsletter capture — mid-page, where a browsing visitor has seen the
+          catalog breadth. Content/holiday value proposition, not deals. */}
+      <section className="py-14 md:py-20">
+        <div className="container mx-auto px-4">
+          <div className="glass glass-gold [--glass-radius:1.5rem] max-w-2xl mx-auto px-6 md:px-10 py-10 text-center">
+            <div className="text-xs tracking-[0.35em] text-accent uppercase mb-3">
+              הישארו מעודכנים
+            </div>
+            <h2 className="font-display text-2xl md:text-3xl text-foreground mb-2">
+              מדריכים ותוכן לקראת החגים
+            </h2>
+            <p className="text-sm text-muted-foreground mb-5">
+              ופריטים חדשים לפני כולם — בלי ספאם, אפשר להסיר בכל רגע.
+            </p>
+            <div className="mx-auto max-w-md">
+              <NewsletterSignup source="home" />
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* 7. חלאקה — promo band. The argaman half is now a glass panel beside the
           photo rather than a wine fill behind cream text. */}
