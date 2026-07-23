@@ -1,10 +1,11 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ShoppingBag, User as UserIcon, Search, Menu, X } from "lucide-react";
-import { useCart } from "@/lib/cart";
+import { useCart, formatILS, getEffectivePrice, getDisplayOriginal } from "@/lib/cart";
 import { useAuth } from "@/lib/auth";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { sanitizeTerm } from "@/routes/shop";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { ClubBadge } from "@/components/ClubBadge";
 import { openCookieSettings } from "@/components/CookieConsent";
@@ -13,12 +14,23 @@ import logoUrl from "@/assets/logo.webp";
 
 type Cat = { id: string; slug: string; name: string };
 
+type SearchSuggestion = {
+  id: string;
+  slug: string;
+  name: string;
+  price: number;
+  sale_price: number | null;
+  thumbnail_url: string | null;
+};
+
 export function SiteHeader() {
   const { count } = useCart();
   const { user, isAdmin, signOut } = useAuth();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [q, setQ] = useState("");
+  const [debounced, setDebounced] = useState("");
+  const suggestionsRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
   const { data: categories = [] } = useQuery({
@@ -46,12 +58,57 @@ export function SiteHeader() {
     return () => document.removeEventListener("keydown", onKey);
   }, [searchOpen]);
 
+  // Debounce keystrokes so we hit the DB at most a few times per search.
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(q), 300);
+    return () => clearTimeout(t);
+  }, [q]);
+
+  const term = sanitizeTerm(debounced);
+  const suggestionsEnabled = searchOpen && term.length >= 2;
+
+  const { data: suggestions, isSuccess: suggestionsReady } = useQuery({
+    queryKey: ["header-search", debounced],
+    enabled: suggestionsEnabled,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const like = `%${term}%`;
+      const { data, error, count } = await supabase
+        .from("products")
+        .select("id, slug, name, price, sale_price, thumbnail_url", { count: "exact" })
+        .eq("is_active", true)
+        .or(`name.ilike.${like},sku.ilike.${like}`)
+        .limit(6);
+      if (error) throw error;
+      return { rows: (data ?? []) as SearchSuggestion[], total: count ?? 0 };
+    },
+  });
+
+  // Category suggestions come from the already-cached header list — no extra fetch.
+  const catSuggestions = suggestionsEnabled
+    ? categories.filter((c) => c.name.includes(term)).slice(0, 2)
+    : [];
+
+  const goToAllResults = () => {
+    const t = q.trim();
+    if (!t) return;
+    setSearchOpen(false);
+    navigate({ to: "/shop", search: { q: t } as any });
+  };
+
   const submitSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    const term = q.trim();
-    if (!term) return;
-    setSearchOpen(false);
-    navigate({ to: "/shop", search: { q: term } as any });
+    goToAllResults();
+  };
+
+  // ArrowDown/ArrowUp move focus across the suggestion rows (they are links,
+  // so Tab order already works — this just adds the expected arrow behavior).
+  const focusSuggestion = (delta: number) => {
+    const items = suggestionsRef.current?.querySelectorAll<HTMLElement>("[data-suggestion]");
+    if (!items || items.length === 0) return;
+    const idx = Array.from(items).indexOf(document.activeElement as HTMLElement);
+    const next = idx === -1 ? (delta > 0 ? 0 : items.length - 1) : Math.min(Math.max(idx + delta, 0), items.length - 1);
+    items[next]?.focus();
   };
 
   return (
@@ -184,6 +241,12 @@ export function SiteHeader() {
                 autoFocus
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "ArrowDown") {
+                    e.preventDefault();
+                    focusSuggestion(1);
+                  }
+                }}
                 placeholder="חיפוש מוצרים, קטגוריות…"
                 className="flex-1 bg-transparent outline-none text-base placeholder:text-muted-foreground"
               />
@@ -196,6 +259,90 @@ export function SiteHeader() {
                 <X className="h-4 w-4" />
               </button>
             </form>
+
+            {/* Live suggestions */}
+            {suggestionsEnabled && (
+              <div className="container mx-auto px-4 pb-6">
+                <div
+                  ref={suggestionsRef}
+                  onKeyDown={(e) => {
+                    if (e.key === "ArrowDown") {
+                      e.preventDefault();
+                      focusSuggestion(1);
+                    } else if (e.key === "ArrowUp") {
+                      e.preventDefault();
+                      focusSuggestion(-1);
+                    }
+                  }}
+                  className="mt-2 rounded-xl border border-border bg-background shadow-lg overflow-hidden"
+                >
+                  {catSuggestions.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 border-b border-border/40">
+                      <span className="text-xs text-muted-foreground">קטגוריות</span>
+                      {catSuggestions.map((c) => (
+                        <Link
+                          key={c.id}
+                          to="/category/$slug"
+                          params={{ slug: c.slug }}
+                          data-suggestion
+                          onClick={() => setSearchOpen(false)}
+                          className="rounded-full border border-border px-3 py-1 text-xs hover:bg-muted transition-colors"
+                        >
+                          {c.name}
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                  {(suggestions?.rows ?? []).map((p) => {
+                    const effective = getEffectivePrice(p.price);
+                    const original = getDisplayOriginal(p.price, p.sale_price);
+                    return (
+                      <Link
+                        key={p.id}
+                        to="/product/$slug"
+                        params={{ slug: p.slug }}
+                        data-suggestion
+                        onClick={() => setSearchOpen(false)}
+                        className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted"
+                      >
+                        {p.thumbnail_url && (
+                          <img
+                            src={p.thumbnail_url}
+                            alt=""
+                            loading="lazy"
+                            className="h-10 w-10 shrink-0 rounded object-cover"
+                          />
+                        )}
+                        <span className="flex-1 text-sm line-clamp-1">{p.name}</span>
+                        {Number(p.price) === 0 ? (
+                          <span className="shrink-0 text-xs font-semibold text-[#A8862A]">לפי שער הזהב</span>
+                        ) : (
+                          <span className="flex shrink-0 items-center gap-1.5">
+                            {original > effective && (
+                              <span className="text-xs text-muted-foreground line-through">{formatILS(original)}</span>
+                            )}
+                            <span className="text-sm font-semibold text-[#A8862A]">{formatILS(effective)}</span>
+                          </span>
+                        )}
+                      </Link>
+                    );
+                  })}
+                  {suggestionsReady && (suggestions?.rows.length ?? 0) === 0 && (
+                    <div className="px-4 py-2.5 text-sm text-muted-foreground">לא נמצאו מוצרים מתאימים</div>
+                  )}
+                  {(suggestions?.total ?? 0) > 0 && (
+                    <button
+                      type="button"
+                      data-suggestion
+                      onClick={goToAllResults}
+                      className="w-full px-4 py-2.5 text-sm text-accent hover:bg-muted text-right"
+                    >
+                      כל התוצאות ({suggestions!.total})
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

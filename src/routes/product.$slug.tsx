@@ -11,8 +11,17 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Dialog, DialogContent, DialogTrigger, DialogTitle } from "@/components/ui/dialog";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+  type CarouselApi,
+} from "@/components/ui/carousel";
 import { formatILS, useCart, getEffectivePrice, getDisplayOriginal, getDiscountPct, FREE_SHIPPING_THRESHOLD, SHIPPING_FLAT, type CustomMethod } from "@/lib/cart";
-import { ProductCard, ProductCardData } from "@/components/ProductCard";
+import { ProductCardData } from "@/components/ProductCard";
+import { ProductCarousel } from "@/components/product/ProductCarousel";
 import { BundleOffer } from "@/components/BundleOffer";
 import { ProductReviews } from "@/components/ProductReviews";
 import { Stars } from "@/components/Stars";
@@ -260,17 +269,33 @@ function ProductPage() {
   const navigate = useNavigate();
   const { add } = useCart();
   const [qty, setQty] = useState(1);
-  const [activeImg, setActiveImg] = useState<string | null>(null);
+  const [api, setApi] = useState<CarouselApi>();
+  const [selectedIndex, setSelectedIndex] = useState(0);
   const [customText, setCustomText] = useState("");
   const [customMethod, setCustomMethod] = useState<CustomMethod>("embroidery");
+  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
+
+  // Keep the thumbnail highlight in sync with the slide the carousel shows.
+  useEffect(() => {
+    if (!api) return;
+    const onSelect = () => setSelectedIndex(api.selectedScrollSnap());
+    api.on("select", onSelect);
+    return () => {
+      api.off("select", onSelect);
+    };
+  }, [api]);
 
   // The router reuses this component instance across /product/$slug navigations,
   // so per-product UI state would otherwise bleed from one product to the next
-  // (e.g. product B showing product A's selected image / quantity / custom text).
+  // (e.g. product B showing product A's selected image / quantity / size variant /
+  // personalization).
   useEffect(() => {
-    setActiveImg(null);
+    api?.scrollTo(0, true);
+    setSelectedIndex(0);
     setQty(1);
     setCustomText("");
+    setCustomMethod("embroidery");
+    setSelectedVariantId(null);
   }, [slug]);
 
   const { data: product, isLoading } = useQuery({
@@ -332,7 +357,6 @@ function ProductPage() {
 
   // For in-place variants, track the selected one (defaults to the first).
   const inPlaceVariants = variants.filter((v) => v.price !== null && !v.slug);
-  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
   const selectedVariant = inPlaceVariants.find((v) => v.id === selectedVariantId) ?? inPlaceVariants[0] ?? null;
 
 
@@ -419,16 +443,49 @@ function ProductPage() {
     },
   });
 
+  // Same-category recommendations — the related query above deliberately
+  // excludes the product's own categories, so this fills the "מוצרים דומים" strip.
+  const { data: similar = [] } = useQuery({
+    queryKey: ["similar", product?.id],
+    enabled: !!product?.id && categoryIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("product_categories")
+        .select("products!inner(id, slug, name, price, sale_price, thumbnail_url, is_active, stock_status)")
+        .in("category_id", categoryIds)
+        .limit(24);
+      if (error) throw error;
+      const seen = new Set<string>();
+      const out: ProductCardData[] = [];
+      for (const r of (data ?? [])) {
+        const p: any = (r as any).products;
+        if (!p?.is_active || !p.thumbnail_url) continue;
+        if (p.id === product!.id) continue;
+        if (p.stock_status === "outofstock") continue;
+        if (seen.has(p.id)) continue;
+        seen.add(p.id);
+        out.push(p);
+        if (out.length >= 10) break;
+      }
+      return out;
+    },
+  });
+
   if (isLoading) return <div className="container mx-auto px-4 py-20 text-center">טוען...</div>;
   if (!product) return <div className="container mx-auto px-4 py-20 text-center">המוצר לא נמצא</div>;
 
-  const gallery = [
-    ...(product.thumbnail_url ? [product.thumbnail_url] : []),
-    ...((product.product_images ?? [])
-      .sort((a: any, b: any) => a.sort_order - b.sort_order)
-      .map((i: any) => i.url)),
-  ];
-  const mainImg = activeImg || gallery[0];
+  // Dedupe (thumbnail_url often repeats inside product_images) and copy before
+  // sorting so the React Query cache object is never mutated — mirrors head().
+  const gallery: string[] = Array.from(
+    new Set<string>([
+      ...(product.thumbnail_url ? [product.thumbnail_url] : []),
+      ...((product.product_images ?? [])
+        .slice()
+        .sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+        .map((i: any) => i.url)
+        .filter(Boolean)),
+    ]),
+  );
   // If an in-place size variant is selected, use its price as the base.
   const effectiveBase = selectedVariant ? selectedVariant.price! : Number(product.price);
   const effective = getEffectivePrice(effectiveBase);
@@ -523,52 +580,83 @@ function ProductPage() {
       <div className="grid md:grid-cols-2 gap-10">
         {/* Gallery */}
         <div>
-          <Dialog>
-            <DialogTrigger asChild>
-              <button
-                type="button"
-                className="group relative aspect-square w-full overflow-hidden rounded-lg border bg-gradient-to-br from-[#FAF6E9] to-white cursor-zoom-in"
-                aria-label="הגדל תמונה"
+          {gallery.length > 0 ? (
+            <Dialog>
+              <Carousel
+                dir="rtl"
+                opts={{ direction: "rtl", loop: true }}
+                setApi={setApi}
+                className="w-full overflow-hidden rounded-lg border bg-gradient-to-br from-[#FAF6E9] to-white"
               >
-                {mainImg && (
-                  <img
-                    src={mainImg}
-                    alt={product.name}
-                    className="h-full w-full object-contain p-4 transition-transform duration-500 group-hover:scale-105"
-                  />
-                )}
+                <CarouselContent>
+                  {gallery.map((url, i) => (
+                    <CarouselItem key={url}>
+                      <div className="aspect-square w-full">
+                        <img
+                          src={url}
+                          alt={`${product.name} — תמונה ${i + 1}`}
+                          className="h-full w-full object-contain p-4"
+                        />
+                      </div>
+                    </CarouselItem>
+                  ))}
+                </CarouselContent>
                 {hasDiscount && (
-                  <span className="absolute top-3 right-3 rounded-full bg-[#D4AF37] text-white text-xs font-bold px-3 py-1.5 shadow">
+                  <span className="absolute top-3 right-3 z-10 rounded-full bg-[#D4AF37] text-white text-xs font-bold px-3 py-1.5 shadow pointer-events-none">
                     {discountPct}%- הנחה
                   </span>
                 )}
-                <span className="absolute bottom-3 left-3 rounded-full bg-white/90 backdrop-blur p-2 shadow opacity-0 group-hover:opacity-100 transition-opacity">
-                  <ZoomIn className="h-4 w-4 text-[#A8862A]" />
-                </span>
-              </button>
-            </DialogTrigger>
-            <DialogContent className="max-w-4xl p-2 bg-white">
-              <DialogTitle className="sr-only">{product.name}</DialogTitle>
-              {mainImg && (
-                <img
-                  src={mainImg}
-                  alt={product.name}
-                  className="h-auto w-full object-contain rounded"
-                />
-              )}
-            </DialogContent>
-          </Dialog>
+                <DialogTrigger asChild>
+                  <button
+                    type="button"
+                    className="absolute bottom-3 left-3 z-10 rounded-full bg-white/90 backdrop-blur p-2 shadow cursor-zoom-in hover:bg-white transition-colors"
+                    aria-label="הגדל תמונה"
+                  >
+                    <ZoomIn className="h-4 w-4 text-[#A8862A]" />
+                  </button>
+                </DialogTrigger>
+                {gallery.length > 1 && (
+                  <>
+                    <CarouselPrevious className="right-2 top-1/2" />
+                    <CarouselNext className="left-2 top-1/2" />
+                  </>
+                )}
+              </Carousel>
+              <DialogContent className="max-w-4xl p-2 bg-white">
+                <DialogTitle className="sr-only">{product.name}</DialogTitle>
+                {/* Mounted only while the dialog is open, so startIndex opens on
+                    the slide the user was viewing. */}
+                <Carousel dir="rtl" opts={{ direction: "rtl", loop: true, startIndex: selectedIndex }}>
+                  <CarouselContent>
+                    {gallery.map((url, i) => (
+                      <CarouselItem key={url}>
+                        <img
+                          src={url}
+                          alt={`${product.name} — תמונה ${i + 1}`}
+                          className="h-auto w-full object-contain rounded"
+                        />
+                      </CarouselItem>
+                    ))}
+                  </CarouselContent>
+                  <CarouselPrevious className="right-2 top-1/2" />
+                  <CarouselNext className="left-2 top-1/2" />
+                </Carousel>
+              </DialogContent>
+            </Dialog>
+          ) : (
+            <div className="aspect-square w-full rounded-lg border bg-gradient-to-br from-[#FAF6E9] to-white" />
+          )}
           {gallery.length > 1 && (
             <div className="mt-3 flex gap-2 overflow-x-auto" role="group" aria-label="תמונות נוספות של המוצר">
               {gallery.map((url, idx) => (
                 <button
                   key={url}
                   type="button"
-                  onClick={() => setActiveImg(url)}
+                  onClick={() => api?.scrollTo(idx)}
                   aria-label={`הצג תמונה ${idx + 1} מתוך ${gallery.length}`}
-                  aria-pressed={mainImg === url}
+                  aria-pressed={idx === selectedIndex}
                   className={`h-20 w-20 flex-shrink-0 overflow-hidden rounded border-2 bg-white ${
-                    mainImg === url ? "border-[#D4AF37]" : "border-transparent"
+                    idx === selectedIndex ? "border-[#D4AF37]" : "border-transparent"
                   }`}
                 >
                   <img src={url} alt="" className="h-full w-full object-contain p-1" />
@@ -772,7 +860,7 @@ function ProductPage() {
           ) : (
             <div className="flex items-center gap-3 mb-3 flex-wrap">
               <div className="inline-flex items-center rounded-md border">
-                <button onClick={() => setQty((q) => Math.max(1, q - 1))} className="px-3 py-2 hover:bg-muted" aria-label="הפחת">
+                <button onClick={() => setQty((q) => Math.max(1, q - 1))} disabled={qty <= 1} className="px-3 py-2 hover:bg-muted disabled:pointer-events-none disabled:opacity-50" aria-label="הפחת">
                   <Minus className="h-4 w-4" />
                 </button>
                 <span className="px-4 font-medium">{qty}</span>
@@ -786,11 +874,25 @@ function ProductPage() {
                 disabled={!inStock}
                 onClick={() => {
                   addToCart();
-                  toast.success(`${qty} × ${product.name} נוסף לעגלה`);
+                  const parts = [`נוסף לעגלה: ${qty} × ${product.name}`];
+                  if (selectedVariant?.label) parts.push(`גודל: ${selectedVariant.label}`);
+                  if (customText.trim()) {
+                    parts.push(
+                      customMethod === "embroidery"
+                        ? `${embroideryLabel}: ${customText.trim()}`
+                        : `חריטה: ${customText.trim()}`,
+                    );
+                  }
+                  toast.success(parts.join(" • "));
                 }}
                 className="gap-2"
               >
-                <ShoppingCart className="h-4 w-4" /> {inStock ? "הוסף לעגלה" : "אזל מהמלאי"}
+                <ShoppingCart className="h-4 w-4" />{" "}
+                {!inStock
+                  ? "אזל מהמלאי"
+                  : qty > 1
+                  ? `הוסף לעגלה — ${formatILS(effective * qty)}`
+                  : "הוסף לעגלה"}
               </Button>
               <Button
                 size="lg"
@@ -814,14 +916,22 @@ function ProductPage() {
                 id: product.id,
                 slug: product.slug,
                 name: product.name,
-                price: product.price,
+                // Same base price + strike-through inputs the page CTA uses, so
+                // the bundle total never contradicts the price shown above it.
+                price: effectiveBase,
+                sale_price: baseSalePrice,
                 thumbnail_url: product.thumbnail_url,
+                // Keep the cart line tied to the size whose price is shown —
+                // checkout reprices by variantId, mirroring addToCart().
+                variantId: selectedVariant?.id,
+                variantLabel: selectedVariant?.label,
               }}
               addons={related.slice(0, 2).map((p) => ({
                 id: p.id,
                 slug: p.slug,
                 name: p.name,
                 price: p.price,
+                sale_price: p.sale_price,
                 thumbnail_url: p.thumbnail_url,
               }))}
             />
@@ -872,21 +982,14 @@ function ProductPage() {
         </div>
       </div>
 
-      {/* Cross-sells — near the description */}
+      {/* Cross-sells — one carousel showing every fetched companion */}
       {related.length > 0 && (
-        <section className="mt-14">
-          <div className="flex items-end justify-between mb-5 border-b border-[#D4AF37]/30 pb-3">
-            <div>
-              <p className="text-[11px] tracking-[0.25em] text-[#A8862A] uppercase font-semibold mb-1">מוצרים נלווים</p>
-              <h2 className="font-display text-xl md:text-2xl font-bold text-foreground">
-                משלימים את הקנייה
-              </h2>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-5">
-            {related.slice(0, 4).map((p) => <ProductCard key={p.id} p={p} />)}
-          </div>
-        </section>
+        <ProductCarousel
+          eyebrow="מוצרים נלווים"
+          heading="משלימים את הקנייה"
+          items={related}
+          itemClassName="basis-1/2 md:basis-1/4 lg:basis-1/5"
+        />
       )}
 
       {/* Bundle offer — buy together and save */}
@@ -896,38 +999,30 @@ function ProductPage() {
             id: product.id,
             slug: product.slug,
             name: product.name,
-            price: product.price,
+            // Same base price + strike-through inputs the page CTA uses, so
+            // the bundle total never contradicts the price shown above it.
+            price: effectiveBase,
+            sale_price: baseSalePrice,
             thumbnail_url: product.thumbnail_url,
+            // Keep the cart line tied to the size whose price is shown —
+            // checkout reprices by variantId, mirroring addToCart().
+            variantId: selectedVariant?.id,
+            variantLabel: selectedVariant?.label,
           }}
           addons={related.slice(0, 2).map((p) => ({
             id: p.id,
             slug: p.slug,
             name: p.name,
             price: p.price,
+            sale_price: p.sale_price,
             thumbnail_url: p.thumbnail_url,
           }))}
         />
       )}
 
-      {/* Also bought */}
-      {related.length > 4 && (
-        <section className="mt-16 relative">
-          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#D4AF37]/40 to-transparent" />
-          <div className="text-center pt-10 mb-8">
-            <p className="text-xs tracking-[0.3em] text-[#A8862A] uppercase mb-3 font-medium">לקוחות נוספים הוסיפו</p>
-            <h2 className="font-display text-2xl md:text-3xl font-bold text-foreground">
-              מוצרים שגם אהבו
-            </h2>
-            <div className="flex items-center justify-center gap-2 mt-4">
-              <span className="h-px w-12 bg-[#D4AF37]/40" />
-              <span className="text-[#D4AF37] text-lg">✦</span>
-              <span className="h-px w-12 bg-[#D4AF37]/40" />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
-            {related.slice(4, 8).map((p) => <ProductCard key={p.id} p={p} />)}
-          </div>
-        </section>
+      {/* Same-category recommendations */}
+      {similar.length >= 4 && (
+        <ProductCarousel eyebrow="עוד מהקטגוריה" heading="מוצרים דומים" items={similar} />
       )}
 
       {/* Customer reviews + star ratings */}

@@ -95,18 +95,6 @@
   h1, h2, h3, .font-display { font-family: var(--font-display); }
 }
 
-@keyframes marquee-rtl {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(50%); }
-}
-.animate-marquee-rtl {
-  animation: marquee-rtl 60s linear infinite;
-}
-.marquee-mask {
-  -webkit-mask-image: linear-gradient(to left, transparent, black 8%, black 92%, transparent);
-          mask-image: linear-gradient(to left, transparent, black 8%, black 92%, transparent);
-}
-
 /* ===== Accessibility menu (a11y widget) ===== */
 /* High contrast: override the theme tokens (no filter on <html>, which would
    break the fixed widget). */
@@ -178,6 +166,5 @@ html.a11y-cursor, html.a11y-cursor * {
 
 /* Respect a system "reduce motion" preference by default. */
 @media (prefers-reduced-motion: reduce) {
-  .animate-marquee-rtl { animation: none; }
   * { scroll-behavior: auto !important; }
 }

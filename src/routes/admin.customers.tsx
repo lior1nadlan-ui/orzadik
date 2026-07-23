@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -6,6 +6,7 @@ import {
   getCustomerDetail,
   addCustomerNote,
   deleteCustomerNote,
+  exportCustomersCsv,
 } from "@/lib/admin-crm.functions";
 import { formatILS } from "@/lib/cart";
 import { useEffect, useState } from "react";
@@ -13,9 +14,13 @@ import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Phone, Mail, MessageCircle, Trash2 } from "lucide-react";
+import { Download, Phone, Mail, MessageCircle, Trash2 } from "lucide-react";
 
 export const Route = createFileRoute("/admin/customers")({
+  // Deep-linkable search: the orders dialog links here with the customer email.
+  validateSearch: (s: Record<string, unknown>): { q?: string } => ({
+    q: typeof s.q === "string" ? s.q : undefined,
+  }),
   component: AdminCustomers,
 });
 
@@ -33,9 +38,12 @@ function AdminCustomers() {
   const detail = useServerFn(getCustomerDetail);
   const addNote = useServerFn(addCustomerNote);
   const delNote = useServerFn(deleteCustomerNote);
+  const exportCsv = useServerFn(exportCustomersCsv);
 
-  const [q, setQ] = useState("");
-  const [debouncedQ, setDebouncedQ] = useState("");
+  // Search seeded from the URL so deep links land on a filtered list.
+  const search = Route.useSearch();
+  const [q, setQ] = useState(search.q ?? "");
+  const [debouncedQ, setDebouncedQ] = useState(search.q ?? "");
   const [sort, setSort] = useState<"ltv" | "recent" | "orders">("ltv");
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<any>(null);
@@ -91,6 +99,22 @@ function AdminCustomers() {
     }
   };
 
+  const doExport = async () => {
+    try {
+      const { csv, count } = await exportCsv({ data: { q: debouncedQ || undefined, sort, page: 0 } });
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `customers-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(`יוצאו ${count} לקוחות`);
+    } catch (e: any) {
+      toast.error(e?.message ?? "הייצוא נכשל");
+    }
+  };
+
   return (
     <div>
       <h1 className="font-display text-2xl font-bold mb-4">לקוחות ({total})</h1>
@@ -102,6 +126,9 @@ function AdminCustomers() {
           <option value="recent">לפי הזמנה אחרונה</option>
           <option value="orders">לפי מס׳ הזמנות</option>
         </select>
+        <Button size="sm" variant="outline" onClick={doExport}>
+          <Download className="h-4 w-4 ml-1" /> ייצוא CSV
+        </Button>
       </div>
 
       <div className={`rounded-lg border bg-card overflow-x-auto transition-opacity ${isFetching ? "opacity-60" : ""}`}>
@@ -203,7 +230,9 @@ function AdminCustomers() {
                       <div key={o.id} className="rounded-md border px-3 py-2">
                         <div className="flex items-center justify-between">
                           <div>
-                            <span className="font-mono text-xs">{o.order_number}</span>
+                            <Link to="/admin/orders" search={{ q: o.order_number }} className="font-mono text-xs underline text-primary">
+                              {o.order_number}
+                            </Link>
                             <span className="mx-2 text-xs text-muted-foreground">{new Date(o.created_at).toLocaleDateString("he-IL")}</span>
                             <span className="text-[11px] rounded-full bg-muted px-2 py-0.5">{PAYMENT_HE[o.payment_status] ?? o.payment_status}</span>
                           </div>

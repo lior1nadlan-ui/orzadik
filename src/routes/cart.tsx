@@ -1,8 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { formatILS, useCart, getEffectivePrice, getDisplayOriginal, FREE_SHIPPING_THRESHOLD, applyMemberDiscount, lineKey } from "@/lib/cart";
+import { formatILS, useCart, getEffectivePrice, getDisplayOriginal, applyMemberDiscount, lineKey } from "@/lib/cart";
 import { useAuth } from "@/lib/auth";
 
 import { Button } from "@/components/ui/button";
+import { EmptyCartSuggestions } from "@/components/cart/EmptyCartSuggestions";
+import { CartCrossSell } from "@/components/cart/CartCrossSell";
+import { TrustBadges } from "@/components/cart/TrustBadges";
 import { Trash2, Minus, Plus } from "lucide-react";
 
 export const Route = createFileRoute("/cart")({
@@ -11,15 +14,12 @@ export const Route = createFileRoute("/cart")({
 });
 
 function CartPage() {
-  const { items, remove, setQty, subtotal, subtotalBase, discountAmount, shipping, grandTotal } = useCart();
+  const { items, remove, setQty, subtotal, subtotalBase, discountAmount, shipping } = useCart();
   const { user } = useAuth();
   const isMember = !!user;
   const memberSubtotal = applyMemberDiscount(subtotal, isMember);
   const memberSavings = subtotal - memberSubtotal;
   const finalTotal = memberSubtotal + shipping;
-  const remainingForFree = Math.max(0, FREE_SHIPPING_THRESHOLD - memberSubtotal);
-
-
 
   if (items.length === 0) {
     return (
@@ -27,9 +27,12 @@ function CartPage() {
         <h1 className="font-display text-3xl font-bold mb-3">העגלה ריקה</h1>
         <p className="text-muted-foreground mb-6">לא הוספת עדיין מוצרים לעגלה.</p>
         <Link to="/shop"><Button>התחל לקנות</Button></Link>
+        <EmptyCartSuggestions />
       </div>
     );
   }
+
+  const productIds = Array.from(new Set(items.map((i) => i.productId)));
 
   return (
     <div className="container mx-auto px-4 py-10 grid lg:grid-cols-3 gap-8">
@@ -100,6 +103,7 @@ function CartPage() {
           );
         })}
 
+        <CartCrossSell productIds={productIds} />
       </div>
       <div className="rounded-lg border bg-card p-6 h-fit sticky top-20">
         <h2 className="font-display text-xl font-bold mb-4">סיכום הזמנה</h2>
@@ -122,7 +126,7 @@ function CartPage() {
           </div>
         )}
         <div className="flex justify-between text-sm mb-2">
-          <span className="text-muted-foreground">משלוח</span>
+          <span className="text-muted-foreground">משלוח (תעריף אחיד לכל הזמנה)</span>
           <span>{formatILS(shipping)}</span>
         </div>
         <p className="text-xs text-muted-foreground mb-3">
@@ -141,7 +145,8 @@ function CartPage() {
           </div>
         )}
 
-        <Link to="/checkout"><Button className="w-full bg-[#D4AF37] hover:bg-[#A8862A] text-white" size="lg">מעבר לתשלום</Button></Link>
+        <Link to="/checkout"><Button className="w-full bg-[#D4AF37] hover:bg-[#A8862A] text-white" size="lg">מעבר לתשלום · {formatILS(finalTotal)}</Button></Link>
+        <TrustBadges compact />
       </div>
     </div>
   );

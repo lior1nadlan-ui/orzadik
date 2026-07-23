@@ -71,15 +71,19 @@ const Carousel = React.forwardRef<
 
   const handleKeyDown = React.useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
+      // In RTL the strip advances leftward, so the physical arrow keys swap roles.
+      const isRtl = opts?.direction === "rtl";
       if (event.key === "ArrowLeft") {
         event.preventDefault();
-        scrollPrev();
+        if (isRtl) scrollNext();
+        else scrollPrev();
       } else if (event.key === "ArrowRight") {
         event.preventDefault();
-        scrollNext();
+        if (isRtl) scrollPrev();
+        else scrollNext();
       }
     },
-    [scrollPrev, scrollNext],
+    [opts?.direction, scrollPrev, scrollNext],
   );
 
   React.useEffect(() => {
@@ -174,9 +178,14 @@ const CarouselItem = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLD
 );
 CarouselItem.displayName = "CarouselItem";
 
+// In an RTL carousel the strip starts on the right and advances leftward, so
+// "previous" lives on the RIGHT edge with a right-pointing arrow and "next" on
+// the LEFT with a left-pointing one. Call sites only need edge-offset tweaks
+// (e.g. right-2 / left-2) — side and icon are resolved here.
 const CarouselPrevious = React.forwardRef<HTMLButtonElement, React.ComponentProps<typeof Button>>(
   ({ className, variant = "outline", size = "icon", ...props }, ref) => {
-    const { orientation, scrollPrev, canScrollPrev } = useCarousel();
+    const { orientation, opts, scrollPrev, canScrollPrev } = useCarousel();
+    const isRtl = opts?.direction === "rtl";
 
     return (
       <Button
@@ -186,7 +195,9 @@ const CarouselPrevious = React.forwardRef<HTMLButtonElement, React.ComponentProp
         className={cn(
           "absolute  h-8 w-8 rounded-full",
           orientation === "horizontal"
-            ? "-left-12 top-1/2 -translate-y-1/2"
+            ? isRtl
+              ? "-right-12 top-1/2 -translate-y-1/2"
+              : "-left-12 top-1/2 -translate-y-1/2"
             : "-top-12 left-1/2 -translate-x-1/2 rotate-90",
           className,
         )}
@@ -194,7 +205,11 @@ const CarouselPrevious = React.forwardRef<HTMLButtonElement, React.ComponentProp
         onClick={scrollPrev}
         {...props}
       >
-        <ArrowLeft className="h-4 w-4" />
+        {isRtl && orientation === "horizontal" ? (
+          <ArrowRight className="h-4 w-4" />
+        ) : (
+          <ArrowLeft className="h-4 w-4" />
+        )}
         <span className="sr-only">Previous slide</span>
       </Button>
     );
@@ -204,7 +219,8 @@ CarouselPrevious.displayName = "CarouselPrevious";
 
 const CarouselNext = React.forwardRef<HTMLButtonElement, React.ComponentProps<typeof Button>>(
   ({ className, variant = "outline", size = "icon", ...props }, ref) => {
-    const { orientation, scrollNext, canScrollNext } = useCarousel();
+    const { orientation, opts, scrollNext, canScrollNext } = useCarousel();
+    const isRtl = opts?.direction === "rtl";
 
     return (
       <Button
@@ -214,7 +230,9 @@ const CarouselNext = React.forwardRef<HTMLButtonElement, React.ComponentProps<ty
         className={cn(
           "absolute h-8 w-8 rounded-full",
           orientation === "horizontal"
-            ? "-right-12 top-1/2 -translate-y-1/2"
+            ? isRtl
+              ? "-left-12 top-1/2 -translate-y-1/2"
+              : "-right-12 top-1/2 -translate-y-1/2"
             : "-bottom-12 left-1/2 -translate-x-1/2 rotate-90",
           className,
         )}
@@ -222,7 +240,11 @@ const CarouselNext = React.forwardRef<HTMLButtonElement, React.ComponentProps<ty
         onClick={scrollNext}
         {...props}
       >
-        <ArrowRight className="h-4 w-4" />
+        {isRtl && orientation === "horizontal" ? (
+          <ArrowLeft className="h-4 w-4" />
+        ) : (
+          <ArrowRight className="h-4 w-4" />
+        )}
         <span className="sr-only">Next slide</span>
       </Button>
     );

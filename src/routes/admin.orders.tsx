@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
@@ -10,9 +10,22 @@ import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Download, Phone, Mail, MessageCircle } from "lucide-react";
+import { Download, Phone, Mail, MessageCircle, User } from "lucide-react";
 
 export const Route = createFileRoute("/admin/orders")({
+  // Deep-linkable filters: the dashboard KPIs/chips and the customer card link
+  // here with concrete filter states.
+  validateSearch: (s: Record<string, unknown>): { q?: string; status?: string; payment?: string; days?: number } => ({
+    q: typeof s.q === "string" ? s.q : undefined,
+    status: typeof s.status === "string" ? s.status : undefined,
+    payment: typeof s.payment === "string" ? s.payment : undefined,
+    days:
+      typeof s.days === "number"
+        ? s.days
+        : typeof s.days === "string" && s.days !== ""
+          ? Number(s.days)
+          : undefined,
+  }),
   component: AdminOrders,
 });
 
@@ -48,12 +61,13 @@ function AdminOrders() {
   const exportCsv = useServerFn(exportOrdersCsv);
   const shipOrder = useServerFn(markOrderShipped);
 
-  // Filters
-  const [q, setQ] = useState("");
-  const [debouncedQ, setDebouncedQ] = useState("");
-  const [status, setStatus] = useState("");
-  const [payment, setPayment] = useState("");
-  const [days, setDays] = useState(0);
+  // Filters — seeded from the URL so deep links land on a real filter state.
+  const search = Route.useSearch();
+  const [q, setQ] = useState(search.q ?? "");
+  const [debouncedQ, setDebouncedQ] = useState(search.q ?? "");
+  const [status, setStatus] = useState(search.status ?? "");
+  const [payment, setPayment] = useState(search.payment ?? "");
+  const [days, setDays] = useState(search.days ?? 0);
   const [page, setPage] = useState(0);
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQ(q), 300);
@@ -228,7 +242,19 @@ function AdminOrders() {
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           {selected && (
             <>
-              <DialogHeader><DialogTitle>הזמנה {selected.order_number}</DialogTitle></DialogHeader>
+              <DialogHeader>
+                <div className="flex flex-wrap items-center gap-2">
+                  <DialogTitle>הזמנה {selected.order_number}</DialogTitle>
+                  <Link
+                    to="/admin/customers"
+                    search={{ q: selected.customer_email }}
+                    className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs hover:bg-muted"
+                    title="כרטיס לקוח"
+                  >
+                    <User className="h-3 w-3" /> כרטיס לקוח
+                  </Link>
+                </div>
+              </DialogHeader>
               <div className="space-y-3 text-sm">
                 <div className="flex flex-wrap items-center gap-2">
                   <strong>{selected.customer_name}</strong>

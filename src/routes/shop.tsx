@@ -25,7 +25,7 @@ export const Route = createFileRoute("/shop")({
 
 // Escape PostgREST `.or()` reserved characters in user input so a search term
 // can never inject additional filter clauses.
-function sanitizeTerm(raw: string): string {
+export function sanitizeTerm(raw: string): string {
   return raw.replace(/[,()%\\]/g, " ").replace(/\s+/g, " ").trim();
 }
 

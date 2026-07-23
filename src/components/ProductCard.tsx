@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { formatILS, useCart, getEffectivePrice, getDisplayOriginal, getDiscountPct } from "@/lib/cart";
 import { toast } from "sonner";
@@ -15,7 +15,9 @@ export type ProductCardData = {
 
 export function ProductCard({ p, priority = false }: { p: ProductCardData; priority?: boolean }) {
   const { add } = useCart();
+  const navigate = useNavigate();
   const [imgError, setImgError] = useState(false);
+  const [added, setAdded] = useState(false);
   const isCallOnly = Number(p.price) === 0;
   const isOutOfStock = p.stock_status === "outofstock";
   const effective = getEffectivePrice(p.price);
@@ -103,11 +105,18 @@ export function ProductCard({ p, priority = false }: { p: ProductCardData; prior
             onClick={(e) => {
               e.preventDefault();
               add({ productId: p.id, slug: p.slug, name: p.name, price: p.price, salePrice: p.sale_price, thumbnail: p.thumbnail_url });
-              toast.success("נוסף לעגלה");
+              toast.success("נוסף לעגלה", { action: { label: "לצפייה בעגלה", onClick: () => navigate({ to: "/cart" }) } });
+              setAdded(true);
+              window.setTimeout(() => setAdded(false), 1500);
             }}
-            className="mt-4 mx-auto w-full max-w-[200px] rounded-full border border-foreground/80 text-foreground text-sm py-2.5 hover:bg-foreground hover:text-background transition-colors"
+            disabled={added}
+            className={`mt-4 mx-auto w-full max-w-[200px] rounded-full border text-sm py-2.5 transition-colors ${
+              added
+                ? "border-foreground bg-foreground text-background"
+                : "border-foreground/80 text-foreground hover:bg-foreground hover:text-background"
+            }`}
           >
-            הוסף לעגלה
+            {added ? "נוסף ✓" : "הוסף לעגלה"}
           </button>
         )}
       </div>

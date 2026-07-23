@@ -2,6 +2,14 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { FeaturedProductsCarousel } from "@/components/home/FeaturedProductsCarousel";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from "@/components/ui/carousel";
 import heroVideoAsset from "@/assets/hero-video.mp4.asset.json";
 const heroVideo = heroVideoAsset.url;
 import imgSiddur from "@/assets/cat-siddur.webp";
@@ -218,7 +226,7 @@ function HomePage() {
   return (
     <>
       {/* Hero */}
-      <section>
+      <section className="relative">
         <video
           poster="/media/hero-poster.webp"
           autoPlay
@@ -233,6 +241,34 @@ function HomePage() {
           <source src="/media/hero-video.webm" type="video/webm" />
           <source src={heroVideo} type="video/mp4" />
         </video>
+
+        {/* Scrim so the overlay text stays readable over any frame of the video */}
+        <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-foreground/60 via-foreground/20 to-transparent pointer-events-none" />
+
+        {/* Headline + CTAs over the video */}
+        <div className="absolute inset-x-0 bottom-0 pb-10 md:pb-16 px-6 text-center">
+          <h2 className="font-display text-3xl md:text-5xl text-white drop-shadow">
+            אור זרוע לצדיק
+          </h2>
+          <p className="mt-2 text-white/90 text-sm md:text-lg">
+            תשמישי קדושה ויודאיקה מהודרת — 15% הנחה על כל האתר
+          </p>
+          <div className="mt-5 flex flex-wrap justify-center gap-3">
+            <Link
+              to="/shop"
+              className="rounded-full bg-[#D4AF37] hover:bg-[#A8862A] text-white px-8 py-3 text-sm md:text-base font-semibold transition-colors"
+            >
+              לכל המוצרים
+            </Link>
+            <Link
+              to="/category/$slug"
+              params={{ slug: FEATURED[0].slug }}
+              className="rounded-full border border-white/80 text-white px-8 py-3 text-sm md:text-base hover:bg-white/10 transition-colors"
+            >
+              לקולקציית הטליתות
+            </Link>
+          </div>
+        </div>
       </section>
 
       {/* Featured categories */}
@@ -329,7 +365,10 @@ function HomePage() {
         </div>
       </section>
 
-      {/* קטגוריות נוספות — מרקיז אוטומטי */}
+      {/* חדש באתר — מוצרים אחרונים */}
+      <FeaturedProductsCarousel />
+
+      {/* קטגוריות נוספות */}
       {otherCats.length > 0 && (
         <section className="bg-cream/30">
           <div className="container mx-auto px-4 py-14 md:py-20">
@@ -346,35 +385,37 @@ function HomePage() {
               </h2>
             </div>
 
-            <div className="marquee-mask overflow-hidden group">
-              <div className="flex w-max gap-4 md:gap-6 animate-marquee-rtl group-hover:[animation-play-state:paused]">
-                {[...otherCats, ...otherCats].map((c, i) => (
-                  <Link
-                    key={`${c.slug}-${i}`}
-                    to="/category/$slug"
-                    params={{ slug: c.slug }}
-                    className="group/card relative block w-40 md:w-56 shrink-0"
-                  >
-                    <div className="relative aspect-square overflow-hidden rounded-xl bg-muted shadow-[var(--shadow-card)]">
-                      <img
-                        src={c.img}
-                        alt={c.name}
-                        loading="lazy"
-                        className="absolute inset-0 h-full w-full object-cover transition-transform duration-[1200ms] ease-out group-hover/card:scale-110"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-foreground/80 via-foreground/20 to-transparent" />
-                      <div className="absolute inset-x-0 bottom-0 p-3 md:p-4">
-                        <span className="block font-display text-sm md:text-lg tracking-wide text-background text-center leading-tight">
-                          {c.name}
-                        </span>
+            <Carousel dir="rtl" opts={{ direction: "rtl", loop: true, dragFree: true, align: "start" }}>
+              <CarouselContent>
+                {otherCats.map((c) => (
+                  <CarouselItem key={c.slug} className="basis-1/2 sm:basis-1/3 lg:basis-1/5">
+                    <Link
+                      to="/category/$slug"
+                      params={{ slug: c.slug }}
+                      className="group/card relative block"
+                    >
+                      <div className="relative aspect-square overflow-hidden rounded-xl bg-muted shadow-[var(--shadow-card)]">
+                        <img
+                          src={c.img}
+                          alt={c.name}
+                          loading="lazy"
+                          className="absolute inset-0 h-full w-full object-cover transition-transform duration-[1200ms] ease-out group-hover/card:scale-110"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-foreground/80 via-foreground/20 to-transparent" />
+                        <div className="absolute inset-x-0 bottom-0 p-3 md:p-4">
+                          <span className="block font-display text-sm md:text-lg tracking-wide text-background text-center leading-tight">
+                            {c.name}
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                  </Link>
+                    </Link>
+                  </CarouselItem>
                 ))}
-              </div>
-            </div>
-
-
+              </CarouselContent>
+              {/* RTL side + arrow icon come from the carousel component; only the edge offset is tuned here */}
+              <CarouselPrevious className="right-0 -translate-y-1/2 hidden md:inline-flex" />
+              <CarouselNext className="left-0 -translate-y-1/2 hidden md:inline-flex" />
+            </Carousel>
           </div>
         </section>
       )}
@@ -587,36 +628,41 @@ function LazyReel({ src }: { src: string }) {
 
 function InstagramFeed() {
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-5 max-w-6xl mx-auto">
-      {INSTAGRAM_MEDIA.map((m, i) => (
-        <a
-          key={i}
-          href={INSTAGRAM_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label={`אור זרוע לצדיק באינסטגרם — ${m.type === "video" ? "סרטון" : "תמונה"} ${i + 1}`}
-          className="group relative block aspect-[4/5] overflow-hidden rounded-xl bg-muted shadow-[var(--shadow-card)]"
-        >
-          {m.type === "video" ? (
-            <LazyReel src={m.src} />
-          ) : (
-            <img
-              src={m.src}
-              alt="אור זרוע לצדיק"
-              loading="lazy"
-              className="absolute inset-0 h-full w-full object-cover transition-transform duration-[1200ms] ease-out group-hover:scale-105"
-            />
-          )}
-          <div className="absolute inset-0 bg-foreground/0 transition-colors duration-500 group-hover:bg-foreground/20" />
-          <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-background drop-shadow">
-              <rect x="3" y="3" width="18" height="18" rx="5"/>
-              <circle cx="12" cy="12" r="4"/>
-              <circle cx="17.5" cy="6.5" r="1" fill="currentColor"/>
-            </svg>
-          </div>
-        </a>
-      ))}
-    </div>
+    <Carousel dir="rtl" opts={{ direction: "rtl", align: "start" }} className="max-w-6xl mx-auto">
+      <CarouselContent>
+        {INSTAGRAM_MEDIA.map((m, i) => (
+          <CarouselItem key={i} className="basis-2/3 sm:basis-1/3">
+            <a
+              href={INSTAGRAM_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`אור זרוע לצדיק באינסטגרם — ${m.type === "video" ? "סרטון" : "תמונה"} ${i + 1}`}
+              className="group relative block aspect-[4/5] overflow-hidden rounded-xl bg-muted shadow-[var(--shadow-card)]"
+            >
+              {m.type === "video" ? (
+                <LazyReel src={m.src} />
+              ) : (
+                <img
+                  src={m.src}
+                  alt="אור זרוע לצדיק"
+                  loading="lazy"
+                  className="absolute inset-0 h-full w-full object-cover transition-transform duration-[1200ms] ease-out group-hover:scale-105"
+                />
+              )}
+              <div className="absolute inset-0 bg-foreground/0 transition-colors duration-500 group-hover:bg-foreground/20" />
+              <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-background drop-shadow">
+                  <rect x="3" y="3" width="18" height="18" rx="5"/>
+                  <circle cx="12" cy="12" r="4"/>
+                  <circle cx="17.5" cy="6.5" r="1" fill="currentColor"/>
+                </svg>
+              </div>
+            </a>
+          </CarouselItem>
+        ))}
+      </CarouselContent>
+      <CarouselPrevious className="right-2 -translate-y-1/2 hidden md:inline-flex" />
+      <CarouselNext className="left-2 -translate-y-1/2 hidden md:inline-flex" />
+    </Carousel>
   );
 }

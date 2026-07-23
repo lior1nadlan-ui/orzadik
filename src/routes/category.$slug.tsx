@@ -1,7 +1,9 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { getDiscountPct } from "@/lib/cart";
 import { ProductCard, ProductCardData } from "@/components/ProductCard";
+import { SubcategoryChips } from "@/components/catalog/SubcategoryChips";
 import {
   Select,
   SelectContent,
@@ -24,7 +26,7 @@ async function fetchCategoryWithRetry(slug: string, maxRetries = 2) {
     try {
       const { data: cat, error: catErr } = await supabase
         .from("categories")
-        .select("id, name, description, long_description, image_url")
+        .select("id, name, description, long_description, image_url, parent_slug")
         .eq("slug", slug)
         .maybeSingle();
       if (catErr) throw catErr;
@@ -59,6 +61,10 @@ async function fetchCategoryWithRetry(slug: string, maxRetries = 2) {
 }
 
 export const Route = createFileRoute("/category/$slug")({
+  validateSearch: (s: Record<string, unknown>): { sort?: string; instock?: boolean } => ({
+    sort: typeof s.sort === "string" ? s.sort : undefined,
+    instock: s.instock === true || s.instock === "true" ? true : undefined,
+  }),
   loader: async ({ params }) => {
     const result = await fetchCategoryWithRetry(params.slug);
     if (!result.cat) throw notFound(); // real HTTP 404 for non-existent categories
@@ -136,22 +142,48 @@ export const Route = createFileRoute("/category/$slug")({
   component: CategoryPage,
 });
 
-type SortMode = "recommended" | "price-asc" | "price-desc" | "newest" | "oldest";
+type SortMode = "recommended" | "price-asc" | "price-desc" | "newest" | "oldest" | "discount" | "name";
+
+function isSortMode(v: unknown): v is SortMode {
+  return v === "recommended" || v === "price-asc" || v === "price-desc" || v === "newest"
+    || v === "oldest" || v === "discount" || v === "name";
+}
 
 type Row = ProductCardData & { is_active: boolean; stock_status: string; created_at: string };
 
 function CategoryPage() {
   const { slug } = Route.useParams();
   const { cat: initialCat, products: initialProducts } = Route.useLoaderData();
-  const [sort, setSort] = useState<SortMode>("recommended");
-  const [inStockOnly, setInStockOnly] = useState(false);
+  const { sort: sortFromUrl, instock: instockFromUrl } = Route.useSearch();
+  const navigate = Route.useNavigate();
+  // Seed from the URL so sorted/filtered views survive reload and sharing.
+  const [sort, setSort] = useState<SortMode>(isSortMode(sortFromUrl) ? sortFromUrl : "recommended");
+  const [inStockOnly, setInStockOnly] = useState(instockFromUrl ?? false);
+
+  const changeSort = (v: SortMode) => {
+    setSort(v);
+    navigate({
+      search: (prev) => ({ ...prev, sort: v === "recommended" ? undefined : v }),
+      replace: true,
+      resetScroll: false,
+    });
+  };
+
+  const changeInStockOnly = (v: boolean) => {
+    setInStockOnly(v);
+    navigate({
+      search: (prev) => ({ ...prev, instock: v ? true : undefined }),
+      replace: true,
+      resetScroll: false,
+    });
+  };
 
   const { data: cat } = useQuery({
     queryKey: ["cat", slug],
     queryFn: async () => {
       const { data } = await supabase
         .from("categories")
-        .select("id, name, description, long_description, image_url")
+        .select("id, name, description, long_description, image_url, parent_slug")
         .eq("slug", slug)
         .maybeSingle();
       return data;
@@ -198,18 +230,28 @@ function CategoryPage() {
       case "oldest":
         list.sort((a, b) => +new Date(a.created_at) - +new Date(b.created_at));
         break;
+      case "discount":
+        list.sort((a, b) => getDiscountPct(b.price, b.sale_price) - getDiscountPct(a.price, a.sale_price));
+        break;
+      case "name":
+        list.sort((a, b) => a.name.localeCompare(b.name, "he"));
+        break;
       default:
         // recommended: more expensive items first; within same price, older items first (newer items go to the back)
         list.sort((a, b) => (b.price - a.price) || (+new Date(a.created_at) - +new Date(b.created_at)));
         break;
     }
-    return list;
+    // Whatever the sort mode, out-of-stock items always sink to the end
+    // (stable partition — in-stock order is untouched).
+    const inStock = list.filter((p) => p.stock_status !== "outofstock");
+    const oos = list.filter((p) => p.stock_status === "outofstock");
+    return [...inStock, ...oos];
   }, [products, sort, inStockOnly]);
 
   return (
     <div className="pb-12">
       {/* Visible breadcrumb nav */}
-      <nav aria-label="ניווט ארוחות לחם" className="container mx-auto px-4 py-3">
+      <nav aria-label="ניווט מיקום באתר" className="container mx-auto px-4 py-3">
         <ol className="flex items-center gap-1.5 text-xs md:text-sm text-muted-foreground" itemScope itemType="https://schema.org/BreadcrumbList">
           <li itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
             <Link to="/" className="hover:text-accent transition-colors" itemProp="item">
@@ -289,6 +331,9 @@ function CategoryPage() {
       </header>
 
       <div className="container mx-auto px-4 pt-8">
+        {/* Subcategory / sibling chips */}
+        <SubcategoryChips slug={slug} parentSlug={cat?.parent_slug ?? null} />
+
         {(slug === "study-books" || slug === "esh-sheli-gold") && products.length === 0 ? (
           <div className="max-w-2xl mx-auto my-12 text-center bg-gradient-to-b from-primary/5 to-transparent border border-primary/20 rounded-2xl p-10 md:p-14">
             <div className="mx-auto mb-5 w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
@@ -311,21 +356,23 @@ function CategoryPage() {
               <p className="text-sm text-muted-foreground">{visible.length} מוצרים</p>
               <div className="flex flex-wrap items-center gap-4">
                 <label className="flex items-center gap-2 text-sm cursor-pointer">
-                  <Checkbox checked={inStockOnly} onCheckedChange={(v) => setInStockOnly(!!v)} />
+                  <Checkbox checked={inStockOnly} onCheckedChange={(v) => changeInStockOnly(!!v)} />
                   במלאי בלבד
                 </label>
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-muted-foreground">מיון:</span>
-                  <Select value={sort} onValueChange={(v) => setSort(v as SortMode)}>
+                  <Select value={sort} onValueChange={(v) => changeSort(v as SortMode)}>
                     <SelectTrigger className="w-[200px]">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="recommended">מומלצים</SelectItem>
+                      <SelectItem value="discount">מבצעים</SelectItem>
                       <SelectItem value="price-asc">מחיר: מהנמוך לגבוה</SelectItem>
                       <SelectItem value="price-desc">מחיר: מהגבוה לנמוך</SelectItem>
                       <SelectItem value="newest">תאריך: מהחדש לישן</SelectItem>
                       <SelectItem value="oldest">תאריך: מהישן לחדש</SelectItem>
+                      <SelectItem value="name">א-ב</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

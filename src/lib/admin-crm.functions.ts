@@ -21,6 +21,12 @@ function sanitizeTerm(raw: string): string {
   return raw.replace(/[,()%\\]/g, " ").replace(/\s+/g, " ").trim();
 }
 
+/** CSV field escaping shared by the export functions. */
+const csvEsc = (v: unknown) => {
+  const s = String(v ?? "").replace(/\r?\n/g, " ");
+  return /[",]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
+
 async function fetchAllOrders(columns: string) {
   const out: any[] = [];
   for (let from = 0; ; from += DB_PAGE) {
@@ -41,7 +47,7 @@ export const getDashboardStats = createServerFn({ method: "POST" }).handler(asyn
   await requireAdmin();
 
   const orders = await fetchAllOrders(
-    "id, order_number, customer_name, total, status, payment_status, created_at, paid_at",
+    "id, order_number, customer_name, total, status, payment_status, created_at, paid_at, shipped_at",
   );
 
   const now = Date.now();
@@ -50,12 +56,15 @@ export const getDashboardStats = createServerFn({ method: "POST" }).handler(asyn
   startOfToday.setHours(0, 0, 0, 0);
 
   const paid = orders.filter((o) => o.payment_status === "paid" || o.payment_status === "refunded");
-  const revenueIn = (since: number) =>
+  const paidAt = (o: any) => new Date(o.paid_at ?? o.created_at).getTime();
+  const revenueBetween = (since: number, until: number) =>
     paid
-      .filter((o) => new Date(o.paid_at ?? o.created_at).getTime() >= since)
+      .filter((o) => paidAt(o) >= since && paidAt(o) < until)
       .reduce((s, o) => s + Number(o.total), 0);
-  const countIn = (since: number) =>
-    paid.filter((o) => new Date(o.paid_at ?? o.created_at).getTime() >= since).length;
+  const countBetween = (since: number, until: number) =>
+    paid.filter((o) => paidAt(o) >= since && paidAt(o) < until).length;
+  const revenueIn = (since: number) => revenueBetween(since, Infinity);
+  const countIn = (since: number) => countBetween(since, Infinity);
 
   const revenueTotal = paid.reduce((s, o) => s + Number(o.total), 0);
 
@@ -69,6 +78,17 @@ export const getDashboardStats = createServerFn({ method: "POST" }).handler(asyn
       now - new Date(o.created_at).getTime() > 60 * 60 * 1000 &&
       !["cancelled", "refunded"].includes(o.status),
   );
+
+  // Paid orders the owner still has to pack: not yet shipped, oldest first so
+  // the customers who have waited longest float to the top of the queue.
+  const readyToShip = orders
+    .filter(
+      (o) =>
+        o.payment_status === "paid" &&
+        ["pending", "processing"].includes(o.status) &&
+        !o.shipped_at,
+    )
+    .sort((a, b) => paidAt(a) - paidAt(b));
 
   // Revenue per day, last 30 days (paid orders, keyed by paid_at date).
   const series: { date: string; revenue: number; orders: number }[] = [];
@@ -115,12 +135,19 @@ export const getDashboardStats = createServerFn({ method: "POST" }).handler(asyn
       today: revenueIn(startOfToday.getTime()),
       last7: revenueIn(now - 7 * DAY),
       last30: revenueIn(now - 30 * DAY),
+      // Same windows, shifted one period back — the dashboard renders deltas.
+      prevToday: revenueBetween(startOfToday.getTime() - DAY, startOfToday.getTime()),
+      prev7: revenueBetween(now - 14 * DAY, now - 7 * DAY),
+      prev30: revenueBetween(now - 60 * DAY, now - 30 * DAY),
       total: revenueTotal,
     },
     orders: {
       today: countIn(startOfToday.getTime()),
       last7: countIn(now - 7 * DAY),
       last30: countIn(now - 30 * DAY),
+      prevToday: countBetween(startOfToday.getTime() - DAY, startOfToday.getTime()),
+      prev7: countBetween(now - 14 * DAY, now - 7 * DAY),
+      prev30: countBetween(now - 60 * DAY, now - 30 * DAY),
       totalPaid: paid.length,
       totalAll: orders.length,
       avgOrderValue: paid.length ? Math.round(revenueTotal / paid.length) : 0,
@@ -133,6 +160,16 @@ export const getDashboardStats = createServerFn({ method: "POST" }).handler(asyn
       created_at: o.created_at,
     })),
     stuckUnpaidCount: stuckUnpaid.length,
+    readyToShip: {
+      count: readyToShip.length,
+      items: readyToShip.slice(0, 5).map((o) => ({
+        id: o.id,
+        order_number: o.order_number,
+        customer_name: o.customer_name,
+        total: Number(o.total),
+        paid_at: o.paid_at ?? o.created_at,
+      })),
+    },
     series,
     statusCounts,
     topProducts,
@@ -209,10 +246,6 @@ export const exportOrdersCsv = createServerFn({ method: "POST" })
       if ((data ?? []).length < DB_PAGE) break;
     }
 
-    const csvEsc = (v: unknown) => {
-      const s = String(v ?? "").replace(/\r?\n/g, " ");
-      return /[",]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-    };
     const header = [
       "מספר הזמנה", "תאריך", "לקוח", "טלפון", "אימייל", "כתובת", "עיר",
       "ביניים", "משלוח", 'סה"כ', "סטטוס", "תשלום", "מעקב", "חברת שילוח", "פריטים", "הערות",
@@ -241,54 +274,88 @@ const CustomersSchema = z.object({
   page: z.number().int().min(0).default(0),
 });
 
+/** Column list every customer-aggregation caller fetches from orders. */
+const CUSTOMER_ORDER_COLUMNS =
+  "customer_email, customer_name, customer_phone, total, payment_status, created_at, contact_consent";
+
+/** Fold the raw orders rows into one aggregated row per customer email, then
+ * apply the same term-match and sort the customers screen shows. */
+function aggregateCustomers(
+  orders: any[],
+  q: string | undefined,
+  sort: "ltv" | "recent" | "orders",
+) {
+  const byEmail = new Map<string, any>();
+  for (const o of orders) {
+    const key = String(o.customer_email ?? "").trim().toLowerCase();
+    if (!key) continue;
+    const cur = byEmail.get(key) ?? {
+      email: key, name: o.customer_name, phone: o.customer_phone,
+      orders: 0, paidOrders: 0, ltv: 0, lastOrderAt: o.created_at,
+      contactConsent: false,
+    };
+    cur.orders += 1;
+    if (o.payment_status === "paid" || o.payment_status === "refunded") {
+      cur.paidOrders += 1;
+      cur.ltv += Number(o.total);
+    }
+    // orders arrive newest-first, so the first row per email carries the
+    // freshest name/phone/last-order values — keep them.
+    if (o.contact_consent) cur.contactConsent = true;
+    byEmail.set(key, cur);
+  }
+
+  let rows = [...byEmail.values()];
+  const term = sanitizeTerm(q ?? "").toLowerCase();
+  if (term) {
+    rows = rows.filter(
+      (c) =>
+        c.email.includes(term) ||
+        String(c.name ?? "").toLowerCase().includes(term) ||
+        String(c.phone ?? "").includes(term),
+    );
+  }
+  rows.sort(
+    sort === "recent"
+      ? (a, b) => new Date(b.lastOrderAt).getTime() - new Date(a.lastOrderAt).getTime()
+      : sort === "orders"
+        ? (a, b) => b.orders - a.orders
+        : (a, b) => b.ltv - a.ltv,
+  );
+  return rows;
+}
+
 export const listCustomers = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) => CustomersSchema.parse(i))
   .handler(async ({ data: f }) => {
     await requireAdmin();
-    const orders = await fetchAllOrders(
-      "customer_email, customer_name, customer_phone, total, payment_status, created_at, contact_consent",
-    );
-
-    const byEmail = new Map<string, any>();
-    for (const o of orders) {
-      const key = String(o.customer_email ?? "").trim().toLowerCase();
-      if (!key) continue;
-      const cur = byEmail.get(key) ?? {
-        email: key, name: o.customer_name, phone: o.customer_phone,
-        orders: 0, paidOrders: 0, ltv: 0, lastOrderAt: o.created_at,
-        contactConsent: false,
-      };
-      cur.orders += 1;
-      if (o.payment_status === "paid" || o.payment_status === "refunded") {
-        cur.paidOrders += 1;
-        cur.ltv += Number(o.total);
-      }
-      // orders arrive newest-first, so the first row per email carries the
-      // freshest name/phone/last-order values — keep them.
-      if (o.contact_consent) cur.contactConsent = true;
-      byEmail.set(key, cur);
-    }
-
-    let rows = [...byEmail.values()];
-    const term = sanitizeTerm(f.q ?? "").toLowerCase();
-    if (term) {
-      rows = rows.filter(
-        (c) =>
-          c.email.includes(term) ||
-          String(c.name ?? "").toLowerCase().includes(term) ||
-          String(c.phone ?? "").includes(term),
-      );
-    }
-    rows.sort(
-      f.sort === "recent"
-        ? (a, b) => new Date(b.lastOrderAt).getTime() - new Date(a.lastOrderAt).getTime()
-        : f.sort === "orders"
-          ? (a, b) => b.orders - a.orders
-          : (a, b) => b.ltv - a.ltv,
-    );
+    const orders = await fetchAllOrders(CUSTOMER_ORDER_COLUMNS);
+    const rows = aggregateCustomers(orders, f.q, f.sort);
     const total = rows.length;
     const from = f.page * PAGE_SIZE;
     return { rows: rows.slice(from, from + PAGE_SIZE), total, pageSize: PAGE_SIZE };
+  });
+
+export const exportCustomersCsv = createServerFn({ method: "POST" })
+  .inputValidator((i: unknown) => CustomersSchema.parse(i))
+  .handler(async ({ data: f }) => {
+    await requireAdmin();
+    const orders = await fetchAllOrders(CUSTOMER_ORDER_COLUMNS);
+    const rows = aggregateCustomers(orders, f.q, f.sort);
+
+    const header = [
+      "שם", "אימייל", "טלפון", "הזמנות", "הזמנות ששולמו", "סך קניות", "הזמנה אחרונה", "אישר יצירת קשר",
+    ];
+    const lines = rows.map((c) =>
+      [
+        c.name, c.email, c.phone,
+        c.orders, c.paidOrders, c.ltv,
+        new Date(c.lastOrderAt).toLocaleString("he-IL"),
+        c.contactConsent ? "כן" : "לא",
+      ].map(csvEsc).join(","),
+    );
+    // BOM so Excel opens Hebrew UTF-8 correctly.
+    return { csv: "﻿" + [header.join(","), ...lines].join("\r\n"), count: rows.length };
   });
 
 export const getCustomerDetail = createServerFn({ method: "POST" })

@@ -11,7 +11,16 @@ export type BundleProduct = {
   slug: string;
   name: string;
   price: number;
+  /** Genuine recorded former price — drives the honest strike-through total. */
+  sale_price: number | null;
   thumbnail_url: string | null;
+  /**
+   * When `price` is a size variant's price, these carry the variant onto the
+   * cart line — checkout reprices from the DB, so a line missing variantId
+   * would be charged the base product price instead of the displayed one.
+   */
+  variantId?: string;
+  variantLabel?: string;
 };
 
 // The set is a "frequently bought together" convenience. Items are added to
@@ -36,7 +45,7 @@ export function BundleOffer({
 
   const all = useMemo(() => [main, ...addons], [main, addons]);
   const chosen = all.filter((p) => selected[p.id]);
-  const totalBase = chosen.reduce((s, p) => s + getDisplayOriginal(p.price), 0);
+  const totalBase = chosen.reduce((s, p) => s + getDisplayOriginal(p.price, p.sale_price), 0);
   const totalEff = chosen.reduce((s, p) => s + getEffectivePrice(p.price), 0);
 
   function addBundle() {
@@ -50,7 +59,10 @@ export function BundleOffer({
         slug: p.slug,
         name: p.name,
         price: p.price,
+        salePrice: p.sale_price,
         thumbnail: p.thumbnail_url,
+        variantId: p.variantId,
+        variantLabel: p.variantLabel,
       });
     }
     toast.success(`${chosen.length} פריטים נוספו לעגלה`);
