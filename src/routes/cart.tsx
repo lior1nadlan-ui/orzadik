@@ -48,6 +48,8 @@ function CartPage() {
                 <img
                   src={item.thumbnail}
                   alt={item.name}
+                  loading="lazy"
+                  decoding="async"
                   className="h-20 w-20 sm:h-24 sm:w-24 rounded object-cover flex-shrink-0"
                 />
               )}

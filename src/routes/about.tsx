@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
+import { FeaturedProductsCarousel } from "@/components/home/FeaturedProductsCarousel";
 
 export const Route = createFileRoute("/about")({
   component: AboutPage,
@@ -46,11 +47,11 @@ function AboutPage() {
       <section className="relative overflow-hidden bg-gradient-to-b from-[#FAF6E9] via-background to-background">
         <div className="container mx-auto px-4 py-16 md:py-24 text-center max-w-3xl">
           <div className="flex items-center justify-center gap-3 mb-5" aria-hidden="true">
-            <span className="h-px w-12 bg-gradient-to-r from-transparent to-[#D4AF37]/70" />
-            <span className="text-[#A8862A] text-sm tracking-[0.4em]">✦</span>
-            <span className="h-px w-12 bg-gradient-to-l from-transparent to-[#D4AF37]/70" />
+            <span className="h-px w-12 bg-gradient-to-r from-transparent to-accent/70" />
+            <span className="text-accent text-sm tracking-[0.4em]">✦</span>
+            <span className="h-px w-12 bg-gradient-to-l from-transparent to-accent/70" />
           </div>
-          <p className="text-[11px] tracking-[0.4em] uppercase text-[#A8862A] mb-4">
+          <p className="text-[11px] tracking-[0.4em] uppercase text-accent mb-4">
             אור זרוע לצדיק
           </p>
           <h1 className="font-display text-4xl md:text-5xl font-bold leading-tight mb-5">
@@ -90,7 +91,7 @@ function AboutPage() {
           <p className="text-base text-foreground/75">
             החנות בבעלות <strong>ליאור בן עמי</strong> ופועלת מקרית ביאליק (דרך עכו 190).
             אפשר ליצור איתנו קשר בטלפון{" "}
-            <a href="tel:+972545818486" className="text-[#A8862A] hover:underline">054-581-8486</a>,
+            <a href="tel:+972545818486" className="text-accent hover:underline">054-581-8486</a>,
             בוואטסאפ או במייל — נשמח לסייע בבחירה ובהתאמה אישית.
           </p>
         </div>
@@ -100,7 +101,7 @@ function AboutPage() {
       <section className="bg-cream/30 border-y border-border/40">
         <div className="container mx-auto px-4 py-14 max-w-5xl">
           <h2 className="font-display text-2xl md:text-3xl font-bold text-center mb-10">
-            למה לקוחות בוחרים בנו
+            הערכים שלנו
           </h2>
           <div className="grid gap-6 md:grid-cols-3">
             {[
@@ -131,9 +132,9 @@ function AboutPage() {
             ].map((it) => (
               <div
                 key={it.t}
-                className="rounded-xl border border-[#D4AF37]/30 bg-background p-5 shadow-[var(--shadow-card)]"
+                className="rounded-xl border border-accent/30 bg-background p-5 shadow-[var(--shadow-card)]"
               >
-                <div className="text-[#A8862A] text-lg mb-2" aria-hidden="true">✦</div>
+                <div className="text-accent text-lg mb-2" aria-hidden="true">✦</div>
                 <h3 className="font-display text-lg font-bold mb-2">{it.t}</h3>
                 <p className="text-sm text-foreground/80 leading-relaxed">{it.d}</p>
               </div>
@@ -142,18 +143,21 @@ function AboutPage() {
         </div>
       </section>
 
+      {/* טעימה מהקטלוג — מוצרים אחרונים */}
+      <FeaturedProductsCarousel />
+
       {/* CTA */}
       <section className="container mx-auto px-4 py-16 text-center max-w-2xl">
         <h2 className="font-display text-2xl md:text-3xl font-bold mb-4">
           בואו להתרשם מהמבחר
         </h2>
         <p className="text-foreground/80 leading-relaxed mb-8">
-          מעל 1,000 פריטים מוקפדים — מתנות לאירועים, רגעים של קדושה לבית
+          מעל 4,500 פריטים מוקפדים — מתנות לאירועים, רגעים של קדושה לבית
           וכל מה שצריך להידור מצווה.
         </p>
         <div className="flex flex-wrap items-center justify-center gap-3">
           <Link to="/shop">
-            <Button size="lg" className="bg-[#D4AF37] hover:bg-[#A8862A] text-white">
+            <Button size="lg" className="bg-accent hover:bg-accent/90 text-accent-foreground">
               לכל המוצרים
             </Button>
           </Link>

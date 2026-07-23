@@ -30,7 +30,7 @@ async function fetchCategoryWithRetry(slug: string, maxRetries = 2) {
         .eq("slug", slug)
         .maybeSingle();
       if (catErr) throw catErr;
-      if (!cat) return { cat: null, products: [] };
+      if (!cat) return { cat: null, parent: null, products: [] };
       // Page through explicitly: PostgREST caps an unbounded select at 1000
       // rows, and the largest category is already at 742 after the supplier
       // import. Left unbounded, a category that grows past 1000 would silently
@@ -48,7 +48,19 @@ async function fetchCategoryWithRetry(slug: string, maxRetries = 2) {
         if ((batch ?? []).length < PAGE) break;
       }
       const products = rows.map((r: any) => r.products).filter((p: any) => p?.is_active);
-      return { cat, products };
+      // Subcategories surface their parent level in the breadcrumb trail
+      // (visible nav + JSON-LD) — fetch it once here so crawlers get the full
+      // trail in the initial SSR HTML.
+      let parent: { slug: string; name: string } | null = null;
+      if (cat.parent_slug) {
+        const { data: parentRow } = await supabase
+          .from("categories")
+          .select("slug, name")
+          .eq("slug", cat.parent_slug)
+          .maybeSingle();
+        parent = parentRow ?? null;
+      }
+      return { cat, parent, products };
     } catch (err: any) {
       if (i === maxRetries || !["ECONNREFUSED", "ETIMEDOUT", "network"].some(m => String(err).includes(m))) {
         // Real error → route error boundary, not a soft-404 "category not found".
@@ -57,7 +69,7 @@ async function fetchCategoryWithRetry(slug: string, maxRetries = 2) {
       await new Promise(r => setTimeout(r, Math.pow(2, i) * 100));
     }
   }
-  return { cat: null, products: [] };
+  return { cat: null, parent: null, products: [] };
 }
 
 export const Route = createFileRoute("/category/$slug")({
@@ -107,14 +119,19 @@ export const Route = createFileRoute("/category/$slug")({
         })),
       },
     };
+    // Surface the parent-category level on subcategory pages so the trail is
+    // בית / מוצרים / parent / cat — positions stay consecutive either way.
+    const parent = (loaderData?.parent ?? null) as { slug: string; name: string } | null;
+    const crumbs = [
+      { name: "בית", item: "https://orzadik.com/" },
+      { name: "מוצרים", item: "https://orzadik.com/shop" },
+      ...(parent ? [{ name: parent.name, item: `https://orzadik.com/category/${parent.slug}` }] : []),
+      { name: cat.name, item: url },
+    ];
     const breadcrumbLd = {
       "@context": "https://schema.org",
       "@type": "BreadcrumbList",
-      itemListElement: [
-        { "@type": "ListItem", position: 1, name: "בית", item: "https://orzadik.com/" },
-        { "@type": "ListItem", position: 2, name: "מוצרים", item: "https://orzadik.com/shop" },
-        { "@type": "ListItem", position: 3, name: cat.name, item: url },
-      ],
+      itemListElement: crumbs.map((c, i) => ({ "@type": "ListItem", position: i + 1, ...c })),
     };
 
     return {
@@ -153,7 +170,7 @@ type Row = ProductCardData & { is_active: boolean; stock_status: string; created
 
 function CategoryPage() {
   const { slug } = Route.useParams();
-  const { cat: initialCat, products: initialProducts } = Route.useLoaderData();
+  const { cat: initialCat, products: initialProducts, parent } = Route.useLoaderData();
   const { sort: sortFromUrl, instock: instockFromUrl } = Route.useSearch();
   const navigate = Route.useNavigate();
   // Seed from the URL so sorted/filtered views survive reload and sharing.
@@ -266,6 +283,17 @@ function CategoryPage() {
             </Link>
             <meta itemProp="position" content="2" />
           </li>
+          {parent && (
+            <>
+              <li aria-hidden="true" className="text-muted-foreground/40">/</li>
+              <li itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
+                <Link to="/category/$slug" params={{ slug: parent.slug }} className="hover:text-accent transition-colors" itemProp="item">
+                  <span itemProp="name">{parent.name}</span>
+                </Link>
+                <meta itemProp="position" content="3" />
+              </li>
+            </>
+          )}
           {cat?.name && (
             <>
               <li aria-hidden="true" className="text-muted-foreground/40">/</li>
@@ -277,7 +305,7 @@ function CategoryPage() {
                 aria-current="page"
               >
                 <span itemProp="name">{cat.name}</span>
-                <meta itemProp="position" content="3" />
+                <meta itemProp="position" content={parent ? "4" : "3"} />
               </li>
             </>
           )}
@@ -292,6 +320,9 @@ function CategoryPage() {
               <img
                 src={heroImage}
                 alt={cat?.name ? `תמונת קטגוריה עבור ${cat.name}` : "תמונת קטגוריה"}
+                // Above-the-fold hero — the category page's LCP element.
+                fetchPriority="high"
+                decoding="async"
                 className="absolute inset-0 h-full w-full object-cover"
                 width={1600}
                 height={700}

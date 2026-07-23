@@ -1,10 +1,16 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { formatILS } from "@/lib/cart";
 import { refundCardcomOrder } from "@/lib/cardcom.functions";
-import { listOrdersPaged, exportOrdersCsv, markOrderShipped } from "@/lib/admin-crm.functions";
+import {
+  listOrdersPaged,
+  exportOrdersCsv,
+  markOrderShipped,
+  listCustomerNotes,
+  addCustomerNote,
+} from "@/lib/admin-crm.functions";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -35,8 +41,9 @@ const STATUS_HE: Record<string, string> = {
 };
 const PAYMENT_HE: Record<string, string> = { paid: "שולם", unpaid: "לא שולם", refunded: "זוכה" };
 
-/** Israeli local number -> wa.me international format. */
-function waLink(phone: string): string {
+/** Israeli local number -> wa.me international format. Also used by the
+ * abandoned-carts screen (admin.abandoned.tsx). */
+export function waLink(phone: string): string {
   const digits = String(phone ?? "").replace(/\D/g, "");
   const intl = digits.startsWith("0") ? "972" + digits.slice(1) : digits;
   return `https://wa.me/${intl}`;
@@ -60,6 +67,8 @@ function AdminOrders() {
   const listOrders = useServerFn(listOrdersPaged);
   const exportCsv = useServerFn(exportOrdersCsv);
   const shipOrder = useServerFn(markOrderShipped);
+  const custNotesFn = useServerFn(listCustomerNotes);
+  const addNoteFn = useServerFn(addCustomerNote);
 
   // Filters — seeded from the URL so deep links land on a real filter state.
   const search = Route.useSearch();
@@ -79,10 +88,35 @@ function AdminOrders() {
   const [tracking, setTracking] = useState("");
   const [carrier, setCarrier] = useState("");
   const [shipping, setShipping] = useState(false);
+  const [noteText, setNoteText] = useState("");
   useEffect(() => {
     setTracking(selected?.tracking_number ?? "");
     setCarrier(selected?.shipping_carrier ?? "");
+    setNoteText("");
   }, [selected?.id]);
+
+  // CRM notes inside the details dialog — the owner sees customer history
+  // ("ביקש חריטה מיוחדת") without leaving the order.
+  const { data: custNotes } = useQuery({
+    queryKey: ["order-cust-notes", selected?.customer_email],
+    enabled: !!selected?.customer_email,
+    queryFn: () => custNotesFn({ data: { email: selected!.customer_email } }),
+  });
+  const noteMutation = useMutation({
+    mutationFn: (note: string) => addNoteFn({ data: { email: selected.customer_email, note } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["order-cust-notes", selected?.customer_email] });
+      // The customer card (admin.customers.tsx) caches notes under this key.
+      qc.invalidateQueries({ queryKey: ["admin-customer"] });
+      setNoteText("");
+      toast.success("ההערה נשמרה");
+    },
+    onError: (e: any) => toast.error(e?.message ?? "שגיאה בשמירת ההערה"),
+  });
+  const submitNote = () => {
+    const note = noteText.trim();
+    if (note && !noteMutation.isPending) noteMutation.mutate(note);
+  };
 
   const filters = {
     q: debouncedQ || undefined,
@@ -270,6 +304,35 @@ function AdminOrders() {
                 </div>
                 <div>{selected.customer_address}{selected.customer_city ? `, ${selected.customer_city}` : ""}</div>
                 {selected.notes && <div className="text-muted-foreground">הערות: {selected.notes}</div>}
+
+                {/* Internal CRM notes — same store as the customer card. */}
+                <div className="border-t pt-3 space-y-2">
+                  <div className="font-semibold">הערות פנימיות</div>
+                  <div className="space-y-1.5">
+                    {(custNotes ?? []).map((n: any) => (
+                      <div key={n.id} className="rounded-md bg-muted/40 px-3 py-2">
+                        <div>{n.note}</div>
+                        <div className="text-[11px] text-muted-foreground">
+                          {new Date(n.created_at).toLocaleString("he-IL")}
+                        </div>
+                      </div>
+                    ))}
+                    {(custNotes ?? []).length === 0 && (
+                      <div className="text-xs text-muted-foreground">אין הערות ללקוח זה עדיין.</div>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="הוספת הערה פנימית..."
+                      value={noteText}
+                      onChange={(e) => setNoteText(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && submitNote()}
+                    />
+                    <Button size="sm" disabled={noteMutation.isPending || !noteText.trim()} onClick={submitNote}>
+                      {noteMutation.isPending ? "שומר..." : "שמור"}
+                    </Button>
+                  </div>
+                </div>
                 <div className="border-t pt-3 space-y-1">
                   {selected.order_items.map((it: any) => (
                     <div key={it.id} className="flex justify-between">

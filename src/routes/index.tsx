@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { FeaturedProductsCarousel } from "@/components/home/FeaturedProductsCarousel";
+import { HomeReviews } from "@/components/content/HomeReviews";
 import {
   Carousel,
   CarouselContent,
@@ -10,6 +11,12 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from "@/components/ui/carousel";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import heroVideoAsset from "@/assets/hero-video.mp4.asset.json";
 const heroVideo = heroVideoAsset.url;
 import imgSiddur from "@/assets/cat-siddur.webp";
@@ -99,6 +106,36 @@ const OTHER_CATS_IMAGES: Record<string, string> = {
 
 
 
+// Single source of truth for the homepage FAQ — feeds both the FAQPage JSON-LD
+// in head() (the SEO carrier) and the visible accordion. The fuller answers
+// (previously only in the JSON-LD) are canonical.
+const FAQ_ITEMS: { q: string; a: string }[] = [
+  {
+    q: "האם המוצרים מהודרים ובעלי כשרות?",
+    a: "כן. כל מוצר נבחר בקפידה ועומד בסטנדרטים גבוהים של כשרות ומהדרין. טליתות, תפילין ומזוזות מגיעים עם תעודות כשרות מגופים מוכרים.",
+  },
+  {
+    q: "האם ניתן להוסיף שם אישי או רקמה על המוצרים?",
+    a: "בהחלט! אנו מציעים שירות רקמה אישית וחריטת לייזר על מגוון רחב של מוצרים — כולל כיסויים לטלית ותפילין, תיקי תפילין וסידורים. ניתן להזמין בעת הרכישה.",
+  },
+  {
+    q: "כמה זמן לוקח המשלוח?",
+    a: "המשלוח מגיע תוך 3–14 ימי עסקים לכל רחבי הארץ. מוצרים עם רקמה אישית עשויים לקחת מעט יותר זמן. תקבלו מספר מעקב עם שיגור ההזמנה.",
+  },
+  {
+    q: "האם ניתן להחזיר מוצרים?",
+    a: "כן, אנו מציעים מדיניות החזרה של 14 יום על מוצרים שלא נעשה בהם שימוש ושלא הותאמו אישית. צרו קשר עם שירות הלקוחות שלנו לקבלת סיוע.",
+  },
+  {
+    q: "האם ניתן להזמין מחוץ לישראל?",
+    a: "כרגע אנו משלחים בתוך ישראל בלבד. למשלוחים לחו\"ל, אנא צרו קשר ישיר בוואטסאפ ונשמח לסייע.",
+  },
+  {
+    q: "מה זה \"אור זרוע לצדיק\" ומי עומד מאחורי החנות?",
+    a: "אור זרוע לצדיק היא חנות אונליין ישראלית לתשמישי קדושה ויודאיקה מהודרת, בבעלות ליאור בן עמי מקרית ביאליק. השם נלקח מהפסוק בתהילים (צ\"ז), \"אוֹר זָרֻעַ לַצַּדִּיק\". החנות מתמחה בטליתות, תפילין, מזוזות, גביעי קידוש, חנוכיות ומארזים לחתנים, עם אפשרות רקמה וחריטה אישית ומשלוח עד הבית בישראל.",
+  },
+];
+
 export const Route = createFileRoute("/")({
   component: HomePage,
   head: () => ({
@@ -123,56 +160,11 @@ export const Route = createFileRoute("/")({
         children: JSON.stringify({
           "@context": "https://schema.org",
           "@type": "FAQPage",
-          mainEntity: [
-            {
-              "@type": "Question",
-              name: "האם המוצרים מהודרים ובעלי כשרות?",
-              acceptedAnswer: {
-                "@type": "Answer",
-                text: "כן. כל מוצר נבחר בקפידה ועומד בסטנדרטים גבוהים של כשרות ומהדרין. טליתות, תפילין ומזוזות מגיעים עם תעודות כשרות מגופים מוכרים.",
-              },
-            },
-            {
-              "@type": "Question",
-              name: "האם ניתן להוסיף שם אישי או רקמה על המוצרים?",
-              acceptedAnswer: {
-                "@type": "Answer",
-                text: "בהחלט! אנו מציעים שירות רקמה אישית וחריטת לייזר על מגוון רחב של מוצרים — כולל כיסויים לטלית ותפילין, תיקי תפילין וסידורים. ניתן להזמין בעת הרכישה.",
-              },
-            },
-            {
-              "@type": "Question",
-              name: "כמה זמן לוקח המשלוח?",
-              acceptedAnswer: {
-                "@type": "Answer",
-                text: "המשלוח מגיע תוך 3–14 ימי עסקים לכל רחבי הארץ. מוצרים עם רקמה אישית עשויים לקחת מעט יותר זמן. תקבלו מספר מעקב עם שיגור ההזמנה.",
-              },
-            },
-            {
-              "@type": "Question",
-              name: "האם ניתן להחזיר מוצרים?",
-              acceptedAnswer: {
-                "@type": "Answer",
-                text: "כן, אנו מציעים מדיניות החזרה של 14 יום על מוצרים שלא נעשה בהם שימוש ושלא הותאמו אישית. צרו קשר עם שירות הלקוחות שלנו לקבלת סיוע.",
-              },
-            },
-            {
-              "@type": "Question",
-              name: "האם ניתן להזמין מחוץ לישראל?",
-              acceptedAnswer: {
-                "@type": "Answer",
-                text: "כרגע אנו משלחים בתוך ישראל בלבד. למשלוחים לחו\"ל, אנא צרו קשר ישיר בוואטסאפ ונשמח לסייע.",
-              },
-            },
-            {
-              "@type": "Question",
-              name: "מה זה \"אור זרוע לצדיק\" ומי עומד מאחורי החנות?",
-              acceptedAnswer: {
-                "@type": "Answer",
-                text: "אור זרוע לצדיק היא חנות אונליין ישראלית לתשמישי קדושה ויודאיקה מהודרת, בבעלות ליאור בן עמי מקרית ביאליק. השם נלקח מהפסוק בתהילים (צ\"ז), \"אוֹר זָרֻעַ לַצַּדִּיק\". החנות מתמחה בטליתות, תפילין, מזוזות, גביעי קידוש, חנוכיות ומארזים לחתנים, עם אפשרות רקמה וחריטה אישית ומשלוח עד הבית בישראל.",
-              },
-            },
-          ],
+          mainEntity: FAQ_ITEMS.map((item) => ({
+            "@type": "Question",
+            name: item.q,
+            acceptedAnswer: { "@type": "Answer", text: item.a },
+          })),
         }),
       },
     ],
@@ -197,8 +189,19 @@ const FEATURED: { id: string; slug: string; name: string; img: string }[] = [
 
 
 
+// SSR-safe prefers-reduced-motion check — only ever called from effects/handlers.
+function prefersReducedMotion() {
+  return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
 function HomePage() {
   const featuredIds = FEATURED.map((f) => f.id);
+  const heroVideoRef = useRef<HTMLVideoElement | null>(null);
+
+  // Respect "reduce motion": stop the autoplaying hero loop after mount.
+  useEffect(() => {
+    if (prefersReducedMotion()) heroVideoRef.current?.pause();
+  }, []);
 
   const { data: otherCats = [] } = useQuery({
     queryKey: ["home-other-categories-static", featuredIds],
@@ -228,6 +231,7 @@ function HomePage() {
       {/* Hero */}
       <section className="relative">
         <video
+          ref={heroVideoRef}
           poster="/media/hero-poster.webp"
           autoPlay
           muted
@@ -256,7 +260,7 @@ function HomePage() {
           <div className="mt-5 flex flex-wrap justify-center gap-3">
             <Link
               to="/shop"
-              className="rounded-full bg-[#D4AF37] hover:bg-[#A8862A] text-white px-8 py-3 text-sm md:text-base font-semibold transition-colors"
+              className="rounded-full bg-accent hover:bg-accent/90 text-accent-foreground px-8 py-3 text-sm md:text-base font-semibold transition-colors"
             >
               לכל המוצרים
             </Link>
@@ -287,6 +291,7 @@ function HomePage() {
                     src={c.img}
                     alt={c.name}
                     loading="lazy"
+                    decoding="async"
                     width={1024}
                     height={1024}
                     className="absolute inset-0 h-full w-full object-cover transition-transform duration-[1600ms] ease-out group-hover:scale-110"
@@ -399,6 +404,7 @@ function HomePage() {
                           src={c.img}
                           alt={c.name}
                           loading="lazy"
+                          decoding="async"
                           className="absolute inset-0 h-full w-full object-cover transition-transform duration-[1200ms] ease-out group-hover/card:scale-110"
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-foreground/80 via-foreground/20 to-transparent" />
@@ -488,6 +494,9 @@ function HomePage() {
         </div>
       </section>
 
+      {/* לקוחות ממליצים — real approved reviews */}
+      <HomeReviews />
+
       {/* SEO text section + FAQ */}
       <section className="bg-background border-y border-accent/10">
         <div className="container mx-auto px-4 py-14 md:py-20 max-w-4xl">
@@ -506,39 +515,18 @@ function HomePage() {
           <h2 className="font-display text-2xl md:text-3xl font-semibold text-center mb-8 tracking-wide">
             שאלות נפוצות
           </h2>
-          <dl className="space-y-4">
-            {[
-              {
-                q: "האם המוצרים מהודרים ובעלי כשרות?",
-                a: "כן. כל מוצר נבחר בקפידה ועומד בסטנדרטים גבוהים של כשרות ומהדרין. טליתות, תפילין ומזוזות מגיעים עם תעודות כשרות מגופים מוכרים.",
-              },
-              {
-                q: "האם ניתן להוסיף שם אישי או רקמה על המוצרים?",
-                a: "בהחלט! אנו מציעים שירות רקמה אישית וחריטת לייזר על מגוון רחב — כולל כיסויים לטלית ותפילין, תיקי תפילין וסידורים.",
-              },
-              {
-                q: "כמה זמן לוקח המשלוח?",
-                a: "המשלוח מגיע תוך 3–14 ימי עסקים לכל הארץ, עם מספר מעקב בכל שלב.",
-              },
-              {
-                q: "האם ניתן להחזיר מוצרים?",
-                a: "כן, מדיניות החזרה של 14 יום על מוצרים שלא נעשה בהם שימוש ולא הותאמו אישית.",
-              },
-              {
-                q: "האם ניתן להזמין מחוץ לישראל?",
-                a: "כרגע אנו משלחים בתוך ישראל בלבד. למשלוחים לחו״ל, אנא צרו קשר ישיר בוואטסאפ ונשמח לסייע.",
-              },
-              {
-                q: "מה זה \"אור זרוע לצדיק\" ומי עומד מאחורי החנות?",
-                a: "אור זרוע לצדיק היא חנות אונליין ישראלית לתשמישי קדושה ויודאיקה מהודרת, בבעלות ליאור בן עמי מקרית ביאליק. השם נלקח מהפסוק בתהילים (צ״ז), \"אוֹר זָרֻעַ לַצַּדִּיק\". החנות מתמחה בטליתות, תפילין, מזוזות, גביעי קידוש, חנוכיות ומארזים לחתנים, עם אפשרות רקמה וחריטה אישית ומשלוח עד הבית בישראל.",
-              },
-            ].map(({ q, a }) => (
-              <div key={q} className="rounded-xl border border-accent/20 bg-background p-5 md:p-6">
-                <dt className="font-semibold text-foreground mb-2">{q}</dt>
-                <dd className="text-sm leading-relaxed text-muted-foreground">{a}</dd>
-              </div>
+          {/* The FAQPage JSON-LD in head() is the SEO carrier (Radix unmounts
+              closed panels); defaultValue keeps one answer in the initial DOM. */}
+          <Accordion type="single" collapsible defaultValue="faq-0" className="w-full">
+            {FAQ_ITEMS.map((item, i) => (
+              <AccordionItem key={i} value={`faq-${i}`}>
+                <AccordionTrigger className="text-right font-medium">{item.q}</AccordionTrigger>
+                <AccordionContent className="text-muted-foreground leading-relaxed">
+                  {item.a}
+                </AccordionContent>
+              </AccordionItem>
             ))}
-          </dl>
+          </Accordion>
         </div>
       </section>
 
@@ -609,8 +597,9 @@ function LazyReel({ src }: { src: string }) {
     return () => io.disconnect();
   }, [visible]);
 
+  // Respect "reduce motion": keep the first frame as a still instead of playing.
   useEffect(() => {
-    if (visible) ref.current?.play().catch(() => {});
+    if (visible && !prefersReducedMotion()) ref.current?.play().catch(() => {});
   }, [visible]);
 
   return (
@@ -620,7 +609,9 @@ function LazyReel({ src }: { src: string }) {
       muted
       loop
       playsInline
-      preload="none"
+      // "metadata" once visible so the first frame paints even when reduced
+      // motion skips play(); "none" keeps the initial page load light.
+      preload={visible ? "metadata" : "none"}
       className="absolute inset-0 h-full w-full object-cover transition-transform duration-[1200ms] ease-out group-hover:scale-105"
     />
   );
@@ -646,6 +637,7 @@ function InstagramFeed() {
                   src={m.src}
                   alt="אור זרוע לצדיק"
                   loading="lazy"
+                  decoding="async"
                   className="absolute inset-0 h-full w-full object-cover transition-transform duration-[1200ms] ease-out group-hover:scale-105"
                 />
               )}

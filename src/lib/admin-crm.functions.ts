@@ -130,6 +130,36 @@ export const getDashboardStats = createServerFn({ method: "POST" }).handler(asyn
   }
   const topProducts = [...byProduct.values()].sort((a, b) => b.revenue - a.revenue).slice(0, 8);
 
+  // Open abandoned carts — recoverable revenue at a glance. The cleanup cron
+  // (cleanup_old_abandoned_carts) keeps the table small; cap defensively. On
+  // error fall back to zeros rather than failing the whole dashboard.
+  const { data: openCarts, error: acErr } = await supabaseAdmin
+    .from("abandoned_carts")
+    .select("subtotal")
+    .is("converted_order_id", null)
+    .eq("unsubscribed", false)
+    .limit(1000);
+  if (acErr) console.error("[getDashboardStats] abandoned carts:", acErr);
+
+  // Catalog health — head-count queries only. This fn refetches every 60s and
+  // already walks the orders table; across 4,672 SKUs these must stay
+  // `count: "exact", head: true` (near-zero cost), never a row walk. The .or()
+  // also counts empty-string thumbnails — the manual product form can save "".
+  const [{ count: noImageCount, error: niErr }, { count: oosCount, error: oosErr }] =
+    await Promise.all([
+      supabaseAdmin
+        .from("products")
+        .select("id", { count: "exact", head: true })
+        .eq("is_active", true)
+        .or("thumbnail_url.is.null,thumbnail_url.eq."),
+      supabaseAdmin
+        .from("products")
+        .select("id", { count: "exact", head: true })
+        .eq("is_active", true)
+        .eq("stock_status", "outofstock"),
+    ]);
+  if (niErr || oosErr) console.error("[getDashboardStats] catalog health:", niErr ?? oosErr);
+
   return {
     revenue: {
       today: revenueIn(startOfToday.getTime()),
@@ -170,6 +200,11 @@ export const getDashboardStats = createServerFn({ method: "POST" }).handler(asyn
         paid_at: o.paid_at ?? o.created_at,
       })),
     },
+    abandoned: {
+      openCount: acErr ? 0 : (openCarts ?? []).length,
+      recoverable: acErr ? 0 : (openCarts ?? []).reduce((s, c) => s + Number(c.subtotal ?? 0), 0),
+    },
+    catalogHealth: { noImage: noImageCount ?? 0, outOfStock: oosCount ?? 0 },
     series,
     statusCounts,
     topProducts,
@@ -415,6 +450,90 @@ export const deleteCustomerNote = createServerFn({ method: "POST" })
     const { error } = await supabaseAdmin.from("crm_customer_notes").delete().eq("id", data.id);
     if (error) throw new Error("שגיאה במחיקת ההערה.");
     return { ok: true };
+  });
+
+/** Notes-only fetch for the order-details dialog — avoids getCustomerDetail
+ * dragging 200 orders + order_items on every dialog open. */
+export const listCustomerNotes = createServerFn({ method: "POST" })
+  .inputValidator((i: unknown) => z.object({ email: z.string().email() }).parse(i))
+  .handler(async ({ data }) => {
+    await requireAdmin();
+    // Notes are stored lowercased and matched with .eq — normalize or we miss them.
+    const email = data.email.trim().toLowerCase();
+    const { data: notes, error } = await supabaseAdmin
+      .from("crm_customer_notes")
+      .select("id, note, created_at")
+      .eq("customer_email", email)
+      .order("created_at", { ascending: false });
+    if (error) {
+      console.error("[listCustomerNotes]:", error);
+      throw new Error("שגיאה בטעינת ההערות.");
+    }
+    return notes ?? [];
+  });
+
+// ---- Abandoned carts -------------------------------------------------------
+
+export const listAbandonedCarts = createServerFn({ method: "POST" })
+  .inputValidator((i: unknown) =>
+    z
+      .object({
+        page: z.number().int().min(0).default(0),
+        show: z.enum(["open", "converted", "all"]).default("open"),
+      })
+      .parse(i),
+  )
+  .handler(async ({ data }) => {
+    await requireAdmin();
+    // No admin RLS read path exists for abandoned_carts on the browser client —
+    // this server fn (service role + requireAdmin) is the sanctioned access.
+    let q = supabaseAdmin
+      .from("abandoned_carts")
+      .select(
+        "id, email, name, items, subtotal, reminder_1_sent_at, reminder_2_sent_at, converted_order_id, unsubscribed, created_at",
+        { count: "exact" },
+      )
+      .order("created_at", { ascending: false })
+      .range(data.page * PAGE_SIZE, data.page * PAGE_SIZE + PAGE_SIZE - 1);
+    if (data.show === "open") q = q.is("converted_order_id", null);
+    if (data.show === "converted") q = q.not("converted_order_id", "is", null);
+    const { data: rows, error, count } = await q;
+    if (error) {
+      console.error("[listAbandonedCarts]:", error);
+      throw new Error("שגיאה בטעינת העגלות הנטושות.");
+    }
+
+    // abandoned_carts stores no phone — borrow the freshest one from orders
+    // (one query for the whole page) so the UI can offer a WhatsApp action.
+    const emails = [...new Set((rows ?? []).map((r) => String(r.email).toLowerCase()))];
+    const phoneByEmail = new Map<string, string>();
+    if (emails.length > 0) {
+      const { data: orderRows, error: pErr } = await supabaseAdmin
+        .from("orders")
+        .select("customer_email, customer_phone")
+        .in("customer_email", emails)
+        .order("created_at", { ascending: false });
+      if (pErr) {
+        // Non-fatal: rows simply render without a WhatsApp button.
+        console.error("[listAbandonedCarts] phones:", pErr);
+      } else {
+        for (const o of orderRows ?? []) {
+          const key = String(o.customer_email ?? "").trim().toLowerCase();
+          if (key && o.customer_phone && !phoneByEmail.has(key)) {
+            phoneByEmail.set(key, o.customer_phone);
+          }
+        }
+      }
+    }
+
+    return {
+      rows: (rows ?? []).map((r) => ({
+        ...r,
+        phone: phoneByEmail.get(String(r.email).toLowerCase()) ?? null,
+      })),
+      total: count ?? 0,
+      pageSize: PAGE_SIZE,
+    };
   });
 
 // ---- Shipping --------------------------------------------------------------

@@ -111,6 +111,74 @@ function AdminHome() {
         ))}
       </div>
 
+      {/* Abandoned carts KPI + catalog health */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Link
+          to="/admin/abandoned"
+          className={`block rounded-lg border p-5 transition-colors hover:border-primary/50 ${
+            s.abandoned.openCount > 0
+              ? "border-amber-400/60 bg-amber-50 dark:bg-amber-950/20"
+              : "bg-card"
+          }`}
+        >
+          <div
+            className={`text-sm ${
+              s.abandoned.openCount > 0
+                ? "font-semibold text-amber-800 dark:text-amber-300"
+                : "text-muted-foreground"
+            }`}
+          >
+            🛒 עגלות נטושות פתוחות
+          </div>
+          <div className="text-2xl font-bold mt-1">{s.abandoned.openCount}</div>
+          <div className="text-xs text-muted-foreground mt-1">
+            {s.abandoned.openCount > 0
+              ? `${formatILS(s.abandoned.recoverable)} לשחזור`
+              : "אין עגלות נטושות פתוחות כרגע"}
+          </div>
+        </Link>
+
+        {/* Catalog health. Plain link only — admin.products.tsx has no
+            validateSearch yet; follow-up: add it there next round so this can
+            deep-link pre-filtered (e.g. ?health=no-image). */}
+        {(() => {
+          const healthIssues = s.catalogHealth.noImage > 0 || s.catalogHealth.outOfStock > 0;
+          return (
+            <Link
+              to="/admin/products"
+              className={`block rounded-lg border p-5 transition-colors hover:border-primary/50 ${
+                healthIssues ? "border-amber-400/60 bg-amber-50 dark:bg-amber-950/20" : "bg-card"
+              }`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div
+                  className={`text-sm font-semibold ${
+                    healthIssues ? "text-amber-800 dark:text-amber-300" : ""
+                  }`}
+                >
+                  תקינות קטלוג
+                </div>
+                {!healthIssues && (
+                  <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                    הקטלוג תקין ✓
+                  </span>
+                )}
+              </div>
+              <div className="mt-2 space-y-1 text-sm">
+                <div className="flex justify-between gap-3">
+                  <span>מוצרים פעילים ללא תמונה:</span>
+                  <strong>{s.catalogHealth.noImage}</strong>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <span>מוצרים פעילים שאזלו מהמלאי:</span>
+                  <strong>{s.catalogHealth.outOfStock}</strong>
+                </div>
+              </div>
+            </Link>
+          );
+        })()}
+      </div>
+
       {/* Stuck-unpaid alert */}
       {s.stuckUnpaidCount > 0 && (
         <div className="rounded-lg border border-amber-400/60 bg-amber-50 dark:bg-amber-950/20 p-4">

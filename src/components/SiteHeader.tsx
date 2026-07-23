@@ -1,6 +1,7 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { ShoppingBag, User as UserIcon, Search, Menu, X } from "lucide-react";
+import { ShoppingBag, User as UserIcon, Search, Menu, X, Heart } from "lucide-react";
 import { useCart, formatILS, getEffectivePrice, getDisplayOriginal } from "@/lib/cart";
+import { useFavorites } from "@/components/engagement/favorites";
 import { useAuth } from "@/lib/auth";
 import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -25,6 +26,9 @@ type SearchSuggestion = {
 
 export function SiteHeader() {
   const { count } = useCart();
+  // SSR renders favCount 0 (the hook returns [] on the server), so there is
+  // no hydration mismatch — the badge appears after mount, like the cart badge.
+  const { count: favCount } = useFavorites();
   const { user, isAdmin, signOut } = useAuth();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -163,6 +167,10 @@ export function SiteHeader() {
                     <span className="flex items-center gap-2"><ShoppingBag className="h-4 w-4" /> עגלת קניות</span>
                     {count > 0 && <span className="text-xs text-accent font-semibold">{count}</span>}
                   </Link>
+                  <Link to="/favorites" onClick={() => setDrawerOpen(false)} className="flex items-center justify-between py-2 text-sm hover:text-accent">
+                    <span className="flex items-center gap-2"><Heart className="h-4 w-4" /> מועדפים</span>
+                    {favCount > 0 && <span className="text-xs text-accent font-semibold">{favCount}</span>}
+                  </Link>
                   {user ? (
                     <>
                       <Link to="/account" onClick={() => setDrawerOpen(false)} className="flex items-center gap-2 py-2 text-sm hover:text-accent">
@@ -208,6 +216,14 @@ export function SiteHeader() {
             {count > 0 && (
               <span className="absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1 text-[11px] font-bold text-accent-foreground">
                 {count}
+              </span>
+            )}
+          </Link>
+          <Link to="/favorites" className="relative inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-muted" aria-label="מועדפים">
+            <Heart className="h-5 w-5" />
+            {favCount > 0 && (
+              <span className="absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1 text-[11px] font-bold text-accent-foreground">
+                {favCount}
               </span>
             )}
           </Link>

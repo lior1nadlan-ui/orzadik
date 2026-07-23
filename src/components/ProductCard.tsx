@@ -1,6 +1,8 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { formatILS, useCart, getEffectivePrice, getDisplayOriginal, getDiscountPct } from "@/lib/cart";
+import { useFavorites } from "@/components/engagement/favorites";
+import { Heart } from "lucide-react";
 import { toast } from "sonner";
 
 export type ProductCardData = {
@@ -15,9 +17,13 @@ export type ProductCardData = {
 
 export function ProductCard({ p, priority = false }: { p: ProductCardData; priority?: boolean }) {
   const { add } = useCart();
+  const { has, toggle } = useFavorites();
   const navigate = useNavigate();
   const [imgError, setImgError] = useState(false);
   const [added, setAdded] = useState(false);
+  // has(id) is false during SSR/first paint and flips after mount — an
+  // acceptable unfilled→filled flash, same class as the header cart badge.
+  const saved = has(p.id);
   const isCallOnly = Number(p.price) === 0;
   const isOutOfStock = p.stock_status === "outofstock";
   const effective = getEffectivePrice(p.price);
@@ -38,6 +44,28 @@ export function ProductCard({ p, priority = false }: { p: ProductCardData; prior
           אזל מהמלאי
         </div>
       )}
+
+      {/* Favorites heart — a sibling of the image link (not inside it) so a
+          click never navigates. Top-left is the one corner free both here
+          (badges own the top-right) and on the product page. */}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const wasAdded = toggle(p.id);
+          if (wasAdded) {
+            toast.success("נשמר במועדפים", {
+              action: { label: "למועדפים", onClick: () => navigate({ to: "/favorites" }) },
+            });
+          }
+        }}
+        aria-pressed={saved}
+        aria-label={saved ? "הסר מהמועדפים" : "הוסף למועדפים"}
+        className="absolute top-3 left-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 shadow hover:bg-white transition-colors"
+      >
+        <Heart className={`h-4 w-4 ${saved ? "fill-[#D4AF37] text-[#D4AF37]" : "text-foreground/60"}`} />
+      </button>
 
       {/* Image */}
       <Link

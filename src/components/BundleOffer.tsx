@@ -101,7 +101,7 @@ export function BundleOffer({
                   }
                 >
                   {p.thumbnail_url ? (
-                    <img src={p.thumbnail_url} alt={p.name} className="h-full w-full object-contain p-0.5" />
+                    <img src={p.thumbnail_url} alt={p.name} loading="lazy" decoding="async" className="h-full w-full object-contain p-0.5" />
                   ) : null}
                 </Link>
                 <div className="absolute -top-1 -right-1 bg-white rounded border border-border shadow-sm">
@@ -169,7 +169,7 @@ export function BundleOffer({
                   className="block h-24 w-24 md:h-28 md:w-28 rounded-lg overflow-hidden bg-white border border-border/60 hover:border-[#D4AF37] transition"
                 >
                   {p.thumbnail_url ? (
-                    <img src={p.thumbnail_url} alt={p.name} className="h-full w-full object-contain p-1" />
+                    <img src={p.thumbnail_url} alt={p.name} loading="lazy" decoding="async" className="h-full w-full object-contain p-1" />
                   ) : null}
                 </Link>
                 <div className="absolute -top-1.5 -right-1.5 bg-white rounded-md border border-border shadow-sm p-0.5">

@@ -27,7 +27,9 @@ import { ProductReviews } from "@/components/ProductReviews";
 import { Stars } from "@/components/Stars";
 import { ClubBadge } from "@/components/ClubBadge";
 import { CROSS_SELL_MAP, DEFAULT_CROSS_SELL_CATEGORY } from "@/lib/cross-sells";
-import { ShoppingCart, Minus, Plus, Check, Truck, RotateCcw, ZoomIn } from "lucide-react";
+import { ShoppingCart, Minus, Plus, Check, Truck, RotateCcw, ZoomIn, Heart } from "lucide-react";
+import { useFavorites } from "@/components/engagement/favorites";
+import { readRecent, recordRecent } from "@/components/engagement/recently-viewed";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import DOMPurify from "isomorphic-dompurify";
@@ -38,7 +40,7 @@ async function fetchProductWithRetry(slug: string, maxRetries = 2) {
       const { data, error } = await supabase
         .from("products")
         .select(
-          "id, slug, name, description, short_description, price, sale_price, sku, stock_status, thumbnail_url, product_images(url, sort_order), product_categories(categories(id, slug, name))",
+          "id, slug, name, description, short_description, price, sale_price, sku, stock_status, thumbnail_url, product_images(url, sort_order), product_categories(categories(id, slug, name, parent_slug))",
         )
         .eq("slug", slug)
         .eq("is_active", true)
@@ -80,7 +82,26 @@ export const Route = createFileRoute("/product/$slug")({
     const reviewSummary = product.id
       ? await fetchReviewSummary(product.id as string)
       : { average: 0, count: 0 };
-    return { product, reviewSummary };
+    // When the first category is a subcategory, resolve its parent so the
+    // breadcrumb trail (JSON-LD in head + visible nav) includes the full path.
+    const loaderCats = ((product as any).product_categories ?? [])
+      .map((pc: any) => pc?.categories)
+      .filter(Boolean);
+    const loaderFirstCat = loaderCats[0];
+    let parentCat: { slug: string; name: string } | null = null;
+    if (loaderFirstCat?.parent_slug) {
+      try {
+        const { data } = await supabase
+          .from("categories")
+          .select("slug, name")
+          .eq("slug", loaderFirstCat.parent_slug)
+          .maybeSingle();
+        parentCat = data ?? null;
+      } catch {
+        parentCat = null;
+      }
+    }
+    return { product, reviewSummary, parentCat };
   },
   head: ({ loaderData, params }) => {
     const url = `https://orzadik.com/product/${params.slug}`;
@@ -175,17 +196,29 @@ export const Route = createFileRoute("/product/$slug")({
       };
     }
 
+    // Build the trail dynamically — positions come from the array index so
+    // they stay consecutive whether or not the parent/category levels exist.
+    const parentCat = (loaderData as any)?.parentCat as { slug: string; name: string } | null | undefined;
+    const crumbs: Array<{ name: string; item: string }> = [
+      { name: "בית", item: "https://orzadik.com/" },
+      { name: "מוצרים", item: "https://orzadik.com/shop" },
+      ...(parentCat
+        ? [{ name: parentCat.name, item: `https://orzadik.com/category/${parentCat.slug}` }]
+        : []),
+      ...(firstCat
+        ? [{ name: firstCat.name, item: `https://orzadik.com/category/${firstCat.slug}` }]
+        : []),
+      { name: p.name, item: url },
+    ];
     const breadcrumbLd = {
       "@context": "https://schema.org",
       "@type": "BreadcrumbList",
-      itemListElement: [
-        { "@type": "ListItem", position: 1, name: "בית", item: "https://orzadik.com/" },
-        { "@type": "ListItem", position: 2, name: "מוצרים", item: "https://orzadik.com/shop" },
-        ...(firstCat
-          ? [{ "@type": "ListItem", position: 3, name: firstCat.name, item: `https://orzadik.com/category/${firstCat.slug}` }]
-          : []),
-        { "@type": "ListItem", position: firstCat ? 4 : 3, name: p.name, item: url },
-      ],
+      itemListElement: crumbs.map((c, i) => ({
+        "@type": "ListItem",
+        position: i + 1,
+        name: c.name,
+        item: c.item,
+      })),
     };
 
     const desc = ((plainDesc ? plainDesc + " — " : "") + "כשרות מהודרת, אפשרות רקמה אישית ומשלוח עד הבית.").slice(0, 200);
@@ -268,7 +301,10 @@ function ProductPage() {
   const { product: initialProduct, reviewSummary } = Route.useLoaderData();
   const navigate = useNavigate();
   const { add } = useCart();
+  const { has: hasFav, toggle: toggleFav } = useFavorites();
   const [qty, setQty] = useState(1);
+  // Recently-viewed snapshots — empty on the server, SSR-safe.
+  const [recent, setRecent] = useState<ProductCardData[]>([]);
   const [api, setApi] = useState<CarouselApi>();
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [customText, setCustomText] = useState("");
@@ -304,7 +340,7 @@ function ProductPage() {
       const { data, error } = await supabase
         .from("products")
         .select(
-          "id, slug, name, description, short_description, price, sale_price, sku, stock_status, thumbnail_url, product_images(url, sort_order), product_categories(categories(id, slug, name))",
+          "id, slug, name, description, short_description, price, sale_price, sku, stock_status, thumbnail_url, product_images(url, sort_order), product_categories(categories(id, slug, name, parent_slug))",
         )
         .eq("slug", slug)
         .eq("is_active", true)
@@ -317,6 +353,23 @@ function ProductPage() {
     // fetch on load. React Query still refetches per its staleness rules.
     initialData: initialProduct ?? undefined,
   });
+
+  // Recently-viewed: read BEFORE recording so the current product stays out of
+  // its own strip. Keyed on product.id (not slug) and separate from the
+  // UI-reset effect above — it runs only once the loaded product is known.
+  useEffect(() => {
+    if (!product) return; // skip when the loader 404s
+    setRecent(readRecent());
+    recordRecent({
+      id: product.id,
+      slug: product.slug,
+      name: product.name,
+      price: product.price,
+      sale_price: product.sale_price,
+      thumbnail_url: product.thumbnail_url,
+      stock_status: product.stock_status,
+    });
+  }, [product?.id]);
 
   // Size variants — supports two styles:
   //  (a) in-place variants: row in product_variants with `price` set and no SKU → render as
@@ -471,6 +524,23 @@ function ProductPage() {
     },
   });
 
+  // Parent of the product's first category — inserts the missing breadcrumb
+  // level when that category is a subcategory.
+  const firstCatParentSlug: string | null =
+    ((product?.product_categories ?? [])[0] as any)?.categories?.parent_slug ?? null;
+  const { data: parentCategory = null } = useQuery({
+    queryKey: ["cat-parent", firstCatParentSlug],
+    enabled: !!firstCatParentSlug,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("categories")
+        .select("slug, name")
+        .eq("slug", firstCatParentSlug!)
+        .maybeSingle();
+      return (data ?? null) as { slug: string; name: string } | null;
+    },
+  });
+
   if (isLoading) return <div className="container mx-auto px-4 py-20 text-center">טוען...</div>;
   if (!product) return <div className="container mx-auto px-4 py-20 text-center">המוצר לא נמצא</div>;
 
@@ -501,6 +571,38 @@ function ProductPage() {
     (pc: any) => pc?.categories?.slug === "esh-sheli-gold"
   );
 
+  // Favorites heart — rendered in every branch (regular, call-only and
+  // out-of-stock), since wishlisting an unavailable item is the feature's
+  // best use case.
+  const favSaved = hasFav(product.id);
+  const favButton = (
+    <button
+      type="button"
+      onClick={() => {
+        const wasAdded = toggleFav(product.id);
+        if (wasAdded) {
+          toast.success("נשמר במועדפים", {
+            action: { label: "למועדפים", onClick: () => navigate({ to: "/favorites" }) },
+          });
+        }
+      }}
+      aria-pressed={favSaved}
+      aria-label={favSaved ? "הסר מהמועדפים" : "הוסף למועדפים"}
+      className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-border hover:bg-muted transition-colors"
+    >
+      <Heart className={`h-5 w-5 ${favSaved ? "fill-[#D4AF37] text-[#D4AF37]" : "text-foreground/60"}`} />
+    </button>
+  );
+
+  // Filter at render too — the component instance is reused across client-side
+  // slug navigations, so state can briefly carry the previous product's list.
+  const recentToShow = recent.filter((r) => r.id !== product.id);
+
+  // Running breadcrumb positions — stay consecutive whether or not the
+  // parent-category li renders.
+  const categoryCrumbPos = parentCategory ? 4 : 3;
+  const productCrumbPos = firstCategory ? categoryCrumbPos + 1 : 3;
+
   function addToCart() {
     if (!product) return;
     add(
@@ -525,7 +627,7 @@ function ProductPage() {
   return (
     <div className="container mx-auto px-4 py-10">
       {/* Breadcrumb */}
-      <nav aria-label="ניווט ארוחות לחם" className="mb-4">
+      <nav aria-label="ניווט מיקום באתר" className="mb-4">
         <ol className="flex flex-wrap items-center gap-1.5 text-xs md:text-sm text-muted-foreground" itemScope itemType="https://schema.org/BreadcrumbList">
           <li itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
             <Link to="/" className="hover:text-accent transition-colors" itemProp="item">
@@ -540,6 +642,22 @@ function ProductPage() {
             </Link>
             <meta itemProp="position" content="2" />
           </li>
+          {parentCategory && (
+            <>
+              <li aria-hidden="true" className="text-muted-foreground/40">/</li>
+              <li itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
+                <Link
+                  to="/category/$slug"
+                  params={{ slug: parentCategory.slug }}
+                  className="hover:text-accent transition-colors"
+                  itemProp="item"
+                >
+                  <span itemProp="name">{parentCategory.name}</span>
+                </Link>
+                <meta itemProp="position" content="3" />
+              </li>
+            </>
+          )}
           {firstCategory && (
             <>
               <li aria-hidden="true" className="text-muted-foreground/40">/</li>
@@ -552,7 +670,7 @@ function ProductPage() {
                 >
                   <span itemProp="name">{firstCategory.name}</span>
                 </Link>
-                <meta itemProp="position" content="3" />
+                <meta itemProp="position" content={String(categoryCrumbPos)} />
               </li>
             </>
           )}
@@ -567,7 +685,7 @@ function ProductPage() {
                 aria-current="page"
               >
                 <span itemProp="name">{product.name}</span>
-                <meta itemProp="position" content={firstCategory ? "4" : "3"} />
+                <meta itemProp="position" content={String(productCrumbPos)} />
               </li>
             </>
           )}
@@ -595,6 +713,11 @@ function ProductPage() {
                         <img
                           src={url}
                           alt={`${product.name} — תמונה ${i + 1}`}
+                          // First slide is the page's LCP; the rest sit off-screen
+                          // in the strip until swiped to.
+                          loading={i === 0 ? "eager" : "lazy"}
+                          fetchPriority={i === 0 ? "high" : "auto"}
+                          decoding="async"
                           className="h-full w-full object-contain p-4"
                         />
                       </div>
@@ -659,7 +782,7 @@ function ProductPage() {
                     idx === selectedIndex ? "border-[#D4AF37]" : "border-transparent"
                   }`}
                 >
-                  <img src={url} alt="" className="h-full w-full object-contain p-1" />
+                  <img src={url} alt="" loading="lazy" decoding="async" className="h-full w-full object-contain p-1" />
                 </button>
               ))}
             </div>
@@ -855,6 +978,7 @@ function ProductPage() {
                 >
                   💬 שלחו וואטסאפ
                 </a>
+                {favButton}
               </div>
             </div>
           ) : (
@@ -883,7 +1007,12 @@ function ProductPage() {
                         : `חריטה: ${customText.trim()}`,
                     );
                   }
-                  toast.success(parts.join(" • "));
+                  // Give the toast an exit — without it the user is stranded
+                  // after it fades (worst on mobile / with personalization,
+                  // which can only be reviewed in the cart).
+                  toast.success(parts.join(" • "), {
+                    action: { label: "לצפייה בעגלה", onClick: () => navigate({ to: "/cart" }) },
+                  });
                 }}
                 className="gap-2"
               >
@@ -905,6 +1034,7 @@ function ProductPage() {
               >
                 קנה עכשיו
               </Button>
+              {favButton}
             </div>
           )}
 
@@ -1023,6 +1153,11 @@ function ProductPage() {
       {/* Same-category recommendations */}
       {similar.length >= 4 && (
         <ProductCarousel eyebrow="עוד מהקטגוריה" heading="מוצרים דומים" items={similar} />
+      )}
+
+      {/* Recently viewed — local snapshots, zero extra queries */}
+      {recentToShow.length >= 2 && (
+        <ProductCarousel eyebrow="במיוחד בשבילך" heading="צפית לאחרונה" items={recentToShow} />
       )}
 
       {/* Customer reviews + star ratings */}
