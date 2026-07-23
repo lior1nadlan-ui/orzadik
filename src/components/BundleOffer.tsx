@@ -72,15 +72,15 @@ export function BundleOffer({
 
   if (variant === "compact") {
     return (
-      <section className="mt-5 rounded-xl border border-[#D4AF37]/40 bg-gradient-to-br from-[#FAF6E9] via-white to-[#FAF6E9] p-3.5 shadow-sm">
+      <section className="glass glass-gold mt-5 p-3.5">
         <div className="flex items-center justify-between gap-2 mb-2.5">
           <div className="flex items-center gap-1.5 min-w-0">
-            <Sparkles className="h-3.5 w-3.5 text-[#A8862A] flex-shrink-0" />
-            <p className="text-[10px] tracking-[0.2em] text-[#A8862A] uppercase font-bold truncate">
+            <Sparkles className="h-3.5 w-3.5 text-accent flex-shrink-0" />
+            <p className="text-[10px] tracking-[0.2em] text-accent uppercase font-bold truncate">
               הוסיפו לערכה
             </p>
           </div>
-          <span className="rounded-full bg-[#D4AF37] text-white text-[10px] font-bold px-2 py-0.5 flex-shrink-0">
+          <span className="rounded-full bg-accent text-white text-[10px] font-bold px-2 py-0.5 flex-shrink-0">
             נרכשים יחד
           </span>
         </div>
@@ -88,7 +88,7 @@ export function BundleOffer({
         <div className="flex items-center gap-1.5 mb-2.5">
           {all.map((p, idx) => (
             <div key={p.id} className="flex items-center gap-1.5">
-              {idx > 0 && <Plus className="h-3 w-3 text-[#D4AF37] flex-shrink-0" />}
+              {idx > 0 && <Plus className="h-3 w-3 text-accent flex-shrink-0" />}
               <label className="relative cursor-pointer block">
                 <Link
                   to="/product/$slug"
@@ -96,10 +96,13 @@ export function BundleOffer({
                   onClick={(e) => idx === 0 && e.preventDefault()}
                   title={p.name}
                   className={
-                    "block h-14 w-14 rounded-md overflow-hidden bg-white border transition " +
+                    // Named properties only — never `transition: all`. The
+                    // selected boundary is full-strength --accent (5.81:1 on
+                    // white), so the state reads well past the 3:1 floor.
+                    "block h-14 w-14 rounded-md overflow-hidden bg-white border transition-[border-color,box-shadow,opacity] duration-150 ease-out " +
                     (selected[p.id]
-                      ? "border-[#D4AF37] ring-1 ring-[#D4AF37]/50"
-                      : "border-border/60 opacity-50")
+                      ? "border-accent ring-1 ring-accent"
+                      : "border-input opacity-50")
                   }
                 >
                   {p.thumbnail_url ? (
@@ -121,17 +124,17 @@ export function BundleOffer({
           ))}
         </div>
 
-        <div className="flex items-center justify-between gap-2 pt-2 border-t border-[#D4AF37]/30">
+        <div className="flex items-center justify-between gap-2 pt-2 border-t border-glass-line">
           <div className="min-w-0">
             <div className="text-[10px] text-muted-foreground leading-none">סה״כ ערכה</div>
             <div className="flex items-baseline gap-1.5 mt-0.5">
-              <span className="text-base font-bold text-[#A8862A]">{formatILS(totalEff)}</span>
+              <span className="text-base font-bold text-accent">{formatILS(totalEff)}</span>
             </div>
           </div>
           <Button
             size="sm"
             onClick={addBundle}
-            className="bg-[#D4AF37] hover:bg-[#A8862A] text-white text-xs h-8 px-3"
+            className="text-xs h-8 px-3"
           >
             הוסף ערכה
           </Button>
@@ -141,13 +144,13 @@ export function BundleOffer({
   }
 
   return (
-    <section className="mt-12 rounded-2xl border-2 border-[#D4AF37]/40 bg-gradient-to-br from-[#FAF6E9] to-white p-5 md:p-8 shadow-[var(--shadow-card)]">
+    <section className="glass glass-gold mt-12 p-5 md:p-8 [--glass-radius:1.25rem]">
       <div className="flex items-start justify-between gap-3 mb-1 flex-wrap">
         <div className="flex items-center gap-2">
-          <Package className="h-5 w-5 text-[#A8862A]" />
-          <p className="text-xs tracking-[0.25em] text-[#A8862A] uppercase font-semibold">הוסיפו לערכה</p>
+          <Package className="h-5 w-5 text-accent" />
+          <p className="text-xs tracking-[0.25em] text-accent uppercase font-semibold">הוסיפו לערכה</p>
         </div>
-        <span className="rounded-full bg-[#D4AF37] text-white text-xs font-bold px-3 py-1 shadow-sm">
+        <span className="rounded-full bg-accent text-white text-xs font-bold px-3 py-1">
           נרכשים יחד
         </span>
       </div>
@@ -158,14 +161,14 @@ export function BundleOffer({
       <div className="flex flex-wrap items-center gap-3 md:gap-4">
         {all.map((p, idx) => (
           <div key={p.id} className="flex items-center gap-3 md:gap-4">
-            {idx > 0 && <Plus className="h-5 w-5 text-[#D4AF37] flex-shrink-0" />}
+            {idx > 0 && <Plus className="h-5 w-5 text-accent flex-shrink-0" />}
             <label className="flex flex-col items-center gap-2 cursor-pointer group">
               <div className="relative">
                 <Link
                   to="/product/$slug"
                   params={{ slug: p.slug }}
                   onClick={(e) => idx === 0 && e.preventDefault()}
-                  className="block h-24 w-24 md:h-28 md:w-28 rounded-lg overflow-hidden bg-white border border-border/60 hover:border-[#D4AF37] transition"
+                  className="block h-24 w-24 md:h-28 md:w-28 rounded-lg overflow-hidden bg-white border border-input transition-[border-color,box-shadow] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:border-accent"
                 >
                   {p.thumbnail_url ? (
                     <img src={p.thumbnail_url} alt={p.name} loading="lazy" decoding="async" className="h-full w-full object-contain p-1" />
@@ -185,7 +188,7 @@ export function BundleOffer({
                 <div className="text-xs leading-tight line-clamp-2 text-foreground">
                   {idx === 0 ? <span className="font-semibold">{p.name}</span> : p.name}
                 </div>
-                <div className="text-xs text-[#A8862A] font-bold mt-1">
+                <div className="text-xs text-accent font-bold mt-1">
                   {formatILS(getEffectivePrice(p.price))}
                 </div>
               </div>
@@ -194,19 +197,18 @@ export function BundleOffer({
         ))}
       </div>
 
-      <div className="mt-5 flex flex-col md:flex-row md:items-center md:justify-between gap-3 pt-4 border-t border-[#D4AF37]/30">
+      <div className="mt-5 flex flex-col md:flex-row md:items-center md:justify-between gap-3 pt-4 border-t border-glass-line">
         <div>
           <span className="text-sm text-muted-foreground">
             סה״כ הערכה ({chosen.length} פריטים):
           </span>
           <div className="flex items-baseline gap-2 mt-0.5">
-            <span className="text-2xl font-bold text-[#A8862A]">{formatILS(totalEff)}</span>
+            <span className="text-2xl font-bold text-accent">{formatILS(totalEff)}</span>
           </div>
         </div>
         <Button
           size="lg"
           onClick={addBundle}
-          className="bg-[#D4AF37] hover:bg-[#A8862A] text-white"
         >
           הוסף את הערכה לעגלה
         </Button>

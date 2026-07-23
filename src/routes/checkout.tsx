@@ -138,9 +138,11 @@ function CheckoutPage() {
 
   if (items.length === 0) {
     return (
-      <div className="container mx-auto px-4 py-20 text-center">
-        <p className="mb-4">העגלה ריקה.</p>
-        <Link to="/shop"><Button>חזרה לחנות</Button></Link>
+      <div className="container mx-auto px-4 py-20">
+        <div className="glass mx-auto max-w-lg px-6 py-14 text-center">
+          <p className="mb-4">העגלה ריקה.</p>
+          <Link to="/shop"><Button className="press">חזרה לחנות</Button></Link>
+        </div>
       </div>
     );
   }
@@ -213,7 +215,7 @@ function CheckoutPage() {
             <Label htmlFor="email">אימייל *</Label>
             <Input id="email" type="email" required autoComplete="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
             <p className="text-[11px] text-muted-foreground mt-1">
-              אם תזין דוא"ל ולא תשלים את ההזמנה, ייתכן שנשמור את הפרטים זמנית כדי לאפשר את השלמתה. ראו <Link to="/privacy" className="underline hover:text-accent">מדיניות פרטיות</Link>.
+              אם תזין דוא"ל ולא תשלים את ההזמנה, ייתכן שנשמור את הפרטים זמנית כדי לאפשר את השלמתה. ראו <Link to="/privacy" className="underline underline-offset-2 transition-[color] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent">מדיניות פרטיות</Link>.
             </p>
           </div>
           <div>
@@ -234,15 +236,17 @@ function CheckoutPage() {
           </div>
         </div>
 
-        {/* Gift options — free of charge. Nothing here feeds the price column. */}
-        <div className="rounded-md border border-[#D4AF37]/40 bg-[#FAF6E9]/60 p-3">
+        {/* Gift options — free of charge. Nothing here feeds the price column.
+            Glass panel with a decorative gold hairline instead of the old gilded
+            parchment block. */}
+        <div className="glass glass-gold p-4 [--glass-radius:0.75rem]">
           <label className="flex items-center gap-2 cursor-pointer">
             <Checkbox checked={isGift} onCheckedChange={(v) => setIsGift(v === true)} />
             <span className="text-sm font-medium">🎁 זו מתנה</span>
-            <span className="text-xs text-[#A8862A]">ללא תוספת מחיר</span>
+            <span className="text-xs text-accent">ללא תוספת מחיר</span>
           </label>
           {isGift && (
-            <div className="mt-3 space-y-3 border-t border-[#D4AF37]/30 pt-3">
+            <div className="mt-3 space-y-3 border-t border-glass-line pt-3">
               <div>
                 <Label htmlFor="gift-note">הקדשה אישית (תודפס ותצורף למתנה)</Label>
                 <Textarea
@@ -269,7 +273,9 @@ function CheckoutPage() {
           )}
         </div>
 
-        <label className="flex items-start gap-2 rounded-md border border-[#D4AF37]/40 bg-[#FAF6E9] p-3 cursor-pointer">
+        {/* Still one full-size clickable <label> wrapping the checkbox — only the
+            surface changed (gilded parchment → glass + gold hairline). */}
+        <label className="flex items-start gap-2 glass glass-gold p-4 [--glass-radius:0.75rem] cursor-pointer">
           <Checkbox
             checked={contactConsent}
             onCheckedChange={(v) => setContactConsent(v === true)}
@@ -284,7 +290,7 @@ function CheckoutPage() {
         </label>
         {/* Marketing consent — lighter, optional, and visually secondary to the
             required consent above so the two can't be mistaken for one. */}
-        <label className="flex items-start gap-2 rounded-md border border-border bg-muted/30 p-3 cursor-pointer">
+        <label className="flex items-start gap-2 rounded-xl hairline bg-muted/40 p-4 cursor-pointer">
           <Checkbox
             checked={marketingConsent}
             onCheckedChange={(v) => setMarketingConsent(v === true)}
@@ -296,7 +302,7 @@ function CheckoutPage() {
         </label>
         <PrivacyNotice context="checkout" />
         {(
-          <Button type="submit" size="lg" disabled={submitting || !contactConsent} className="w-full bg-[#D4AF37] hover:bg-[#A8862A] text-white">
+          <Button type="submit" size="lg" disabled={submitting || !contactConsent} className="press w-full">
             {submitting ? "טוען..." : `המשך לתשלום · ${formatILS(finalTotal)}`}
           </Button>
         )}
@@ -308,7 +314,9 @@ function CheckoutPage() {
           The page therefore still opens on its <h1> — this <h2> is a
           sub-section of it and must not precede it. Sticky is lg-only: pinned
           on a phone it would scroll over the fields. */}
-      <div className="rounded-lg border bg-card p-6 h-fit lg:sticky lg:top-20">
+      {/* `glass-strong`: pinned panel carrying the live total — 94% white keeps
+          --accent at 5.10:1 even over an unknown backdrop. */}
+      <div className="glass-strong p-6 h-fit lg:sticky lg:top-20">
         <h2 className="font-display text-xl font-bold mb-4">סיכום</h2>
         <div className="space-y-2 mb-4">
           {items.map((i) => (
@@ -321,7 +329,7 @@ function CheckoutPage() {
                 <div className="text-xs text-muted-foreground mt-1">גודל: {i.variantLabel}</div>
               )}
               {i.customText && (
-                <div className="text-xs text-[#A8862A]">
+                <div className="text-xs text-accent">
                   ✦ {i.customMethod === "laser" ? "חריטת לייזר" : "רקמה"}: {i.customText}
                 </div>
               )}
@@ -331,7 +339,7 @@ function CheckoutPage() {
         {/* Full breakdown of the exact amount Cardcom will charge. Every row is a
             factual component of that number — no percentages, no "before" price
             and no savings claims. סכום פריטים (− הטבת מועדון) + משלוח = סך הכל. */}
-        <div className="space-y-2 border-t pt-3">
+        <div className="space-y-2 border-t border-glass-line pt-3">
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">סכום פריטים</span>
             <span className="whitespace-nowrap">{formatILS(itemsTotal)}</span>
@@ -347,12 +355,17 @@ function CheckoutPage() {
             <span className="whitespace-nowrap">{formatILS(shipping)}</span>
           </div>
         </div>
-        <div className="flex justify-between text-lg border-t pt-3 mt-3">
+        {/* Decorative gold hairline — a gradient rule, not text. */}
+        <div className="gold-rule my-4" aria-hidden="true" />
+        <div className="flex justify-between text-lg">
           <span className="font-bold">סך הכל</span>
-          <span className="font-bold text-[#A8862A] whitespace-nowrap">{formatILS(finalTotal)}</span>
+          <span className="font-bold text-accent whitespace-nowrap">{formatILS(finalTotal)}</span>
         </div>
         <p className="mt-1 text-[11px] text-muted-foreground">כל המחירים בשקלים (₪) וכוללים מע"מ.</p>
-        <Link to="/cart" className="mt-3 inline-block text-sm text-accent underline underline-offset-2">
+        <Link
+          to="/cart"
+          className="mt-3 inline-block text-sm text-accent underline underline-offset-2 transition-[color] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-strong"
+        >
           חזרה לעגלה
         </Link>
 

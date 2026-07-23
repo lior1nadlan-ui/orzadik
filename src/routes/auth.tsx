@@ -91,13 +91,17 @@ function AuthPage() {
   if (sentTo) {
     return (
       <div className="container mx-auto px-4 py-14 max-w-md text-center">
-        <div className="rounded-lg border border-[#D4AF37]/40 bg-gradient-to-br from-[#FAF6E9] to-white p-8">
+        {/* Magic-link confirmation. `glass` + `glass-gold` = translucent white
+            pane with the gold hairline; `glass-gold` rather than the `hairline-gold`
+            class because that class replaces the whole box-shadow and would take
+            the pane's depth shadow with it (override contract in styles.css). */}
+        <div className="glass glass-gold p-8">
           <div className="text-4xl mb-4">✉️</div>
           <h1 className="font-display text-2xl font-bold mb-3">בדקו את תיבת המייל</h1>
           <p className="text-sm text-foreground/80 leading-relaxed mb-4">
             שלחנו קישור כניסה לכתובת:
             <br />
-            <strong className="text-[#A8862A]">{sentTo}</strong>
+            <strong className="text-accent">{sentTo}</strong>
           </p>
           <p className="text-xs text-muted-foreground leading-relaxed mb-6">
             לחצו על הקישור במייל כדי להיכנס לחשבון. הקישור תקף ל-15 דקות.
@@ -106,7 +110,7 @@ function AuthPage() {
           </p>
           <Button
             variant="outline"
-            className="w-full"
+            className="w-full press"
             onClick={() => {
               setSentTo(null);
               setEmail("");
@@ -122,8 +126,8 @@ function AuthPage() {
   return (
     <div className="container mx-auto px-4 py-14 max-w-md">
       <h1 className="font-display text-3xl font-bold text-center mb-3">כניסה / הרשמה לצדיק</h1>
-      <div className="mb-6 rounded-lg border border-[#D4AF37]/40 bg-gradient-to-br from-[#FAF6E9] to-white p-4 text-center">
-        <p className="text-sm font-semibold text-[#A8862A]">✦ חבר מועדון אור זרוע</p>
+      <div className="mb-6 glass glass-gold p-4 text-center">
+        <p className="text-sm font-semibold text-accent">✦ חבר מועדון אור זרוע</p>
         <p className="text-xs text-foreground/80 mt-1 leading-relaxed">
           הצטרפות חינם — <span className="font-bold text-accent">מועדון הלקוחות</span> מעניק מעקב הזמנות והטבות,
           תזכורות לעגלות שלא הושלמו, ועדכונים על מבצעים, מוצרים חדשים ותוכן מיוחד לחברי המועדון
@@ -160,12 +164,12 @@ function AuthPage() {
           <TabsTrigger value="signup">הרשמה</TabsTrigger>
         </TabsList>
         <TabsContent value="login">
-          <form method="post" action="#" onSubmit={signIn} className="space-y-4 rounded-lg border bg-card p-6">
+          <form method="post" action="#" onSubmit={signIn} className="space-y-4 glass p-6 mt-2">
             <div>
               <Label htmlFor="email1">אימייל</Label>
               <Input id="email1" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button type="submit" className="w-full press" disabled={loading}>
               {loading ? "שולח..." : "שלחו לי קישור כניסה"}
             </Button>
             <p className="text-[11px] text-muted-foreground text-center leading-relaxed">
@@ -174,7 +178,7 @@ function AuthPage() {
           </form>
         </TabsContent>
         <TabsContent value="signup">
-          <form method="post" action="#" onSubmit={signUp} className="space-y-4 rounded-lg border bg-card p-6">
+          <form method="post" action="#" onSubmit={signUp} className="space-y-4 glass p-6 mt-2">
             <div>
               <Label htmlFor="name2">שם מלא</Label>
               <Input id="name2" required value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="ישראל ישראלי" />
@@ -188,7 +192,7 @@ function AuthPage() {
               <Input id="phone2" type="tel" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="050-0000000" />
             </div>
 
-            <div className="rounded-md border border-border bg-muted/30 p-3 space-y-3">
+            <div className="rounded-md hairline bg-muted/50 p-3 space-y-3">
               <label className="flex items-start gap-2 cursor-pointer">
                 <Checkbox
                   checked={marketingConsent}
@@ -214,7 +218,7 @@ function AuthPage() {
               </label>
             </div>
 
-            <Button type="submit" className="w-full bg-[#D4AF37] hover:bg-[#A8862A] text-white" disabled={loading}>
+            <Button type="submit" className="w-full press" disabled={loading}>
               {loading ? "שולח..." : "הצטרפו למועדון אור זרוע לצדיק בחינם"}
             </Button>
 

@@ -45,7 +45,9 @@ export function EmptyCartSuggestions() {
 
   return (
     <div className="mt-12">
-      <h2 className="font-display text-xl md:text-2xl font-bold text-center mb-6">אולי יעניין אתכם</h2>
+      <h2 className="font-display text-xl md:text-2xl font-bold text-center">אולי יעניין אתכם</h2>
+      {/* Decorative gold hairline under the section head. */}
+      <div className="gold-rule mx-auto mb-6 mt-3 w-24" aria-hidden="true" />
       <Carousel opts={{ direction: "rtl", align: "start" }} dir="rtl">
         <CarouselContent>
           {suggestions.map((p) => (
@@ -54,8 +56,9 @@ export function EmptyCartSuggestions() {
             </CarouselItem>
           ))}
         </CarouselContent>
-        <CarouselPrevious className="right-2 hidden md:inline-flex" />
-        <CarouselNext className="left-2 hidden md:inline-flex" />
+        {/* Shared RTL-aware arrows (prev on the RIGHT) — never hand-rolled. */}
+        <CarouselPrevious className="press right-2 hidden md:inline-flex" />
+        <CarouselNext className="press left-2 hidden md:inline-flex" />
       </Carousel>
     </div>
   );

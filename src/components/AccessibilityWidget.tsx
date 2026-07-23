@@ -140,99 +140,126 @@ export function AccessibilityWidget() {
         aria-label="תפריט נגישות"
         aria-haspopup="dialog"
         aria-expanded={open}
-        className="fixed bottom-5 left-5 z-50 inline-flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg ring-2 ring-white/70 hover:scale-105 transition-transform focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/40"
+        className="press fixed bottom-5 left-5 z-50 inline-flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring motion-safe:[@media(hover:hover)_and_(pointer:fine)]:hover:[transform:scale(1.05)]"
       >
         <Accessibility className="h-6 w-6" aria-hidden="true" />
       </button>
 
-      {open && (
-        <div
-          ref={dialogRef}
-          role="dialog"
-          aria-modal="true"
-          aria-label="הגדרות נגישות"
-          className="fixed bottom-20 left-5 z-50 w-[88vw] max-w-xs rounded-2xl border border-border bg-background/98 backdrop-blur-md shadow-2xl p-4 animate-in fade-in slide-in-from-bottom-3 duration-200"
-        >
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="font-display text-base font-bold flex items-center gap-2">
-              <Accessibility className="h-4 w-4 text-accent" aria-hidden="true" /> נגישות
-            </h2>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              aria-label="סגירת תפריט הנגישות"
-              className="inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-
-          {/* Font size */}
-          <div className="flex items-center justify-between gap-2 rounded-lg border border-border p-2.5 mb-2">
-            <span className="text-sm font-medium">גודל טקסט ({settings.fontScale}%)</span>
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => update({ fontScale: Math.max(90, settings.fontScale - 10) })}
-                disabled={fontMin}
-                aria-label="הקטנת טקסט"
-                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-input hover:bg-muted disabled:opacity-40"
-              >
-                <Minus className="h-3.5 w-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => update({ fontScale: Math.min(150, settings.fontScale + 10) })}
-                disabled={fontMax}
-                aria-label="הגדלת טקסט"
-                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-input hover:bg-muted disabled:opacity-40"
-              >
-                <Plus className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          </div>
-
-          {/* Toggles */}
-          <div className="space-y-1.5">
-            <Toggle label="ניגודיות גבוהה" active={settings.contrast} onClick={() => update({ contrast: !settings.contrast })} />
-            <Toggle label="גווני אפור" active={settings.grayscale} onClick={() => update({ grayscale: !settings.grayscale })} />
-            <Toggle label="הדגשת קישורים" active={settings.highlightLinks} onClick={() => update({ highlightLinks: !settings.highlightLinks })} />
-            <Toggle label="גופן קריא" active={settings.readableFont} onClick={() => update({ readableFont: !settings.readableFont })} />
-            <Toggle label="עצירת אנימציות" active={settings.stopAnimations} onClick={() => update({ stopAnimations: !settings.stopAnimations })} />
-            <Toggle label="סמן עכבר גדול" active={settings.bigCursor} onClick={() => update({ bigCursor: !settings.bigCursor })} />
-          </div>
-
+      {/* The panel stays MOUNTED and toggles classes, so open AND close are one
+          interruptible CSS transition (keyframe utilities like animate-in /
+          slide-in-from-* are one-shot and cannot be reversed mid-flight — the
+          Emil standard forbids them on toggled UI).
+          `visibility` is in the transition list on purpose: CSS holds `visible`
+          for the whole duration when transitioning TO hidden, so the panel can
+          fade out before it leaves the tab order and the a11y tree. That is also
+          why no `aria-hidden` is needed — visibility:hidden already removes it.
+          transform-origin follows the trigger (the bottom-left FAB), not centre.
+          glass-strong already draws its own hairline (inset --glass-line-strong)
+          and lift shadow; adding .hairline on top would REPLACE that box-shadow
+          and throw the shadow away. */}
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="הגדרות נגישות"
+        className={
+          "glass-strong fixed bottom-20 left-5 z-50 w-[88vw] max-w-xs p-4 origin-bottom-left " +
+          "[--glass-radius:1.25rem] transition-[opacity,transform,visibility] duration-200 ease-out " +
+          (open
+            ? "visible opacity-100"
+            : // Under prefers-reduced-motion the movement class is simply never
+              // emitted, so the panel only fades — colour/opacity kept, motion dropped.
+              "invisible opacity-0 motion-safe:[transform:translateY(8px)_scale(0.95)]")
+        }
+      >
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-display text-base font-bold flex items-center gap-2">
+            <Accessibility className="h-4 w-4 text-accent" aria-hidden="true" /> נגישות
+          </h2>
           <button
             type="button"
-            onClick={reset}
-            className="mt-3 w-full inline-flex items-center justify-center gap-2 rounded-lg border border-input bg-background px-3 py-2 text-sm font-medium hover:bg-muted transition"
-          >
-            <RotateCcw className="h-3.5 w-3.5" /> איפוס הגדרות
-          </button>
-
-          <Link
-            to="/accessibility"
             onClick={() => setOpen(false)}
-            className="mt-2 block text-center text-xs text-accent underline hover:no-underline"
+            aria-label="סגירת תפריט הנגישות"
+            className="press inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary [@media(hover:hover)_and_(pointer:fine)]:hover:text-foreground"
           >
-            להצהרת הנגישות המלאה
-          </Link>
+            <X className="h-4 w-4" />
+          </button>
         </div>
-      )}
+
+        <div className="gold-rule mb-3" aria-hidden="true" />
+
+        {/* Font size */}
+        <div className="hairline flex items-center justify-between gap-2 rounded-lg p-2.5 mb-2">
+          <span className="text-sm font-medium">גודל טקסט ({settings.fontScale}%)</span>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => update({ fontScale: Math.max(90, settings.fontScale - 10) })}
+              disabled={fontMin}
+              aria-label="הקטנת טקסט"
+              className="press inline-flex h-7 w-7 items-center justify-center rounded-md border border-input disabled:opacity-40 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary"
+            >
+              <Minus className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => update({ fontScale: Math.min(150, settings.fontScale + 10) })}
+              disabled={fontMax}
+              aria-label="הגדלת טקסט"
+              className="press inline-flex h-7 w-7 items-center justify-center rounded-md border border-input disabled:opacity-40 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary"
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Toggles */}
+        <div className="space-y-1.5">
+          <Toggle label="ניגודיות גבוהה" active={settings.contrast} onClick={() => update({ contrast: !settings.contrast })} />
+          <Toggle label="גווני אפור" active={settings.grayscale} onClick={() => update({ grayscale: !settings.grayscale })} />
+          <Toggle label="הדגשת קישורים" active={settings.highlightLinks} onClick={() => update({ highlightLinks: !settings.highlightLinks })} />
+          <Toggle label="גופן קריא" active={settings.readableFont} onClick={() => update({ readableFont: !settings.readableFont })} />
+          <Toggle label="עצירת אנימציות" active={settings.stopAnimations} onClick={() => update({ stopAnimations: !settings.stopAnimations })} />
+          <Toggle label="סמן עכבר גדול" active={settings.bigCursor} onClick={() => update({ bigCursor: !settings.bigCursor })} />
+        </div>
+
+        <button
+          type="button"
+          onClick={reset}
+          className="press mt-3 w-full inline-flex items-center justify-center gap-2 rounded-lg border border-input px-3 py-2 text-sm font-medium [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary"
+        >
+          <RotateCcw className="h-3.5 w-3.5" /> איפוס הגדרות
+        </button>
+
+        <Link
+          to="/accessibility"
+          onClick={() => setOpen(false)}
+          className="mt-2 block text-center text-xs text-accent underline underline-offset-2 [@media(hover:hover)_and_(pointer:fine)]:hover:no-underline"
+        >
+          להצהרת הנגישות המלאה
+        </Link>
+      </div>
     </>
   );
 }
 
 function Toggle({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
   return (
+    // No colour transition alongside `press`: styles.css declares .press later
+    // in the utilities layer, so its `transition-property: transform` wins and a
+    // `transition-colors` here would be dead code. The state flip is instant,
+    // which the standard is fine with — only the press gesture animates.
     <button
       type="button"
       onClick={onClick}
       role="switch"
       aria-checked={active}
       className={
-        "w-full flex items-center justify-between gap-2 rounded-lg border p-2.5 text-sm font-medium transition " +
-        (active ? "border-primary bg-primary/10 text-primary" : "border-border hover:bg-muted")
+        "press w-full flex items-center justify-between gap-2 rounded-lg border p-2.5 text-sm font-medium " +
+        (active
+          // text-accent on bg-accent/10 over the glass panel = 5.06:1.
+          ? "border-accent/40 bg-accent/10 text-accent"
+          : "border-border text-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary")
       }
     >
       <span>{label}</span>
@@ -240,11 +267,24 @@ function Toggle({ label, active, onClick }: { label: string; active: boolean; on
         aria-hidden="true"
         dir="ltr"
         className={
-          "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition " +
-          (active ? "bg-primary" : "bg-muted-foreground/30")
+          "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full " +
+          // The track is a non-text UI component, so it needs 3:1 against the
+          // panel: --accent is 5.81:1 on and --input 3.25:1 off. The previous
+          // "off" track (muted-foreground/30) sat at ~1.6:1 and was invisible.
+          (active ? "bg-accent" : "bg-input")
         }
       >
-        <span className={"inline-block h-4 w-4 transform rounded-full bg-white transition " + (active ? "translate-x-0.5" : "translate-x-[18px]")} />
+        <span
+          className={
+            // motion-safe on all three parts together: dropping only `duration`
+            // would leave transition-property at its `all` initial value.
+            "inline-block h-4 w-4 rounded-full bg-white motion-safe:transition-[transform] motion-safe:duration-200 motion-safe:ease-out " +
+            // Tailwind v4's translate-* utilities write the `translate` property,
+            // not `transform`, so an explicit transform keeps the knob on the one
+            // property the transition above actually names.
+            (active ? "[transform:translateX(2px)]" : "[transform:translateX(18px)]")
+          }
+        />
       </span>
     </button>
   );

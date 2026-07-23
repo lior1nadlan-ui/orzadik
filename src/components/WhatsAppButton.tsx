@@ -3,13 +3,20 @@ export function WhatsAppButton() {
   const text = encodeURIComponent("הגעתי מהאתר");
   const href = `https://wa.me/${phone}?text=${text}`;
 
+  // Floats over whatever page is underneath, so glass-strong (94% white) is the
+  // only contrast-safe pane here — it holds `text-accent` at 5.10:1 even over
+  // black imagery. glass-gold swaps its hairline to the decorative gold ring that
+  // replaces the old `ring-2 ring-gold`; the pill radius comes from the panel's
+  // own --glass-radius, not a rounded-* utility (glass wins that collision).
+  // Hover is gated to real pointers AND to motion-safe; `press` supplies the one
+  // 160ms ease-out transform transition that both states ride on.
   return (
     <a
       href={href}
       target="_blank"
       rel="noopener noreferrer"
       aria-label="צור קשר בוואטסאפ"
-      className="fixed bottom-5 right-5 z-50 inline-flex items-center gap-2 rounded-full bg-white pl-4 pr-3 py-2.5 shadow-lg ring-2 ring-gold hover:scale-105 transition-transform"
+      className="press glass-strong glass-gold fixed bottom-5 right-5 z-50 inline-flex items-center gap-2 pl-4 pr-3 py-2.5 [--glass-radius:9999px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring motion-safe:[@media(hover:hover)_and_(pointer:fine)]:hover:[transform:scale(1.05)]"
     >
       <svg
         viewBox="0 0 32 32"

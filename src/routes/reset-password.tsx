@@ -50,10 +50,13 @@ function ResetPasswordPage() {
       {!ready ? (
         <p className="text-center text-sm text-muted-foreground">
           טוען... אם הגעת לכאן בלי קישור מהאימייל, חזרו לדף{" "}
-          <a href="/forgot-password" className="underline">שחזור סיסמה</a>.
+          <a href="/forgot-password" className="underline text-accent">שחזור סיסמה</a>.
         </p>
       ) : (
-        <form onSubmit={onSubmit} className="space-y-4 rounded-lg border bg-card p-6">
+        // Token-driven pane: it only mounts once Supabase has emitted
+        // PASSWORD_RECOVERY / SIGNED_IN. Plain `glass` (72% white) is correct —
+        // it sits on the light page ground, never over imagery.
+        <form onSubmit={onSubmit} className="space-y-4 glass p-6">
           <div>
             <Label htmlFor="pw">סיסמה חדשה (לפחות 8 תווים)</Label>
             <Input id="pw" type="password" minLength={8} required value={password} onChange={(e) => setPassword(e.target.value)} />
@@ -62,7 +65,7 @@ function ResetPasswordPage() {
             <Label htmlFor="pw2">אימות סיסמה</Label>
             <Input id="pw2" type="password" minLength={8} required value={confirm} onChange={(e) => setConfirm(e.target.value)} />
           </div>
-          <Button type="submit" className="w-full" disabled={loading}>
+          <Button type="submit" className="w-full press" disabled={loading}>
             {loading ? "..." : "עדכנו סיסמה"}
           </Button>
         </form>

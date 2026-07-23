@@ -4,6 +4,25 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* =============================================================================
+   ORZADIK TOKEN LAYER — "רקע לבן זכוכית עתידני" (white / glass / futuristic)
+   -----------------------------------------------------------------------------
+   Direction: the page GROUND is white / near-white. Panels are translucent
+   white glass over that ground. Gold stays the brand accent but moves from
+   "gilded heritage panel" to "a precise accent on glass".
+
+   Every token NAME that existed before still exists — dozens of components
+   reference --color-argaman, --color-cream, --gold … Nothing was renamed or
+   deleted; values were re-pointed and re-documented where the old name no
+   longer describes the new job.
+
+   CONTRAST: every ratio below was computed with the WCAG 2.x relative-luminance
+   formula, not estimated. Text tokens clear 4.5:1 on EVERY light surface they
+   can legally land on; the worst pair in the whole palette is
+   `accent on secondary = 5.14:1`. Decorative golds are labelled DECORATIVE and
+   are proven failures as text — do not promote them.
+   ========================================================================== */
+
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -33,45 +52,154 @@
   --color-gold-bright: var(--gold-bright);
   --color-argaman: var(--argaman);
   --color-argaman-deep: var(--argaman-deep);
+  /* NEW (additive — nothing depended on these before) */
+  --color-accent-strong: var(--accent-strong);   /* safe hover fill, 7.4:1 w/ white */
+  --color-glass-line: var(--glass-line);         /* the hairline colour, as a border-* utility */
   --font-sans: 'Assistant', system-ui, sans-serif;
   --font-display: 'Noto Serif Hebrew', 'Cormorant Garamond', serif;
 }
 
-:root {
-  --radius: 0.5rem;                 /* lg=8px md=6px sm=4px */
-  /* Orzadik token layer: parchment / warm ink / three golds / argaman */
-  --background: #FBF8F0;            /* parchment page ground */
-  --foreground: #2A211A;            /* warm ink, 13.6:1 on parchment */
-  --card: #FFFFFF;
-  --card-foreground: #2A211A;
-  --popover: #FFFFFF;
-  --popover-foreground: #2A211A;
-  --primary: #2A211A;
-  --primary-foreground: #FBF8F0;
-  --secondary: #F5EEDE;
-  --secondary-foreground: #2A211A;
-  --muted: #F3ECDC;
-  --muted-foreground: #6B5D4E;      /* 5.6:1 AA */
-  --accent: #7E611E;                /* THE gold for text/CTAs: 5.5:1 on parchment, 5.0:1 on cream, 5.8:1 with white */
-  --accent-foreground: #FFFFFF;
-  --gold: #C2A25E;                  /* decorative gold only: hairlines, borders, ✦ — never body text */
-  --gold-bright: #D9BC7A;           /* gold on dark grounds only: 7.4:1 on --argaman-deep */
-  --cream: #F5EEDE;
-  --argaman: #5B1F27;               /* burgundy: badges, active chips, small fills; 10.9:1 with white */
-  --argaman-deep: #421720;          /* dark-band ground; cream text 13.2:1 */
-  --destructive: #9C2B2B;
-  --destructive-foreground: #FFFFFF;
-  --border: #E7DCC4;
-  --input: #E7DCC4;
-  --ring: #7E611E;
-  /* Legacy gradients kept defined (harmless) — no longer used. */
-  --gradient-hero: linear-gradient(135deg, oklch(0.25 0.012 60), oklch(0.32 0.015 60));
-  --gradient-gold: linear-gradient(135deg, oklch(0.72 0.1 75), oklch(0.58 0.09 60));
-  --gradient-gold-line: linear-gradient(90deg, transparent, #C2A25E, transparent);
-  --shadow-card: 0 1px 2px rgba(42,33,26,.05), 0 6px 20px -8px rgba(42,33,26,.10);
-  --shadow-soft: 0 16px 48px -16px rgba(42,33,26,.22);
+/* Emil Kowalski motion standard, registered in Tailwind's --ease-* namespace so
+   `ease-out` / `ease-in-out` / `ease-drawer` classes emit the approved curves.
+   `ease-out` and `ease-in-out` deliberately OVERRIDE Tailwind's defaults —
+   every existing `ease-out` in the codebase snaps to the correct curve.
+   `--ease-in` is re-pointed on purpose: the standard says NEVER ease-in on UI,
+   so a stray `ease-in` degrades to the symmetric in-out curve instead of the
+   sluggish default. These are re-declared in :root below so hand-written CSS
+   can read them even if Tailwind prunes an unused theme variable. */
+@theme {
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-in: cubic-bezier(0.77, 0, 0.175, 1);
 }
 
+:root {
+  --radius: 0.75rem;                /* xl=16 lg=12 md=10 sm=8 — "generous radius" */
+
+  /* ---- GROUND & SURFACES -------------------------------------------------
+     White/near-white throughout. --background is a hair off pure white so that
+     translucent-white glass panels and pure-white cards actually lift off it;
+     on literal #FFF, glass is invisible. */
+  --background: #F7F8FA;            /* near-white cool page ground (was #FBF8F0 parchment) */
+  --foreground: #16181D;            /* cool ink — 17.8:1 on white, 16.7:1 on ground */
+  --card: #FFFFFF;                  /* pure white lifts off the ground */
+  --card-foreground: #16181D;       /* 17.8:1 on card */
+  --popover: #FFFFFF;
+  --popover-foreground: #16181D;    /* 17.8:1 */
+  --primary: #16181D;               /* near-black CTA fill */
+  --primary-foreground: #FFFFFF;    /* 17.8:1 on --primary */
+  --secondary: #EFF1F5;             /* tinted glass-adjacent surface (was #F5EEDE cream) */
+  --secondary-foreground: #16181D;  /* 15.7:1 */
+  --muted: #F1F3F7;                 /* quiet surface */
+  --muted-foreground: #565E6B;      /* 6.5:1 white · 6.2:1 ground · 5.8:1 secondary — worst 5.8:1 */
+
+  /* ---- GOLD ---------------------------------------------------------------
+     Unchanged by design. --accent is #7E611E specifically because it is the
+     only gold in the system that survives as TEXT and as a CTA fill on white.
+     Do not "brighten" it. */
+  --accent: #7E611E;                /* THE gold for text + CTAs.
+                                       5.81:1 white · 5.47:1 ground · 5.36:1 cream
+                                       · 5.14:1 secondary (worst case) · 5.71:1 on .glass */
+  --accent-foreground: #FFFFFF;     /* 5.81:1 on --accent fill */
+  --accent-strong: #6B5219;         /* NEW. Hover/pressed gold fill — 7.38:1 with white.
+                                       Prefer `hover:bg-accent-strong` over `hover:bg-accent/90`,
+                                       which composites to only 4.66:1 and has no headroom. */
+  --gold: #C2A25E;                  /* DECORATIVE ONLY — 2.44:1 on white. Hairlines, ✦, rules,
+                                       borders. NEVER text, NEVER a fill behind white text. */
+  --gold-bright: #D9BC7A;           /* DECORATIVE ON LIGHT — 1.84:1 on white, unusable there.
+                                       Legal jobs, both re-derived: (a) light gold TEXT on a dark
+                                       image scrim / --argaman-deep → 9.36:1; (b) a gold FILL that
+                                       carries --argaman-deep text → 9.36:1. Never on white/glass. */
+  --cream: #F4F6F9;                 /* was warm parchment. Now the pale glass tint. Two jobs:
+                                       (a) `bg-cream` = faint surface on the white ground;
+                                       (b) `text-cream` = light text on a dark image scrim
+                                           (15.9:1 on --argaman-deep). NEVER text on white. */
+
+  /* ---- BURGUNDY (demoted from ground to semantic accent) ------------------
+     The owner rejected the wine ground. --argaman survives only as a small
+     semantic fill (ProductCard corner badge, cart-count bubble, the active
+     pagination chip) where it carries white text. --argaman-deep is no longer a
+     page band: it is now a cool deep ink used as the scrim behind imagery and
+     as dark text on gold fills. */
+  --argaman: #5B1F27;               /* small semantic fill — 12.57:1 with white text.
+                                       Still burgundy; still a badge, no longer a band. */
+  --argaman-deep: #191B21;          /* RE-POINTED from wine #421720 to cool deep ink.
+                                       Jobs: image scrim (`bg-argaman-deep/85`), dark text on a
+                                       gold-bright fill (9.36:1), dark text on white (17.2:1).
+                                       NOT a page ground. */
+
+  --destructive: #9C2B2B;           /* 7.52:1 as text on white · 7.52:1 with white text as fill */
+  --destructive-foreground: #FFFFFF;
+
+  /* ---- LINES -------------------------------------------------------------- */
+  --border: #E2E6EC;                /* decorative separator hairline (1.25:1 — exempt from 1.4.11) */
+  --input: #868FA2;                 /* form-CONTROL boundary. 3.25:1 white / 3.06:1 ground —
+                                       clears WCAG 1.4.11 (3:1) on both. Was #E7DCC4 at 1.36:1. */
+  --ring: #7E611E;                  /* focus ring — 5.81:1 on white, well past the 3:1 minimum */
+
+  /* ---- GLASS PRIMITIVES ---------------------------------------------------
+     Consumed by the .glass utilities below. Override per-element with an
+     arbitrary property, e.g. class="glass [--glass-radius:1.5rem]". */
+  --glass-bg: rgba(255, 255, 255, 0.72);        /* default panel over the light ground */
+  --glass-bg-strong: rgba(255, 255, 255, 0.94); /* over IMAGERY / unknown backdrops (see .glass-strong) */
+  --glass-bg-soft: rgba(255, 255, 255, 0.50);   /* decorative only — never put text on this */
+  --glass-line: rgba(22, 24, 29, 0.09);         /* the hairline */
+  --glass-line-strong: rgba(22, 24, 29, 0.16);
+  --glass-line-gold: rgba(194, 162, 94, 0.42);  /* the gold hairline, decorative */
+  --glass-highlight: rgba(255, 255, 255, 0.70); /* inner top edge — sells the "pane of glass" */
+  --glass-blur: 16px;
+  --glass-blur-strong: 24px;
+  --glass-radius: 1rem;
+  --glass-saturate: 1.25;
+  /* Soft + wide, cool-tinted. Layered so the panel reads as floating, not boxed. */
+  --glass-shadow:
+    0 1px 1px rgba(22, 24, 29, 0.03),
+    0 10px 30px -14px rgba(22, 24, 29, 0.13),
+    0 36px 60px -36px rgba(22, 24, 29, 0.17);
+  --glass-shadow-lift:
+    0 1px 1px rgba(22, 24, 29, 0.04),
+    0 16px 40px -16px rgba(22, 24, 29, 0.17),
+    0 48px 80px -40px rgba(22, 24, 29, 0.22);
+
+  /* ---- MOTION (Emil Kowalski standard) ------------------------------------
+     Re-declared here (as well as in @theme) so hand-written CSS below always
+     resolves them. Easing: NEVER ease-in on UI. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  /* Duration bands. Hard ceiling for UI is 300ms; drawers/modals may exceed it. */
+  --duration-press: 160ms;          /* 100–160 */
+  --duration-tooltip: 160ms;        /* 125–200 */
+  --duration-dropdown: 200ms;       /* 150–250 */
+  --duration-modal: 260ms;          /* 200–500 */
+  --duration-drawer: 380ms;         /* 200–500 */
+  --duration-reveal: 420ms;         /* one-shot page reveal — rare, may delight */
+  --stagger-step: 55ms;             /* 30–80 */
+
+  /* ---- GRADIENTS (all three re-pointed from the dark/gilded era) ---------- */
+  --gradient-hero:                  /* was a dark oklch band. Now the light glass mesh. */
+    radial-gradient(60rem 40rem at 82% -8%, rgba(194, 162, 94, 0.13), transparent 62%),
+    radial-gradient(52rem 36rem at 8% 2%, rgba(126, 145, 190, 0.11), transparent 64%),
+    linear-gradient(180deg, #FFFFFF, #F7F8FA);
+  --gradient-gold:                  /* DECORATIVE sheen — never behind white text */
+    linear-gradient(135deg, #D9BC7A, #C2A25E 55%, #A8862A);
+  --gradient-gold-line:             /* the hairline rule; see .gold-rule */
+    linear-gradient(90deg, transparent, rgba(194, 162, 94, 0.75), transparent);
+
+  /* ---- LEGACY SHADOW ALIASES ---------------------------------------------
+     Names kept (components read them); values re-derived cool + wider so a
+     non-glass card still sits in the same light. */
+  --shadow-card:
+    0 1px 2px rgba(22, 24, 29, 0.04),
+    0 8px 24px -12px rgba(22, 24, 29, 0.10);
+  --shadow-soft:
+    0 20px 56px -20px rgba(22, 24, 29, 0.18);
+}
+
+/* Dark mode is NOT part of this direction ("NOT dark mode") and `.dark` is not
+   applied anywhere in the app. Left exactly as-is so nothing silently changes
+   if it is ever switched on; it is not a supported surface. */
 .dark {
   --background: oklch(0.18 0.03 260);
   --foreground: oklch(0.97 0.01 80);
@@ -100,7 +228,195 @@
     color: var(--color-foreground);
     font-family: var(--font-sans);
   }
+  /* The futuristic ground: a fixed, very low-contrast light mesh behind all
+     content. Painted on a fixed pseudo-element rather than `background-attachment:
+     fixed`, which janks badly on mobile. Pure CSS — nothing to hydrate. */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-image:
+      radial-gradient(60rem 40rem at 82% -6%, rgba(194, 162, 94, 0.10), transparent 60%),
+      radial-gradient(52rem 36rem at 8% 4%, rgba(126, 145, 190, 0.09), transparent 62%),
+      radial-gradient(70rem 44rem at 50% 108%, rgba(160, 170, 195, 0.08), transparent 65%);
+  }
   h1, h2, h3, .font-display { font-family: var(--font-display); }
+}
+
+/* =============================================================================
+   REUSABLE PRIMITIVES
+   Declared inside @layer utilities so they interleave with Tailwind's own
+   utilities instead of outranking every layered class.
+
+   Deliberate design note: .glass draws its hairline with an INSET box-shadow
+   ring, not `border`. That keeps it from colliding with any `border-*` utility
+   a component adds, and it is the better glass technique anyway (the ring hugs
+   the radius and never adds layout size).
+
+   OVERRIDE CONTRACT — read this before fighting the class.
+   These rules are emitted LATER in the utilities layer than Tailwind's own, so
+   at equal specificity .glass WINS over the utilities it sets:
+       background-color  → beats bg-*
+       border-radius     → beats rounded-*
+       box-shadow        → beats shadow-*
+   That last line holds against TAILWIND's utilities only. It does NOT hold
+   against the sibling helpers in this file: .hairline / .hairline-gold are
+   emitted after .glass at the same specificity, and .glass-lift:hover outranks
+   it outright — each one REPLACES the whole box-shadow, insets and all, because
+   box-shadow is a single property. So never stack .hairline on a glass panel
+   (it already draws one). .glass + .glass-lift IS safe: the compound
+   `.glass*.glass-lift:hover` rules below restate the inset layers on hover.
+   Do not try to override those with a utility class. Retune the panel through
+   its variables instead, which is collision-free and keeps the system coherent:
+       class="glass [--glass-radius:1.5rem]"
+       class="glass [--glass-bg:rgba(255,255,255,.85)]"
+       class="glass [--glass-shadow:none]"
+       class="glass glass-gold"           (gold hairline)
+   Everything .glass does NOT set — padding, size, colour, type, border-* — is
+   still yours to set with ordinary utilities.
+   ========================================================================== */
+@layer utilities {
+
+  /* ---- GLASS ------------------------------------------------------------ */
+
+  /* The default panel. Safe over the light page ground ONLY: at 72% white the
+     effective backing is ~#FDFDFE and --accent still reads 5.71:1. Over a photo
+     the same panel drops --accent to 2.93:1 — use .glass-strong there. */
+  .glass {
+    background-color: var(--glass-bg);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+    border-radius: var(--glass-radius);
+    box-shadow:
+      inset 0 0 0 1px var(--glass-line),
+      inset 0 1px 0 var(--glass-highlight),
+      var(--glass-shadow);
+  }
+
+  /* Glass over UNKNOWN backdrops — imagery, video, the sticky header as it
+     scrolls over a hero. 94% white: worst case over pure black the effective
+     backing is #F0F0F0, where --accent is still 5.10:1 and --muted-foreground
+     5.74:1. This is the only glass that is contrast-safe anywhere. */
+  .glass-strong {
+    background-color: var(--glass-bg-strong);
+    -webkit-backdrop-filter: blur(var(--glass-blur-strong)) saturate(var(--glass-saturate));
+    backdrop-filter: blur(var(--glass-blur-strong)) saturate(var(--glass-saturate));
+    border-radius: var(--glass-radius);
+    box-shadow:
+      inset 0 0 0 1px var(--glass-line-strong),
+      inset 0 1px 0 var(--glass-highlight),
+      var(--glass-shadow-lift);
+  }
+
+  /* Decorative wash — chips, inset wells, image captions. NO TEXT ON THIS at
+     50% white the backing is unknowable; if it needs text, use .glass-strong. */
+  .glass-soft {
+    background-color: var(--glass-bg-soft);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+    border-radius: var(--glass-radius);
+    box-shadow: inset 0 0 0 1px var(--glass-line);
+  }
+
+  /* Swap the hairline to gold. Decorative only — the ring is not text. */
+  .glass-gold { --glass-line: var(--glass-line-gold); --glass-line-strong: var(--glass-line-gold); }
+
+  /* Hairline with no fill and no blur — dividers, outlined chips, table rules. */
+  .hairline { box-shadow: inset 0 0 0 1px var(--glass-line); }
+  .hairline-gold { box-shadow: inset 0 0 0 1px var(--glass-line-gold); }
+
+  /* The precise gold rule: a 1px gradient divider. Decorative. */
+  .gold-rule {
+    height: 1px;
+    border: 0;
+    background-image: var(--gradient-gold-line);
+  }
+
+  /* Raise a glass panel on hover. Gated per the standard; transform+shadow only.
+     `box-shadow` is not a compositor property but it is not layout either — it
+     is the one exception the glass look needs, and it is paired with transform. */
+  .glass-lift {
+    transition-property: transform, box-shadow;
+    transition-duration: var(--duration-dropdown);
+    transition-timing-function: var(--ease-out);
+  }
+  @media (hover: hover) and (pointer: fine) {
+    /* Bare .glass-lift (a photo tile, a bordered plate) has no rings at rest and
+       must gain none on hover — this stays a plain shadow swap. */
+    .glass-lift:hover { transform: translateY(-2px); box-shadow: var(--glass-shadow-lift); }
+
+    /* Paired with a glass class it is a different story: box-shadow is ONE
+       property, so the swap above would erase the panel's inset hairline and
+       top highlight for the whole length of the hover and snap them back on
+       exit. Restate the stack per variant, matched on a compound selector so
+       bare .glass-lift is untouched. Same value ProductCard.tsx writes inline. */
+    .glass.glass-lift:hover {
+      box-shadow:
+        inset 0 0 0 1px var(--glass-line),
+        inset 0 1px 0 var(--glass-highlight),
+        var(--glass-shadow-lift);
+    }
+    .glass-strong.glass-lift:hover {
+      box-shadow:
+        inset 0 0 0 1px var(--glass-line-strong),
+        inset 0 1px 0 var(--glass-highlight),
+        var(--glass-shadow-lift);
+    }
+    /* .glass-soft has no highlight and no drop shadow at rest — keep its ring,
+       add only the lift. */
+    .glass-soft.glass-lift:hover {
+      box-shadow:
+        inset 0 0 0 1px var(--glass-line),
+        var(--glass-shadow-lift);
+    }
+  }
+
+  /* ---- PRESS -------------------------------------------------------------
+     scale(0.97) / 160ms / ease-out. Applies on touch too — press feedback is
+     the one interaction that must NOT be hover-gated. */
+  .press {
+    transition-property: transform;
+    transition-duration: var(--duration-press);
+    transition-timing-function: var(--ease-out);
+  }
+  .press:active { transform: scale(0.97); }
+  /* Keyboard activation must never animate. */
+  .press:focus-visible:active { transform: none; }
+
+  /* ---- REVEAL / STAGGER --------------------------------------------------
+     Fade + translateY(8px), one shot, `both` fill so the element is visible in
+     its final state whether or not the animation ever runs — no JS, no
+     IntersectionObserver, nothing that can leave content invisible for a
+     crawler or a failed hydration. A one-time page reveal is the "rare /
+     first-time" frequency band, so a keyframe is correct here; it is not
+     rapidly-triggered UI. */
+  .reveal {
+    animation: orz-reveal var(--duration-reveal) var(--ease-out) both;
+    animation-delay: var(--reveal-delay, 0ms);
+  }
+  /* Put .stagger on the PARENT; children inherit an increasing delay.
+     55ms step, capped at 8 children so a long grid never crawls. */
+  .stagger > * { animation: orz-reveal var(--duration-reveal) var(--ease-out) both; }
+  .stagger > *:nth-child(1) { animation-delay: 0ms; }
+  .stagger > *:nth-child(2) { animation-delay: calc(var(--stagger-step) * 1); }
+  .stagger > *:nth-child(3) { animation-delay: calc(var(--stagger-step) * 2); }
+  .stagger > *:nth-child(4) { animation-delay: calc(var(--stagger-step) * 3); }
+  .stagger > *:nth-child(5) { animation-delay: calc(var(--stagger-step) * 4); }
+  .stagger > *:nth-child(6) { animation-delay: calc(var(--stagger-step) * 5); }
+  .stagger > *:nth-child(7) { animation-delay: calc(var(--stagger-step) * 6); }
+  .stagger > *:nth-child(n + 8) { animation-delay: calc(var(--stagger-step) * 7); }
+}
+
+@keyframes orz-reveal {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+/* Reduced motion: KEEP the opacity fade, DROP the movement. */
+@keyframes orz-reveal-static {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 /* ===== Accessibility menu (a11y widget) ===== */
@@ -121,13 +437,35 @@ html.a11y-contrast {
   --primary-foreground: #ffffff;
   --secondary: #ffffff;
   --secondary-foreground: #000000;
-  --accent: #5c4300;
+  --accent: #5c4300;                /* 9.30:1 both ways with white */
   --accent-foreground: #ffffff;
+  --accent-strong: #3d2c00;
   --ring: #000000;
+  /* Glass is a contrast hazard by construction — translucency means the text
+     ground is unknown. In high-contrast mode every pane becomes opaque white
+     with a solid black hairline and no blur. */
+  --glass-bg: #ffffff;
+  --glass-bg-strong: #ffffff;
+  --glass-bg-soft: #ffffff;
+  --glass-line: #000000;
+  --glass-line-strong: #000000;
+  --glass-line-gold: #000000;
+  --glass-highlight: transparent;
+  --glass-blur: 0px;
+  --glass-blur-strong: 0px;
 }
+html.a11y-contrast .glass,
+html.a11y-contrast .glass-strong,
+html.a11y-contrast .glass-soft {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  box-shadow: inset 0 0 0 2px #000000 !important;
+}
+/* The decorative light mesh has no business existing in high-contrast mode. */
+html.a11y-contrast body::before { background-image: none; }
 
 /* High-contrast mode must also clamp brand gold wherever it is not routed
-   through the theme tokens above. #5c4300 with white clears WCAG AA 4.5:1.
+   through the theme tokens above. #5c4300 with white clears WCAG AA at 9.30:1.
    Token classes (.bg-accent / .text-accent / .border-gold …) are the surviving
    idiom after the gold sweep; the escaped-hex selectors cover any legacy
    arbitrary values and are harmless once those classes are gone. */
@@ -135,6 +473,7 @@ html.a11y-contrast .bg-\[\#D4AF37\],
 html.a11y-contrast .bg-\[\#A8862A\],
 html.a11y-contrast .hover\:bg-\[\#A8862A\]:hover,
 html.a11y-contrast .bg-accent,
+html.a11y-contrast .bg-accent-strong,
 html.a11y-contrast .hover\:bg-\[\#6F551A\]:hover {
   background-color: #5c4300 !important;
   color: #ffffff !important;
@@ -144,8 +483,8 @@ html.a11y-contrast .text-\[\#A8862A\],
 html.a11y-contrast .text-accent {
   color: #5c4300 !important;
 }
-/* gold-bright lives on dark grounds (argaman-deep bands, which high-contrast
-   does not lighten) — clamp it to white there, not to the dark gold. */
+/* gold-bright lives on dark grounds (image scrims / --argaman-deep, which
+   high-contrast does not lighten) — clamp it to white there, not to dark gold. */
 html.a11y-contrast .text-gold-bright {
   color: #ffffff !important;
 }
@@ -154,7 +493,8 @@ html.a11y-contrast .border-\[\#D4AF37\]\/40,
 html.a11y-contrast .border-\[\#D4AF37\]\/30,
 html.a11y-contrast .border-gold,
 html.a11y-contrast .border-gold\/40,
-html.a11y-contrast .border-gold\/30 {
+html.a11y-contrast .border-gold\/30,
+html.a11y-contrast .border-glass-line {
   border-color: #5c4300 !important;
 }
 
@@ -182,10 +522,18 @@ html.a11y-cursor, html.a11y-cursor * {
 }
 
 /* Grayscale: applied to the content wrapper, not <html>, so the fixed
-   accessibility/WhatsApp buttons keep working. */
+   accessibility/WhatsApp buttons keep working. The page mesh lives on body,
+   outside that wrapper, so it has to be desaturated separately. */
 #app-root.a11y-grayscale { filter: grayscale(100%); }
+html:has(#app-root.a11y-grayscale) body::before { filter: grayscale(100%); }
 
-/* Respect a system "reduce motion" preference by default. */
+/* Respect a system "reduce motion" preference by default.
+   Per the standard: KEEP opacity and colour, DROP movement. */
 @media (prefers-reduced-motion: reduce) {
   * { scroll-behavior: auto !important; }
+  .reveal,
+  .stagger > * { animation-name: orz-reveal-static; }
+  .press:active { transform: none; }
+  .glass-lift { transition-property: box-shadow; }
+  .glass-lift:hover { transform: none; }
 }

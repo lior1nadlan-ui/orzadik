@@ -255,12 +255,21 @@ const FEATURED: { id: string; slug: string; name: string; img: string; w: number
   { id: "b1e55fa1-0000-4000-8000-000000000002", slug: "laser-cut", name: "חיתוך בלייזר", img: imgWallArt, w: 1500, h: 2000 },
 ];
 
-// Dark-ground button variants (hero / argaman bands). Solid = bright gold on
-// deep argaman text; outline = cream hairline. Both AA on the dark grounds.
-const BTN_DARK_SOLID =
-  "inline-block rounded-full bg-gold-bright text-argaman-deep px-8 py-3 text-sm md:text-base font-semibold hover:bg-cream transition-colors";
-const BTN_DARK_OUTLINE =
-  "inline-block rounded-full border border-cream/80 text-cream px-8 py-3 text-sm md:text-base hover:bg-cream/10 transition-colors";
+// Light-ground button variants. Every band on this page is now white/glass, so
+// the old dark-ground pair is gone: `bg-gold-bright` is 1.84:1 on white and
+// `text-cream` ~1.1:1 — both were only ever legal over the deleted argaman.
+//   solid   — #7E611E fill with white text = 5.81:1 (hover #6B5219 = 7.38:1)
+//   outline — #7E611E text on white/glass = 5.81:1, boundary 5.81:1 (>3:1)
+// Hover is media-gated; press feedback is not (it must work on touch).
+// No `transition-colors` here on purpose: `.press` already owns
+// transition-property (transform, 160ms) and, per the override contract in
+// styles.css, beats a Tailwind transition-* utility at equal specificity. The
+// hover tint therefore lands instantly — correct anyway for a control in the
+// "done constantly" frequency band.
+const BTN_SOLID =
+  "press inline-block rounded-full bg-accent text-white px-8 py-3 text-sm md:text-base font-semibold [@media(hover:hover)_and_(pointer:fine)]:hover:bg-accent-strong";
+const BTN_OUTLINE =
+  "press inline-block rounded-full border border-accent bg-white/60 text-accent px-8 py-3 text-sm md:text-base [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary";
 
 // Curated groom-set thumbs under the flagship banner image.
 // להחלפת פריטים: החליפו את `img` לכל קובץ תחת public/groom-sets/ (groom-01..17.jpeg)
@@ -271,13 +280,15 @@ const GROOM_THUMBS: { img: string; slug: string; price: string }[] = [
   { img: "/groom-sets/groom-07.jpeg", slug: "groom-set-oren-realov", price: "‏2,000 ₪" },
 ];
 
-// Standard section header: eyebrow → display title → gold hairline (→ optional sub).
+// Standard section header: eyebrow → display title → gold rule (→ optional sub).
+// FeaturedProductsCarousel and LuxuryShowcase hand-roll the same block (they are
+// separate components) — keep all three in step when this changes.
 function SectionHeader({ eyebrow, title, sub }: { eyebrow: string; title: string; sub?: string }) {
   return (
     <div className="text-center mb-10 md:mb-14">
       <p className="text-[10px] md:text-xs tracking-[0.35em] text-accent uppercase mb-3">{eyebrow}</p>
-      <h2 className="font-display text-3xl md:text-4xl tracking-wide">{title}</h2>
-      <span aria-hidden="true" className="block h-px w-24 mx-auto mt-4 bg-[image:var(--gradient-gold-line)]" />
+      <h2 className="font-display text-3xl md:text-4xl tracking-wide text-foreground">{title}</h2>
+      <span aria-hidden="true" className="gold-rule block w-24 mx-auto mt-4" />
       {sub && <p className="mt-4 text-sm md:text-base text-muted-foreground max-w-xl mx-auto">{sub}</p>}
     </div>
   );
@@ -337,35 +348,37 @@ function HomePage() {
           <source src={heroVideo} type="video/mp4" />
         </video>
 
-        {/* Argaman scrim so the overlay text stays readable over any frame of the video.
-            The video is mostly white linen, so the mid-band must stay strong (>=70%). */}
-        <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-[#421720]/85 via-[#421720]/70 to-[#421720]/30 pointer-events-none" />
+        {/* Light frost over the footage. Purely decorative: it softens the video
+            into the white ground so the plaque reads as a pane of light. It is NOT
+            load-bearing for contrast — every glyph below sits on .glass-strong. */}
+        <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-white/85 via-white/40 to-white/20 pointer-events-none" />
 
         {/* Centered headline + CTAs over the video.
             Heading stays an h2 — the SEO colophon at the page bottom owns the only h1.
-            The inner panel adds its own argaman backdrop: combined with the scrim it
-            keeps cream text >=4.5:1 (and the gold-bright eyebrow AA) even over the
-            video's brightest white frames. */}
+            .glass-strong is the only glass that is contrast-safe over unknown
+            backdrops: at 94% white the worst-case backing is #F0F0F0, where the
+            foreground ink is 15.8:1, muted-foreground 5.75:1 and --accent 5.10:1 —
+            all AA even over the video's darkest frames. */}
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6">
-          <div className="rounded-2xl bg-[#421720]/70 px-6 py-5 md:px-12 md:py-8">
-            <p className="text-[10px] md:text-xs tracking-[0.35em] text-gold-bright mb-3">
+          <div className="glass-strong reveal px-6 py-5 md:px-12 md:py-8 [--glass-radius:1.5rem]">
+            <p className="text-[10px] md:text-xs tracking-[0.35em] text-accent mb-3">
               תשמישי קדושה בעבודת יד
             </p>
-            <h2 className="font-display text-4xl md:text-6xl text-cream">
+            <h2 className="font-display text-4xl md:text-6xl text-foreground">
               אור זרוע לצדיק
             </h2>
-            <span aria-hidden="true" className="block h-px w-24 mx-auto my-4 bg-[image:var(--gradient-gold-line)]" />
-            <p className="text-cream/90 text-sm md:text-lg">
+            <span aria-hidden="true" className="gold-rule block w-24 mx-auto my-4" />
+            <p className="text-muted-foreground text-sm md:text-lg">
               כשרות מהודרת ומשלוח עד הבית
             </p>
             <div className="mt-6 flex flex-wrap justify-center gap-3">
-              <Link to="/shop" className={BTN_DARK_SOLID}>
+              <Link to="/shop" className={BTN_SOLID}>
                 לחנות
               </Link>
               <Link
                 to="/category/$slug"
                 params={{ slug: FEATURED[0].slug }}
-                className={BTN_DARK_OUTLINE}
+                className={BTN_OUTLINE}
               >
                 לקולקציית הטליתות
               </Link>
@@ -374,37 +387,48 @@ function HomePage() {
         </div>
       </section>
 
-      {/* 2. מארזי חתן — flagship full-bleed banner */}
-      <section className="bg-argaman-deep min-h-[480px] flex items-center">
-        <div className="container mx-auto px-4 max-w-6xl py-16 md:py-20">
-          <div className="grid md:grid-cols-2 gap-10 items-center">
+      {/* 2. מארזי חתן — flagship band. Was the page's largest dark surface; it is
+          now the white ground carrying a single glass panel. Every descendant that
+          relied on the argaman backing moved with it: cream → foreground/muted,
+          gold-bright → --accent, gold-bright frames → .hairline-gold. */}
+      <section className="min-h-[480px] flex items-center">
+        <div className="container mx-auto px-4 max-w-6xl py-16 md:py-20 w-full">
+          {/* Section entrance, staged 120ms behind the hero plaque so the two
+              read as one arrival rather than two competing fades. This is the
+              last band that can still be on screen at first paint (the hero is
+              60vh), so it is the last place a reveal is honest: `.reveal` is a
+              load-time keyframe with no IntersectionObserver, and anything
+              further down the page would have finished long before the shopper
+              scrolled to it. `both` fill means the panel is never left
+              invisible if the animation does not run. */}
+          <div className="glass glass-gold reveal [--reveal-delay:120ms] grid md:grid-cols-2 gap-10 items-center p-8 md:p-12 [--glass-radius:1.5rem]">
             {/* Text column (RTL start) */}
             <div>
-              <p className="text-[10px] md:text-xs tracking-[0.35em] text-gold-bright mb-4">
+              <p className="text-[10px] md:text-xs tracking-[0.35em] text-accent mb-4">
                 קולקציית החתנים
               </p>
-              <h2 className="font-display text-3xl md:text-5xl text-cream leading-tight mb-5">
+              <h2 className="font-display text-3xl md:text-5xl text-foreground leading-tight mb-5">
                 מארז חתן שמלווה אותו לכל החיים
               </h2>
               <div className="flex items-center gap-3 mb-5" aria-hidden="true">
-                <span className="h-px w-10 bg-gold-bright/40" />
-                <span className="text-gold-bright text-xs">✦</span>
-                <span className="h-px w-10 bg-gold-bright/40" />
+                <span className="gold-rule w-10 shrink-0" />
+                <span className="text-accent text-xs">✦</span>
+                <span className="gold-rule w-10 shrink-0" />
               </div>
-              <p className="text-cream/85 text-[15px] leading-7 max-w-md mb-6">
+              <p className="text-muted-foreground text-[15px] leading-7 max-w-md mb-6">
                 טלית מהודרת, עטרה וכלי קודש נבחרים — ערוכים ביד ומוגשים במארז מפואר. כל מארז מורכב אישית עבור החתן.
               </p>
-              <p className="font-display text-xl text-gold-bright mb-6">
+              <p className="font-display text-xl text-accent mb-6">
                 החל מ־2,000 ₪
               </p>
               <div className="flex flex-wrap items-center gap-x-6 gap-y-4">
-                <Link to="/category/$slug" params={{ slug: "wedding" }} className={BTN_DARK_SOLID}>
+                <Link to="/category/$slug" params={{ slug: "wedding" }} className={BTN_SOLID}>
                   לצפייה במארזי החתן
                 </Link>
                 <Link
                   to="/category/$slug"
                   params={{ slug: "chatan-kala" }}
-                  className="text-sm md:text-base text-cream/80 underline underline-offset-4 hover:text-cream transition-colors"
+                  className="text-sm md:text-base text-accent underline underline-offset-4 transition-colors duration-200 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-strong"
                 >
                   לכל מוצרי חתן וכלה
                 </Link>
@@ -423,7 +447,7 @@ function HomePage() {
                   height={GROOM_IMG_H}
                   className="w-full aspect-[3/4] object-cover rounded-lg"
                 />
-                <span aria-hidden="true" className="absolute inset-3 border border-gold-bright/40 rounded-lg pointer-events-none" />
+                <span aria-hidden="true" className="hairline-gold absolute inset-3 rounded-lg pointer-events-none" />
               </div>
               {/* 3-up linked thumb strip (md+) */}
               <div className="hidden md:grid grid-cols-3 gap-2 mt-2">
@@ -432,7 +456,7 @@ function HomePage() {
                     key={t.slug}
                     to="/product/$slug"
                     params={{ slug: t.slug }}
-                    className="group relative block aspect-square overflow-hidden rounded-lg border border-gold-bright/30"
+                    className="group relative block aspect-square overflow-hidden rounded-lg"
                   >
                     <img
                       src={t.img}
@@ -441,9 +465,14 @@ function HomePage() {
                       decoding="async"
                       width={GROOM_IMG_W}
                       height={GROOM_IMG_H}
-                      className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
+                      className="h-full w-full object-cover transition-transform duration-300 ease-out motion-safe:[@media(hover:hover)_and_(pointer:fine)]:group-hover:scale-105"
                     />
-                    <span className="absolute inset-x-0 bottom-0 bg-argaman-deep/85 text-cream text-sm text-center py-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                    {/* The frame rides above the photo, so it is an overlay rather
+                        than an inset ring on the tile itself. */}
+                    <span aria-hidden="true" className="hairline-gold absolute inset-0 rounded-lg pointer-events-none" />
+                    {/* Price reveal — glass-strong because it sits on the photo.
+                        --accent over it is 5.10:1 worst case. */}
+                    <span className="glass-strong absolute inset-x-2 bottom-2 py-1.5 text-sm font-semibold text-accent text-center opacity-0 transition-opacity duration-200 ease-out [--glass-radius:0.75rem] [@media(hover:hover)_and_(pointer:fine)]:group-hover:opacity-100">
                       {t.price}
                     </span>
                   </Link>
@@ -455,7 +484,7 @@ function HomePage() {
       </section>
 
       {/* 3. Featured categories */}
-      <section className="bg-background">
+      <section>
         <div className="container mx-auto px-4 py-14 md:py-20">
           <SectionHeader eyebrow="הקולקציות שלנו" title="מה תרצו לגלות?" />
           <MobileCarousel basis="basis-1/2" mdGrid="md:grid-cols-3" mdGap="md:gap-6" className="max-w-6xl mx-auto">
@@ -466,7 +495,7 @@ function HomePage() {
                 params={{ slug: c.slug }}
                 className="group block"
               >
-                <div className="relative aspect-square overflow-hidden rounded-lg bg-muted transition-shadow duration-700 group-hover:shadow-[var(--shadow-soft)]">
+                <div className="glass-lift relative aspect-square overflow-hidden rounded-lg bg-muted">
                   <img
                     src={c.img}
                     alt={c.name}
@@ -474,12 +503,15 @@ function HomePage() {
                     decoding="async"
                     width={c.w}
                     height={c.h}
-                    className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
+                    className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 ease-out motion-safe:[@media(hover:hover)_and_(pointer:fine)]:group-hover:scale-105"
                   />
-                  <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-[#2A211A]/70 via-transparent to-transparent" />
-                  {/* Single label plaque */}
+                  {/* Photo scrim stays dark — it is the one dark surface the
+                      direction keeps — but re-pointed from warm #2A211A to the
+                      cool ink --argaman-deep. */}
+                  <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-argaman-deep/70 via-transparent to-transparent" />
+                  {/* Single label plaque — glass-strong, since it sits on a photo. */}
                   <div className="absolute inset-x-0 bottom-4 flex justify-center px-3">
-                    <span className="px-5 py-2 bg-background/95 border border-gold rounded-full font-display text-base text-foreground text-center leading-tight">
+                    <span className="glass-strong px-5 py-2 font-display text-base text-foreground text-center leading-tight [--glass-radius:9999px]">
                       {c.name}
                     </span>
                   </div>
@@ -502,10 +534,11 @@ function HomePage() {
       {/* 6. קטגוריות נוספות */}
       <OtherCategoriesSection cats={otherCats} reserveSpace={reserveOtherCats} />
 
-      {/* 7. חלאקה — framed promo band */}
-      <section className="bg-background">
+      {/* 7. חלאקה — promo band. The argaman half is now a glass panel beside the
+          photo rather than a wine fill behind cream text. */}
+      <section>
         <div className="container mx-auto px-4 py-14 md:py-20 max-w-6xl">
-          <div className="border border-gold/40 rounded-lg overflow-hidden grid md:grid-cols-2">
+          <div className="grid md:grid-cols-2 gap-6 md:gap-8 items-stretch">
             <img
               src={imgChalaka}
               alt="סט חלאקה מהודר"
@@ -513,25 +546,25 @@ function HomePage() {
               decoding="async"
               width={800}
               height={1067}
-              className="w-full h-full aspect-[4/3] object-cover"
+              className="w-full h-full aspect-[4/3] object-cover rounded-2xl border border-gold/40"
             />
-            <div className="bg-argaman text-cream p-10 md:p-14 flex flex-col justify-center">
-              <p className="text-[10px] md:text-xs tracking-[0.35em] text-gold-bright mb-4">
+            <div className="glass glass-gold p-10 md:p-14 flex flex-col justify-center [--glass-radius:1.5rem]">
+              <p className="text-[10px] md:text-xs tracking-[0.35em] text-accent mb-4">
                 מסורת של שמחה
               </p>
-              <h3 className="font-display text-3xl text-cream mb-4">
+              <h3 className="font-display text-3xl text-foreground mb-4">
                 חוגגים חלאקה?
               </h3>
               <div className="flex items-center gap-3 mb-4" aria-hidden="true">
-                <span className="h-px w-10 bg-gold-bright/40" />
-                <span className="text-gold-bright text-xs">✦</span>
-                <span className="h-px w-10 bg-gold-bright/40" />
+                <span className="gold-rule w-10 shrink-0" />
+                <span className="text-accent text-xs">✦</span>
+                <span className="gold-rule w-10 shrink-0" />
               </div>
-              <p className="text-cream/85 leading-7 mb-7">
+              <p className="text-muted-foreground leading-7 mb-7">
                 סטים מהודרים לגיל שלוש — 40 סטים מעוצבים לבחירה, ארוזים ומוכנים לחגיגה.
               </p>
               <div>
-                <Link to="/category/$slug" params={{ slug: "chalaka-set" }} className={BTN_DARK_SOLID}>
+                <Link to="/category/$slug" params={{ slug: "chalaka-set" }} className={BTN_SOLID}>
                   לכל סטי החלאקה
                 </Link>
               </div>
@@ -540,12 +573,14 @@ function HomePage() {
         </div>
       </section>
 
-      {/* 8. Trust badges */}
-      <section className="bg-background border-y border-gold/40">
+      {/* 8. Trust badges — bounded by two 1px gold rules instead of the old
+          border-y fill, so the ground stays continuous white. */}
+      <section>
+        <span aria-hidden="true" className="gold-rule block w-full" />
         <div className="container mx-auto px-4 py-14 md:py-20">
           <SectionHeader eyebrow="ההבטחה שלנו" title="למה לקוחות בוחרים בנו" />
 
-          <div className="grid grid-cols-1 md:grid-cols-3 max-w-6xl mx-auto divide-y md:divide-y-0 md:divide-x md:divide-x-reverse divide-gold/30">
+          <div className="grid grid-cols-1 md:grid-cols-3 max-w-6xl mx-auto divide-y md:divide-y-0 md:divide-x md:divide-x-reverse divide-border">
             {[
               {
                 title: "משלוח מהיר עד הבית",
@@ -580,7 +615,7 @@ function HomePage() {
                 key={item.title}
                 className="group flex flex-col items-center text-center gap-4 md:gap-5 px-6 py-8 md:py-4"
               >
-                <div className="text-accent transition-transform duration-500 group-hover:-translate-y-1">
+                <div className="text-accent transition-transform duration-200 ease-out motion-safe:[@media(hover:hover)_and_(pointer:fine)]:group-hover:-translate-y-1">
                   {item.icon}
                 </div>
                 <div>
@@ -595,13 +630,14 @@ function HomePage() {
             ))}
           </div>
         </div>
+        <span aria-hidden="true" className="gold-rule block w-full" />
       </section>
 
       {/* 9. לקוחות ממליצים — real approved reviews */}
       <HomeReviews initialReviews={reviews ?? undefined} reserveSpace={reviews === null} />
 
       {/* 10. Instagram — visual closer */}
-      <section className="bg-background">
+      <section>
         <div className="container mx-auto px-4 py-14 md:py-20">
           <div className="text-center mb-10 md:mb-14">
             <p className="text-[10px] md:text-xs tracking-[0.4em] text-accent mb-4">
@@ -611,15 +647,15 @@ function HomePage() {
               עקבו אחרינו
             </h2>
             <div className="flex items-center justify-center gap-3 mb-4" aria-hidden="true">
-              <span className="h-px w-8 bg-gold/50" />
-              <span className="text-gold text-xs">✦</span>
-              <span className="h-px w-8 bg-gold/50" />
+              <span className="gold-rule w-8 shrink-0" />
+              <span className="text-accent text-xs">✦</span>
+              <span className="gold-rule w-8 shrink-0" />
             </div>
             <a
               href="https://www.instagram.com/or_zarua_latzadik/"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-block text-base md:text-lg text-muted-foreground hover:text-accent transition-colors underline-offset-4 hover:underline"
+              className="inline-block text-base md:text-lg text-muted-foreground underline-offset-4 transition-colors duration-200 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent [@media(hover:hover)_and_(pointer:fine)]:hover:underline"
             >
               @or_zarua_latzadik
             </a>
@@ -632,7 +668,8 @@ function HomePage() {
       {/* 11. SEO colophon + FAQ — demoted to the last content slot before the footer.
           The H1 and both paragraphs stay in the DOM for SEO; canonical address/phone
           live in the footer. */}
-      <section className="bg-cream/60 border-t border-gold/30">
+      <section>
+        <span aria-hidden="true" className="gold-rule block w-full" />
         <div className="container mx-auto px-4 py-14 md:py-20 max-w-4xl">
           {/* Visible H1 for SEO — the page's only h1 */}
           <h1 className="font-display text-2xl md:text-3xl font-bold text-foreground text-center mb-4 tracking-wide">
@@ -651,16 +688,18 @@ function HomePage() {
           </h2>
           {/* The FAQPage JSON-LD in head() is the SEO carrier (Radix unmounts
               closed panels); defaultValue keeps one answer in the initial DOM. */}
-          <Accordion type="single" collapsible defaultValue="faq-0" className="w-full">
-            {FAQ_ITEMS.map((item, i) => (
-              <AccordionItem key={i} value={`faq-${i}`} className="border-gold/30">
-                <AccordionTrigger className="text-right font-display text-base">{item.q}</AccordionTrigger>
-                <AccordionContent className="text-muted-foreground leading-relaxed">
-                  {item.a}
-                </AccordionContent>
-              </AccordionItem>
-            ))}
-          </Accordion>
+          <div className="glass p-4 md:p-8 [--glass-radius:1.5rem]">
+            <Accordion type="single" collapsible defaultValue="faq-0" className="w-full">
+              {FAQ_ITEMS.map((item, i) => (
+                <AccordionItem key={i} value={`faq-${i}`} className="border-gold/30 last:border-b-0">
+                  <AccordionTrigger className="text-right font-display text-base">{item.q}</AccordionTrigger>
+                  <AccordionContent className="text-muted-foreground leading-relaxed">
+                    {item.a}
+                  </AccordionContent>
+                </AccordionItem>
+              ))}
+            </Accordion>
+          </div>
         </div>
       </section>
     </>
@@ -692,12 +731,12 @@ function OtherCategoriesSection({
 }) {
   if (cats.length === 0) {
     return reserveSpace ? (
-      <section aria-hidden="true" className={`bg-background${OTHER_CATS_RESERVED_HEIGHT}`} />
+      <section aria-hidden="true" className={OTHER_CATS_RESERVED_HEIGHT.trim()} />
     ) : null;
   }
 
   return (
-    <section className={`bg-background${reserveSpace ? OTHER_CATS_RESERVED_HEIGHT : ""}`}>
+    <section className={reserveSpace ? OTHER_CATS_RESERVED_HEIGHT.trim() : undefined}>
       <div className="container mx-auto px-4 py-14 md:py-20">
         <SectionHeader eyebrow="גלו עוד" title="שאר הקטגוריות" />
 
@@ -718,12 +757,13 @@ function OtherCategoriesSection({
                       decoding="async"
                       width={c.w}
                       height={c.h}
-                      className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-out group-hover/card:scale-105"
+                      className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 ease-out motion-safe:[@media(hover:hover)_and_(pointer:fine)]:group-hover/card:scale-105"
                     />
-                    <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-[#2A211A]/70 via-transparent to-transparent" />
-                    {/* Plaque label */}
+                    {/* Cool-ink photo scrim (was warm #2A211A) */}
+                    <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-argaman-deep/70 via-transparent to-transparent" />
+                    {/* Plaque label — glass-strong, it sits on a photo */}
                     <div className="absolute inset-x-0 bottom-3 flex justify-center px-2">
-                      <span className="px-4 py-1.5 bg-background/95 border border-gold rounded-full font-display text-xs md:text-sm text-foreground text-center leading-tight">
+                      <span className="glass-strong px-4 py-1.5 font-display text-xs md:text-sm text-foreground text-center leading-tight [--glass-radius:9999px]">
                         {c.name}
                       </span>
                     </div>
@@ -793,7 +833,7 @@ function LazyReel({ src }: { src: string }) {
       // "metadata" once visible so the first frame paints even when reduced
       // motion skips play(); "none" keeps the initial page load light.
       preload={visible ? "metadata" : "none"}
-      className="absolute inset-0 h-full w-full object-cover transition-transform duration-[1200ms] ease-out group-hover:scale-105"
+      className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 ease-out motion-safe:[@media(hover:hover)_and_(pointer:fine)]:group-hover:scale-105"
     />
   );
 }
@@ -821,11 +861,11 @@ function InstagramFeed() {
                   decoding="async"
                   width={m.w}
                   height={m.h}
-                  className="absolute inset-0 h-full w-full object-cover transition-transform duration-[1200ms] ease-out group-hover:scale-105"
+                  className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 ease-out motion-safe:[@media(hover:hover)_and_(pointer:fine)]:group-hover:scale-105"
                 />
               )}
-              <div className="absolute inset-0 bg-foreground/0 transition-colors duration-500 group-hover:bg-foreground/20" />
-              <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+              <div aria-hidden="true" className="absolute inset-0 bg-foreground/0 transition-colors duration-200 ease-out [@media(hover:hover)_and_(pointer:fine)]:group-hover:bg-foreground/20" />
+              <div className="absolute top-3 right-3 opacity-0 transition-opacity duration-200 ease-out [@media(hover:hover)_and_(pointer:fine)]:group-hover:opacity-100">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-background drop-shadow">
                   <rect x="3" y="3" width="18" height="18" rx="5"/>
                   <circle cx="12" cy="12" r="4"/>

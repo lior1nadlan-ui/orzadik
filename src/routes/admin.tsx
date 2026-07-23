@@ -65,8 +65,8 @@ function AdminLayout() {
             <Link
               key={it.to}
               to={it.to}
-              className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${
-                active ? "bg-primary text-primary-foreground" : "hover:bg-muted"
+              className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors duration-160 ease-out ${
+                active ? "bg-primary text-primary-foreground" : "[@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"
               }`}
             >
               <it.icon className="h-4 w-4" /> {it.label}

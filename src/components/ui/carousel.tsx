@@ -178,6 +178,21 @@ const CarouselItem = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLD
 );
 CarouselItem.displayName = "CarouselItem";
 
+// The arrows float over product photography, so the backdrop is unknown: they
+// use `glass-strong` (94% white), the only glass documented as contrast-safe
+// anywhere — worst case over pure black the effective backing is #F0F0F0, where
+// the #16181D icon still reads 15.6:1. `.glass` (72%) is NOT safe here.
+//
+// `glass-strong` sets border-radius from --glass-radius, which beats `rounded-full`
+// per the styles.css override contract, so the radius is retuned through the
+// variable rather than fought with a utility. `border-transparent` cancels the
+// outline variant's --input boundary so the glass inset ring is the only hairline.
+// Press feedback (scale .97 / 160ms / ease-out) already comes from the Button
+// base; the `.press` utility is deliberately NOT added because it would reset
+// transition-property to transform-only and drop the named colour transitions.
+const CAROUSEL_ARROW =
+  "glass-strong [--glass-radius:9999px] border-transparent text-foreground";
+
 // In an RTL carousel the strip starts on the right and advances leftward, so
 // "previous" lives on the RIGHT edge with a right-pointing arrow and "next" on
 // the LEFT with a left-pointing one. Call sites only need edge-offset tweaks
@@ -193,7 +208,8 @@ const CarouselPrevious = React.forwardRef<HTMLButtonElement, React.ComponentProp
         variant={variant}
         size={size}
         className={cn(
-          "absolute  h-8 w-8 rounded-full",
+          "absolute h-8 w-8 rounded-full",
+          CAROUSEL_ARROW,
           orientation === "horizontal"
             ? isRtl
               ? "-right-12 top-1/2 -translate-y-1/2"
@@ -229,6 +245,7 @@ const CarouselNext = React.forwardRef<HTMLButtonElement, React.ComponentProps<ty
         size={size}
         className={cn(
           "absolute h-8 w-8 rounded-full",
+          CAROUSEL_ARROW,
           orientation === "horizontal"
             ? isRtl
               ? "-left-12 top-1/2 -translate-y-1/2"

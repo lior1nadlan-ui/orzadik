@@ -27,13 +27,24 @@ import appCss from "../styles.css?url";
 
 function NotFoundComponent() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="max-w-md text-center">
-        <h1 className="text-7xl font-bold text-primary font-display">404</h1>
-        <h2 className="mt-4 text-xl font-semibold">העמוד לא נמצא</h2>
+    // No `bg-background` here on purpose: the page ground (and its fixed light
+    // mesh on body::before) is what the glass panel is supposed to float over.
+    <div className="flex min-h-screen items-center justify-center px-4">
+      {/* `glass`, not `glass-strong`: these two panels sit on the known light
+          page ground, where 72% white still holds --accent at 5.71:1. The
+          stronger 94% pane is reserved for the fixed overlays, which float over
+          arbitrary page content. */}
+      <div className="glass w-full max-w-md p-8 text-center [--glass-radius:1.5rem]">
+        {/* The code is decoration, not the heading — the sentence below is. */}
+        <p className="font-display text-7xl font-bold text-accent" aria-hidden="true">404</p>
+        <div className="gold-rule mx-auto mt-5 w-24" aria-hidden="true" />
+        <h1 className="mt-5 text-xl font-semibold">העמוד לא נמצא</h1>
         <p className="mt-2 text-sm text-muted-foreground">העמוד שחיפשת לא קיים או הועבר.</p>
         <div className="mt-6">
-          <Link to="/" className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+          <Link
+            to="/"
+            className="press inline-flex items-center justify-center rounded-full bg-accent px-6 py-2.5 text-sm font-medium text-accent-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:bg-accent-strong"
+          >
             חזרה לעמוד הבית
           </Link>
         </div>
@@ -46,15 +57,32 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
   const router = useRouter();
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="max-w-md text-center">
+    <div className="flex min-h-screen items-center justify-center px-4">
+      {/* `glass`, not `glass-strong`: these two panels sit on the known light
+          page ground, where 72% white still holds --accent at 5.71:1. The
+          stronger 94% pane is reserved for the fixed overlays, which float over
+          arbitrary page content. */}
+      <div className="glass w-full max-w-md p-8 text-center [--glass-radius:1.5rem]">
         <h1 className="text-xl font-semibold">משהו השתבש</h1>
-        <p className="mt-2 text-sm text-muted-foreground">אירעה שגיאה. אנא נסה שוב.</p>
+        <div className="gold-rule mx-auto mt-4 w-16" aria-hidden="true" />
+        <p className="mt-4 text-sm text-muted-foreground">אירעה שגיאה. אנא נסה שוב.</p>
         <div className="mt-6 flex justify-center gap-2">
-          <button onClick={() => { router.invalidate(); reset(); }} className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90">
+          <button
+            onClick={() => { router.invalidate(); reset(); }}
+            className="press rounded-full bg-accent px-5 py-2.5 text-sm font-medium text-accent-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:bg-accent-strong"
+          >
             נסה שוב
           </button>
-          <a href="/" className="rounded-md border px-4 py-2 text-sm hover:bg-accent">בית</a>
+          {/* Was `hover:bg-accent` with the inherited ink on top — since --accent
+              is the dark gold #7E611E, that hover state put --foreground at
+              3.06:1, a text failure that only appeared on hover. Neutral surface
+              instead; the boundary uses --input (3.25:1), the control token. */}
+          <a
+            href="/"
+            className="press rounded-full border border-input px-5 py-2.5 text-sm text-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary"
+          >
+            בית
+          </a>
         </div>
       </div>
     </div>
@@ -305,9 +333,15 @@ function RootComponent() {
       <AuthProvider>
         <CartProvider>
           <div id="app-root" className="flex min-h-screen flex-col">
+            {/* Skip link — the FIRST thing a keyboard user meets, so it is the
+                one place gold may not be decorative. Was `bg-[#D4AF37]` with
+                white text: 2.1:1, a straight Lighthouse failure. --accent
+                (#7E611E) carries white at 5.81:1, and it follows the token, so
+                high-contrast mode re-points it to #5c4300 (9.30:1) for free.
+                Deliberately NOT animated: this is keyboard-initiated. */}
             <a
               href="#main-content"
-              className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:right-2 focus:z-50 focus:rounded-md focus:bg-[#D4AF37] focus:px-4 focus:py-2 focus:text-white"
+              className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:right-2 focus:z-50 focus:rounded-md focus:bg-accent focus:px-4 focus:py-2 focus:font-medium focus:text-accent-foreground"
             >
               דלג לתוכן המרכזי
             </a>

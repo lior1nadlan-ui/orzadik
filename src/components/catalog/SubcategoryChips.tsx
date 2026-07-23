@@ -71,13 +71,18 @@ export function SubcategoryChips({
         <CarouselContent>
           {chips.map((c) => (
             <CarouselItem key={c.id} className="basis-auto">
+              {/* Glass chip. The hairline is an inset ring rather than a border,
+                  so active/inactive chips are pixel-identical in size and the
+                  strip never reflows as you move between categories. The active
+                  state is an opaque ink fill (background on foreground, 16.7:1);
+                  /category/$slug overrides it to the semantic burgundy. */}
               <Link
                 to="/category/$slug"
                 params={{ slug: c.slug }}
-                className={`inline-block whitespace-nowrap rounded-full border px-4 py-1.5 text-sm transition-colors ${
+                className={`press inline-block whitespace-nowrap rounded-full px-4 py-1.5 text-sm transition-[background-color,color,box-shadow,transform] duration-150 ease-out ${
                   c.slug === slug
-                    ? "bg-foreground text-background border-foreground"
-                    : "border-border hover:bg-muted"
+                    ? "bg-foreground text-background"
+                    : "bg-card/70 text-foreground hairline [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary"
                 }`}
               >
                 {c.name}

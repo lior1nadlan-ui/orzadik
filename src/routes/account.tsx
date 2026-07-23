@@ -94,11 +94,16 @@ function buildDataReportHtml(data: any): string {
   return `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8">
 <title>המידע שלי — אור זרוע לצדיק</title>
 <style>
-  body{font-family:Arial,"Segoe UI",sans-serif;max-width:800px;margin:24px auto;padding:0 16px;color:#1a1a1a;line-height:1.6}
-  h1{color:#A8862A} h2{border-bottom:1px solid #D4AF37;padding-bottom:4px;margin-top:28px}
-  table{border-collapse:collapse;width:100%} th,td{border:1px solid #ddd;padding:6px 10px;text-align:right}
-  th{background:#FAF6E9;width:220px} .order{border:1px solid #eee;border-radius:8px;padding:10px 14px;margin:10px 0}
-  .muted{color:#666;font-size:13px}
+  /* Standalone print/offline sheet for the downloaded §13 report. It lives in a
+     separate document that never loads styles.css, so it CANNOT use the design
+     tokens — the brand values are inlined as literals here on purpose:
+     #7E611E is --accent (5.81:1 on white), #C2A25E is --gold (decorative rule
+     only, never text), #F1F3F7 is --muted (the neutral table-header fill). */
+  body{font-family:Arial,"Segoe UI",sans-serif;max-width:800px;margin:24px auto;padding:0 16px;color:#16181D;line-height:1.6}
+  h1{color:#7E611E} h2{border-bottom:1px solid #C2A25E;padding-bottom:4px;margin-top:28px}
+  table{border-collapse:collapse;width:100%} th,td{border:1px solid #E2E6EC;padding:6px 10px;text-align:right}
+  th{background:#F1F3F7;width:220px} .order{border:1px solid #E2E6EC;border-radius:8px;padding:10px 14px;margin:10px 0}
+  .muted{color:#565E6B;font-size:13px}
 </style></head><body>
 <h1>המידע שלי — אור זרוע לצדיק</h1>
 <p class="muted">הופק בתאריך: ${fmtDate(data?.exported_at)} · מסמך זה כולל את המידע האישי המוחזק עליך, בהתאם לזכות העיון (סעיף 13 לחוק הגנת הפרטיות).</p>
@@ -248,13 +253,19 @@ function AccountPage() {
 
   return (
     <div className="container mx-auto px-4 py-10 max-w-4xl">
-      {/* Member banner */}
-      <section className="relative overflow-hidden rounded-2xl border-2 border-[#D4AF37]/40 bg-gradient-to-br from-[#FAF6E9] via-white to-[#FAF6E9] p-6 md:p-8 shadow-[var(--shadow-card)]">
+      {/* Member banner — the one hero pane on this route.
+          `glass-strong` (94% white + blur) rather than `glass`, because the page
+          mesh is at its most saturated behind the top of the viewport and the
+          panel carries gold text. `glass-gold` swaps the inset hairline to the
+          gold line; it is used INSTEAD of the `hairline-gold` class because that
+          class would replace the whole box-shadow and take the glass lift-shadow
+          with it (see the override contract in styles.css). */}
+      <section className="relative overflow-hidden glass-strong glass-gold [--glass-radius:1.25rem] p-6 md:p-8">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-2">
-              <Sparkles className="h-4 w-4 text-[#A8862A]" />
-              <p className="text-[11px] tracking-[0.25em] text-[#A8862A] uppercase font-bold">
+              <Sparkles className="h-4 w-4 text-accent" />
+              <p className="text-[11px] tracking-[0.25em] text-accent uppercase font-bold">
                 חבר/ת מועדון אור זרוע
               </p>
             </div>
@@ -264,7 +275,7 @@ function AccountPage() {
             )}
           </div>
           <div className="flex flex-col items-start md:items-end gap-1">
-            <span className="rounded-full bg-[#D4AF37] text-white text-sm font-bold px-4 py-1.5 shadow">
+            <span className="rounded-full bg-accent text-white text-sm font-bold px-4 py-1.5">
               חבר/ת מועדון
             </span>
             <span className="text-xs text-muted-foreground">
@@ -272,17 +283,30 @@ function AccountPage() {
             </span>
           </div>
         </div>
+        <div className="gold-rule mt-5 md:mt-6" aria-hidden="true" />
       </section>
 
-      {/* Stats / actions */}
+      {/* Stats / actions — glass tiles. `.glass` already draws its own hairline
+          as an inset ring, so no border utility is added (a `border-*` would
+          double the line).
+          Motion: the two pressable tiles carry `press` ONLY — transform, 160ms,
+          ease-out. `glass-lift` is deliberately not stacked on top of it: both
+          classes set `transition-property`, `press` is emitted last, and the
+          combination would silently drop the shadow half of the lift. The hover
+          affordance is therefore a hairline that shifts to gold — a token swap,
+          no transition to conflict, and colour survives prefers-reduced-motion.
+          The static counter tile gets neither. */}
       <section className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-        <div className="rounded-xl border bg-card p-5">
-          <Package className="h-5 w-5 text-[#A8862A] mb-2" />
+        <div className="glass p-5">
+          <Package className="h-5 w-5 text-accent mb-2" />
           <div className="text-2xl font-bold">{orders.length}</div>
           <div className="text-xs text-muted-foreground">הזמנות בחשבון</div>
         </div>
-        <Link to="/shop" className="rounded-xl border bg-card p-5 hover:border-[#D4AF37] transition">
-          <ShoppingBag className="h-5 w-5 text-[#A8862A] mb-2" />
+        <Link
+          to="/shop"
+          className="glass press p-5 [@media(hover:hover)_and_(pointer:fine)]:hover:[--glass-line:var(--glass-line-gold)]"
+        >
+          <ShoppingBag className="h-5 w-5 text-accent mb-2" />
           <div className="text-sm font-semibold">המשך לקנות</div>
           <div className="text-xs text-muted-foreground">חזרה לחנות</div>
         </Link>
@@ -292,7 +316,7 @@ function AccountPage() {
             toast.success("התנתקת");
             navigate({ to: "/" });
           }}
-          className="rounded-xl border bg-card p-5 text-right hover:border-destructive/40 transition"
+          className="glass press p-5 text-right [@media(hover:hover)_and_(pointer:fine)]:hover:text-destructive"
         >
           <LogOut className="h-5 w-5 text-muted-foreground mb-2" />
           <div className="text-sm font-semibold">יציאה</div>
@@ -301,9 +325,9 @@ function AccountPage() {
       </section>
 
       {/* Personal details — rectification (§14) + access/export (§13) */}
-      <section className="mt-6 rounded-xl border bg-card p-5">
+      <section className="mt-6 glass p-5">
         <div className="flex items-start gap-3 mb-4">
-          <Pencil className="h-5 w-5 text-[#A8862A] mt-0.5" />
+          <Pencil className="h-5 w-5 text-accent mt-0.5" />
           <div>
             <div className="text-sm font-semibold">הפרטים האישיים שלי</div>
             <p className="text-xs text-muted-foreground mt-1">עדכון הפרטים שלך, ועיון/הורדה של כל המידע שאנו מחזיקים עליך.</p>
@@ -324,10 +348,10 @@ function AccountPage() {
           </div>
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
-          <Button onClick={onSaveProfile} disabled={savingProfile} className="bg-[#D4AF37] hover:bg-[#A8862A] text-white">
+          <Button onClick={onSaveProfile} disabled={savingProfile} className="press">
             {savingProfile ? "שומר..." : "שמירת פרטים"}
           </Button>
-          <Button onClick={onExportData} disabled={exporting} variant="outline">
+          <Button onClick={onExportData} disabled={exporting} variant="outline" className="press">
             <Download className="h-4 w-4 ml-1" />
             {exporting ? "מייצא..." : "ייצוא המידע שלי"}
           </Button>
@@ -335,10 +359,10 @@ function AccountPage() {
       </section>
 
       {/* Marketing preferences */}
-      <section className="mt-6 rounded-xl border bg-card p-5">
+      <section className="mt-6 glass p-5">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-3">
-            <Mail className="h-5 w-5 text-[#A8862A] mt-0.5" />
+            <Mail className="h-5 w-5 text-accent mt-0.5" />
             <div>
               <div className="text-sm font-semibold">תוכן פרסומי ומבצעים</div>
               <p className="text-xs text-muted-foreground mt-1 leading-relaxed max-w-md">
@@ -359,14 +383,14 @@ function AccountPage() {
       <section className="mt-10">
         <h2 className="font-display text-xl font-bold mb-4">ההזמנות שלי</h2>
         {orders.length === 0 ? (
-          <div className="rounded-lg border border-dashed p-8 text-center text-muted-foreground">
+          <div className="rounded-xl border border-dashed border-glass-line p-8 text-center text-muted-foreground">
             <p className="text-sm mb-3">אין עדיין הזמנות בחשבון</p>
             <Link to="/shop">
-              <Button className="bg-[#D4AF37] hover:bg-[#A8862A] text-white">לחנות</Button>
+              <Button className="press">לחנות</Button>
             </Link>
           </div>
         ) : (
-          <div className="rounded-lg border bg-card overflow-hidden">
+          <div className="glass overflow-hidden">
             <div className="divide-y">
               {orders.map((o: any) => {
                 const shipLabel: Record<string, string> = {
@@ -375,12 +399,17 @@ function AccountPage() {
                   shipped: "נשלח",
                   delivered: "נמסר",
                 };
+                // `press` owns the motion on the row (transition-property: transform,
+                // 160ms, ease-out — a named property, never `transition: all`). The
+                // hover tint is intentionally un-transitioned: `.press` is emitted
+                // later in the utilities layer than any Tailwind `transition-*`, so a
+                // second transition utility here would be dead code, not a fade.
                 return (
                   <Link
                     key={o.id}
                     to="/order/$id"
                     params={{ id: o.id }}
-                    className="flex items-center justify-between p-4 hover:bg-muted/40 transition gap-3"
+                    className="flex items-center justify-between p-4 gap-3 press [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted/50"
                   >
                     <div className="min-w-0">
                       <div className="font-medium text-sm">הזמנה #{o.order_number}</div>
@@ -392,11 +421,11 @@ function AccountPage() {
                         <span className="text-muted-foreground">משלוח: </span>
                         <span className="font-medium">{shipLabel[o.shipping_status] ?? o.shipping_status}</span>
                         {o.tracking_number && (
-                          <span className="text-[#A8862A]"> • מעקב: {o.tracking_number}</span>
+                          <span className="text-accent"> • מעקב: {o.tracking_number}</span>
                         )}
                       </div>
                     </div>
-                    <div className="text-sm font-bold text-[#A8862A] whitespace-nowrap">{formatILS(Number(o.total))}</div>
+                    <div className="text-sm font-bold text-accent whitespace-nowrap">{formatILS(Number(o.total))}</div>
                   </Link>
                 );
               })}
@@ -406,6 +435,9 @@ function AccountPage() {
       </section>
 
       {/* Danger zone — account deletion (GDPR / takana 13 right to erasure) */}
+      {/* Semantic destructive panel — deliberately NOT glass. A glass pane would
+          wash the warning tint out; the destructive surface has to stay legible
+          as a warning, so it keeps a solid tint and a destructive border. */}
       <section className="mt-10 rounded-xl border border-destructive/30 bg-destructive/5 p-5">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="flex items-start gap-3">
@@ -420,7 +452,7 @@ function AccountPage() {
           </div>
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button variant="destructive" size="sm" disabled={deleting}>
+              <Button variant="destructive" size="sm" className="press" disabled={deleting}>
                 {deleting ? "מוחק..." : "מחיקת החשבון"}
               </Button>
             </AlertDialogTrigger>
@@ -436,7 +468,7 @@ function AccountPage() {
                 <AlertDialogCancel>ביטול</AlertDialogCancel>
                 <AlertDialogAction
                   onClick={onDeleteAccount}
-                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  className="bg-destructive text-destructive-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:bg-destructive/90"
                 >
                   מחק לצמיתות
                 </AlertDialogAction>

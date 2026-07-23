@@ -67,16 +67,21 @@ export function LuxuryShowcase({ initialThumbs }: { initialThumbs?: LuxuryThumbs
   });
 
   return (
-    <section className="bg-cream border-y border-gold/40">
+    // The cream fill + border-y band is gone: the ground is the page's own white
+    // mesh, structured by two 1px gold rules (same 2px of chrome as the old
+    // border-y, so the section's height is unchanged).
+    <section>
+      <span aria-hidden="true" className="gold-rule block w-full" />
       <div className="container mx-auto px-4 py-16 md:py-24">
+        {/* Mirrors SectionHeader in src/routes/index.tsx — keep the two in step. */}
         <div className="text-center mb-10 md:mb-14">
-          <p className="text-[10px] md:text-xs tracking-[0.35em] text-accent mb-3">
+          <p className="text-[10px] md:text-xs tracking-[0.35em] text-accent uppercase mb-3">
             אוסף היוקרה
           </p>
-          <h2 className="font-display text-3xl md:text-4xl tracking-wide">
+          <h2 className="font-display text-3xl md:text-4xl tracking-wide text-foreground">
             פריטי יוקרה נבחרים
           </h2>
-          <span aria-hidden="true" className="block h-px w-24 mx-auto mt-4 bg-[image:var(--gradient-gold-line)]" />
+          <span aria-hidden="true" className="gold-rule block w-24 mx-auto mt-4" />
           <p className="mt-4 text-sm md:text-base text-muted-foreground max-w-xl mx-auto">
             היצירות המוקפדות ביותר של הבית — במלאי מוגבל
           </p>
@@ -87,7 +92,7 @@ export function LuxuryShowcase({ initialThumbs }: { initialThumbs?: LuxuryThumbs
           <Link
             to="/product/$slug"
             params={{ slug: LARGE_ITEM.slug }}
-            className="group relative block md:col-span-3 aspect-[4/3] overflow-hidden rounded-lg border border-gold/40 transition-shadow duration-700 hover:shadow-[var(--shadow-soft)]"
+            className="group glass-lift relative block md:col-span-3 aspect-[4/3] overflow-hidden rounded-lg border border-gold/40"
           >
             <img
               src={LARGE_ITEM.img}
@@ -96,14 +101,18 @@ export function LuxuryShowcase({ initialThumbs }: { initialThumbs?: LuxuryThumbs
               decoding="async"
               width={LARGE_ITEM.width}
               height={LARGE_ITEM.height}
-              className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]"
+              className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 ease-out motion-safe:[@media(hover:hover)_and_(pointer:fine)]:group-hover:scale-[1.04]"
             />
-            {/* Label-zone scrim: holds >=75% argaman through the bottom 45% so the
-                cream name / gold price keep AA contrast over white studio shots. */}
-            <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-[#421720]/90 via-[#421720]/75 via-45% to-transparent" />
-            <div className="absolute inset-x-0 bottom-0 p-6">
-              <span className="block font-display text-2xl text-cream">{LARGE_ITEM.name}</span>
-              <span className="mt-1 block text-gold-bright text-xl font-bold">{LARGE_ITEM.price}</span>
+            {/* Decorative frost only — the caption no longer depends on a scrim
+                for contrast, because it rides on its own glass-strong plate. */}
+            <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-white/45 via-transparent to-transparent" />
+            {/* glass-strong is mandatory here: this plate sits on a photograph, so
+                the backing is unknown. At 94% white the worst case is #F0F0F0 —
+                foreground ink 15.8:1, --accent 5.10:1. A cream name or a
+                gold-bright price on this plate would be 1.1:1 / 1.8:1. */}
+            <div className="glass-strong absolute inset-x-4 bottom-4 p-5 [--glass-radius:1rem]">
+              <span className="block font-display text-2xl text-foreground">{LARGE_ITEM.name}</span>
+              <span className="mt-1 block text-accent text-xl font-bold">{LARGE_ITEM.price}</span>
             </div>
           </Link>
 
@@ -126,7 +135,7 @@ export function LuxuryShowcase({ initialThumbs }: { initialThumbs?: LuxuryThumbs
                   key={s.slug}
                   to="/product/$slug"
                   params={{ slug: s.slug }}
-                  className="group relative block aspect-[4/3] md:aspect-auto overflow-hidden rounded-lg border border-gold/40 bg-muted transition-shadow duration-700 hover:shadow-[var(--shadow-soft)]"
+                  className="group glass-lift relative block aspect-[4/3] md:aspect-auto overflow-hidden rounded-lg border border-gold/40 bg-muted"
                 >
                   {src && (
                     <img
@@ -143,15 +152,14 @@ export function LuxuryShowcase({ initialThumbs }: { initialThumbs?: LuxuryThumbs
                       // card's own aspect classes drive the layout regardless.
                       width={STACKED_THUMB_W}
                       height={STACKED_THUMB_W}
-                      className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]"
+                      className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 ease-out motion-safe:[@media(hover:hover)_and_(pointer:fine)]:group-hover:scale-[1.04]"
                     />
                   )}
-                  {/* Label-zone scrim: holds >=75% argaman through the bottom 45% so the
-                      cream name / gold price keep AA contrast over white studio shots. */}
-                  <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-[#421720]/90 via-[#421720]/75 via-45% to-transparent" />
-                  <div className="absolute inset-x-0 bottom-0 p-5">
-                    <span className="block font-display text-lg text-cream leading-snug">{s.name}</span>
-                    <span className="mt-1 block text-gold-bright text-lg font-bold">{s.price}</span>
+                  {/* Decorative frost only — see the flagship card above. */}
+                  <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-white/45 via-transparent to-transparent" />
+                  <div className="glass-strong absolute inset-x-3 bottom-3 p-4 [--glass-radius:1rem]">
+                    <span className="block font-display text-lg text-foreground leading-snug">{s.name}</span>
+                    <span className="mt-1 block text-accent text-lg font-bold">{s.price}</span>
                   </div>
                 </Link>
               );
@@ -163,12 +171,13 @@ export function LuxuryShowcase({ initialThumbs }: { initialThumbs?: LuxuryThumbs
           <Link
             to="/category/$slug"
             params={{ slug: "chatan-kala" }}
-            className="text-sm md:text-base text-accent underline-offset-4 hover:underline"
+            className="text-sm md:text-base text-accent underline-offset-4 transition-colors duration-200 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-strong [@media(hover:hover)_and_(pointer:fine)]:hover:underline"
           >
             לכל מארזי החתן והכלה ←
           </Link>
         </div>
       </div>
+      <span aria-hidden="true" className="gold-rule block w-full" />
     </section>
   );
 }

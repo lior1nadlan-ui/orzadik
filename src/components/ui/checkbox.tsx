@@ -11,7 +11,12 @@ const Checkbox = React.forwardRef<
   <CheckboxPrimitive.Root
     ref={ref}
     className={cn(
-      "grid place-content-center peer h-4 w-4 shrink-0 rounded-sm border border-primary shadow focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground",
+      // Boundary stays --primary (#16181D, 17.8:1 on white) rather than dropping
+      // to --input's 3.25:1: a 16px control needs the stronger edge, and checked
+      // state is a --primary fill carrying --primary-foreground at 17.8:1.
+      // No press/scale here — checkboxes are high-frequency UI, which gets no
+      // animation; only the colour swap is transitioned.
+      "grid place-content-center peer h-4 w-4 shrink-0 rounded-sm border border-primary bg-card/70 shadow-sm transition-colors duration-160 ease-out focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground",
       className,
     )}
     {...props}

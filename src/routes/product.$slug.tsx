@@ -610,7 +610,7 @@ function ProductPage() {
       }}
       aria-pressed={favSaved}
       aria-label={favSaved ? "הסר מהמועדפים" : "הוסף למועדפים"}
-      className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-border hover:bg-muted transition-colors"
+      className="press inline-flex h-11 w-11 items-center justify-center rounded-full border border-input bg-white/70 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"
     >
       <Heart className={`h-5 w-5 ${favSaved ? "fill-accent text-accent" : "text-foreground/60"}`} />
     </button>
@@ -629,7 +629,9 @@ function ProductPage() {
       <a
         href={`tel:${CONTACT_TEL}`}
         className={
-          "inline-flex items-center justify-center gap-2 rounded-md bg-accent hover:bg-accent/90 text-accent-foreground font-semibold transition " +
+          // hover:bg-accent/90 composites to 4.66:1 with white and has no
+          // headroom; --accent-strong is 7.38:1.
+          "press inline-flex items-center justify-center gap-2 rounded-md bg-accent text-accent-foreground font-semibold [@media(hover:hover)_and_(pointer:fine)]:hover:bg-accent-strong " +
           (compact ? "flex-1 px-4 py-2.5 text-sm" : "px-5 py-3")
         }
       >
@@ -640,7 +642,10 @@ function ProductPage() {
         target="_blank"
         rel="noopener noreferrer"
         className={
-          "inline-flex items-center justify-center gap-2 rounded-md border-2 border-[#25D366] text-[#128C7E] hover:bg-[#25D366]/10 font-semibold transition " +
+          // WhatsApp keeps its brand green on the border (#25D366, decorative)
+          // but the LABEL moves from #128C7E (4.14:1 on white — fails AA at
+          // 14px semibold) to WhatsApp's own dark brand green #075E54, 7.67:1.
+          "press inline-flex items-center justify-center gap-2 rounded-md border-2 border-[#25D366] text-[#075E54] font-semibold [@media(hover:hover)_and_(pointer:fine)]:hover:bg-[#25D366]/10 " +
           (compact ? "flex-1 px-4 py-2.5 text-sm" : "px-5 py-3")
         }
       >
@@ -726,14 +731,14 @@ function ProductPage() {
       <nav aria-label="ניווט מיקום באתר" className="mb-4">
         <ol className="flex flex-wrap items-center gap-1.5 text-xs md:text-sm text-muted-foreground" itemScope itemType="https://schema.org/BreadcrumbList">
           <li itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
-            <Link to="/" className="hover:text-accent transition-colors" itemProp="item">
+            <Link to="/" className="transition-colors duration-160 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent" itemProp="item">
               <span itemProp="name">בית</span>
             </Link>
             <meta itemProp="position" content="1" />
           </li>
           <li aria-hidden="true" className="text-muted-foreground/40">/</li>
           <li itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
-            <Link to="/shop" className="hover:text-accent transition-colors" itemProp="item">
+            <Link to="/shop" className="transition-colors duration-160 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent" itemProp="item">
               <span itemProp="name">מוצרים</span>
             </Link>
             <meta itemProp="position" content="2" />
@@ -745,7 +750,7 @@ function ProductPage() {
                 <Link
                   to="/category/$slug"
                   params={{ slug: parentCategory.slug }}
-                  className="hover:text-accent transition-colors"
+                  className="transition-colors duration-160 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
                   itemProp="item"
                 >
                   <span itemProp="name">{parentCategory.name}</span>
@@ -761,7 +766,7 @@ function ProductPage() {
                 <Link
                   to="/category/$slug"
                   params={{ slug: firstCategory.slug }}
-                  className="hover:text-accent transition-colors"
+                  className="transition-colors duration-160 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
                   itemProp="item"
                 >
                   <span itemProp="name">{firstCategory.name}</span>
@@ -800,7 +805,7 @@ function ProductPage() {
                 dir="rtl"
                 opts={{ direction: "rtl", loop: true }}
                 setApi={setApi}
-                className="w-full overflow-hidden rounded-lg border border-gold/40 bg-cream"
+                className="glass glass-gold w-full overflow-hidden"
               >
                 <CarouselContent>
                   {gallery.map((url, i) => (
@@ -823,7 +828,10 @@ function ProductPage() {
                 <DialogTrigger asChild>
                   <button
                     type="button"
-                    className="absolute bottom-3 left-3 z-10 rounded-full bg-white/90 backdrop-blur p-2 shadow cursor-zoom-in hover:bg-white transition-colors"
+                    // Sits ON the product image, so it needs the 94%-white
+                    // glass, not the 72% one: --accent stays ≥5.1:1 there over
+                    // any backdrop.
+                    className="glass-strong press absolute bottom-3 left-3 z-10 p-2 cursor-zoom-in [--glass-radius:9999px]"
                     aria-label="הגדל תמונה"
                   >
                     <ZoomIn className="h-4 w-4 text-accent" />
@@ -836,7 +844,7 @@ function ProductPage() {
                   </>
                 )}
               </Carousel>
-              <DialogContent className="max-w-4xl p-2 bg-white">
+              <DialogContent className="glass-strong border-0 max-w-4xl p-2 [--glass-radius:1.25rem]">
                 <DialogTitle className="sr-only">{product.name}</DialogTitle>
                 {/* Mounted only while the dialog is open, so startIndex opens on
                     the slide the user was viewing. */}
@@ -858,7 +866,7 @@ function ProductPage() {
               </DialogContent>
             </Dialog>
           ) : (
-            <div className="aspect-square w-full rounded-lg border border-gold/40 bg-cream" />
+            <div className="glass glass-gold aspect-square w-full" />
           )}
           {gallery.length > 1 && (
             <div className="mt-3 flex gap-2 overflow-x-auto" role="group" aria-label="תמונות נוספות של המוצר">
@@ -889,7 +897,7 @@ function ProductPage() {
           {reviewSummary && reviewSummary.count > 0 && (
             <a href="#reviews" className="mb-3 inline-flex items-center gap-2 text-sm">
               <Stars value={reviewSummary.average} size={16} />
-              <span className="text-muted-foreground hover:text-accent transition-colors">
+              <span className="text-muted-foreground transition-colors duration-160 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent">
                 {reviewSummary.average} ({reviewSummary.count})
               </span>
             </a>
@@ -898,7 +906,7 @@ function ProductPage() {
 
           {/* Price block */}
           {isCallOnly ? (
-            <div className="mb-3 rounded-lg border border-gold/40 bg-cream px-4 py-3">
+            <div className="glass mb-3 px-4 py-3">
               <div className="text-lg font-bold text-accent">המחיר משתנה לפי שער הזהב היומי</div>
               <div className="text-sm text-foreground mt-1">לקבלת הצעת מחיר עדכנית - צרו קשר בטלפון או בוואטסאפ</div>
             </div>
@@ -923,7 +931,11 @@ function ProductPage() {
                 אזל מהמלאי
               </span>
             )}
-            <div className="inline-flex items-center gap-1.5 text-sm text-foreground bg-cream border border-gold/50 rounded-md px-2.5 py-1">
+            {/* Tuned through the glass variables rather than fought with
+                utilities — a chip wants a tight radius and a shallow shadow.
+                (A literal `none` cannot be one item of a box-shadow LIST; it
+                would invalidate the whole declaration and drop the hairline.) */}
+            <div className="glass inline-flex items-center gap-1.5 text-sm text-foreground px-2.5 py-1 [--glass-radius:0.625rem] [--glass-shadow:0_1px_2px_rgba(22,24,29,0.05)]">
               <Truck className="h-4 w-4 text-accent" />
               <span>
                 דמי משלוח {formatILS(SHIPPING_FLAT)} (מתווספים בעגלה) • <span className="font-semibold text-accent">זמן אספקה 3–14 ימי עסקים</span>
@@ -942,7 +954,7 @@ function ProductPage() {
 
           {/* Personalization (embroidery / laser engraving) */}
           {showEmbroidery && (
-            <div className="mb-5 rounded-lg border border-gold/40 bg-cream p-4">
+            <div className="glass mb-5 p-4">
               <Label htmlFor="embroidery" className="text-sm font-semibold text-accent">
                 ✦ הוספת שם אישי על המוצר (אופציונלי)
               </Label>
@@ -970,10 +982,14 @@ function ProductPage() {
                           key={opt.value}
                           onClick={() => setCustomMethod(opt.value)}
                           className={
-                            "flex-1 rounded-md border px-3 py-2 text-sm transition " +
+                            // Hot control on the buy path: press feedback only
+                            // (transform, 160ms, ease-out via .press) — no
+                            // colour animation, per the frequency rule. Hover
+                            // is gated to real pointers so touch never sticks.
+                            "press flex-1 rounded-md border px-3 py-2 text-sm " +
                             (active
-                              ? "border-gold bg-white text-accent font-semibold shadow-sm"
-                              : "border-border bg-white/60 text-foreground hover:border-gold/60")
+                              ? "border-accent bg-white text-accent font-semibold"
+                              : "border-input bg-white/70 text-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:border-accent")
                           }
                           aria-pressed={active}
                         >
@@ -1024,10 +1040,16 @@ function ProductPage() {
                         disabled={!v.inStock}
                         onClick={() => setSelectedVariantId(v.id)}
                         className={
-                          "px-3 py-1.5 rounded-md text-sm transition disabled:cursor-not-allowed disabled:line-through disabled:opacity-50 " +
+                          // `disabled:line-through` is a SOLD-OUT SIZE marker,
+                          // not a price. It is the one legitimate line-through
+                          // on the site — do not remove it.
+                          // Motion: .press only (transform / 160ms / ease-out).
+                          // Hover is pointer-gated and `enabled:`-scoped, which
+                          // removes the old disabled:hover:* neutralisers.
+                          "press px-3 py-1.5 rounded-md text-sm disabled:cursor-not-allowed disabled:line-through disabled:opacity-50 " +
                           (isActive
-                            ? "border-2 border-gold bg-cream font-medium"
-                            : "border border-border bg-background hover:border-gold hover:bg-muted disabled:hover:border-border disabled:hover:bg-background")
+                            ? "border-2 border-accent bg-white text-accent font-semibold"
+                            : "border border-input bg-white/70 [@media(hover:hover)_and_(pointer:fine)]:enabled:hover:border-accent")
                         }
                       >
                         {v.label}
@@ -1051,7 +1073,7 @@ function ProductPage() {
                         <span
                           key={v.id}
                           aria-current="true"
-                          className="px-3 py-1.5 rounded-md border-2 border-gold bg-cream text-sm font-medium"
+                          className="px-3 py-1.5 rounded-md border-2 border-accent bg-white text-accent text-sm font-semibold"
                         >
                           {v.label}
                         </span>
@@ -1060,7 +1082,7 @@ function ProductPage() {
                           key={v.id}
                           to="/product/$slug"
                           params={{ slug: v.slug! }}
-                          className="px-3 py-1.5 rounded-md border border-border bg-background text-sm hover:border-gold hover:bg-muted transition"
+                          className="press px-3 py-1.5 rounded-md border border-input bg-white/70 text-sm [@media(hover:hover)_and_(pointer:fine)]:hover:border-accent"
                         >
                           {v.label}
                         </Link>
@@ -1075,7 +1097,7 @@ function ProductPage() {
           {/* Qty + actions */}
           {isCallOnly ? (
             <div className="mb-3 space-y-3">
-              <div className="rounded-lg border border-gold/40 bg-white p-4 text-sm text-foreground">
+              <div className="glass p-4 text-sm text-foreground">
                 <strong className="block text-accent mb-1">להזמנת התכשיט:</strong>
                 ההזמנה והתשלום מתבצעים בשיחת טלפון או בפגישה במקום בלבד — לא ניתן לרכוש דרך האתר.
               </div>
@@ -1086,12 +1108,14 @@ function ProductPage() {
             </div>
           ) : (
             <div className="flex items-center gap-3 mb-3 flex-wrap">
-              <div className="inline-flex items-center overflow-hidden rounded-full border border-border">
-                <button onClick={() => setQty((q) => Math.max(1, q - 1))} disabled={qty <= 1} className="px-3 py-2 hover:bg-muted disabled:pointer-events-none disabled:opacity-50" aria-label="הפחת">
+              {/* --input (3.25:1 on white) is the form-CONTROL boundary token;
+                  --border is a decorative 1.25:1 line and fails 1.4.11 here. */}
+              <div className="inline-flex items-center overflow-hidden rounded-full border border-input bg-white/70">
+                <button onClick={() => setQty((q) => Math.max(1, q - 1))} disabled={qty <= 1} className="press px-3 py-2 disabled:pointer-events-none disabled:opacity-50 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted" aria-label="הפחת">
                   <Minus className="h-4 w-4" />
                 </button>
                 <span className="px-4 font-medium">{qty}</span>
-                <button onClick={() => setQty((q) => q + 1)} className="px-3 py-2 hover:bg-muted" aria-label="הוסף">
+                <button onClick={() => setQty((q) => q + 1)} className="press px-3 py-2 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted" aria-label="הוסף">
                   <Plus className="h-4 w-4" />
                 </button>
               </div>
@@ -1116,7 +1140,7 @@ function ProductPage() {
                   addToCart();
                   navigate({ to: "/checkout" });
                 }}
-                className="gap-2 bg-accent hover:bg-accent/90 text-accent-foreground"
+                className="gap-2"
               >
                 קנה עכשיו
               </Button>
@@ -1130,7 +1154,7 @@ function ProductPage() {
               back-in-stock notification, no claim the item will return. */}
           {!isCallOnly && !canBuy && (
             <div className="mb-3 space-y-3">
-              <div className="rounded-lg border border-gold/40 bg-white p-4 text-sm text-foreground">
+              <div className="glass p-4 text-sm text-foreground">
                 <strong className="block text-accent mb-1">המוצר אזל כרגע</strong>
                 דברו איתנו לבדיקת חידוש מלאי או חלופה מתאימה.
               </div>
@@ -1178,10 +1202,12 @@ function ProductPage() {
             <div className="flex items-center gap-2"><RotateCcw className="h-4 w-4 text-accent" /> 14 יום להחזרה</div>
           </div>
 
-          {/* Accordion */}
-          <Accordion type="single" collapsible className="mt-8" defaultValue="desc">
+          {/* Accordion — one glass pane, hairline dividers between the rows,
+              instead of three gold-ruled bands. */}
+          <div className="glass mt-8 px-4 md:px-5">
+          <Accordion type="single" collapsible defaultValue="desc">
             {product.description && (
-              <AccordionItem value="desc" className="border-gold/30">
+              <AccordionItem value="desc" className="border-glass-line last:border-b-0">
                 <AccordionTrigger className="font-display text-base">תיאור המוצר</AccordionTrigger>
                 <AccordionContent>
                   <div
@@ -1191,7 +1217,7 @@ function ProductPage() {
                 </AccordionContent>
               </AccordionItem>
             )}
-            <AccordionItem value="ship" className="border-gold/30">
+            <AccordionItem value="ship" className="border-glass-line last:border-b-0">
               <AccordionTrigger className="font-display text-base">משלוחים</AccordionTrigger>
               <AccordionContent>
                 <p className="text-sm text-muted-foreground leading-relaxed">
@@ -1200,7 +1226,7 @@ function ProductPage() {
                 </p>
               </AccordionContent>
             </AccordionItem>
-            <AccordionItem value="ret" className="border-gold/30">
+            <AccordionItem value="ret" className="border-glass-line last:border-b-0">
               <AccordionTrigger className="font-display text-base">מדיניות החזרות וביטולים</AccordionTrigger>
               <AccordionContent>
                 <p className="text-sm text-muted-foreground leading-relaxed">
@@ -1212,6 +1238,7 @@ function ProductPage() {
               </AccordionContent>
             </AccordionItem>
           </Accordion>
+          </div>
         </div>
       </div>
 
@@ -1290,7 +1317,7 @@ function ProductPage() {
           retires into the flow at the end of the container, so it can never
           cover the footer. Pure CSS — nothing here touches window/document, so
           it renders identically on the server. */}
-      <div className="lg:hidden sticky bottom-0 z-40 -mx-4 mt-10 border-t border-gold/40 bg-background/95 px-4 py-3 shadow-[0_-4px_16px_-8px_rgba(0,0,0,0.35)] backdrop-blur supports-[backdrop-filter]:bg-background/85">
+      <div className="glass-strong lg:hidden sticky bottom-0 z-40 -mx-4 mt-10 px-4 py-3 [--glass-radius:0] [--glass-shadow-lift:0_-10px_30px_-16px_rgba(22,24,29,0.20)]">
         {isCallOnly || !canBuy ? (
           <div className="flex items-center gap-2">
             {contactCtas(isCallOnly ? QUOTE_WA_TEXT : RESTOCK_WA_TEXT, true)}
@@ -1308,7 +1335,7 @@ function ProductPage() {
             <Button
               size="lg"
               onClick={addToCartWithFeedback}
-              className="flex-1 gap-2 bg-accent hover:bg-accent/90 text-accent-foreground"
+              className="flex-1 gap-2"
             >
               <ShoppingCart className="h-4 w-4" /> הוסף לעגלה
             </Button>

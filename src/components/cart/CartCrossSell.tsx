@@ -74,9 +74,11 @@ export function CartCrossSell({ productIds }: { productIds: string[] }) {
   return (
     <div className="mt-8">
       <h2 className="font-display text-lg md:text-xl font-bold">משלימים את ההזמנה</h2>
-      <p className="text-sm text-muted-foreground mb-4">
+      <p className="text-sm text-muted-foreground">
         המשלוח קבוע לכל ההזמנה — מוצר נוסף לא מעלה את דמי המשלוח
       </p>
+      {/* Decorative gold hairline under the section head. */}
+      <div className="gold-rule mb-5 mt-3" aria-hidden="true" />
       <Carousel opts={{ direction: "rtl", align: "start" }} dir="rtl">
         <CarouselContent>
           {suggestions.map((p) => (
@@ -85,8 +87,10 @@ export function CartCrossSell({ productIds }: { productIds: string[] }) {
             </CarouselItem>
           ))}
         </CarouselContent>
-        <CarouselPrevious className="right-2 hidden md:inline-flex" />
-        <CarouselNext className="left-2 hidden md:inline-flex" />
+        {/* Shared RTL-aware arrows (prev on the RIGHT) — side, icon and keyboard
+            handling stay in ui/carousel; only the edge offset is set here. */}
+        <CarouselPrevious className="press right-2 hidden md:inline-flex" />
+        <CarouselNext className="press left-2 hidden md:inline-flex" />
       </Carousel>
     </div>
   );

@@ -62,20 +62,26 @@ function FavoritesPage() {
       </div>
 
       {showEmpty ? (
-        <div className="py-20 text-center space-y-3">
+        <div className="glass mx-auto max-w-xl px-6 py-16 text-center space-y-3 [--glass-radius:1.5rem]">
           <p className="text-lg font-medium">עדיין לא שמרת מוצרים</p>
           <p className="text-sm text-muted-foreground">לחצו על הלב שעל כל מוצר כדי לשמור אותו כאן</p>
+          {/* --accent is the only gold that is legal as a CTA fill on a light
+              ground: white on #7E611E is 5.81:1. The hover was bg-accent/90,
+              which composites down to 4.66:1 with no headroom — bg-accent-strong
+              (#6B5219) is the token that exists for this and lands at 7.38:1. */}
           <Link
             to="/shop"
-            className="inline-block mt-2 rounded-full bg-accent hover:bg-accent/90 text-accent-foreground text-sm font-semibold px-8 py-3 transition-colors"
+            className="press inline-block mt-2 rounded-full bg-accent text-accent-foreground text-sm font-semibold px-8 py-3 transition-[background-color,transform] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-accent-strong"
           >
             לכל המוצרים
           </Link>
         </div>
       ) : !hydrated || isLoading ? (
+        // animate-pulse is opacity-only — no movement, so it already satisfies
+        // prefers-reduced-motion (keep opacity, drop movement).
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="aspect-square animate-pulse rounded-lg bg-muted" />
+            <div key={i} className="aspect-square animate-pulse rounded-2xl bg-muted hairline" />
           ))}
         </div>
       ) : (

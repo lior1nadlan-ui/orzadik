@@ -23,10 +23,10 @@ export function ProductCarousel({
   if (items.length === 0) return null;
   return (
     <section className="mt-14">
-      <div className="flex items-end justify-between mb-5 border-b border-[#D4AF37]/30 pb-3">
+      <div className="flex items-end justify-between pb-3">
         <div>
           {eyebrow && (
-            <p className="text-[11px] tracking-[0.25em] text-[#A8862A] uppercase font-semibold mb-1">
+            <p className="text-[11px] tracking-[0.25em] text-accent uppercase font-semibold mb-1">
               {eyebrow}
             </p>
           )}
@@ -35,6 +35,9 @@ export function ProductCarousel({
           </h2>
         </div>
       </div>
+      {/* Precise gold hairline instead of a solid gold border — decorative, and
+          the only gold that is allowed to be this light. */}
+      <div className="gold-rule mb-5" aria-hidden="true" />
       <Carousel dir="rtl" opts={{ direction: "rtl", align: "start", dragFree: true }}>
         <CarouselContent>
           {items.map((p) => (

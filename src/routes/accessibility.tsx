@@ -15,10 +15,13 @@ export const Route = createFileRoute("/accessibility")({
 function AccessibilityPage() {
   return (
     <article className="container mx-auto px-4 py-12 md:py-16 max-w-3xl">
-      <header className="mb-10 text-center">
+      <header className="mb-10 md:mb-14 text-center">
         <p className="text-[10px] md:text-xs tracking-[0.35em] text-accent uppercase mb-3">נגישות</p>
-        <h1 className="font-display text-3xl md:text-5xl tracking-wide">הצהרת נגישות</h1>
-        <p className="mt-3 text-sm text-muted-foreground">עודכן לאחרונה: 26.6.2026</p>
+        <h1 className="font-display text-3xl md:text-5xl tracking-wide text-foreground">הצהרת נגישות</h1>
+        <div className="gold-rule mx-auto mt-5 w-24" aria-hidden="true" />
+        <p className="glass mt-5 inline-block px-4 py-1.5 text-xs text-muted-foreground [--glass-radius:9999px]">
+          עודכן לאחרונה: 26.6.2026
+        </p>
       </header>
 
       <Section title="1. המחויבות שלנו לנגישות">
@@ -161,7 +164,7 @@ function AccessibilityPage() {
         </p>
         <ul>
           <li><strong>שם הרכז:</strong> רכז הנגישות, אור זרוע לצדיק</li>
-          <li><strong>דוא"ל:</strong> <a href="mailto:accessibility@orzadik.com" className="text-accent hover:underline">accessibility@orzadik.com</a></li>
+          <li><strong>דוא"ל:</strong> <a href="mailto:accessibility@orzadik.com" className="text-accent underline-offset-4 [@media(hover:hover)_and_(pointer:fine)]:hover:underline">accessibility@orzadik.com</a></li>
           <li><strong>טלפון:</strong> ניתן להשאיר פנייה דרך עמוד צור קשר ונחזור אליך בהקדם.</li>
           <li><strong>שעות מענה:</strong> ימים א'-ה', 09:00-17:00 (למעט ערבי חג וחגים).</li>
         </ul>
@@ -192,11 +195,13 @@ function AccessibilityPage() {
   );
 }
 
+/* Hairline-separated sections rather than boxed cards: precision rules and
+   negative space, and no page-tall backdrop-blur panel to repaint on scroll. */
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="mb-8">
+    <section className="mb-9 border-t border-glass-line pt-8 last:mb-0">
       <h2 className="font-display text-xl md:text-2xl mb-3 text-foreground">{title}</h2>
-      <div className="text-[15px] leading-relaxed text-foreground/85 space-y-3 [&_ul]:list-disc [&_ul]:pr-5 [&_ul]:space-y-2 [&_a]:text-accent">
+      <div className="text-[15px] leading-[1.85] text-foreground space-y-4 [&_ul]:list-disc [&_ul]:pr-5 [&_ul]:space-y-2 [&_a]:text-accent [&_a]:underline [&_a]:underline-offset-4 [&_strong]:font-semibold">
         {children}
       </div>
     </section>
