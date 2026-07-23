@@ -23,7 +23,6 @@ import { formatILS, useCart, getEffectivePrice, FREE_SHIPPING_THRESHOLD, SHIPPIN
 import { trackViewItem } from "@/lib/analytics";
 import { ProductCardData } from "@/components/ProductCard";
 import { ProductCarousel } from "@/components/product/ProductCarousel";
-import { BundleOffer } from "@/components/BundleOffer";
 import { ProductReviews } from "@/components/ProductReviews";
 import { Stars } from "@/components/Stars";
 import { ClubBadge } from "@/components/ClubBadge";
@@ -1172,40 +1171,6 @@ function ProductPage() {
             </div>
           )}
 
-          {/* Compact bundle right under the buy buttons. Hidden when the main
-              product is unavailable — "add the set" force-includes the main
-              item, so offering it here would drop an out-of-stock item into
-              the cart. The cross-sell carousel below still shows companions. */}
-          {canBuy && related.length > 0 && (
-            <BundleOffer
-              variant="compact"
-              main={{
-                id: product.id,
-                slug: product.slug,
-                name: product.name,
-                // Same base price the page CTA uses, so the bundle total never
-                // contradicts the price shown above it.
-                price: effectiveBase,
-                sale_price: baseSalePrice,
-                thumbnail_url: product.thumbnail_url,
-                // Keep the cart line tied to the size whose price is shown —
-                // checkout reprices by variantId, mirroring addToCart().
-                variantId: selectedVariant?.id,
-                variantLabel: selectedVariant?.label,
-              }}
-              addons={related.slice(0, 2).map((p) => ({
-                id: p.id,
-                slug: p.slug,
-                name: p.name,
-                price: p.price,
-                sale_price: p.sale_price,
-                thumbnail_url: p.thumbnail_url,
-              }))}
-            />
-          )}
-
-
-
           {/* Trust block — the buy/no-buy moment carries the most doubt, and with
               no reviews yet the reassurance has to come from facts the store
               already stands behind. Every line is truthful and store-level (never
@@ -1323,35 +1288,6 @@ function ProductPage() {
           heading="משלימים את הקנייה"
           items={related}
           itemClassName="basis-1/2 md:basis-1/4 lg:basis-1/5"
-        />
-      )}
-
-      {/* Bundle offer — a one-click way to add the matching items. The total is
-          a plain sum; there is no set discount, so no saving is claimed. */}
-      {canBuy && related.length >= 1 && (
-        <BundleOffer
-          main={{
-            id: product.id,
-            slug: product.slug,
-            name: product.name,
-            // Same base price the page CTA uses, so the bundle total never
-            // contradicts the price shown above it.
-            price: effectiveBase,
-            sale_price: baseSalePrice,
-            thumbnail_url: product.thumbnail_url,
-            // Keep the cart line tied to the size whose price is shown —
-            // checkout reprices by variantId, mirroring addToCart().
-            variantId: selectedVariant?.id,
-            variantLabel: selectedVariant?.label,
-          }}
-          addons={related.slice(0, 2).map((p) => ({
-            id: p.id,
-            slug: p.slug,
-            name: p.name,
-            price: p.price,
-            sale_price: p.sale_price,
-            thumbnail_url: p.thumbnail_url,
-          }))}
         />
       )}
 
