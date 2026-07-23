@@ -108,43 +108,15 @@ export type Database = {
           title_he?: string
           updated_at?: string | null
         }
-        Relationships: []
-      }
-      reviews: {
-        Row: {
-          author_name: string
-          body: string | null
-          created_at: string
-          id: string
-          is_approved: boolean
-          order_id: string | null
-          product_id: string
-          rating: number
-          title: string | null
-        }
-        Insert: {
-          author_name: string
-          body?: string | null
-          created_at?: string
-          id?: string
-          is_approved?: boolean
-          order_id?: string | null
-          product_id: string
-          rating: number
-          title?: string | null
-        }
-        Update: {
-          author_name?: string
-          body?: string | null
-          created_at?: string
-          id?: string
-          is_approved?: boolean
-          order_id?: string | null
-          product_id?: string
-          rating?: number
-          title?: string | null
-        }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "articles_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       categories: {
         Row: {
@@ -185,6 +157,30 @@ export type Database = {
           sort_order?: number
           updated_at?: string
           wp_id?: number | null
+        }
+        Relationships: []
+      }
+      crm_customer_notes: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          customer_email: string
+          id: string
+          note: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          customer_email: string
+          id?: string
+          note: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          customer_email?: string
+          id?: string
+          note?: string
         }
         Relationships: []
       }
@@ -602,6 +598,75 @@ export type Database = {
         }
         Relationships: []
       }
+      rate_limits: {
+        Row: {
+          count: number
+          expires_at: string
+          key: string
+        }
+        Insert: {
+          count?: number
+          expires_at: string
+          key: string
+        }
+        Update: {
+          count?: number
+          expires_at?: string
+          key?: string
+        }
+        Relationships: []
+      }
+      reviews: {
+        Row: {
+          author_name: string
+          body: string | null
+          created_at: string
+          id: string
+          is_approved: boolean
+          order_id: string | null
+          product_id: string
+          rating: number
+          title: string | null
+        }
+        Insert: {
+          author_name: string
+          body?: string | null
+          created_at?: string
+          id?: string
+          is_approved?: boolean
+          order_id?: string | null
+          product_id: string
+          rating: number
+          title?: string | null
+        }
+        Update: {
+          author_name?: string
+          body?: string | null
+          created_at?: string
+          id?: string
+          is_approved?: boolean
+          order_id?: string | null
+          product_id?: string
+          rating?: number
+          title?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reviews_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reviews_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -628,6 +693,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      cleanup_old_abandoned_carts: { Args: never; Returns: undefined }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -636,10 +702,7 @@ export type Database = {
         Returns: boolean
       }
       increment_rate_limit: {
-        Args: {
-          p_key: string
-          p_ttl_seconds: number
-        }
+        Args: { p_key: string; p_ttl_seconds: number }
         Returns: number
       }
     }

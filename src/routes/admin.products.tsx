@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { formatILS } from "@/lib/cart";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter,
 } from "@/components/ui/dialog";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Pencil, Trash2, Plus } from "lucide-react";
 
@@ -24,26 +24,45 @@ type Product = {
   stock_qty: number | null; thumbnail_url: string | null; is_active: boolean;
 };
 
+const PAGE_SIZE = 25;
+
 function AdminProducts() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
+  const [debounced, setDebounced] = useState("");
+  const [page, setPage] = useState(0);
   const [editing, setEditing] = useState<Product | null>(null);
   const [open, setOpen] = useState(false);
 
-  const { data: products = [] } = useQuery({
-    queryKey: ["admin-products"],
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+  useEffect(() => setPage(0), [debounced]);
+
+  // Server-side search + pagination. The old flat .limit(1000) silently hid
+  // 3,672 of the 4,672 products from the admin after the supplier import.
+  const { data, isFetching } = useQuery({
+    queryKey: ["admin-products", debounced, page],
+    placeholderData: keepPreviousData,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("products")
-        .select("*")
+      let query = supabase.from("products").select("*", { count: "exact" });
+      const term = debounced.replace(/[,()%\\]/g, " ").replace(/\s+/g, " ").trim();
+      if (term) {
+        const like = `%${term}%`;
+        query = query.or(`name.ilike.${like},sku.ilike.${like},slug.ilike.${like}`);
+      }
+      const from = page * PAGE_SIZE;
+      const { data, error, count } = await query
         .order("created_at", { ascending: false })
-        .limit(1000);
+        .range(from, from + PAGE_SIZE - 1);
       if (error) throw error;
-      return data as Product[];
+      return { rows: (data ?? []) as Product[], total: count ?? 0 };
     },
   });
-
-  const filtered = search ? products.filter((p) => p.name.toLowerCase().includes(search.toLowerCase())) : products;
+  const filtered = data?.rows ?? [];
+  const total = data?.total ?? 0;
+  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const onSave = async (form: Partial<Product>) => {
     if (editing) {
@@ -75,7 +94,7 @@ function AdminProducts() {
   return (
     <div>
       <div className="flex items-center justify-between mb-4 gap-3">
-        <h1 className="font-display text-2xl font-bold">מוצרים ({filtered.length})</h1>
+        <h1 className="font-display text-2xl font-bold">מוצרים ({total})</h1>
         <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setEditing(null); }}>
           <DialogTrigger asChild>
             <Button onClick={() => { setEditing(null); setOpen(true); }} className="gap-2"><Plus className="h-4 w-4" /> חדש</Button>
@@ -83,8 +102,8 @@ function AdminProducts() {
           <ProductDialog key={editing?.id ?? "new"} product={editing} onSave={onSave} />
         </Dialog>
       </div>
-      <Input placeholder="חיפוש..." value={search} onChange={(e) => setSearch(e.target.value)} className="mb-4 max-w-sm" />
-      <div className="rounded-lg border bg-card overflow-x-auto">
+      <Input placeholder="חיפוש: שם / מק״ט / slug..." value={search} onChange={(e) => setSearch(e.target.value)} className="mb-4 max-w-sm" />
+      <div className={`rounded-lg border bg-card overflow-x-auto transition-opacity ${isFetching ? "opacity-60" : ""}`}>
         <table className="w-full text-sm">
           <thead className="bg-muted/50">
             <tr className="text-right">
@@ -119,6 +138,13 @@ function AdminProducts() {
           </tbody>
         </table>
       </div>
+      {pages > 1 && (
+        <div className="flex items-center justify-center gap-3 mt-4 text-sm">
+          <Button size="sm" variant="outline" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>הקודם</Button>
+          <span>עמוד {page + 1} מתוך {pages}</span>
+          <Button size="sm" variant="outline" disabled={page >= pages - 1} onClick={() => setPage((p) => p + 1)}>הבא</Button>
+        </div>
+      )}
     </div>
   );
 }

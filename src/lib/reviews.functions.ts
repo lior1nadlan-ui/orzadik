@@ -4,6 +4,7 @@ import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getOptionalUserId } from "@/integrations/supabase/optional-auth";
 import { checkOrderRateLimitByIp } from "@/lib/rate-limit.server";
+import { requireAdmin } from "@/lib/admin-authz.server";
 
 function getClientIp(request: Request): string {
   return (
@@ -96,18 +97,7 @@ export const getProductReviews = createServerFn({ method: "POST" })
 
 // ---- Admin: moderation -----------------------------------------------------
 
-async function requireAdmin() {
-  const userId = await getOptionalUserId();
-  if (!userId) throw new Error("אין הרשאה.");
-  const { data: role } = await supabaseAdmin
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", userId)
-    .eq("role", "admin")
-    .maybeSingle();
-  if (!role) throw new Error("אין הרשאה.");
-  return userId;
-}
+// requireAdmin moved to admin-authz.server.ts — shared with the CRM functions.
 
 export const listPendingReviews = createServerFn({ method: "POST" }).handler(async () => {
   await requireAdmin();
