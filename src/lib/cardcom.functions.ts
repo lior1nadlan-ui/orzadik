@@ -4,6 +4,7 @@ import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { getOptionalUserId } from "@/integrations/supabase/optional-auth";
+import { restoreOrderStock } from "@/lib/admin-crm.functions";
 
 const CARDCOM_BASE = "https://secure.cardcom.solutions/api/v11";
 
@@ -170,6 +171,20 @@ export const refundCardcomOrder = createServerFn({ method: "POST" })
       .from("orders")
       .update({ status: "refunded", payment_status: "refunded" })
       .eq("id", order.id);
+
+    // Data-integrity: return reserved stock now that the refund has succeeded.
+    // Additive and wrapped — a restore failure must NEVER fail a refund the
+    // customer's money already reflects. Idempotent via the stock_decremented_at
+    // latch inside the helper, so a re-run restores nothing.
+    try {
+      await restoreOrderStock(order.id);
+    } catch (e) {
+      console.error(
+        "[refundCardcomOrder] stock restore failed (refund still succeeded) for order:",
+        order.id,
+        e,
+      );
+    }
 
     return {
       success: true,

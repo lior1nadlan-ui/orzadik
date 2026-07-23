@@ -96,6 +96,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { name: "referrer", content: "strict-origin-when-cross-origin" },
       { name: "format-detection", content: "telephone=no" },
+      // Global crawl directive. Without it Google caps every page to a tiny
+      // thumbnail and the site is ineligible for Discover / large SERP images.
+      // Private routes (auth/cart/checkout/account/order/track/favorites/admin)
+      // each set their own { name: "robots", content: "noindex, nofollow" } and
+      // that override WINS: HeadContent dedupes meta by `name`, iterating matches
+      // leaf→root with first-seen winning, so the route-level robots is emitted
+      // and this root default is skipped on those pages.
+      { name: "robots", content: "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" },
       // Search-engine ownership verification — rendered only when a token is set
       // (fill in src/lib/business.ts). GSC unlocks sitemap submission + indexing.
       ...(BUSINESS.googleSiteVerification

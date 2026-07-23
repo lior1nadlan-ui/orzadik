@@ -8,6 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { sanitizeTerm } from "@/routes/shop";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
+import { CartDrawer } from "@/components/cart/CartDrawer";
 import { ClubBadge } from "@/components/ClubBadge";
 import { NewsletterSignup } from "@/components/NewsletterSignup";
 import { thumbUrl } from "@/lib/img";
@@ -72,7 +73,7 @@ const ICON_BTN_CLS = `inline-flex h-10 w-10 items-center justify-center rounded-
   [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent`;
 
 export function SiteHeader() {
-  const { count } = useCart();
+  const { count, openCart, isCartOpen } = useCart();
   // SSR renders favCount 0 (the hook returns [] on the server), so there is
   // no hydration mismatch — the badge appears after mount, like the cart badge.
   const { count: favCount } = useFavorites();
@@ -188,9 +189,15 @@ export function SiteHeader() {
   };
 
   return (
-    // Sticky lives on the <header> itself with -top-9 (the club strip is h-9):
-    // the strip scrolls off while the glass bar below pins to the viewport top.
-    // z-40 matches the old layout wrapper so overlay layering is unchanged.
+    <>
+    {/* Mini-cart drawer — rendered once at the site-chrome level (SiteHeader is
+        on every storefront page). Portals to the body, so its position here has
+        no layout effect; it is opened by the cart button above and by any
+        add-to-cart across the site. */}
+    <CartDrawer />
+    {/* Sticky lives on the <header> itself with -top-9 (the club strip is h-9):
+      the strip scrolls off while the glass bar below pins to the viewport top.
+      z-40 matches the old layout wrapper so overlay layering is unchanged. */}
     <header className="sticky -top-9 z-40 w-full">
       <ClubBadge variant="strip" />
       {/* Main bar: white glass, gold hairline at rest, soft shadow after scroll.
@@ -312,14 +319,25 @@ export function SiteHeader() {
           {/* The count bubbles keep bg-argaman: burgundy survives the white
               redesign exactly here, as a small semantic fill carrying white
               text at 12.57:1. It is a badge now, never a band. */}
-          <Link to="/cart" className={`relative ${ICON_BTN_CLS}`} aria-label="עגלה">
+          {/* The cart icon now opens the mini-cart drawer (a persistent
+              confirmation with a running subtotal and a direct path to
+              checkout). The full /cart page stays reachable from inside the
+              drawer and from the mobile nav menu above. */}
+          <button
+            type="button"
+            onClick={openCart}
+            className={`relative ${ICON_BTN_CLS}`}
+            aria-label="עגלה"
+            aria-haspopup="dialog"
+            aria-expanded={isCartOpen}
+          >
             <ShoppingBag className="h-5 w-5" />
             {count > 0 && (
               <span className="absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-argaman px-1 text-[11px] font-bold text-white">
                 {count}
               </span>
             )}
-          </Link>
+          </button>
           <Link to="/favorites" className={`relative ${ICON_BTN_CLS}`} aria-label="מועדפים">
             <Heart className="h-5 w-5" />
             {favCount > 0 && (
@@ -497,6 +515,7 @@ export function SiteHeader() {
         </div>
       )}
     </header>
+    </>
   );
 }
 
@@ -542,6 +561,7 @@ export function SiteFooter() {
               <li><Link to="/about" className={LINK_HOVER_CLS}>אודות</Link></li>
               <li><Link to="/club" className={LINK_HOVER_CLS}>מועדון חברים</Link></li>
               <li><Link to="/track" className={LINK_HOVER_CLS}>מעקב הזמנה</Link></li>
+              <li><Link to="/contact" className={LINK_HOVER_CLS}>צור קשר</Link></li>
             </ul>
           </div>
           <div className="text-center">

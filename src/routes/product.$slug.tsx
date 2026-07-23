@@ -307,7 +307,7 @@ function ProductPage() {
   const { product: initialProduct, reviewSummary, parentCat: parentCategory } =
     Route.useLoaderData();
   const navigate = useNavigate();
-  const { add } = useCart();
+  const { add, closeCart } = useCart();
   const { has: hasFav, toggle: toggleFav } = useFavorites();
   const [qty, setQty] = useState(1);
   // Recently-viewed snapshots — empty on the server, SSR-safe.
@@ -712,25 +712,14 @@ function ProductPage() {
   }
 
   // The one add-to-cart entry point for the page — the desktop buy row and the
-  // mobile sticky bar must never drift apart.
+  // mobile sticky bar must never drift apart. add() now slides the mini-cart
+  // drawer open as the confirmation: it shows every line (including the chosen
+  // size and personalization text) with a running subtotal and a direct path to
+  // checkout, so the old transient toast — which stranded the shopper once it
+  // faded, worst on mobile — is no longer needed.
   function addToCartWithFeedback() {
     if (!product) return;
     addToCart();
-    const parts = [`נוסף לעגלה: ${qty} × ${product.name}`];
-    if (selectedVariant?.label) parts.push(`גודל: ${selectedVariant.label}`);
-    if (customText.trim()) {
-      parts.push(
-        customMethod === "embroidery"
-          ? `${embroideryLabel}: ${customText.trim()}`
-          : `חריטה: ${customText.trim()}`,
-      );
-    }
-    // Give the toast an exit — without it the user is stranded after it fades
-    // (worst on mobile / with personalization, which can only be reviewed in
-    // the cart).
-    toast.success(parts.join(" • "), {
-      action: { label: "לצפייה בעגלה", onClick: () => navigate({ to: "/cart" }) },
-    });
   }
 
 
@@ -1146,7 +1135,11 @@ function ProductPage() {
                 size="lg"
                 disabled={!canBuy}
                 onClick={() => {
+                  // "Buy now" goes straight to checkout, so suppress the drawer
+                  // that add() opens: openCart() then closeCart() batch in this
+                  // one handler, leaving it closed before we navigate.
                   addToCart();
+                  closeCart();
                   navigate({ to: "/checkout" });
                 }}
                 className="gap-2"
@@ -1259,7 +1252,14 @@ function ProductPage() {
               <AccordionContent>
                 <p className="text-sm text-muted-foreground leading-relaxed">
                   ניתן לבטל עסקה בכתב עד 14 ימים מקבלת המוצר, בהתאם לחוק הגנת הצרכן — בהודעה בדוא"ל
-                  או דרך עמוד יצירת הקשר. בביטול שאינו עקב פגם ייתכן ניכוי דמי ביטול בשיעור שלא יעלה על
+                  או דרך{" "}
+                  <Link
+                    to="/contact"
+                    className="text-accent underline underline-offset-4 [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-strong"
+                  >
+                    עמוד יצירת הקשר
+                  </Link>
+                  . בביטול שאינו עקב פגם ייתכן ניכוי דמי ביטול בשיעור שלא יעלה על
                   5% ממחיר העסקה או 100 ₪, הנמוך מביניהם, והחזר כספי יבוצע תוך 14 ימים מקבלת ההודעה.
                   המוצר יוחזר באריזתו המקורית וללא שימוש. פריטים בהתאמה אישית (רקמה/חריטה) אינם ניתנים לביטול.
                 </p>

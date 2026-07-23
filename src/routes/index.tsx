@@ -306,10 +306,44 @@ function HomePage() {
   const { otherCats: loadedOtherCats, featuredProducts, luxuryThumbs, reviews } =
     Route.useLoaderData();
 
-  // Respect "reduce motion": stop the autoplaying hero loop after mount.
+  // Defer the hero video off the mobile critical path. The poster is the LCP
+  // paint; with the <source> children present at first render, autoPlay would
+  // override preload="metadata" and immediately stream the 7.2MB WebM / 20.5MB
+  // MP4, competing with hero-poster.webp on mobile. So the sources are withheld
+  // from the initial render (poster only) and attached after the browser goes
+  // idle — requestIdleCallback, with a ~1200ms setTimeout fallback. The whole
+  // attach is gated behind a reduced-motion check, so those users get the poster
+  // only and never download the video at all. Mirrors LazyReel's below-the-fold
+  // lazy pattern. SSR-safe: matchMedia/requestIdleCallback are touched only
+  // inside the effect, never at module top-level or during render.
+  const [heroSourcesReady, setHeroSourcesReady] = useState(false);
+
   useEffect(() => {
-    if (prefersReducedMotion()) heroVideoRef.current?.pause();
+    if (prefersReducedMotion()) return;
+    const w = window as Window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    let idleId: number | undefined;
+    let timerId: ReturnType<typeof setTimeout> | undefined;
+    const attach = () => setHeroSourcesReady(true);
+    if (typeof w.requestIdleCallback === "function") {
+      idleId = w.requestIdleCallback(attach, { timeout: 1200 });
+    } else {
+      timerId = setTimeout(attach, 1200);
+    }
+    return () => {
+      if (idleId !== undefined) w.cancelIdleCallback?.(idleId);
+      if (timerId !== undefined) clearTimeout(timerId);
+    };
   }, []);
+
+  // Once the <source> children are in the DOM, load() re-selects the resource so
+  // the just-attached sources are picked up; autoPlay + muted then starts the
+  // loop on its own.
+  useEffect(() => {
+    if (heroSourcesReady) heroVideoRef.current?.load();
+  }, [heroSourcesReady]);
 
   const { data: otherCats = [] } = useQuery({
     queryKey: ["home-other-categories-static", featuredIds],
@@ -344,9 +378,16 @@ function HomePage() {
           aria-label="אור זרוע לצדיק — תשמישי קדושה ויודאיקה מהודרת"
           className="block w-full h-[40vh] md:h-[60vh] object-cover bg-cream"
         >
-          {/* WebM (VP9) first — ~66% smaller; browsers that can't play it fall back to the MP4. */}
-          <source src="/media/hero-video.webm" type="video/webm" />
-          <source src={heroVideo} type="video/mp4" />
+          {/* Sources are attached only after the browser is idle (see the effect
+              above) so they never compete with the LCP poster on first paint, and
+              are skipped entirely for reduced-motion users. WebM (VP9) first —
+              ~66% smaller; browsers that can't play it fall back to the MP4. */}
+          {heroSourcesReady && (
+            <>
+              <source src="/media/hero-video.webm" type="video/webm" />
+              <source src={heroVideo} type="video/mp4" />
+            </>
+          )}
         </video>
 
         {/* Light frost over the footage. Purely decorative: it softens the video

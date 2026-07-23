@@ -166,15 +166,22 @@ function AdminAbandoned() {
                   </td>
                   <td className="p-3 font-bold">{formatILS(Number(c.subtotal))}</td>
                   <td className="p-3">
-                    <span
-                      className={`text-[11px] rounded-full px-2 py-0.5 whitespace-nowrap ${
-                        c.reminder_1_sent_at || c.reminder_2_sent_at
-                          ? "bg-primary/10 text-primary"
-                          : "bg-muted text-muted-foreground"
-                      }`}
-                    >
-                      {c.reminder_2_sent_at ? "תזכורת 2" : c.reminder_1_sent_at ? "תזכורת 1" : "טרם נשלחה"}
-                    </span>
+                    <div className="flex flex-wrap items-center gap-1">
+                      <span
+                        className={`text-[11px] rounded-full px-2 py-0.5 whitespace-nowrap ${
+                          c.reminder_1_sent_at
+                            ? "bg-primary/10 text-primary"
+                            : "bg-muted text-muted-foreground"
+                        }`}
+                      >
+                        {c.reminder_1_sent_at ? "תזכורת 1 נשלחה" : "טרם נשלחה"}
+                      </span>
+                      {c.reminder_2_sent_at && (
+                        <span className="text-[11px] rounded-full px-2 py-0.5 whitespace-nowrap bg-primary/10 text-primary">
+                          תזכורת 2 נשלחה
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="p-3">
                     <div className="flex flex-wrap items-center gap-1">

@@ -46,6 +46,12 @@ type CartCtx = {
   setQty: (lineKey: string, qty: number) => void;
   clear: () => void;
   count: number;
+  /** Whether the mini-cart drawer is currently open. */
+  isCartOpen: boolean;
+  /** Open the mini-cart drawer (fired automatically after a successful add). */
+  openCart: () => void;
+  /** Close the mini-cart drawer. */
+  closeCart: () => void;
   /** Subtotal of base prices (pre-discount). */
   subtotalBase: number;
   /** Subtotal after site discount. */
@@ -73,6 +79,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [items, setItems] = useState<CartItem[]>([]);
   const [hydrated, setHydrated] = useState(false);
+  // Mini-cart drawer visibility. Starts closed on both server and client so
+  // there is no hydration mismatch; it is only ever toggled from user handlers
+  // (add / header cart button / drawer controls), never during render.
+  const [isCartOpen, setIsCartOpen] = useState(false);
 
   // Load cart whenever the active user changes; merge guest cart on sign-in.
   useEffect(() => {
@@ -106,6 +116,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(key, JSON.stringify(items));
   }, [items, user?.id, hydrated]);
 
+  // Stable identities (empty deps) — openCart/closeCart are declared before
+  // add() so add() can call openCart() while itself staying stable.
+  const openCart = useCallback(() => setIsCartOpen(true), []);
+  const closeCart = useCallback(() => setIsCartOpen(false), []);
+
   // Stable callback identities — consumers depend on these in effect deps
   // (e.g. the order-confirmation page clears the cart in a useEffect). A fresh
   // identity each render there caused an infinite render loop.
@@ -125,7 +140,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
     // so there is one place to instrument instead of many. no-ops on SSR / no
     // gtag+fbq.
     trackAddToCart({ id: item.productId, name: item.name, price: item.price, quantity: qty });
-  }, []);
+    // Persistent confirmation: slide the mini-cart open on every successful add.
+    // openCart is stable, so add()'s identity stays stable across renders.
+    openCart();
+  }, [openCart]);
   const remove = useCallback<CartCtx["remove"]>((k) => setItems((c) => c.filter((i) => lineKey(i) !== k)), []);
   const setQty = useCallback<CartCtx["setQty"]>(
     (k, qty) => setItems((c) => c.map((i) => (lineKey(i) === k ? { ...i, quantity: Math.max(1, qty) } : i))),
@@ -141,8 +159,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   // Memoize so consumers don't re-render on every unrelated provider render.
   const value = useMemo<CartCtx>(
-    () => ({ items, add, remove, setQty, clear, count, subtotalBase, subtotal, discountAmount, shipping, grandTotal }),
-    [items, add, remove, setQty, clear, count, subtotalBase, subtotal, discountAmount, shipping, grandTotal],
+    () => ({ items, add, remove, setQty, clear, count, isCartOpen, openCart, closeCart, subtotalBase, subtotal, discountAmount, shipping, grandTotal }),
+    [items, add, remove, setQty, clear, count, isCartOpen, openCart, closeCart, subtotalBase, subtotal, discountAmount, shipping, grandTotal],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
