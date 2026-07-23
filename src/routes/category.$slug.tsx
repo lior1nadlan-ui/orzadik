@@ -29,12 +29,23 @@ async function fetchCategoryWithRetry(slug: string, maxRetries = 2) {
         .maybeSingle();
       if (catErr) throw catErr;
       if (!cat) return { cat: null, products: [] };
-      const { data: rows, error: rowErr } = await supabase
-        .from("product_categories")
-        .select("products!inner(id, slug, name, price, sale_price, thumbnail_url, is_active, stock_status, created_at)")
-        .eq("category_id", cat.id);
-      if (rowErr) throw rowErr;
-      const products = (rows ?? []).map((r: any) => r.products).filter((p: any) => p?.is_active);
+      // Page through explicitly: PostgREST caps an unbounded select at 1000
+      // rows, and the largest category is already at 742 after the supplier
+      // import. Left unbounded, a category that grows past 1000 would silently
+      // drop products from its page with no error.
+      const PAGE = 1000;
+      const rows: any[] = [];
+      for (let from = 0; ; from += PAGE) {
+        const { data: batch, error: rowErr } = await supabase
+          .from("product_categories")
+          .select("products!inner(id, slug, name, price, sale_price, thumbnail_url, is_active, stock_status, created_at)")
+          .eq("category_id", cat.id)
+          .range(from, from + PAGE - 1);
+        if (rowErr) throw rowErr;
+        rows.push(...(batch ?? []));
+        if ((batch ?? []).length < PAGE) break;
+      }
+      const products = rows.map((r: any) => r.products).filter((p: any) => p?.is_active);
       return { cat, products };
     } catch (err: any) {
       if (i === maxRetries || !["ECONNREFUSED", "ETIMEDOUT", "network"].some(m => String(err).includes(m))) {
