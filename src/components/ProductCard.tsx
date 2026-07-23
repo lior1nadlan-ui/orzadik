@@ -32,15 +32,15 @@ export function ProductCard({ p, priority = false }: { p: ProductCardData; prior
   const hasDiscount = discountPct > 0;
 
   return (
-    <div className="group relative flex flex-col h-full bg-background rounded-2xl shadow-[var(--shadow-card)] overflow-hidden border border-border/40 transition-all duration-300 hover:shadow-[var(--shadow-soft)] hover:-translate-y-1">
-      {/* Discount badge — only when there is a genuine former price */}
+    <div className="group relative flex flex-col h-full bg-card rounded-lg shadow-[var(--shadow-card)] overflow-hidden border border-border transition-all duration-300 hover:shadow-[var(--shadow-soft)] hover:-translate-y-1">
+      {/* Discount badge — burgundy (sale-signal), distinct from the gold luxury accents */}
       {!isCallOnly && !isOutOfStock && hasDiscount && (
-        <div className="absolute top-3 right-3 z-10 rounded-full bg-[#D4AF37] text-white text-xs font-bold px-2.5 py-1 shadow">
+        <div className="absolute top-3 right-3 z-10 rounded-full bg-argaman text-white text-xs font-bold px-2.5 py-1 shadow">
           {discountPct}%-
         </div>
       )}
       {isOutOfStock && (
-        <div className="absolute top-3 right-3 z-10 rounded-full bg-muted-foreground/90 text-white text-xs font-bold px-2.5 py-1 shadow">
+        <div className="absolute top-3 right-3 z-10 rounded-full bg-muted text-muted-foreground text-xs font-bold px-2.5 py-1 shadow">
           אזל מהמלאי
         </div>
       )}
@@ -64,7 +64,7 @@ export function ProductCard({ p, priority = false }: { p: ProductCardData; prior
         aria-label={saved ? "הסר מהמועדפים" : "הוסף למועדפים"}
         className="absolute top-3 left-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 shadow hover:bg-white transition-colors"
       >
-        <Heart className={`h-4 w-4 ${saved ? "fill-[#D4AF37] text-[#D4AF37]" : "text-foreground/60"}`} />
+        <Heart className={`h-4 w-4 ${saved ? "fill-accent text-accent" : "text-foreground/60"}`} />
       </button>
 
       {/* Image */}
@@ -81,7 +81,7 @@ export function ProductCard({ p, priority = false }: { p: ProductCardData; prior
             fetchPriority={priority ? "high" : "auto"}
             decoding="async"
             onError={() => setImgError(true)}
-            className="h-full w-full object-cover transition-transform duration-[1200ms] ease-out group-hover:scale-105"
+            className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
           />
         ) : (
           <div className="flex h-full items-center justify-center text-muted-foreground text-sm">אין תמונה</div>
@@ -93,12 +93,12 @@ export function ProductCard({ p, priority = false }: { p: ProductCardData; prior
         <Link
           to="/product/$slug"
           params={{ slug: p.slug }}
-          className="font-display text-[14px] md:text-[15px] leading-snug text-foreground hover:text-accent transition-colors line-clamp-2 min-h-[2.6em]"
+          className="font-display text-base leading-snug text-foreground hover:text-accent transition-colors line-clamp-2 min-h-[2.75em]"
         >
           {p.name}
         </Link>
         {isCallOnly ? (
-          <div className="mt-3 text-sm font-semibold text-[#A8862A]">
+          <div className="mt-3 text-sm text-muted-foreground">
             מחיר משתנה לפי שער הזהב
           </div>
         ) : (
@@ -106,7 +106,7 @@ export function ProductCard({ p, priority = false }: { p: ProductCardData; prior
             {hasDiscount && (
               <span className="text-xs text-muted-foreground line-through">{formatILS(original)}</span>
             )}
-            <span className="text-base tracking-wide font-bold text-[#A8862A]">
+            <span className="text-lg font-bold text-accent">
               {formatILS(effective)}
             </span>
           </div>
@@ -116,7 +116,7 @@ export function ProductCard({ p, priority = false }: { p: ProductCardData; prior
           <Link
             to="/product/$slug"
             params={{ slug: p.slug }}
-            className="mt-4 mx-auto w-full max-w-[200px] rounded-full border border-border text-muted-foreground text-sm py-2.5 text-center hover:bg-muted transition-colors"
+            className="mt-4 w-full rounded-full border border-muted-foreground/40 text-muted-foreground text-sm py-2.5 text-center hover:bg-muted transition-colors"
           >
             אזל מהמלאי — לפרטים
           </Link>
@@ -124,7 +124,7 @@ export function ProductCard({ p, priority = false }: { p: ProductCardData; prior
           <Link
             to="/product/$slug"
             params={{ slug: p.slug }}
-            className="mt-4 mx-auto w-full max-w-[200px] rounded-full bg-[#D4AF37] hover:bg-[#A8862A] text-white text-sm py-2.5 text-center transition-colors"
+            className="mt-4 w-full rounded-full bg-accent hover:bg-accent/90 text-accent-foreground text-sm py-2.5 text-center transition-colors"
           >
             צרו קשר להזמנה
           </Link>
@@ -138,7 +138,7 @@ export function ProductCard({ p, priority = false }: { p: ProductCardData; prior
               window.setTimeout(() => setAdded(false), 1500);
             }}
             disabled={added}
-            className={`mt-4 mx-auto w-full max-w-[200px] rounded-full border text-sm py-2.5 transition-colors ${
+            className={`mt-4 w-full rounded-full border text-sm py-2.5 transition-colors ${
               added
                 ? "border-foreground bg-foreground text-background"
                 : "border-foreground/80 text-foreground hover:bg-foreground hover:text-background"

@@ -590,7 +590,7 @@ function ProductPage() {
       aria-label={favSaved ? "הסר מהמועדפים" : "הוסף למועדפים"}
       className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-border hover:bg-muted transition-colors"
     >
-      <Heart className={`h-5 w-5 ${favSaved ? "fill-[#D4AF37] text-[#D4AF37]" : "text-foreground/60"}`} />
+      <Heart className={`h-5 w-5 ${favSaved ? "fill-accent text-accent" : "text-foreground/60"}`} />
     </button>
   );
 
@@ -704,7 +704,7 @@ function ProductPage() {
                 dir="rtl"
                 opts={{ direction: "rtl", loop: true }}
                 setApi={setApi}
-                className="w-full overflow-hidden rounded-lg border bg-gradient-to-br from-[#FAF6E9] to-white"
+                className="w-full overflow-hidden rounded-lg border border-gold/40 bg-cream"
               >
                 <CarouselContent>
                   {gallery.map((url, i) => (
@@ -725,7 +725,7 @@ function ProductPage() {
                   ))}
                 </CarouselContent>
                 {hasDiscount && (
-                  <span className="absolute top-3 right-3 z-10 rounded-full bg-[#D4AF37] text-white text-xs font-bold px-3 py-1.5 shadow pointer-events-none">
+                  <span className="absolute top-3 right-3 z-10 rounded-full bg-argaman text-white text-xs font-bold px-3 py-1.5 shadow pointer-events-none">
                     {discountPct}%- הנחה
                   </span>
                 )}
@@ -735,7 +735,7 @@ function ProductPage() {
                     className="absolute bottom-3 left-3 z-10 rounded-full bg-white/90 backdrop-blur p-2 shadow cursor-zoom-in hover:bg-white transition-colors"
                     aria-label="הגדל תמונה"
                   >
-                    <ZoomIn className="h-4 w-4 text-[#A8862A]" />
+                    <ZoomIn className="h-4 w-4 text-accent" />
                   </button>
                 </DialogTrigger>
                 {gallery.length > 1 && (
@@ -767,7 +767,7 @@ function ProductPage() {
               </DialogContent>
             </Dialog>
           ) : (
-            <div className="aspect-square w-full rounded-lg border bg-gradient-to-br from-[#FAF6E9] to-white" />
+            <div className="aspect-square w-full rounded-lg border border-gold/40 bg-cream" />
           )}
           {gallery.length > 1 && (
             <div className="mt-3 flex gap-2 overflow-x-auto" role="group" aria-label="תמונות נוספות של המוצר">
@@ -778,8 +778,8 @@ function ProductPage() {
                   onClick={() => api?.scrollTo(idx)}
                   aria-label={`הצג תמונה ${idx + 1} מתוך ${gallery.length}`}
                   aria-pressed={idx === selectedIndex}
-                  className={`h-20 w-20 flex-shrink-0 overflow-hidden rounded border-2 bg-white ${
-                    idx === selectedIndex ? "border-[#D4AF37]" : "border-transparent"
+                  className={`h-20 w-20 flex-shrink-0 overflow-hidden rounded-lg bg-white ${
+                    idx === selectedIndex ? "ring-2 ring-accent" : "ring-1 ring-border"
                   }`}
                 >
                   <img src={url} alt="" loading="lazy" decoding="async" className="h-full w-full object-contain p-1" />
@@ -791,7 +791,7 @@ function ProductPage() {
 
         {/* Details */}
         <div>
-          <h1 className="font-display text-2xl md:text-3xl font-bold mb-3">{product.name}</h1>
+          <h1 className="font-display text-3xl md:text-4xl font-bold mb-3">{product.name}</h1>
           {reviewSummary && reviewSummary.count > 0 && (
             <a href="#reviews" className="mb-3 inline-flex items-center gap-2 text-sm">
               <Stars value={reviewSummary.average} size={16} />
@@ -804,17 +804,17 @@ function ProductPage() {
 
           {/* Price block */}
           {isCallOnly ? (
-            <div className="mb-3 rounded-lg border border-[#D4AF37]/40 bg-[#FAF6E9] px-4 py-3">
-              <div className="text-lg font-bold text-[#A8862A]">המחיר משתנה לפי שער הזהב היומי</div>
+            <div className="mb-3 rounded-lg border border-gold/40 bg-cream px-4 py-3">
+              <div className="text-lg font-bold text-accent">המחיר משתנה לפי שער הזהב היומי</div>
               <div className="text-sm text-foreground mt-1">לקבלת הצעת מחיר עדכנית - צרו קשר בטלפון או בוואטסאפ</div>
             </div>
           ) : (
             <div className="flex items-baseline gap-3 mb-3 flex-wrap">
-              <span className="text-3xl font-bold text-[#A8862A]">{formatILS(effective)}</span>
+              <span className="text-3xl font-bold text-accent">{formatILS(effective)}</span>
               {hasDiscount && (
                 <>
                   <span className="text-lg text-muted-foreground line-through">{formatILS(original)}</span>
-                  <span className="rounded-full bg-[#D4AF37]/15 text-[#A8862A] text-xs font-bold px-2.5 py-1">
+                  <span className="rounded-full bg-argaman/10 text-argaman text-sm font-bold px-3 py-1">
                     חיסכון {formatILS(original - effective)}
                   </span>
                 </>
@@ -833,10 +833,10 @@ function ProductPage() {
                 אזל מהמלאי
               </span>
             )}
-            <div className="inline-flex items-center gap-1.5 text-sm text-foreground bg-[#FAF6E9] border border-[#D4AF37]/30 rounded-md px-2.5 py-1">
-              <Truck className="h-4 w-4 text-[#A8862A]" />
+            <div className="inline-flex items-center gap-1.5 text-sm text-foreground bg-cream border border-gold/50 rounded-md px-2.5 py-1">
+              <Truck className="h-4 w-4 text-accent" />
               <span>
-                דמי משלוח {formatILS(SHIPPING_FLAT)} (מתווספים בעגלה) • <span className="font-semibold text-[#A8862A]">זמן אספקה 3–14 ימי עסקים</span>
+                דמי משלוח {formatILS(SHIPPING_FLAT)} (מתווספים בעגלה) • <span className="font-semibold text-accent">זמן אספקה 3–14 ימי עסקים</span>
               </span>
 
             </div>
@@ -852,8 +852,8 @@ function ProductPage() {
 
           {/* Personalization (embroidery / laser engraving) */}
           {showEmbroidery && (
-            <div className="mb-5 rounded-lg border border-[#D4AF37]/30 bg-[#FAF6E9] p-4">
-              <Label htmlFor="embroidery" className="text-sm font-semibold text-[#A8862A]">
+            <div className="mb-5 rounded-lg border border-gold/40 bg-cream p-4">
+              <Label htmlFor="embroidery" className="text-sm font-semibold text-accent">
                 ✦ הוספת שם אישי על המוצר (אופציונלי)
               </Label>
               <Input
@@ -866,7 +866,7 @@ function ProductPage() {
               />
               {customText.trim() && !embroideryOnly && (
                 <div className="mt-3">
-                  <span className="block text-xs font-medium text-[#A8862A] mb-1.5">בחרו שיטת התאמה:</span>
+                  <span className="block text-xs font-medium text-accent mb-1.5">בחרו שיטת התאמה:</span>
                   <div className="flex gap-2">
                     {([
                       { value: "embroidery" as const, label: embroideryLabel },
@@ -882,8 +882,8 @@ function ProductPage() {
                           className={
                             "flex-1 rounded-md border px-3 py-2 text-sm transition " +
                             (active
-                              ? "border-[#D4AF37] bg-white text-[#A8862A] font-semibold shadow-sm"
-                              : "border-border bg-white/60 text-foreground hover:border-[#D4AF37]/60")
+                              ? "border-gold bg-white text-accent font-semibold shadow-sm"
+                              : "border-border bg-white/60 text-foreground hover:border-gold/60")
                           }
                           aria-pressed={active}
                         >
@@ -923,8 +923,8 @@ function ProductPage() {
                         className={
                           "px-3 py-1.5 rounded-md text-sm transition " +
                           (isActive
-                            ? "border-2 border-[#D4AF37] bg-[#FAF6E9] font-medium"
-                            : "border border-border bg-background hover:border-[#D4AF37] hover:bg-muted")
+                            ? "border-2 border-gold bg-cream font-medium"
+                            : "border border-border bg-background hover:border-gold hover:bg-muted")
                         }
                         aria-pressed={isActive}
                       >
@@ -937,7 +937,7 @@ function ProductPage() {
                   return isActive ? (
                     <span
                       key={v.id}
-                      className="px-3 py-1.5 rounded-md border-2 border-[#D4AF37] bg-[#FAF6E9] text-sm font-medium"
+                      className="px-3 py-1.5 rounded-md border-2 border-gold bg-cream text-sm font-medium"
                     >
                       {v.label}
                     </span>
@@ -946,7 +946,7 @@ function ProductPage() {
                       key={v.id}
                       to="/product/$slug"
                       params={{ slug: v.slug! }}
-                      className="px-3 py-1.5 rounded-md border border-border bg-background text-sm hover:border-[#D4AF37] hover:bg-muted transition"
+                      className="px-3 py-1.5 rounded-md border border-border bg-background text-sm hover:border-gold hover:bg-muted transition"
                     >
                       {v.label}
                     </Link>
@@ -959,14 +959,14 @@ function ProductPage() {
           {/* Qty + actions */}
           {isCallOnly ? (
             <div className="mb-3 space-y-3">
-              <div className="rounded-lg border border-[#D4AF37]/40 bg-white p-4 text-sm text-foreground">
-                <strong className="block text-[#A8862A] mb-1">להזמנת התכשיט:</strong>
+              <div className="rounded-lg border border-gold/40 bg-white p-4 text-sm text-foreground">
+                <strong className="block text-accent mb-1">להזמנת התכשיט:</strong>
                 ההזמנה והתשלום מתבצעים בשיחת טלפון או בפגישה במקום בלבד — לא ניתן לרכוש דרך האתר.
               </div>
               <div className="flex flex-wrap gap-3">
                 <a
                   href="tel:+972545818486"
-                  className="inline-flex items-center justify-center gap-2 rounded-md bg-[#D4AF37] hover:bg-[#A8862A] text-white font-semibold px-5 py-3 transition"
+                  className="inline-flex items-center justify-center gap-2 rounded-md bg-accent hover:bg-accent/90 text-accent-foreground font-semibold px-5 py-3 transition"
                 >
                   ☎ התקשרו עכשיו
                 </a>
@@ -983,7 +983,7 @@ function ProductPage() {
             </div>
           ) : (
             <div className="flex items-center gap-3 mb-3 flex-wrap">
-              <div className="inline-flex items-center rounded-md border">
+              <div className="inline-flex items-center overflow-hidden rounded-full border border-border">
                 <button onClick={() => setQty((q) => Math.max(1, q - 1))} disabled={qty <= 1} className="px-3 py-2 hover:bg-muted disabled:pointer-events-none disabled:opacity-50" aria-label="הפחת">
                   <Minus className="h-4 w-4" />
                 </button>
@@ -1030,7 +1030,7 @@ function ProductPage() {
                   addToCart();
                   navigate({ to: "/checkout" });
                 }}
-                className="gap-2 bg-[#D4AF37] hover:bg-[#A8862A] text-white"
+                className="gap-2 bg-accent hover:bg-accent/90 text-accent-foreground"
               >
                 קנה עכשיו
               </Button>
@@ -1071,14 +1071,14 @@ function ProductPage() {
 
           {/* Trust strip */}
           <div className="mt-6 grid grid-cols-2 gap-3 text-xs text-muted-foreground">
-            <div className="flex items-center gap-2"><Truck className="h-4 w-4 text-[#D4AF37]" /> משלוח לכל הארץ</div>
-            <div className="flex items-center gap-2"><RotateCcw className="h-4 w-4 text-[#D4AF37]" /> 14 יום להחזרה</div>
+            <div className="flex items-center gap-2"><Truck className="h-4 w-4 text-accent" /> משלוח לכל הארץ</div>
+            <div className="flex items-center gap-2"><RotateCcw className="h-4 w-4 text-accent" /> 14 יום להחזרה</div>
           </div>
 
           {/* Accordion */}
           <Accordion type="single" collapsible className="mt-8" defaultValue="desc">
             {product.description && (
-              <AccordionItem value="desc">
+              <AccordionItem value="desc" className="border-gold/30">
                 <AccordionTrigger className="font-display text-base">תיאור המוצר</AccordionTrigger>
                 <AccordionContent>
                   <div
@@ -1088,7 +1088,7 @@ function ProductPage() {
                 </AccordionContent>
               </AccordionItem>
             )}
-            <AccordionItem value="ship">
+            <AccordionItem value="ship" className="border-gold/30">
               <AccordionTrigger className="font-display text-base">משלוחים</AccordionTrigger>
               <AccordionContent>
                 <p className="text-sm text-muted-foreground leading-relaxed">
@@ -1097,7 +1097,7 @@ function ProductPage() {
                 </p>
               </AccordionContent>
             </AccordionItem>
-            <AccordionItem value="ret">
+            <AccordionItem value="ret" className="border-gold/30">
               <AccordionTrigger className="font-display text-base">מדיניות החזרות וביטולים</AccordionTrigger>
               <AccordionContent>
                 <p className="text-sm text-muted-foreground leading-relaxed">

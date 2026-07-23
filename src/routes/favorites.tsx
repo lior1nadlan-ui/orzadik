@@ -67,7 +67,7 @@ function FavoritesPage() {
           <p className="text-sm text-muted-foreground">לחצו על הלב שעל כל מוצר כדי לשמור אותו כאן</p>
           <Link
             to="/shop"
-            className="inline-block mt-2 rounded-full bg-[#D4AF37] hover:bg-[#A8862A] text-white text-sm font-semibold px-8 py-3 transition-colors"
+            className="inline-block mt-2 rounded-full bg-accent hover:bg-accent/90 text-accent-foreground text-sm font-semibold px-8 py-3 transition-colors"
           >
             לכל המוצרים
           </Link>

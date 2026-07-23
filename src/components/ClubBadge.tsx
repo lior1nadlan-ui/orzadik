@@ -18,55 +18,24 @@ export function ClubBadge({ variant = "inline", className = "" }: Props) {
   if (user) return null;
 
   if (variant === "strip") {
+    // Announcement strip: argaman-deep ground, cream text (13.2:1), emphasis
+    // words in gold-bright (7.4:1) — the site-wide dark-band idiom.
     return (
       <Link
         to="/auth"
         dir="rtl"
-        className={`relative block w-full overflow-hidden bg-[#FAF6E9] border-y border-[#D4AF37]/30 shadow-[0_2px_15px_rgba(168,134,42,0.08)] py-2.5 group ${className}`}
+        className={`group flex h-9 w-full items-center justify-center bg-argaman-deep px-4 text-[13px] tracking-wide text-cream ${className}`}
       >
-        {/* Jewel shimmer */}
-        <div className="absolute inset-0 pointer-events-none opacity-40">
-          <div className="absolute inset-0 bg-[conic-gradient(from_0deg_at_50%_50%,transparent_0%,rgba(212,175,55,0.10)_25%,transparent_50%,rgba(212,175,55,0.10)_75%,transparent_100%)] motion-safe:animate-[spin_8s_linear_infinite]" />
-        </div>
-
-        <div className="container mx-auto px-6 flex items-center justify-center gap-3 sm:gap-4 relative z-10">
-          {/* Left ornament */}
-          <svg className="hidden md:block w-4 h-4 text-[#D4AF37] opacity-60 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-7.714 2.143L11 21l-2.286-6.857L1 12l7.714-2.143L11 3z" />
-          </svg>
-
-          <p className="text-[#A8862A] text-[12px] sm:text-sm md:text-base tracking-wide flex items-center flex-wrap justify-center gap-x-2">
-            <span className="font-light">הצטרפו לחבר מועדון בחינם וקבלו</span>
-            <span className="font-bold bg-gradient-to-l from-[#D4AF37] via-[#A8862A] to-[#D4AF37] bg-clip-text text-transparent drop-shadow-[0_1px_1px_rgba(0,0,0,0.08)]">
-              5% הנחה נוספת
-            </span>
-            <span className="font-light opacity-80 underline decoration-[#D4AF37]/30 underline-offset-4">
-              מעבר ל-15% הקיימים
-            </span>
-          </p>
-
-          {/* Divider */}
-          <div className="h-4 w-px bg-[#D4AF37]/30 hidden sm:block" />
-
-          {/* CTA */}
-          <span className="flex items-center gap-1.5 shrink-0">
-            <span className="font-bold text-[#8C6F1E] text-[12px] sm:text-sm md:text-base border-b-2 border-[#D4AF37] group-hover:border-[#A8862A] transition-colors">
-              הרשמה
-            </span>
-            <svg className="w-4 h-4 text-[#D4AF37] transform group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
+        <span className="truncate">
+          <span className="hidden sm:inline">הצטרפו לחבר מועדון בחינם וקבלו </span>
+          <span className="font-bold text-gold-bright">5% הנחה נוספת</span>
+          <span className="sm:hidden"> לחברי מועדון</span>
+          <span className="hidden md:inline"> מעבר ל-<span className="font-bold text-gold-bright">15%</span> הקיימים</span>
+          <span aria-hidden="true"> · </span>
+          <span className="font-bold text-gold-bright underline decoration-gold-bright/50 underline-offset-4 group-hover:decoration-gold-bright transition-colors">
+            הרשמה
           </span>
-
-          {/* Right ornament */}
-          <svg className="hidden md:block w-4 h-4 text-[#D4AF37] opacity-60 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-7.714 2.143L11 21l-2.286-6.857L1 12l7.714-2.143L11 3z" />
-          </svg>
-        </div>
-
-        {/* Fine gold accents */}
-        <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-[#D4AF37]/40 to-transparent" />
-        <div className="absolute bottom-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-[#D4AF37]/40 to-transparent" />
+        </span>
       </Link>
     );
   }
@@ -74,21 +43,21 @@ export function ClubBadge({ variant = "inline", className = "" }: Props) {
   return (
     <Link
       to="/auth"
-      className={`group flex items-center gap-3 rounded-lg border border-[#D4AF37]/50 bg-gradient-to-br from-[#FAF6E9] to-white px-3.5 py-2.5 hover:shadow-[var(--shadow-card)] transition ${className}`}
+      className={`group flex items-center gap-3 rounded-lg border border-gold/50 bg-gradient-to-br from-cream to-white px-3.5 py-2.5 hover:shadow-[var(--shadow-card)] transition ${className}`}
     >
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#D4AF37] text-white shadow-sm">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-sm">
         <Sparkles className="h-4 w-4" />
       </div>
       <div className="flex-1 min-w-0">
-        <div className="text-[11px] tracking-[0.18em] text-[#A8862A] font-bold uppercase leading-none mb-1">
+        <div className="text-[11px] tracking-[0.18em] text-accent font-bold uppercase leading-none mb-1">
           חבר מועדון • חינם
         </div>
         <div className="text-xs text-foreground/85 leading-snug">
-          קבלו <strong className="text-[#A8862A]">5% הנחה נוספת</strong> על המוצר הזה ועל כל הזמנה,
+          קבלו <strong className="text-accent">5% הנחה נוספת</strong> על המוצר הזה ועל כל הזמנה,
           מעבר ל-15% הקיימים
         </div>
       </div>
-      <span className="text-xs font-semibold text-[#A8862A] whitespace-nowrap underline group-hover:no-underline">
+      <span className="text-xs font-semibold text-accent whitespace-nowrap underline group-hover:no-underline">
         הצטרפו
       </span>
     </Link>

@@ -327,15 +327,15 @@ function CategoryPage() {
                 width={1600}
                 height={700}
               />
-              <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
+              <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-[#421720]/75 to-transparent" />
               <div className="absolute inset-x-0 bottom-0 px-4 pb-6 md:pb-10 text-center">
                 <h1
-                  className="font-display text-3xl md:text-6xl font-bold text-white tracking-wide"
+                  className="font-display text-3xl md:text-5xl font-bold text-cream tracking-wide"
                   style={{ textShadow: "0 2px 18px rgba(0,0,0,0.55), 0 1px 2px rgba(0,0,0,0.6)" }}
                 >
                   {cat?.name ?? slug}
                 </h1>
-                <div className="mx-auto mt-3 h-0.5 w-20 bg-primary" />
+                <div className="mx-auto mt-3 h-[3px] w-24 bg-gradient-to-r from-transparent via-[#C2A25E] to-transparent" />
               </div>
             </div>
             {cat?.description && (
@@ -351,7 +351,7 @@ function CategoryPage() {
             <h1 className="font-display text-3xl md:text-5xl font-bold text-foreground">
               {cat?.name ?? slug}
             </h1>
-            <div className="mx-auto mt-3 h-0.5 w-16 bg-primary" />
+            <div className="mx-auto mt-3 h-[3px] w-24 bg-gradient-to-r from-transparent via-[#C2A25E] to-transparent" />
             {cat?.description && (
               <p className="mt-4 max-w-2xl mx-auto text-sm md:text-base text-muted-foreground leading-relaxed">
                 {cat.description}
@@ -362,8 +362,14 @@ function CategoryPage() {
       </header>
 
       <div className="container mx-auto px-4 pt-8">
-        {/* Subcategory / sibling chips */}
-        <SubcategoryChips slug={slug} parentSlug={cat?.parent_slug ?? null} />
+        {/* Subcategory / sibling chips — restyled from here (gold outline, argaman
+            active) via scoped descendant overrides: SubcategoryChips is a shared
+            component other pages use, so its own classes stay untouched. The
+            active chip is targeted through the aria-current="page" attribute the
+            router puts on the link for the current category. */}
+        <div className="[&_a]:border-gold/60 [&_a]:bg-background [&_a]:text-foreground [&_a:hover]:border-accent [&_a[aria-current=page]]:bg-argaman [&_a[aria-current=page]]:border-argaman [&_a[aria-current=page]]:text-white">
+          <SubcategoryChips slug={slug} parentSlug={cat?.parent_slug ?? null} />
+        </div>
 
         {(slug === "study-books" || slug === "esh-sheli-gold") && products.length === 0 ? (
           <div className="max-w-2xl mx-auto my-12 text-center bg-gradient-to-b from-primary/5 to-transparent border border-primary/20 rounded-2xl p-10 md:p-14">
@@ -373,7 +379,7 @@ function CategoryPage() {
             <h2 className="font-display text-2xl md:text-3xl font-bold mb-3">
               המוצרים בקטגוריה זו בדרך אליכם
             </h2>
-            <div className="mx-auto mb-5 h-0.5 w-16 bg-primary" />
+            <div className="mx-auto mb-5 h-[3px] w-16 bg-gradient-to-r from-transparent via-[#C2A25E] to-transparent" />
             <p className="text-muted-foreground leading-relaxed">
               אנו עובדים בימים אלו על העלאת המוצרים בקטגוריית <span className="font-semibold text-foreground">{cat?.name ?? ""}</span>.
               <br />
@@ -387,13 +393,17 @@ function CategoryPage() {
               <p className="text-sm text-muted-foreground">{visible.length} מוצרים</p>
               <div className="flex flex-wrap items-center gap-4">
                 <label className="flex items-center gap-2 text-sm cursor-pointer">
-                  <Checkbox checked={inStockOnly} onCheckedChange={(v) => changeInStockOnly(!!v)} />
+                  <Checkbox
+                    checked={inStockOnly}
+                    onCheckedChange={(v) => changeInStockOnly(!!v)}
+                    className="data-[state=checked]:bg-accent data-[state=checked]:border-accent data-[state=checked]:text-accent-foreground"
+                  />
                   במלאי בלבד
                 </label>
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-muted-foreground">מיון:</span>
                   <Select value={sort} onValueChange={(v) => changeSort(v as SortMode)}>
-                    <SelectTrigger className="w-[200px]">
+                    <SelectTrigger className="w-[200px] h-10 rounded-lg border-border">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -425,8 +435,8 @@ function CategoryPage() {
         {cat?.long_description && (
           <section className="mt-16 max-w-3xl mx-auto text-center">
             <h2 className="font-display text-2xl font-bold mb-3">קצת על {cat.name}</h2>
-            <div className="mx-auto mb-5 h-0.5 w-12 bg-primary" />
-            <p className="text-sm md:text-base text-muted-foreground leading-relaxed whitespace-pre-line">
+            <div className="mx-auto mb-5 h-[3px] w-12 bg-gradient-to-r from-transparent via-[#C2A25E] to-transparent" />
+            <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
               {cat.long_description}
             </p>
           </section>
@@ -439,9 +449,9 @@ function CategoryPage() {
             <h2 className="font-display text-2xl font-bold mb-5 text-center">שאלות נפוצות — {cat.name}</h2>
             <Accordion type="single" collapsible className="w-full">
               {categoryFaq(cat.name).map((item, i) => (
-                <AccordionItem key={i} value={`faq-${i}`}>
-                  <AccordionTrigger className="text-right font-medium">{item.q}</AccordionTrigger>
-                  <AccordionContent className="text-muted-foreground leading-relaxed">
+                <AccordionItem key={i} value={`faq-${i}`} className="border-gold/30">
+                  <AccordionTrigger className="text-right font-display text-base">{item.q}</AccordionTrigger>
+                  <AccordionContent className="text-sm text-muted-foreground leading-relaxed">
                     {item.a}
                   </AccordionContent>
                 </AccordionItem>

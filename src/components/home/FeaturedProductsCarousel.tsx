@@ -39,16 +39,13 @@ export function FeaturedProductsCarousel() {
     <section className="py-14 md:py-20">
       <div className="container mx-auto px-4">
         <div className="text-center mb-10 md:mb-14">
-          <div className="flex items-center justify-center gap-3 mb-3" aria-hidden="true">
-            <span className="h-px w-10 bg-accent/40" />
-            <span className="text-[10px] md:text-xs tracking-[0.35em] text-accent uppercase">
-              הגיע עכשיו
-            </span>
-            <span className="h-px w-10 bg-accent/40" />
-          </div>
+          <p className="text-[10px] md:text-xs tracking-[0.35em] text-accent mb-3">
+            הגיע עכשיו
+          </p>
           <h2 className="font-display text-3xl md:text-4xl tracking-wide">
             חדש באתר
           </h2>
+          <span aria-hidden="true" className="block h-px w-24 mx-auto mt-4 bg-[image:var(--gradient-gold-line)]" />
         </div>
 
         <Carousel dir="rtl" opts={{ direction: "rtl", align: "start" }} className="px-2">
