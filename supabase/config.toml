@@ -9,6 +9,15 @@ project_id = "whtjslgrrfzehivrknuv"
 # email confirmation off, cut the OTP to 6 digits and dropped the resend
 # throttle to 1s). Every security-relevant field is therefore pinned explicitly
 # below. Do not delete one assuming it will keep its current value.
+# WARNING — do NOT run `supabase config push`.
+# It sends the WHOLE auth block and resets anything not spelled out here to the
+# CLI defaults. It has already done damage once on this project (it silently set
+# enable_confirmations=false, otp_length=6, max_frequency=1s).
+#
+# It would now ALSO wipe the Google OAuth provider, which is configured in the
+# dashboard of project whtjslgrrfzehivrknuv and is deliberately NOT mirrored
+# here — mirroring it would mean committing a client secret. If Google sign-in
+# ever stops working, check whether someone ran a config push.
 [auth]
 site_url = "https://orzadik.com"
 additional_redirect_urls = [

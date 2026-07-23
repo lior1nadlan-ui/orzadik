@@ -1,7 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable/index";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,18 +65,27 @@ function AuthPage() {
     await sendMagicLink({ isSignup: true });
   };
 
+  // Straight to Supabase, NOT through @lovable.dev/cloud-auth-js. That shim
+  // routes OAuth via Lovable's hosted auth service, which this store no longer
+  // uses — the Lovable subscription was cancelled and the database moved to the
+  // owner's own project. The button was therefore wired to a dead service.
+  // supabase.auth.signInWithOAuth talks to the project that actually holds the
+  // Google provider config (whtjslgrrfzehivrknuv).
+  //
+  // redirectTo must appear in the project's Redirect URLs allow-list, or the
+  // user is bounced to the Site URL after consenting instead of back here.
   const signInGoogle = async () => {
     setLoading(true);
-    const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin,
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: `${window.location.origin}/` },
     });
-    if (result.error) {
+    // On success the browser is already navigating to Google, so there is
+    // nothing to do; only an immediate failure comes back here.
+    if (error) {
       setLoading(false);
-      toast.error(result.error.message || "שגיאה בהתחברות עם גוגל");
-      return;
+      toast.error(error.message || "שגיאה בהתחברות עם גוגל");
     }
-    if (result.redirected) return;
-    navigate({ to: "/" });
   };
 
   if (sentTo) {
