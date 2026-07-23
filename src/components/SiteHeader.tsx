@@ -443,6 +443,8 @@ export function SiteFooter() {
               <li><Link to="/shop" className="hover:text-accent transition-colors">כל המוצרים</Link></li>
               <li><Link to="/categories" className="hover:text-accent transition-colors">קטגוריות</Link></li>
               <li><Link to="/about" className="hover:text-accent transition-colors">אודות</Link></li>
+              <li><Link to="/club" className="hover:text-accent transition-colors">מועדון חברים</Link></li>
+              <li><Link to="/track" className="hover:text-accent transition-colors">מעקב הזמנה</Link></li>
             </ul>
           </div>
           <div className="text-center">

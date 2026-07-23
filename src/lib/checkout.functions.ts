@@ -36,6 +36,11 @@ const CheckoutSchema = z.object({
   customer_city: z.string().trim().max(200).transform(stripHtml).optional().nullable(),
   notes: z.string().trim().max(2000).transform(stripHtml).optional().nullable(),
   contact_consent: z.boolean().optional(),
+  // Gift options are FREE and data-only — deliberately so. They are recorded on
+  // the order for packing, and are read by nothing in the price path.
+  is_gift: z.boolean().optional(),
+  gift_note: z.string().trim().max(300).transform(stripHtml).optional().nullable(),
+  gift_wrap: z.boolean().optional(),
   items: z
     .array(
       z.object({
@@ -163,6 +168,12 @@ export const placeOrder = createServerFn({ method: "POST" })
         payment_status: "unpaid",
         contact_consent: data.contact_consent ?? false,
         contact_consent_at: data.contact_consent ? new Date().toISOString() : null,
+        // Data-only: never read by the subtotal/shipping/total math above.
+        // The dedication is dropped unless the order is actually marked a gift,
+        // so an unticked-but-typed note can't reach the packing slip.
+        is_gift: data.is_gift ?? false,
+        gift_wrap: data.is_gift ? (data.gift_wrap ?? false) : false,
+        gift_note: data.is_gift ? (data.gift_note || null) : null,
       })
       .select()
       .single();

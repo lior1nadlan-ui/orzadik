@@ -21,8 +21,11 @@ export function ClubBadge({ variant = "inline", className = "" }: Props) {
     // Announcement strip: argaman-deep ground, cream text (13.2:1), emphasis
     // words in gold-bright (7.4:1) — the site-wide dark-band idiom.
     return (
+      // The strip is the site-wide banner: send it to the club landing page,
+      // which explains the offer before asking for a signup. The inline variant
+      // appears next to a specific product and still goes straight to /auth.
       <Link
-        to="/auth"
+        to="/club"
         dir="rtl"
         className={`group flex h-9 w-full items-center justify-center bg-argaman-deep px-4 text-[13px] tracking-wide text-cream ${className}`}
       >

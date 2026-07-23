@@ -141,6 +141,11 @@ function OrderConfirmationPage() {
             </div>
           ))}
         </div>
+        {order.is_gift && (
+          <div className="mb-4 rounded-md border border-[#D4AF37] bg-[#FAF6E9] px-3 py-2 text-sm">
+            🎁 סימנת את ההזמנה כמתנה{order.gift_wrap ? " — נארוז אותה בעטיפת מתנה חגיגית" : ""}. ללא תוספת מחיר.
+          </div>
+        )}
         <div className="flex justify-between text-lg border-t pt-3">
           <span className="font-bold">סך הכל</span>
           <span className="font-bold text-primary">{formatILS(Number(order.total))}</span>

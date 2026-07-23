@@ -31,6 +31,10 @@ function CheckoutPage() {
   const saveCart = useServerFn(saveAbandonedCart);
   const [submitting, setSubmitting] = useState(false);
   const [contactConsent, setContactConsent] = useState(false);
+  // Gift options — free, so none of this touches the summary column below.
+  const [isGift, setIsGift] = useState(false);
+  const [giftNote, setGiftNote] = useState("");
+  const [giftWrap, setGiftWrap] = useState(false);
   const [form, setForm] = useState({
     name: "",
     email: user?.email ?? "",
@@ -146,6 +150,9 @@ function CheckoutPage() {
           customer_city: form.city || null,
           notes: form.notes || null,
           contact_consent: contactConsent,
+          is_gift: isGift,
+          gift_note: isGift ? giftNote || null : null,
+          gift_wrap: isGift ? giftWrap : false,
           items: items.map((i) => ({
 
             product_id: i.productId,
@@ -213,6 +220,42 @@ function CheckoutPage() {
             <Textarea id="notes" autoComplete="off" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
           </div>
         </div>
+
+        {/* Gift options — free of charge. Nothing here feeds the price column. */}
+        <div className="rounded-md border border-[#D4AF37]/40 bg-[#FAF6E9]/60 p-3">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <Checkbox checked={isGift} onCheckedChange={(v) => setIsGift(v === true)} />
+            <span className="text-sm font-medium">🎁 זו מתנה</span>
+            <span className="text-xs text-[#A8862A]">ללא תוספת מחיר</span>
+          </label>
+          {isGift && (
+            <div className="mt-3 space-y-3 border-t border-[#D4AF37]/30 pt-3">
+              <div>
+                <Label htmlFor="gift-note">הקדשה אישית (תודפס ותצורף למתנה)</Label>
+                <Textarea
+                  id="gift-note"
+                  rows={3}
+                  maxLength={300}
+                  autoComplete="off"
+                  value={giftNote}
+                  onChange={(e) => setGiftNote(e.target.value)}
+                  placeholder="למשל: מזל טוב באהבה, משפחת כהן"
+                />
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  {giftNote.length}/300
+                </p>
+              </div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <Checkbox checked={giftWrap} onCheckedChange={(v) => setGiftWrap(v === true)} />
+                <span className="text-sm">עטיפת מתנה חגיגית — בחינם</span>
+              </label>
+              <p className="text-[11px] text-muted-foreground">
+                העטיפה וההקדשה ניתנות ללא עלות ואינן משפיעות על סכום ההזמנה.
+              </p>
+            </div>
+          )}
+        </div>
+
         <label className="flex items-start gap-2 rounded-md border border-[#D4AF37]/40 bg-[#FAF6E9] p-3 cursor-pointer">
           <Checkbox
             checked={contactConsent}
