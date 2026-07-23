@@ -4,6 +4,7 @@ import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getOptionalUserId } from "@/integrations/supabase/optional-auth";
 import { checkOrderRateLimit, checkOrderRateLimitByIp } from "@/lib/rate-limit.server";
+import { sendOrderCreatedOwnerAlert } from "@/lib/order-emails.server";
 import {
   SHIPPING_FLAT,
   getEffectivePrice as effectivePrice,
@@ -185,6 +186,16 @@ export const placeOrder = createServerFn({ method: "POST" })
       .update({ converted_order_id: order.id })
       .ilike("email", normalizedEmail)
       .is("converted_order_id", null);
+
+    // Owner alert on creation (owner asked to hear about EVERY order, not only
+    // paid ones — the paid confirmation still arrives from the webhook).
+    // Awaited because the Workers runtime may cancel floating promises when
+    // the response returns; failure must never break checkout.
+    try {
+      await sendOrderCreatedOwnerAlert(order.id);
+    } catch (e) {
+      console.error("[placeOrder] created-order alert failed (non-fatal):", e);
+    }
 
     return { id: order.id as string };
   });
