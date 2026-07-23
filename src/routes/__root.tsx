@@ -256,8 +256,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           },
           geo: { "@type": "GeoCoordinates", latitude: 32.84216, longitude: 35.08877 },
           currenciesAccepted: "ILS",
-          paymentAccepted: "Cash, Credit Card",
+          // Card only. The single checkout path in the codebase is the Cardcom
+          // hosted card page (src/lib/cardcom.functions.ts); there is no
+          // pay-on-delivery or over-the-counter flow anywhere in the app, so
+          // the previous second value was dropped — structured data must not
+          // advertise a payment method the store cannot actually accept.
+          paymentAccepted: "Credit Card",
           priceRange: "₪₪",
+          // NOTE: no `openingHoursSpecification` here on purpose. Nothing in the
+          // codebase or the DB records the store's opening hours, and publishing
+          // invented hours in structured data would be a business promise the
+          // store never made. Add it only once the owner supplies real hours.
           areaServed: { "@type": "Country", name: "IL" },
           hasMap: "https://www.google.com/maps/search/?api=1&query=%D7%93%D7%A8%D7%9A+%D7%A2%D7%9B%D7%95+190+%D7%A7%D7%A8%D7%99%D7%AA+%D7%91%D7%99%D7%90%D7%9C%D7%99%D7%A7",
           sameAs: [

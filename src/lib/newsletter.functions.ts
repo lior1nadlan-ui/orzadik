@@ -22,6 +22,7 @@ import {
   isEmailConfigured,
   unsubscribeToken,
   unsubscribeUrl,
+  listUnsubscribeHeaders,
 } from "@/lib/email.server";
 import { sellerIdentityLine, BUSINESS } from "@/lib/business";
 
@@ -112,6 +113,9 @@ export async function sendNewsletterWelcome(email: string, name?: string | null)
         </div>
       `),
       replyTo: process.env.SHOP_OWNER_EMAIL,
+      // Same opt-out as the footer link, exposed to the mailbox provider so the
+      // native "unsubscribe" button works without opening the mail.
+      headers: listUnsubscribeHeaders(unsub),
     });
   } catch (e) {
     console.error("[newsletter] welcome email failed (non-fatal):", e);

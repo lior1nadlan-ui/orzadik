@@ -3,7 +3,13 @@ import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-quer
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { formatILS } from "@/lib/cart";
-import { bulkUpdateProducts, listCategoriesForBulk } from "@/lib/admin-products.functions";
+import {
+  bulkUpdateProducts,
+  listCategoriesForBulk,
+  listProductVariants,
+  saveProductVariants,
+  type AdminVariantRow,
+} from "@/lib/admin-products.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,11 +23,28 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Pencil, Trash2, Plus, Layers } from "lucide-react";
 
+/** Catalog-health filters — the same two predicates the dashboard tile counts. */
+type HealthFilter = "no-image" | "out-of-stock";
+type SortKey = "created_at" | "name" | "price";
+type SortDir = "asc" | "desc";
+
+const HEALTH_HE: Record<HealthFilter, string> = {
+  "no-image": "מוצרים פעילים ללא תמונה",
+  "out-of-stock": "מוצרים פעילים שאזלו מהמלאי",
+};
+
 export const Route = createFileRoute("/admin/products")({
   // Lets the dashboard's low-stock and catalog-health cards deep-link to a
-  // pre-filtered list (e.g. /admin/products?q=<sku>).
-  validateSearch: (s: Record<string, unknown>): { q?: string } => ({
+  // pre-filtered list (e.g. /admin/products?q=<sku> or ?health=no-image), and
+  // makes every filtered/sorted view a shareable URL.
+  validateSearch: (
+    s: Record<string, unknown>,
+  ): { q?: string; health?: HealthFilter; sort?: SortKey; dir?: SortDir } => ({
     q: typeof s.q === "string" && s.q ? s.q : undefined,
+    health: s.health === "no-image" || s.health === "out-of-stock" ? s.health : undefined,
+    sort:
+      s.sort === "created_at" || s.sort === "name" || s.sort === "price" ? s.sort : undefined,
+    dir: s.dir === "asc" || s.dir === "desc" ? s.dir : undefined,
   }),
   component: AdminProducts,
 });
@@ -39,7 +62,11 @@ type BulkKind = "price_pct" | "price_set" | "category" | "active" | "stock_statu
 
 function AdminProducts() {
   const qc = useQueryClient();
-  const { q: qFromUrl } = Route.useSearch();
+  const { q: qFromUrl, health, sort, dir } = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const sortKey: SortKey = sort ?? "created_at";
+  // Newest-first stays the default; the other keys read naturally ascending.
+  const sortDir: SortDir = dir ?? (sortKey === "created_at" ? "desc" : "asc");
   const [search, setSearch] = useState(qFromUrl ?? "");
   const [debounced, setDebounced] = useState(qFromUrl ?? "");
   const [page, setPage] = useState(0);
@@ -56,14 +83,18 @@ function AdminProducts() {
     const t = setTimeout(() => setDebounced(search), 300);
     return () => clearTimeout(t);
   }, [search]);
-  useEffect(() => setPage(0), [debounced]);
+  useEffect(() => setPage(0), [debounced, health, sortKey, sortDir]);
   // A selection only makes sense for rows the admin can currently see — the
   // action applies to ids, not to "the filter", so carrying it across a search
   // or page change would act on rows that scrolled out of view.
-  useEffect(() => { setSelected(new Set()); }, [debounced, page]);
+  useEffect(() => { setSelected(new Set()); }, [debounced, page, health, sortKey, sortDir]);
+
+  /** Patch the URL so any filtered/sorted view can be bookmarked or shared. */
+  const patchSearch = (patch: { health?: HealthFilter; sort?: SortKey; dir?: SortDir }) =>
+    navigate({ search: (prev) => ({ ...prev, ...patch }), replace: true, resetScroll: false });
 
   const { data, isFetching } = useQuery({
-    queryKey: ["admin-products", debounced, page],
+    queryKey: ["admin-products", debounced, page, health ?? "", sortKey, sortDir],
     placeholderData: keepPreviousData,
     queryFn: async () => {
       let query = supabase.from("products").select("*", { count: "exact" });
@@ -72,9 +103,18 @@ function AdminProducts() {
         const like = `%${term}%`;
         query = query.or(`name.ilike.${like},sku.ilike.${like},slug.ilike.${like}`);
       }
+      // Byte-identical predicates to the dashboard's catalog-health counters
+      // (src/lib/admin-crm.functions.ts) — including the is_active gate — so the
+      // tile's number and this list can never disagree. The `.eq.` arm catches
+      // empty-string thumbnails the manual product form can save.
+      if (health === "no-image") {
+        query = query.eq("is_active", true).or("thumbnail_url.is.null,thumbnail_url.eq.");
+      } else if (health === "out-of-stock") {
+        query = query.eq("is_active", true).eq("stock_status", "outofstock");
+      }
       const from = page * PAGE_SIZE;
       const { data, error, count } = await query
-        .order("created_at", { ascending: false })
+        .order(sortKey, { ascending: sortDir === "asc" })
         .range(from, from + PAGE_SIZE - 1);
       if (error) throw error;
       return { rows: (data ?? []) as Product[], total: count ?? 0 };
@@ -147,7 +187,61 @@ function AdminProducts() {
           <ProductDialog key={editing?.id ?? "new"} product={editing} onSave={onSave} />
         </Dialog>
       </div>
-      <Input placeholder="חיפוש: שם / מק״ט / slug..." value={search} onChange={(e) => setSearch(e.target.value)} className="mb-4 max-w-sm" />
+      <div className="mb-4 flex flex-wrap items-end gap-3">
+        <div className="min-w-[220px] flex-1 max-w-sm">
+          <Label htmlFor="prod-search" className="text-xs text-muted-foreground">חיפוש</Label>
+          <Input
+            id="prod-search"
+            placeholder="חיפוש: שם / מק״ט / slug..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <div className="w-56">
+          <Label htmlFor="prod-health" className="text-xs text-muted-foreground">סינון תקינות</Label>
+          <select
+            id="prod-health"
+            value={health ?? ""}
+            onChange={(e) =>
+              patchSearch({ health: (e.target.value || undefined) as HealthFilter | undefined })
+            }
+            className="flex h-10 w-full rounded-md border bg-background px-3 text-sm"
+          >
+            <option value="">כל המוצרים</option>
+            <option value="no-image">{HEALTH_HE["no-image"]}</option>
+            <option value="out-of-stock">{HEALTH_HE["out-of-stock"]}</option>
+          </select>
+        </div>
+        <div className="w-56">
+          <Label htmlFor="prod-sort" className="text-xs text-muted-foreground">מיון</Label>
+          <select
+            id="prod-sort"
+            value={`${sortKey}:${sortDir}`}
+            onChange={(e) => {
+              const [k, d] = e.target.value.split(":") as [SortKey, SortDir];
+              const isDefault = k === "created_at" && d === "desc";
+              patchSearch({ sort: isDefault ? undefined : k, dir: isDefault ? undefined : d });
+            }}
+            className="flex h-10 w-full rounded-md border bg-background px-3 text-sm"
+          >
+            <option value="created_at:desc">נוספו לאחרונה</option>
+            <option value="created_at:asc">הוותיקים ביותר</option>
+            <option value="name:asc">שם א׳–ת׳</option>
+            <option value="name:desc">שם ת׳–א׳</option>
+            <option value="price:asc">מחיר — מהנמוך לגבוה</option>
+            <option value="price:desc">מחיר — מהגבוה לנמוך</option>
+          </select>
+        </div>
+      </div>
+
+      {health && (
+        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-md border border-amber-400/60 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950/20 dark:text-amber-200">
+          <span>מוצגים רק: {HEALTH_HE[health]} · {total} מוצרים</span>
+          <Button size="sm" variant="outline" onClick={() => patchSearch({ health: undefined })}>
+            הצג את כל המוצרים
+          </Button>
+        </div>
+      )}
 
       {selected.size > 0 && (
         <div className="sticky top-16 z-20 mb-3 flex flex-wrap items-center gap-3 rounded-lg border border-primary/40 bg-primary/5 px-4 py-3 backdrop-blur">
@@ -179,6 +273,13 @@ function AdminProducts() {
             </tr>
           </thead>
           <tbody>
+            {!isFetching && filtered.length === 0 && (
+              <tr>
+                <td colSpan={7} className="p-8 text-center text-sm text-muted-foreground">
+                  לא נמצאו מוצרים התואמים לסינון הנוכחי.
+                </td>
+              </tr>
+            )}
             {filtered.map((p) => (
               <tr key={p.id} className={`border-t ${selected.has(p.id) ? "bg-primary/5" : ""}`}>
                 <td className="p-3">
@@ -234,6 +335,15 @@ function AdminProducts() {
             toast.success(
               `עודכנו ${res.updated} מוצרים${res.skipped ? ` (${res.skipped} דולגו)` : ""}`,
             );
+            // The price actions write products.price only. Where a product has
+            // size rows with their own price, checkout charges the size price —
+            // so say so instead of leaving the owner to discover it at the till.
+            if (res.variantProducts > 0) {
+              toast.warning(
+                `${res.variantProducts} מוצרים כוללים גדלים עם מחיר נפרד — עדכנו אותם בנפרד`,
+                { duration: 12_000 },
+              );
+            }
             setBulkOpen(false);
             setSelected(new Set());
             qc.invalidateQueries({ queryKey: ["admin-products"] });
@@ -441,10 +551,177 @@ function ProductDialog({ product, onSave }: { product: Product | null; onSave: (
             </div>
           )}
         </div>
+
+        {/* Sizes. Only for an existing product — variant rows hang off a
+            product id, so there is nothing to show before the first save. */}
+        {product && <VariantsPanel productId={product.id} parentPrice={Number(form.price ?? 0)} />}
       </div>
       <DialogFooter>
         <Button onClick={() => onSave(form)}>שמור</Button>
       </DialogFooter>
     </DialogContent>
+  );
+}
+
+/**
+ * The size rows for one product — the prices checkout actually charges.
+ *
+ * A row whose `price` is set overrides `products.price` at checkout, and a row
+ * explicitly marked out of stock is refused there. Both facts were invisible
+ * from the admin until now, which is the whole reason this panel exists. Saving
+ * here writes product_variants only; the parent product still saves separately
+ * with the dialog's own שמור button.
+ */
+function VariantsPanel({ productId, parentPrice }: { productId: string; parentPrice: number }) {
+  const qc = useQueryClient();
+  const load = useServerFn(listProductVariants);
+  const save = useServerFn(saveProductVariants);
+  const [rows, setRows] = useState<AdminVariantRow[] | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["admin-variants", productId],
+    queryFn: () => load({ data: { productId } }),
+  });
+
+  // Seed the editable copy once the server rows land (and again after a save
+  // refetch), rather than deriving it during render.
+  useEffect(() => { if (data) setRows(data); }, [data]);
+
+  const update = (id: string, patch: Partial<AdminVariantRow>) =>
+    setRows((cur) => (cur ?? []).map((r) => (r.id === id ? { ...r, ...patch } : r)));
+
+  // "Different from the product price" is judged against the price currently in
+  // the form above, so the warning tracks what a save would leave behind.
+  const differs = (r: AdminVariantRow) => r.price !== null && Number(r.price) !== parentPrice;
+  const differingCount = (rows ?? []).filter(differs).length;
+
+  const onSaveRows = async () => {
+    if (!rows || rows.length === 0) return;
+    if (rows.some((r) => !r.label.trim())) {
+      toast.error("לכל גודל חייב להיות שם");
+      return;
+    }
+    setBusy(true);
+    try {
+      const res: any = await save({
+        data: {
+          productId,
+          rows: rows.map((r) => ({
+            id: r.id,
+            label: r.label.trim(),
+            price: r.price,
+            in_stock: r.in_stock,
+            sort_order: r.sort_order,
+          })),
+        },
+      });
+      toast.success(`נשמרו ${res.updated} גדלים`);
+      qc.invalidateQueries({ queryKey: ["admin-variants", productId] });
+    } catch (e: any) {
+      toast.error(e?.message ?? "שגיאה בשמירת הגדלים");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="rounded-md border p-3 space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Label className="text-sm font-semibold">גדלים ומחיריהם</Label>
+        {rows && rows.length > 0 && (
+          <Button size="sm" onClick={onSaveRows} disabled={busy}>
+            {busy ? "שומר..." : "שמור גדלים"}
+          </Button>
+        )}
+      </div>
+
+      {isLoading && <p className="text-xs text-muted-foreground">טוען גדלים…</p>}
+      {isError && <p className="text-xs text-destructive">שגיאה בטעינת הגדלים.</p>}
+      {rows && rows.length === 0 && (
+        <p className="text-xs text-muted-foreground">למוצר זה לא מוגדרים גדלים.</p>
+      )}
+
+      {differingCount > 0 && (
+        <div className="rounded-md border border-amber-400/70 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900 dark:bg-amber-950/20 dark:text-amber-200">
+          ל־{differingCount} גדלים יש מחיר משלהם, שונה ממחיר המוצר. שינוי מחיר המוצר למעלה לא ישנה אותם.
+        </div>
+      )}
+
+      {(rows ?? []).map((r) => {
+        const mismatch = differs(r);
+        return (
+          <div
+            key={r.id}
+            className={`rounded-md border p-2 ${
+              mismatch ? "border-amber-400/70 bg-amber-50/70 dark:bg-amber-950/10" : ""
+            }`}
+          >
+            <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_130px_90px_auto]">
+              <div>
+                <Label htmlFor={`v-label-${r.id}`} className="text-[11px] text-muted-foreground">שם הגודל</Label>
+                <Input
+                  id={`v-label-${r.id}`}
+                  value={r.label}
+                  onChange={(e) => update(r.id, { label: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor={`v-price-${r.id}`} className="text-[11px] text-muted-foreground">מחיר הגודל (₪)</Label>
+                <Input
+                  id={`v-price-${r.id}`}
+                  type="number"
+                  step="0.01"
+                  min={0}
+                  placeholder="לפי מחיר המוצר"
+                  value={r.price ?? ""}
+                  onChange={(e) =>
+                    update(r.id, { price: e.target.value === "" ? null : Number(e.target.value) })
+                  }
+                />
+              </div>
+              <div>
+                <Label htmlFor={`v-sort-${r.id}`} className="text-[11px] text-muted-foreground">סדר</Label>
+                <Input
+                  id={`v-sort-${r.id}`}
+                  type="number"
+                  min={0}
+                  value={r.sort_order}
+                  onChange={(e) => update(r.id, { sort_order: Number(e.target.value) || 0 })}
+                />
+              </div>
+              <div className="flex items-center gap-2 md:pb-1 md:self-end">
+                <Switch
+                  id={`v-stock-${r.id}`}
+                  checked={r.in_stock}
+                  onCheckedChange={(v) => update(r.id, { in_stock: v })}
+                />
+                <Label htmlFor={`v-stock-${r.id}`} className="text-xs whitespace-nowrap">
+                  {r.in_stock ? "במלאי" : "אזל"}
+                </Label>
+              </div>
+            </div>
+
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+              <span>מק״ט: {r.sku || "—"}</span>
+              {r.price_delta !== 0 && <span>תוספת שמורה בשדה price_delta: {r.price_delta}</span>}
+            </div>
+
+            {mismatch && (
+              <p className="mt-1 text-[11px] font-semibold text-amber-800 dark:text-amber-300">
+                מחיר הגודל שונה ממחיר המוצר — הלקוח מחויב לפי מחיר הגודל
+              </p>
+            )}
+          </div>
+        );
+      })}
+
+      {rows && rows.length > 0 && (
+        <p className="text-[11px] text-muted-foreground">
+          שדה מחיר ריק פירושו שהגודל מחויב לפי מחיר המוצר. גודל שמסומן "אזל" לא ניתן להזמנה בקופה.
+          הוספת גדלים חדשים או מחיקתם אינה זמינה כאן.
+        </p>
+      )}
+    </div>
   );
 }

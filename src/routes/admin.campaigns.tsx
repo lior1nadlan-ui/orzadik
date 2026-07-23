@@ -7,6 +7,8 @@ import {
   getCampaign,
   saveCampaign,
   previewCampaign,
+  previewCampaignAudience,
+  sendCampaignTestEmail,
   startCampaign,
   cancelCampaign,
   tickCampaign,
@@ -20,7 +22,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Send, X, Play } from "lucide-react";
+import { Plus, Send, X, Play, FlaskConical } from "lucide-react";
 
 export const Route = createFileRoute("/admin/campaigns")({ component: AdminCampaigns });
 
@@ -47,6 +49,8 @@ function AdminCampaigns() {
   const loadOne = useServerFn(getCampaign);
   const save = useServerFn(saveCampaign);
   const preview = useServerFn(previewCampaign);
+  const loadAudience = useServerFn(previewCampaignAudience);
+  const sendTest = useServerFn(sendCampaignTestEmail);
   const start = useServerFn(startCampaign);
   const cancel = useServerFn(cancelCampaign);
   const tick = useServerFn(tickCampaign);
@@ -71,6 +75,7 @@ function AdminCampaigns() {
   const [detailId, setDetailId] = useState<string | null>(null);
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const [previewSubject, setPreviewSubject] = useState("");
+  const [testEmails, setTestEmails] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQuery(productQuery), 300);
@@ -149,16 +154,45 @@ function AdminCampaigns() {
 
   const tickMutation = useMutation({
     mutationFn: () => tick(),
+    // A tick that sent nothing is usually a broken server, not an empty queue —
+    // report the real reason instead of a green "0 נשלחו".
     onSuccess: (r: any) => {
-      toast.success(
-        r.campaign ? `נשלחה קבוצה: ${r.sent} נשלחו, ${r.failed} נכשלו` : "אין קמפיין בשליחה",
-      );
+      if (r.status === "email-not-configured" || r.status === "claim-failed") {
+        toast.error(r.error ?? "השליחה נכשלה — לא נשלחה אף הודעה.");
+      } else if (r.status === "idle") {
+        toast.info("אין קמפיין בשליחה");
+      } else {
+        toast.success(
+          `נשלחה קבוצה: ${r.sent} נשלחו, ${r.failed} נכשלו, ${r.skipped} דילגו (הוסרו מהתפוצה)`,
+        );
+      }
       qc.invalidateQueries({ queryKey: ["admin-campaigns"] });
     },
     onError: (e: any) => toast.error(e?.message ?? "שגיאה בשליחה"),
   });
 
+  const testMutation = useMutation({
+    mutationFn: (v: { id: string; email: string }) =>
+      sendTest({ data: { campaignId: v.id, email: v.email } }),
+    onSuccess: (r: any) => toast.success(`נשלחה הודעת בדיקה ל-${r.email}`),
+    onError: (e: any) => toast.error(e?.message ?? "שגיאה בשליחת הבדיקה"),
+  });
+
   const detail = campaigns.find((c: any) => c.id === detailId);
+
+  // Real headcount for the confirm step. Loaded only while a draft's detail
+  // dialog is open — nothing here sends, it just re-runs the audience query.
+  const {
+    data: audience,
+    isFetching: audienceLoading,
+    isError: audienceError,
+    refetch: refetchAudience,
+  } = useQuery({
+    queryKey: ["campaign-audience"],
+    queryFn: () => loadAudience(),
+    enabled: !!detailId && detail?.status === "draft",
+    staleTime: 60_000,
+  });
 
   const togglePick = (p: any) => {
     setPicked((cur) => {
@@ -186,7 +220,8 @@ function AdminCampaigns() {
       <p className="mb-4 text-xs text-muted-foreground">
         הדיוור נשלח רק לנמענים שנתנו הסכמה שיווקית (רשימת התפוצה או הסכמה בחשבון).
         כל הודעה נושאת סימון "פרסומת" וקישור הסרה אישי. השליחה מתקדמת אוטומטית
-        כ-20 נמענים כל 5 דקות.
+        כ-20 נמענים כל 5 דקות. מומלץ לשלוח קודם הודעת בדיקה לכתובת אחת — היא זהה
+        להודעה שתישלח בפועל, כולל קישור ההסרה שבה, שהוא פעיל.
       </p>
 
       <div className={`rounded-lg border bg-card overflow-x-auto transition-opacity ${isFetching ? "opacity-60" : ""}`}>
@@ -221,11 +256,47 @@ function AdminCampaigns() {
                   ) : "—"}
                 </td>
                 <td className="p-3 text-xs">{new Date(c.created_at).toLocaleDateString("he-IL")}</td>
-                <td className="p-3 flex gap-2 justify-end">
-                  {c.status === "draft" && (
-                    <Button size="sm" variant="outline" onClick={() => openEdit(c.id)}>עריכה</Button>
-                  )}
-                  <Button size="sm" variant="outline" onClick={() => openDetail(c.id)}>פרטים</Button>
+                <td className="p-3">
+                  <div className="flex flex-wrap items-center gap-2 justify-end">
+                    {c.status === "draft" && (
+                      <>
+                        {/* Single-address proof send. Never touches the audience. */}
+                        <Input
+                          type="email"
+                          dir="ltr"
+                          placeholder="test@example.com"
+                          aria-label={`כתובת לשליחת בדיקה — ${c.subject}`}
+                          className="h-8 w-44 text-xs"
+                          value={testEmails[c.id] ?? ""}
+                          onChange={(e) =>
+                            setTestEmails((m) => ({ ...m, [c.id]: e.target.value }))
+                          }
+                        />
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-1"
+                          disabled={
+                            (testMutation.isPending && testMutation.variables?.id === c.id) ||
+                            !(testEmails[c.id] ?? "").trim()
+                          }
+                          onClick={() =>
+                            testMutation.mutate({
+                              id: c.id,
+                              email: (testEmails[c.id] ?? "").trim(),
+                            })
+                          }
+                        >
+                          <FlaskConical className="h-4 w-4" />
+                          {testMutation.isPending && testMutation.variables?.id === c.id
+                            ? "שולח..."
+                            : "שלח בדיקה"}
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => openEdit(c.id)}>עריכה</Button>
+                      </>
+                    )}
+                    <Button size="sm" variant="outline" onClick={() => openDetail(c.id)}>פרטים</Button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -309,6 +380,14 @@ function AdminCampaigns() {
                   <span>נמענים: {detail.recipient_count}</span>
                   <span>נשלחו: {detail.sent_count}</span>
                   <span>נכשלו: {detail.failed_count}</span>
+                  {/* Only exact once the queue is drained: the remainder is
+                      then precisely the recipients skipped as unsubscribed. */}
+                  {detail.status === "sent" &&
+                    detail.recipient_count - detail.sent_count - detail.failed_count > 0 && (
+                      <span>
+                        דילגו: {detail.recipient_count - detail.sent_count - detail.failed_count}
+                      </span>
+                    )}
                 </div>
 
                 <div className="rounded-md border overflow-hidden">
@@ -327,18 +406,60 @@ function AdminCampaigns() {
                   )}
                 </div>
 
+                {/* Audience headcount — the send button stays locked until it
+                    loads, so nobody blasts a list of unknown size. */}
+                {detail.status === "draft" && (
+                  <div className="rounded-md border bg-muted/30 p-3 text-xs">
+                    {audienceError ? (
+                      <div className="flex flex-wrap items-center gap-2 text-destructive">
+                        <span>לא הצלחנו לחשב את מספר הנמענים.</span>
+                        <Button size="sm" variant="outline" onClick={() => refetchAudience()}>
+                          נסה שוב
+                        </Button>
+                      </div>
+                    ) : !audience ? (
+                      <span className="text-muted-foreground">מחשב את מספר הנמענים...</span>
+                    ) : (
+                      <>
+                        <div>
+                          הקמפיין יישלח ל-<strong>{audience.total}</strong> נמענים
+                          {audienceLoading && " (מתעדכן...)"}
+                        </div>
+                        {audience.sample.length > 0 && (
+                          <div className="mt-1 text-muted-foreground break-all" dir="ltr">
+                            {audience.sample.join(", ")}
+                            {audience.total > audience.sample.length ? " …" : ""}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+
                 <div className="flex flex-wrap gap-2 pt-2">
                   {detail.status === "draft" && (
                     <Button
                       className="gap-2"
-                      disabled={startMutation.isPending}
+                      disabled={startMutation.isPending || !audience || audience.total === 0}
                       onClick={() => {
-                        if (confirm("להתחיל שליחה לכל רשימת התפוצה? הפעולה אינה הפיכה עבור נמענים שכבר קיבלו.")) {
+                        if (!audience) return;
+                        if (
+                          confirm(
+                            `להתחיל שליחה? הקמפיין יישלח ל-${audience.total} נמענים. הפעולה אינה הפיכה עבור נמענים שכבר קיבלו.`,
+                          )
+                        ) {
                           startMutation.mutate(detail.id);
                         }
                       }}
                     >
-                      <Play className="h-4 w-4" /> {startMutation.isPending ? "מתחיל..." : "התחל שליחה"}
+                      <Play className="h-4 w-4" />
+                      {startMutation.isPending
+                        ? "מתחיל..."
+                        : !audience
+                          ? "טוען נמענים..."
+                          : audience.total === 0
+                            ? "אין נמענים"
+                            : `התחל שליחה (${audience.total})`}
                     </Button>
                   )}
                   {detail.status === "sending" && (

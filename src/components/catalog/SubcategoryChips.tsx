@@ -4,13 +4,41 @@ import { supabase } from "@/integrations/supabase/client";
 import { Carousel, CarouselContent, CarouselItem } from "@/components/ui/carousel";
 
 /**
+ * One row of the shared ["all-cats"] cache. Kept in sync with the select below
+ * (and with /categories, which reads the same key).
+ */
+export type CategoryChipRow = {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  parent_slug: string | null;
+  sort_order: number;
+};
+
+/**
  * Chips strip linking to a category's subcategories. When the category is a
  * leaf, it shows the parent + sibling categories instead (current highlighted)
  * so shoppers can hop sideways. Renders nothing for a top-level leaf.
+ *
+ * `initialCats` comes from the category route loader, so the links exist in the
+ * server-rendered HTML (crawlable internal linking) instead of appearing only
+ * after the client query resolves. The query itself is unchanged, so the strip
+ * still refreshes on the client once the cached rows go stale.
  */
-export function SubcategoryChips({ slug, parentSlug }: { slug: string; parentSlug: string | null }) {
+export function SubcategoryChips({
+  slug,
+  parentSlug,
+  initialCats,
+}: {
+  slug: string;
+  parentSlug: string | null;
+  initialCats?: CategoryChipRow[];
+}) {
   // Same queryKey + select as /categories so React Query dedupes the fetch
   // between the two pages — keep the select byte-identical to categories.tsx.
+  // 105 categories sit far below the 1000-row PostgREST cap, and this stays a
+  // single small select; do not widen it into a paged full-table read.
   const { data = [] } = useQuery({
     queryKey: ["all-cats"],
     queryFn: async () => {
@@ -22,6 +50,7 @@ export function SubcategoryChips({ slug, parentSlug }: { slug: string; parentSlu
       if (error) throw error;
       return data;
     },
+    initialData: initialCats?.length ? (initialCats as CategoryChipRow[]) : undefined,
   });
 
   const children = data.filter((c) => c.parent_slug === slug);

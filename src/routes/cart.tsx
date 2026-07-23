@@ -1,4 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { formatILS, useCart, getEffectivePrice, applyMemberDiscount, lineKey } from "@/lib/cart";
 import { useAuth } from "@/lib/auth";
 
@@ -14,11 +16,31 @@ export const Route = createFileRoute("/cart")({
 });
 
 function CartPage() {
-  const { items, remove, setQty, subtotal, shipping } = useCart();
+  const { items, remove, setQty, shipping } = useCart();
   const { user } = useAuth();
-  const isMember = !!user;
-  const memberSubtotal = applyMemberDiscount(subtotal, isMember);
-  const memberSavings = subtotal - memberSubtotal;
+
+  // Same authoritative flag the server prices on (profiles.is_member, read by
+  // placeOrder() in src/lib/checkout.functions.ts). Assuming "signed in ⇒ member"
+  // quoted a total lower than the customer is actually charged.
+  const { data: memberProfile } = useQuery({
+    queryKey: ["cart-membership", user?.id],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("is_member")
+        .eq("id", user!.id)
+        .maybeSingle();
+      return data;
+    },
+  });
+  // Unknown (anonymous, or still loading) ⇒ no benefit, so the quote is never
+  // lower than the charge.
+  const isMember = !!memberProfile?.is_member;
+  // Exactly the sum of the per-line amounts rendered in the cart rows below.
+  const itemsTotal = items.reduce((s, i) => s + getEffectivePrice(i.price) * i.quantity, 0);
+  const memberSubtotal = applyMemberDiscount(itemsTotal, isMember);
+  const memberBenefit = itemsTotal - memberSubtotal;
   const finalTotal = memberSubtotal + shipping;
 
   if (items.length === 0) {
@@ -35,6 +57,12 @@ function CartPage() {
   const productIds = Array.from(new Set(items.map((i) => i.productId)));
 
   return (
+    // Three grid children, in the order they must be read on a phone (one
+    // column below `lg`): cart lines → summary + CTA → cross-sell. The
+    // suggestions used to live inside the lines column, pushing "מעבר לתשלום"
+    // up to 8 products down the page. No `order` classes needed — this DOM
+    // order also produces the unchanged desktop layout: lines and summary share
+    // the first row, the cross-sell wraps to the row beneath them.
     <div className="container mx-auto px-4 py-10 grid lg:grid-cols-3 gap-8">
       <div className="lg:col-span-2 space-y-3">
         <h1 className="font-display text-3xl font-bold mb-4">העגלה שלי</h1>
@@ -100,25 +128,42 @@ function CartPage() {
             </div>
           );
         })}
-
-        <CartCrossSell productIds={productIds} />
       </div>
-      <div className="rounded-lg border bg-card p-6 h-fit sticky top-20">
+      {/* Sticky only from lg: on a phone the cross-sell now follows this block,
+          and a pinned summary would scroll over it. */}
+      <div className="rounded-lg border bg-card p-6 h-fit lg:sticky lg:top-20">
         <h2 className="font-display text-xl font-bold mb-4">סיכום הזמנה</h2>
-        <div className="flex justify-between text-sm mb-2">
-          <span className="text-muted-foreground">משלוח (תעריף אחיד לכל הזמנה)</span>
-          <span>{formatILS(shipping)}</span>
+        {/* Every component of the amount that will be charged, so the column
+            reconciles: סכום פריטים (− הטבת מועדון) + משלוח = סך הכל. */}
+        <div className="space-y-2">
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">סכום פריטים</span>
+            <span className="whitespace-nowrap">{formatILS(itemsTotal)}</span>
+          </div>
+          {memberBenefit > 0 && (
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">הטבת מועדון</span>
+              <span className="whitespace-nowrap">{formatILS(-memberBenefit)}</span>
+            </div>
+          )}
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">משלוח (תעריף אחיד לכל הזמנה)</span>
+            <span className="whitespace-nowrap">{formatILS(shipping)}</span>
+          </div>
         </div>
-        <p className="text-xs text-muted-foreground mb-3">
+        <p className="text-xs text-muted-foreground mt-2 mb-3">
           זמן אספקה משוער: 3–14 ימי עסקים
         </p>
         <div className="flex justify-between text-lg border-t pt-3 mb-4">
           <span className="font-bold">סך הכל</span>
-          <span className="font-bold text-[#A8862A]">{formatILS(finalTotal)}</span>
+          <span className="font-bold text-[#A8862A] whitespace-nowrap">{formatILS(finalTotal)}</span>
         </div>
 
         <Link to="/checkout"><Button className="w-full bg-[#D4AF37] hover:bg-[#A8862A] text-white" size="lg">מעבר לתשלום · {formatILS(finalTotal)}</Button></Link>
         <TrustBadges compact />
+      </div>
+      <div className="lg:col-span-2">
+        <CartCrossSell productIds={productIds} />
       </div>
     </div>
   );

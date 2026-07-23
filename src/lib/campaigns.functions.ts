@@ -6,7 +6,14 @@
 // is NEVER consulted; its checkout label promises those details are not used for
 // marketing. Every address is then filtered through email_suppressions, both
 // when the audience is built and again on each batch, so an unsubscribe that
-// lands mid-send takes effect immediately.
+// lands mid-send takes effect immediately, and through profiles.marketing_consent
+// = false, so an account that switched marketing off is never resurrected by a
+// stale newsletter row. The single-address "שלח בדיקה" path runs the same two
+// checks before it sends, because a test copy of a פרסומת is still a פרסומת.
+//
+// Every message also ships RFC 8058 List-Unsubscribe headers pointing at the
+// same signed endpoint as the footer link, so the mailbox provider's native
+// unsubscribe button works without opening the mail.
 //
 // Sending is chunked and resumable: a 5-minute cron claims batches of 20 via
 // claim_campaign_recipients (FOR UPDATE SKIP LOCKED), so the cron and an admin
@@ -24,6 +31,7 @@ import {
   isEmailConfigured,
   unsubscribeToken,
   unsubscribeUrl,
+  listUnsubscribeHeaders,
 } from "@/lib/email.server";
 import { sellerIdentityLine, BUSINESS } from "@/lib/business";
 // Read-only price helper — display formatting for the product cards. This
@@ -288,9 +296,38 @@ async function buildAudience(): Promise<Array<{ email: string; name: string | nu
     if ((data ?? []).length < DB_PAGE) break;
   }
 
-  // Global opt-out wins over everything.
-  const suppressed = await loadSuppressions();
-  return [...byEmail.values()].filter((r) => !suppressed.has(r.email));
+  // Global opt-out wins over everything, and so does an account that switched
+  // marketing consent off: a profile row saying "false" is an explicit refusal,
+  // and it must beat a stale newsletter_subscribers row for the same address.
+  // Only an explicit false excludes — null/missing means "never asked", which
+  // is the normal state of an anonymous newsletter signup.
+  const [suppressed, revoked] = await Promise.all([
+    loadSuppressions(),
+    loadRevokedProfileEmails(),
+  ]);
+  return [...byEmail.values()].filter(
+    (r) => !suppressed.has(r.email) && !revoked.has(r.email),
+  );
+}
+
+/** Addresses of profiles that explicitly turned marketing consent off. */
+async function loadRevokedProfileEmails(): Promise<Set<string>> {
+  const out = new Set<string>();
+  for (let from = 0; ; from += DB_PAGE) {
+    const { data, error } = await supabaseAdmin
+      .from("profiles")
+      .select("email")
+      .eq("marketing_consent", false)
+      .not("email", "is", null)
+      .range(from, from + DB_PAGE - 1);
+    if (error) throw new Error("שגיאה בבניית רשימת הנמענים.");
+    for (const r of data ?? []) {
+      const email = String(r.email ?? "").trim().toLowerCase();
+      if (email) out.add(email);
+    }
+    if ((data ?? []).length < DB_PAGE) break;
+  }
+  return out;
 }
 
 async function loadSuppressions(): Promise<Set<string>> {
@@ -306,6 +343,94 @@ async function loadSuppressions(): Promise<Set<string>> {
   }
   return out;
 }
+
+/**
+ * Dry run of the audience selection — how many addresses a send would reach.
+ *
+ * Reads only. Exists so the owner sees a real number *before* the first blast
+ * instead of discovering the list size from the counter afterwards.
+ */
+export const previewCampaignAudience = createServerFn({ method: "POST" }).handler(
+  async (): Promise<{ total: number; sample: string[] }> => {
+    await requireAdmin();
+    const audience = await buildAudience();
+    return {
+      total: audience.length,
+      sample: audience.slice(0, 5).map((r) => r.email),
+    };
+  },
+);
+
+const TestSendSchema = z.object({
+  campaignId: z.string().uuid(),
+  email: z.string().trim().toLowerCase().email().max(255),
+});
+
+/**
+ * Send the campaign to exactly one owner-supplied address.
+ *
+ * Deliberately shares renderCampaign() / marketingSubject() / unsubscribeToken()
+ * with the real sender, so what the owner proofreads is the real message. It
+ * never touches campaign_recipients and never writes a counter — the audience
+ * is not consulted at all on this path, so it cannot enqueue or leak a send.
+ *
+ * The body is a real פרסומת, so the opt-out checks are NOT optional here either:
+ * the address is run through email_suppressions and profiles.marketing_consent =
+ * false exactly like a real recipient, and the send is refused if either says no.
+ * A "test" that lands in the mailbox of someone who unsubscribed is still an
+ * unlawful marketing message (§30א(ד)).
+ *
+ * The one exemption is the shop's own configured address: a proof copy the owner
+ * sends to themselves is not marketing to a third party, and it must keep working
+ * even if that address sits on the suppression list.
+ */
+export const sendCampaignTestEmail = createServerFn({ method: "POST" })
+  .inputValidator((i: unknown) => TestSendSchema.parse(i))
+  .handler(async ({ data }) => {
+    await requireAdmin();
+    if (!isEmailConfigured()) throw new Error("שליחת דוא\"ל אינה מוגדרת בשרת.");
+
+    const email = data.email.trim().toLowerCase();
+    const ownerEmail = (process.env.SHOP_OWNER_EMAIL ?? "").trim().toLowerCase();
+    const isOwnerProof = ownerEmail.length > 0 && email === ownerEmail;
+
+    if (!isOwnerProof) {
+      // Fail closed: if the opt-out lists cannot be read we refuse to send rather
+      // than guess. loadSuppressions/loadRevokedProfileEmails already throw Hebrew.
+      const [suppressed, revoked] = await Promise.all([
+        loadSuppressions(),
+        loadRevokedProfileEmails(),
+      ]);
+      if (suppressed.has(email) || revoked.has(email)) {
+        throw new Error("הכתובת הוסרה מרשימת התפוצה — לא ניתן לשלוח אליה דיוור.");
+      }
+    }
+
+    const token = await unsubscribeToken(email);
+    if (!token) {
+      throw new Error("UNSUBSCRIBE_SECRET אינו מוגדר — לא ניתן לשלוח דיוור ללא קישור הסרה.");
+    }
+
+    const { data: campaign, error } = await supabaseAdmin
+      .from("campaigns")
+      .select("subject, intro_html, content")
+      .eq("id", data.campaignId)
+      .maybeSingle();
+    if (error || !campaign) throw new Error("הקמפיין לא נמצא.");
+
+    const unsub = unsubscribeUrl(email, token);
+    const ok = await sendEmail({
+      to: email,
+      // Only the subject carries the test marking; the body is byte-identical
+      // to a real send.
+      subject: `[בדיקה] ${marketingSubject(campaign.subject)}`,
+      html: renderCampaign(campaign, unsub),
+      replyTo: process.env.SHOP_OWNER_EMAIL,
+      headers: listUnsubscribeHeaders(unsub),
+    });
+    if (!ok) throw new Error("שליחת הבדיקה נכשלה. בדקו את הגדרות הדוא\"ל ונסו שוב.");
+    return { ok: true as const, email };
+  });
 
 export const startCampaign = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) => z.object({ id: z.string().uuid() }).parse(i))
@@ -381,18 +506,48 @@ export const cancelCampaign = createServerFn({ method: "POST" })
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
+ * Outcome of one tick.
+ *
+ * `status` is the part that matters to the caller: "ok" is the ONLY value that
+ * means the batch actually ran. Everything else is a reason nothing was sent,
+ * and the admin renders it as an error instead of "0 נשלחו" — a silent zero was
+ * indistinguishable from an empty queue and hid a misconfigured server.
+ *
+ * A type alias (not an interface) on purpose: handleCronRequest takes
+ * `Record<string, unknown>`, and only aliases get an implicit index signature.
+ */
+export type CampaignTickResult = {
+  status: "ok" | "email-not-configured" | "claim-failed" | "idle";
+  campaign: string | null;
+  sent: number;
+  /** Real delivery failures only. */
+  failed: number;
+  /** Recipients passed over because they opted out — not a failure. */
+  skipped: number;
+  done: boolean;
+  /** Human-readable Hebrew reason, present whenever status !== "ok". */
+  error?: string;
+};
+
+/**
  * Send one batch for the oldest in-flight campaign.
  *
  * Shared by the cron route and the admin "send a batch now" button. Safe to run
  * concurrently with itself: rows are claimed atomically.
  */
-export async function runCampaignTick(): Promise<{
-  campaign: string | null;
-  sent: number;
-  failed: number;
-  done: boolean;
-}> {
-  if (!isEmailConfigured()) return { campaign: null, sent: 0, failed: 0, done: false };
+export async function runCampaignTick(): Promise<CampaignTickResult> {
+  if (!isEmailConfigured()) {
+    console.error("[campaign-tick] email not configured — nothing sent");
+    return {
+      status: "email-not-configured",
+      campaign: null,
+      sent: 0,
+      failed: 0,
+      skipped: 0,
+      done: false,
+      error: "שליחת דוא\"ל אינה מוגדרת בשרת (RESEND_API_KEY / ORDER_EMAIL_FROM) — לא נשלחה אף הודעה.",
+    };
+  }
 
   const { data: campaign, error } = await supabaseAdmin
     .from("campaigns")
@@ -403,9 +558,19 @@ export async function runCampaignTick(): Promise<{
     .maybeSingle();
   if (error) {
     console.error("[campaign-tick] campaign lookup:", error);
-    return { campaign: null, sent: 0, failed: 0, done: false };
+    return {
+      status: "claim-failed",
+      campaign: null,
+      sent: 0,
+      failed: 0,
+      skipped: 0,
+      done: false,
+      error: "שגיאה בטעינת הקמפיין הפעיל — לא נשלחה אף הודעה.",
+    };
   }
-  if (!campaign) return { campaign: null, sent: 0, failed: 0, done: false };
+  if (!campaign) {
+    return { status: "idle", campaign: null, sent: 0, failed: 0, skipped: 0, done: false };
+  }
 
   // Recover rows abandoned by a Worker that died mid-batch.
   const stuckBefore = new Date(Date.now() - STUCK_MINUTES * 60 * 1000).toISOString();
@@ -423,7 +588,15 @@ export async function runCampaignTick(): Promise<{
   );
   if (claimErr) {
     console.error("[campaign-tick] claim failed:", claimErr);
-    return { campaign: campaign.id, sent: 0, failed: 0, done: false };
+    return {
+      status: "claim-failed",
+      campaign: campaign.id,
+      sent: 0,
+      failed: 0,
+      skipped: 0,
+      done: false,
+      error: "שגיאה בשליפת נמענים לשליחה (claim_campaign_recipients) — לא נשלחה אף הודעה.",
+    };
   }
 
   const rows = (claimed ?? []) as Array<{ id: string; email: string; name: string | null }>;
@@ -443,19 +616,31 @@ export async function runCampaignTick(): Promise<{
         .update({ status: "pending", claimed_at: null })
         .in("id", rows.map((r) => r.id));
     }
-    return { campaign: campaign.id, sent: 0, failed: 0, done: false };
+    return {
+      status: "claim-failed",
+      campaign: campaign.id,
+      sent: 0,
+      failed: 0,
+      skipped: 0,
+      done: false,
+      error: "שגיאה בטעינת רשימת ההסרות — הקבוצה שוחררה ותישלח בניסיון הבא.",
+    };
   }
 
   let sent = 0;
   let failed = 0;
+  let skipped = 0;
   for (const row of rows) {
     const email = row.email.toLowerCase();
     if (suppressed.has(email)) {
+      // An opt-out is a correct outcome, not a delivery failure. Its own status
+      // keeps failed_count meaning "something went wrong" — the number the
+      // owner is supposed to react to.
       await supabaseAdmin
         .from("campaign_recipients")
-        .update({ status: "failed", error: "unsubscribed" })
+        .update({ status: "skipped", error: "unsubscribed" })
         .eq("id", row.id);
-      failed++;
+      skipped++;
       continue;
     }
 
@@ -469,11 +654,15 @@ export async function runCampaignTick(): Promise<{
       continue;
     }
 
+    const unsub = unsubscribeUrl(email, token);
     const ok = await sendEmail({
       to: row.email,
       subject: marketingSubject(campaign.subject),
-      html: renderCampaign(campaign, unsubscribeUrl(email, token)),
+      html: renderCampaign(campaign, unsub),
       replyTo: process.env.SHOP_OWNER_EMAIL,
+      // One-click opt-out for the mailbox provider (RFC 8058) — the same URL as
+      // the footer link, so both routes land on the same signed endpoint.
+      headers: listUnsubscribeHeaders(unsub),
     });
 
     await supabaseAdmin
@@ -492,7 +681,7 @@ export async function runCampaignTick(): Promise<{
 
   // Authoritative counters straight from the queue (head counts, no row walk).
   const counts = await Promise.all(
-    (["sent", "failed", "pending", "sending"] as const).map((status) =>
+    (["sent", "failed", "pending", "sending", "skipped"] as const).map((status) =>
       supabaseAdmin
         .from("campaign_recipients")
         .select("id", { count: "exact", head: true })
@@ -500,7 +689,10 @@ export async function runCampaignTick(): Promise<{
         .eq("status", status),
     ),
   );
-  const [sentTotal, failedTotal, pendingTotal, sendingTotal] = counts.map((c) => c.count ?? 0);
+  const [sentTotal, failedTotal, pendingTotal, sendingTotal, skippedTotal] = counts.map(
+    (c) => c.count ?? 0,
+  );
+  // Skipped rows are terminal too, so they must not hold the campaign open.
   const done = pendingTotal === 0 && sendingTotal === 0;
 
   await supabaseAdmin
@@ -514,9 +706,9 @@ export async function runCampaignTick(): Promise<{
     .eq("status", "sending");
 
   console.log(
-    `[campaign-tick] campaign=${campaign.id} batch_sent=${sent} batch_failed=${failed} remaining=${pendingTotal} done=${done}`,
+    `[campaign-tick] campaign=${campaign.id} batch_sent=${sent} batch_failed=${failed} batch_skipped=${skipped} total_skipped=${skippedTotal} remaining=${pendingTotal} done=${done}`,
   );
-  return { campaign: campaign.id, sent, failed, done };
+  return { status: "ok", campaign: campaign.id, sent, failed, skipped, done };
 }
 
 /** Admin-triggered "send a batch now". */

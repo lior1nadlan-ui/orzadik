@@ -8,21 +8,30 @@ export type FaqItem = { q: string; a: string };
 /**
  * Build a small, factual FAQ for a category. Answers are short (≈1–3 sentences)
  * so they are directly quotable as featured snippets / AI answers.
+ *
+ * Category names come from a supplier import and are arbitrary noun phrases
+ * ("מפות שולחן + רנר", "סטים לחלאקה"), so the templates never glue a definite
+ * article or a preposition straight onto the name — that produced broken
+ * Hebrew like "האם המפות שולחן + רנר באתר כשרים?". Instead the category is
+ * always addressed as a quoted noun phrase after "בקטגוריית …", which stays
+ * grammatical for any name, in any gender or number.
  */
 export function categoryFaq(categoryName: string): FaqItem[] {
-  const name = categoryName?.trim() || "המוצרים";
+  const raw = categoryName?.trim();
+  // Fallback keeps the sentences valid when a name is missing.
+  const inCat = raw ? `בקטגוריית "${raw}"` : "באתר";
   return [
     {
-      q: `האם ה${name} באתר כשרים ומהודרים?`,
-      a: `כן. ה${name} ב"אור זרוע לצדיק" נבחרים בהקפדה על כשרות והידור, מתוך מחויבות לאיכות בכל פריט.`,
+      q: `האם המוצרים ${inCat} כשרים ומהודרים?`,
+      a: `כן. המוצרים ${inCat} נבחרים ב"אור זרוע לצדיק" בהקפדה על כשרות והידור, מתוך מחויבות לאיכות בכל פריט.`,
     },
     {
-      q: `אפשר להוסיף רקמה או חריטה אישית ל${name}?`,
+      q: `האם ניתן להוסיף רקמה או חריטה אישית למוצרים ${inCat}?`,
       a: `בחלק מהמוצרים ניתן להוסיף רקמה אישית או חריטת לייזר (למשל שם או ברכה). האפשרות מופיעה בעמוד המוצר כאשר היא זמינה.`,
     },
     {
-      q: `מהם זמני המשלוח ל${name}?`,
-      a: `אנו שולחים עד הבית בכל רחבי ישראל. זמן האספקה המשוער הוא 3–7 ימי עסקים ממועד ההזמנה.`,
+      q: `מהם זמני המשלוח למוצרים ${inCat}?`,
+      a: `אנו שולחים עד הבית בכל רחבי ישראל. זמן האספקה המשוער הוא 3–14 ימי עסקים ממועד ההזמנה.`,
     },
     {
       q: `מה מדיניות ההחזרות וההחלפות?`,

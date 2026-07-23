@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { getDiscountPct } from "@/lib/cart";
 import { ProductCard, ProductCardData } from "@/components/ProductCard";
-import { SubcategoryChips } from "@/components/catalog/SubcategoryChips";
+import { SubcategoryChips, type CategoryChipRow } from "@/components/catalog/SubcategoryChips";
 import {
   Select,
   SelectContent,
@@ -14,12 +14,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { useMemo, useState } from "react";
 import { categoryFaq, faqJsonLd } from "@/lib/category-faq";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
+import { ChevronDown } from "lucide-react";
 
 async function fetchCategoryWithRetry(slug: string, maxRetries = 2) {
   for (let i = 0; i <= maxRetries; i++) {
@@ -30,7 +25,7 @@ async function fetchCategoryWithRetry(slug: string, maxRetries = 2) {
         .eq("slug", slug)
         .maybeSingle();
       if (catErr) throw catErr;
-      if (!cat) return { cat: null, parent: null, products: [] };
+      if (!cat) return { cat: null, parent: null, products: [], allCats: [] as CategoryChipRow[] };
       // Page through explicitly: PostgREST caps an unbounded select at 1000
       // rows, and the largest category is already at 742 after the supplier
       // import. Left unbounded, a category that grows past 1000 would silently
@@ -60,7 +55,21 @@ async function fetchCategoryWithRetry(slug: string, maxRetries = 2) {
           .maybeSingle();
         parent = parentRow ?? null;
       }
-      return { cat, parent, products };
+      // Subcategory / sibling chips, fetched here so the internal links exist
+      // in the SSR HTML instead of only after the client query resolves.
+      // Same select + order as SubcategoryChips/categories.tsx so it seeds the
+      // shared ["all-cats"] cache. 105 rows — comfortably under the 1000-row
+      // PostgREST cap, so one bounded-in-practice select, not a paged read.
+      // Non-fatal like the parent lookup above: the chips are navigation, not
+      // the page — if this one select fails the page still renders and the
+      // client query fills the strip in.
+      const { data: allCatRows } = await supabase
+        .from("categories")
+        .select("id, slug, name, description, parent_slug, sort_order")
+        .order("sort_order")
+        .order("name");
+      const allCats = (allCatRows ?? []) as CategoryChipRow[];
+      return { cat, parent, products, allCats };
     } catch (err: any) {
       if (i === maxRetries || !["ECONNREFUSED", "ETIMEDOUT", "network"].some(m => String(err).includes(m))) {
         // Real error → route error boundary, not a soft-404 "category not found".
@@ -69,7 +78,7 @@ async function fetchCategoryWithRetry(slug: string, maxRetries = 2) {
       await new Promise(r => setTimeout(r, Math.pow(2, i) * 100));
     }
   }
-  return { cat: null, parent: null, products: [] };
+  return { cat: null, parent: null, products: [], allCats: [] as CategoryChipRow[] };
 }
 
 export const Route = createFileRoute("/category/$slug")({
@@ -87,15 +96,34 @@ export const Route = createFileRoute("/category/$slug")({
     const cat = loaderData?.cat as any;
     if (!cat) return { meta: [{ title: "קטגוריה | אור זרוע לצדיק" }], links: [{ rel: "canonical", href: url }] };
     const products = (loaderData?.products ?? []) as any[];
+    const parentForDesc = (loaderData?.parent ?? null) as { slug: string; name: string } | null;
 
     const rawDesc = (cat.description || cat.long_description || "")
       .replace(/<[^>]*>/g, "")
       .replace(/\s+/g, " ")
       .trim();
-    const desc = (
-      rawDesc ||
-      `מבחר ${cat.name} מהודרים בכשרות מובחרת — איכות פרימיום, אפשרות רקמה אישית ומשלוח עד הבית.`
-    ).slice(0, 160);
+    // Owner-written copy always wins. The fallback below is only for categories
+    // whose `description` is still empty — it is built from facts this page
+    // already knows (how many products it actually lists, and where it sits in
+    // the tree) so the 105 category pages don't all ship one byte-identical
+    // meta description. Deliberately states no stock / delivery / return
+    // promise: those live on the product and terms pages.
+    const count = products.length;
+    const lead =
+      count > 0
+        ? `${count} ${count === 1 ? "מוצר" : "מוצרים"} בקטגוריית ${cat.name} באתר "אור זרוע לצדיק"`
+        : `קטגוריית ${cat.name} באתר "אור זרוע לצדיק"`;
+    const placement = parentForDesc ? `, תת-קטגוריה של ${parentForDesc.name}` : "";
+    const tail =
+      count > 0
+        ? "תמונות, מחירים ופרטים מלאים לכל פריט."
+        : "רשימת המוצרים בקטגוריה מוצגת בעמוד זה.";
+    const full = rawDesc || `${lead}${placement}. ${tail}`;
+    // Trim on a word boundary — a mid-word cut is visible in the SERP snippet.
+    const desc =
+      full.length <= 160
+        ? full
+        : `${full.slice(0, 160).replace(/\s+\S*$/, "").trim() || full.slice(0, 160).trim()}…`;
 
     const collectionLd: any = {
       "@context": "https://schema.org",
@@ -170,7 +198,7 @@ type Row = ProductCardData & { is_active: boolean; stock_status: string; created
 
 function CategoryPage() {
   const { slug } = Route.useParams();
-  const { cat: initialCat, products: initialProducts, parent } = Route.useLoaderData();
+  const { cat: initialCat, products: initialProducts, parent, allCats } = Route.useLoaderData();
   const { sort: sortFromUrl, instock: instockFromUrl } = Route.useSearch();
   const navigate = Route.useNavigate();
   // Seed from the URL so sorted/filtered views survive reload and sharing.
@@ -320,9 +348,14 @@ function CategoryPage() {
               <img
                 src={heroImage}
                 alt={cat?.name ? `תמונת קטגוריה עבור ${cat.name}` : "תמונת קטגוריה"}
-                // Above-the-fold hero — the category page's LCP element.
+                // Above-the-fold hero — the category page's LCP element, so it
+                // is fetched eagerly on purpose. loading="lazy" here would
+                // contradict fetchPriority="high" and delay LCP; the explicit
+                // intrinsic size reserves the box and keeps CLS at zero.
                 fetchPriority="high"
+                loading="eager"
                 decoding="async"
+                sizes="100vw"
                 className="absolute inset-0 h-full w-full object-cover"
                 width={1600}
                 height={700}
@@ -368,7 +401,11 @@ function CategoryPage() {
             active chip is targeted through the aria-current="page" attribute the
             router puts on the link for the current category. */}
         <div className="[&_a]:border-gold/60 [&_a]:bg-background [&_a]:text-foreground [&_a:hover]:border-accent [&_a[aria-current=page]]:bg-argaman [&_a[aria-current=page]]:border-argaman [&_a[aria-current=page]]:text-white">
-          <SubcategoryChips slug={slug} parentSlug={cat?.parent_slug ?? null} />
+          <SubcategoryChips
+            slug={slug}
+            parentSlug={cat?.parent_slug ?? null}
+            initialCats={allCats as CategoryChipRow[] | undefined}
+          />
         </div>
 
         {(slug === "study-books" || slug === "esh-sheli-gold") && products.length === 0 ? (
@@ -443,20 +480,28 @@ function CategoryPage() {
         )}
 
         {/* FAQ — feeds AEO (voice / "People also ask" / AI answers). Mirrors the
-            FAQPage JSON-LD emitted in the route head. */}
+            FAQPage JSON-LD emitted in the route head, so the answers must be in
+            the server HTML: a JS accordion that mounts its panel only when open
+            leaves the JSON-LD claiming text no crawler can find on the page.
+            Native <details>/<summary> keeps every answer in the markup while
+            still collapsing visually, with no JS and no hydration cost. */}
         {cat?.name && (
           <section className="mt-16 max-w-3xl mx-auto">
             <h2 className="font-display text-2xl font-bold mb-5 text-center">שאלות נפוצות — {cat.name}</h2>
-            <Accordion type="single" collapsible className="w-full">
+            <div className="w-full border-t border-gold/30">
               {categoryFaq(cat.name).map((item, i) => (
-                <AccordionItem key={i} value={`faq-${i}`} className="border-gold/30">
-                  <AccordionTrigger className="text-right font-display text-base">{item.q}</AccordionTrigger>
-                  <AccordionContent className="text-sm text-muted-foreground leading-relaxed">
-                    {item.a}
-                  </AccordionContent>
-                </AccordionItem>
+                <details key={i} className="group border-b border-gold/30">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-3 py-4 text-right font-display text-base font-medium transition-colors hover:text-accent [&::-webkit-details-marker]:hidden">
+                    <span>{item.q}</span>
+                    <ChevronDown
+                      aria-hidden="true"
+                      className="h-4 w-4 shrink-0 text-accent transition-transform duration-200 group-open:rotate-180"
+                    />
+                  </summary>
+                  <p className="pb-4 text-sm text-muted-foreground leading-relaxed">{item.a}</p>
+                </details>
               ))}
-            </Accordion>
+            </div>
           </section>
         )}
       </div>

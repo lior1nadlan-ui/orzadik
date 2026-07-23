@@ -12,13 +12,16 @@
     "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_iIXlA6UOH_jEMubtd2nW9A_bG9hPbaF",
     "APP_URL": "https://orzadik.com",
   },
-  // Scheduled jobs. The `scheduled` handler in src/server.ts fans these out to
-  // the existing /api/cron/* endpoints (which stay externally callable with the
-  // same CRON_SECRET), so there is exactly one auth model for both paths.
+  // Scheduled jobs. Each expression below MUST have a matching key in the JOBS
+  // map in src/nitro/cron.ts (Cloudflare hands the schedule back verbatim, so an
+  // unmapped string just logs "no job mapped" and does nothing). The same jobs
+  // stay externally callable at /api/cron/* behind CRON_SECRET.
   //   "0 7 * * *"   → daily 07:00 UTC: post-delivery review requests
   //   "*/5 * * * *" → every 5 min: send the next campaign batch (~240 mails/hr)
+  //   "15 * * * *"  → hourly at :15: abandoned-cart reminders (carts 1h–30d old,
+  //                   ≤100 per tick, one reminder per cart ever)
   "triggers": {
-    "crons": ["0 7 * * *", "*/5 * * * *"],
+    "crons": ["0 7 * * *", "*/5 * * * *", "15 * * * *"],
   },
   // Serve the Worker on the real domain (Cloudflare auto-creates DNS + TLS).
   "routes": [

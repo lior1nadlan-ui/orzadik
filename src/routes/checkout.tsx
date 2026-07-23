@@ -23,7 +23,7 @@ export const Route = createFileRoute("/checkout")({
 });
 
 function CheckoutPage() {
-  const { items, subtotal, shipping, grandTotal } = useCart();
+  const { items, subtotal, shipping } = useCart();
   const { user } = useAuth();
   const navigate = useNavigate();
   const submitOrder = useServerFn(placeOrder);
@@ -61,7 +61,9 @@ function CheckoutPage() {
       const [{ data: profile }, { data: lastOrder }] = await Promise.all([
         supabase
           .from("profiles")
-          .select("full_name, phone")
+          // `is_member` is the SAME flag the server reads when it prices the
+          // order — see placeOrder() in src/lib/checkout.functions.ts.
+          .select("full_name, phone, is_member")
           .eq("id", user!.id)
           .maybeSingle(),
         supabase
@@ -90,10 +92,17 @@ function CheckoutPage() {
     }));
   }, [prefill]);
 
-  // Signed-in users are auto-enrolled as members
-  const isMember = !!user;
-  const memberSubtotal = applyMemberDiscount(subtotal, isMember);
-  const memberSavings = subtotal - memberSubtotal;
+  // Membership is decided by the SERVER: placeOrder() re-reads profiles.is_member
+  // and Cardcom is charged the total it computes. Quoting from `!!user` instead
+  // meant a signed-in non-member was shown less than they were about to pay, so
+  // read the authoritative flag here. Unknown (anonymous, or the profile query
+  // still in flight) ⇒ false, i.e. the quote is never lower than the charge.
+  const isMember = !!prefill?.profile?.is_member;
+  // Exactly the sum of the per-line amounts rendered in the summary column, so
+  // the breakdown below always reconciles against סך הכל.
+  const itemsTotal = items.reduce((s, i) => s + getEffectivePrice(i.price) * i.quantity, 0);
+  const memberSubtotal = applyMemberDiscount(itemsTotal, isMember);
+  const memberBenefit = itemsTotal - memberSubtotal;
   const finalTotal = memberSubtotal + shipping;
 
   // Save abandoned-cart snapshot 2s after the user types a valid email
@@ -209,7 +218,7 @@ function CheckoutPage() {
           </div>
           <div>
             <Label htmlFor="phone">טלפון *</Label>
-            <Input id="phone" required autoComplete="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+            <Input id="phone" type="tel" inputMode="tel" required autoComplete="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
           </div>
           <div>
             <Label htmlFor="city">עיר</Label>
@@ -292,7 +301,14 @@ function CheckoutPage() {
           </Button>
         )}
       </form>
-      <div className="rounded-lg border bg-card p-6 h-fit sticky top-20">
+      {/* The summary follows the form in the DOM, with no `order-*` overrides,
+          so visual, DOM and focus order agree at every breakpoint: on `lg` the
+          form fills the first two (right-hand, in RTL) columns and the summary
+          the third; below `lg` the single column stacks in the same sequence.
+          The page therefore still opens on its <h1> — this <h2> is a
+          sub-section of it and must not precede it. Sticky is lg-only: pinned
+          on a phone it would scroll over the fields. */}
+      <div className="rounded-lg border bg-card p-6 h-fit lg:sticky lg:top-20">
         <h2 className="font-display text-xl font-bold mb-4">סיכום</h2>
         <div className="space-y-2 mb-4">
           {items.map((i) => (
@@ -312,15 +328,33 @@ function CheckoutPage() {
             </div>
           ))}
         </div>
-        <div className="flex justify-between text-sm mb-2">
-          <span className="text-muted-foreground">משלוח</span>
-          <span>{formatILS(shipping)}</span>
+        {/* Full breakdown of the exact amount Cardcom will charge. Every row is a
+            factual component of that number — no percentages, no "before" price
+            and no savings claims. סכום פריטים (− הטבת מועדון) + משלוח = סך הכל. */}
+        <div className="space-y-2 border-t pt-3">
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">סכום פריטים</span>
+            <span className="whitespace-nowrap">{formatILS(itemsTotal)}</span>
+          </div>
+          {memberBenefit > 0 && (
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">הטבת מועדון</span>
+              <span className="whitespace-nowrap">{formatILS(-memberBenefit)}</span>
+            </div>
+          )}
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">משלוח</span>
+            <span className="whitespace-nowrap">{formatILS(shipping)}</span>
+          </div>
         </div>
-        <div className="flex justify-between text-lg border-t pt-3">
+        <div className="flex justify-between text-lg border-t pt-3 mt-3">
           <span className="font-bold">סך הכל</span>
-          <span className="font-bold text-[#A8862A]">{formatILS(finalTotal)}</span>
+          <span className="font-bold text-[#A8862A] whitespace-nowrap">{formatILS(finalTotal)}</span>
         </div>
         <p className="mt-1 text-[11px] text-muted-foreground">כל המחירים בשקלים (₪) וכוללים מע"מ.</p>
+        <Link to="/cart" className="mt-3 inline-block text-sm text-accent underline underline-offset-2">
+          חזרה לעגלה
+        </Link>
 
         {/* Trust signals — reduce checkout anxiety */}
         <TrustBadges />

@@ -91,14 +91,17 @@ export const placeOrder = createServerFn({ method: "POST" })
 
     // Fetch any referenced size variants for authoritative variant pricing
     const variantIds = data.items.map((i) => i.variant_id).filter(Boolean) as string[];
-    let variantsById = new Map<string, { id: string; product_id: string; label: string; price: number | null }>();
+    let variantsById = new Map<string, { id: string; product_id: string; label: string; price: number | null; in_stock: boolean | null }>();
     if (variantIds.length > 0) {
       const { data: vrows, error: vErr } = await supabaseAdmin
         .from("product_variants")
-        .select("id, product_id, label, price")
+        .select("id, product_id, label, price, in_stock")
         .in("id", variantIds);
       if (vErr) { console.error("[placeOrder] variants fetch:", vErr); throw new Error("שגיאה בטעינת גדלי המוצרים. אנא נסה שוב."); }
-      variantsById = new Map((vrows ?? []).map((v: any) => [v.id as string, { id: v.id, product_id: v.product_id, label: v.label, price: v.price !== null && v.price !== undefined ? Number(v.price) : null }]));
+      // in_stock is normalized to a tri-state on purpose: most rows never set
+      // it, and an unset size must stay purchasable. Only an explicit false
+      // blocks the line below.
+      variantsById = new Map((vrows ?? []).map((v: any) => [v.id as string, { id: v.id, product_id: v.product_id, label: v.label, price: v.price !== null && v.price !== undefined ? Number(v.price) : null, in_stock: typeof v.in_stock === "boolean" ? v.in_stock : null }]));
     }
 
     const byId = new Map(products?.map((p) => [p.id, p]) ?? []);
@@ -111,6 +114,10 @@ export const placeOrder = createServerFn({ method: "POST" })
       if (i.variant_id) {
         const v = variantsById.get(i.variant_id);
         if (!v || v.product_id !== p.id) throw new Error(`גודל לא תקין עבור ${p.name}`);
+        // The parent stock check above says nothing about a single size: a
+        // product can be in stock while one size is not. Reject only on an
+        // explicit false so the untouched rows stay orderable.
+        if (v.in_stock === false) throw new Error(`הגודל אזל מהמלאי: ${p.name} — ${v.label}`);
         if (v.price !== null) basePrice = v.price;
         variantLabel = v.label;
       }

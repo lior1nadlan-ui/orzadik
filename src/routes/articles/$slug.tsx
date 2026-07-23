@@ -1,4 +1,5 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
+import { useState } from "react";
 import { fetchArticleWithRetry, fetchArticlesByCategoryWithRetry } from "@/lib/articles.server";
 import { ArticleCard } from "@/components/ArticleCard";
 import { Link } from "@tanstack/react-router";
@@ -11,7 +12,9 @@ export const Route = createFileRoute("/articles/$slug")({
     if (!article) throw notFound(); // real HTTP 404 for non-existent articles
     let relatedArticles: Awaited<ReturnType<typeof fetchArticlesByCategoryWithRetry>> = [];
     if (article.category_id) {
-      relatedArticles = await fetchArticlesByCategoryWithRetry(article.category_id, 2, 2);
+      // Fetch 3, render 2: the category query also returns the article being
+      // read, which is filtered out in the component.
+      relatedArticles = await fetchArticlesByCategoryWithRetry(article.category_id, 2, 3);
     }
     return { article, relatedArticles };
   },
@@ -94,6 +97,11 @@ export const Route = createFileRoute("/articles/$slug")({
 
 function ArticleDetailPage() {
   const { article, relatedArticles } = Route.useLoaderData();
+  // `featured_image` is nullable AND may point at a URL that 404s. The `null`
+  // case is handled by the render guard below; this covers the broken-URL case
+  // so a dead link doesn't leave a 400px empty grey band above the headline.
+  // Declared before the early return so hook order is stable.
+  const [heroFailed, setHeroFailed] = useState(false);
 
   if (!article) {
     return (
@@ -121,14 +129,22 @@ function ArticleDetailPage() {
 
   const a = article as any;
 
+  // Related articles are pulled by category_id, which also matches the article
+  // being read — drop it so a reader is never offered the page they are on.
+  const related = (relatedArticles ?? []).filter((ra: any) => ra.id !== a.id).slice(0, 2);
+
   return (
     <article className="pb-12">
-      {/* Hero section with featured image */}
-      {a.featured_image && (
+      {/* Hero section with featured image — skipped entirely while
+          `featured_image` is null (true for every seeded article today) and
+          removed again if the URL fails to load. */}
+      {a.featured_image && !heroFailed && (
         <div className="relative w-full h-[400px] md:h-[500px] bg-muted overflow-hidden border-b">
           <img
             src={a.featured_image}
             alt={a.title_he}
+            decoding="async"
+            onError={() => setHeroFailed(true)}
             className="w-full h-full object-cover"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
@@ -178,12 +194,14 @@ function ArticleDetailPage() {
           dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(a.body_html) }}
         />
 
-        {/* Related articles section */}
-        {relatedArticles && relatedArticles.length > 0 && (
+        {/* Related articles — the loader only fills this when the article has a
+            category_id, so while that column is null the whole section is
+            omitted rather than rendering an empty heading. */}
+        {related.length > 0 && (
           <section className="pt-8 border-t border-border">
             <h2 className="font-display text-2xl font-bold mb-6">מאמרים קשורים</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {relatedArticles.map((ra: any) => (
+              {related.map((ra: any) => (
                 <ArticleCard
                   key={ra.id}
                   slug={ra.slug}
@@ -199,21 +217,37 @@ function ArticleDetailPage() {
           </section>
         )}
 
-        {/* CTA section */}
+        {/* CTA section — the article→catalog bridge.
+            `articles.category_id` is the only link an article has to the shop,
+            and it is NULL for every seeded article, so the old single /shop
+            button dropped readers into a 4,600-product catalog with no way to
+            narrow down. Until a category is attached, offer /categories as the
+            second step; once one is, related reading appears above instead. */}
         <section className="mt-12 p-8 md:p-10 rounded-xl bg-gradient-to-b from-primary/5 to-background border border-primary/20">
           <h2 className="font-display text-2xl font-bold mb-3">
-            היישום זה בחנותנו
+            מצאו את המוצרים המתאימים בחנות שלנו
           </h2>
           <p className="text-muted-foreground mb-6">
-            גלו את המוצרים המומלצים בעת קריאת מאמר זה.
+            {a.category_id
+              ? "המשיכו מכאן אל הפריטים שעליהם קראתם במאמר."
+              : "אפשר לעיין בכל המוצרים, או להתחיל מרשימת הקטגוריות ולצמצם משם."}
           </p>
-          <Link
-            to="/shop"
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition font-medium"
-          >
-            לעיין בחנות
-            <ArrowRight className="w-4 h-4" />
-          </Link>
+          <div className="flex flex-wrap items-center gap-3">
+            <Link
+              to="/shop"
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition font-medium"
+            >
+              לעיין בחנות
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+            <Link
+              to="/categories"
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-lg border border-accent text-accent hover:bg-accent hover:text-accent-foreground transition font-medium"
+            >
+              לכל הקטגוריות
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
         </section>
       </div>
     </article>

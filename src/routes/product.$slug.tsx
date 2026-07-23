@@ -27,6 +27,7 @@ import { ProductReviews } from "@/components/ProductReviews";
 import { Stars } from "@/components/Stars";
 import { ClubBadge } from "@/components/ClubBadge";
 import { CROSS_SELL_MAP, DEFAULT_CROSS_SELL_CATEGORY } from "@/lib/cross-sells";
+import { thumbUrl } from "@/lib/img";
 import { ShoppingCart, Minus, Plus, Check, Truck, RotateCcw, ZoomIn, Heart } from "lucide-react";
 import { useFavorites } from "@/components/engagement/favorites";
 import { readRecent, recordRecent } from "@/components/engagement/recently-viewed";
@@ -155,8 +156,10 @@ export const Route = createFileRoute("/product/$slug")({
         itemCondition: "https://schema.org/NewCondition",
         seller: { "@id": "https://orzadik.com/#organization" },
         // Merchant return + shipping details — required for Google's free
-        // Shopping listings / merchant rich results. Mirrors the real policy
-        // (14-day returns, flat ₪37 shipping, 3–7 business-day delivery in IL).
+        // Shopping listings / merchant rich results. Must mirror the binding
+        // copy the customer sees (14-day returns, flat shipping fee, 3–14
+        // business-day delivery per /terms and the on-page delivery note) —
+        // structured data must never promise faster than the visible text.
         hasMerchantReturnPolicy: {
           "@type": "MerchantReturnPolicy",
           applicableCountry: "IL",
@@ -178,8 +181,8 @@ export const Route = createFileRoute("/product/$slug")({
           },
           deliveryTime: {
             "@type": "ShippingDeliveryTime",
-            handlingTime: { "@type": "QuantitativeValue", minValue: 0, maxValue: 2, unitCode: "DAY" },
-            transitTime: { "@type": "QuantitativeValue", minValue: 3, maxValue: 7, unitCode: "DAY" },
+            handlingTime: { "@type": "QuantitativeValue", minValue: 0, maxValue: 1, unitCode: "DAY" },
+            transitTime: { "@type": "QuantitativeValue", minValue: 3, maxValue: 14, unitCode: "DAY" },
           },
         },
       };
@@ -298,7 +301,10 @@ const NO_PERSONALIZATION_PRODUCT_SLUGS = new Set<string>([
 
 function ProductPage() {
   const { slug } = Route.useParams();
-  const { product: initialProduct, reviewSummary } = Route.useLoaderData();
+  // parentCat is resolved once in the loader (server-side) and reused for both
+  // the JSON-LD trail in head() and the visible breadcrumb — no client query.
+  const { product: initialProduct, reviewSummary, parentCat: parentCategory } =
+    Route.useLoaderData();
   const navigate = useNavigate();
   const { add } = useCart();
   const { has: hasFav, toggle: toggleFav } = useFavorites();
@@ -382,10 +388,10 @@ function ProductPage() {
     queryFn: async () => {
       const { data: vs } = await supabase
         .from("product_variants")
-        .select("id, label, sku, price, sort_order")
+        .select("id, label, sku, price, sort_order, in_stock")
         .eq("product_id", product!.id)
         .order("sort_order");
-      if (!vs || vs.length === 0) return [] as Array<{ id: string; label: string; sku: string | null; price: number | null; slug?: string }>;
+      if (!vs || vs.length === 0) return [] as Array<{ id: string; label: string; sku: string | null; price: number | null; inStock: boolean; slug?: string }>;
       const skus = vs.map((v: any) => v.sku).filter(Boolean);
       let siblings: any[] = [];
       if (skus.length > 0) {
@@ -402,15 +408,25 @@ function ProductPage() {
           label: v.label as string,
           sku: (v.sku as string | null) ?? null,
           price: v.price !== null && v.price !== undefined ? Number(v.price) : null,
+          // Legacy rows predate the column — null/undefined means "available".
+          inStock: v.in_stock !== false,
           slug: s?.slug as string | undefined,
         };
       }).filter((v) => v.price !== null || v.slug);
     },
   });
 
-  // For in-place variants, track the selected one (defaults to the first).
+  // For in-place variants, track the selected one. The default is the first
+  // AVAILABLE size — never pre-select a size the customer cannot actually buy.
+  // (Price math is untouched: whichever variant is selected is still priced by
+  // its own `price` through getEffectivePrice, exactly as before.)
   const inPlaceVariants = variants.filter((v) => v.price !== null && !v.slug);
-  const selectedVariant = inPlaceVariants.find((v) => v.id === selectedVariantId) ?? inPlaceVariants[0] ?? null;
+  const siblingVariants = variants.filter((v) => !(v.price !== null && !v.slug));
+  const selectedVariant =
+    inPlaceVariants.find((v) => v.id === selectedVariantId) ??
+    inPlaceVariants.find((v) => v.inStock) ??
+    inPlaceVariants[0] ??
+    null;
 
 
   const categoryIds: string[] = (product?.product_categories ?? [])
@@ -524,23 +540,6 @@ function ProductPage() {
     },
   });
 
-  // Parent of the product's first category — inserts the missing breadcrumb
-  // level when that category is a subcategory.
-  const firstCatParentSlug: string | null =
-    ((product?.product_categories ?? [])[0] as any)?.categories?.parent_slug ?? null;
-  const { data: parentCategory = null } = useQuery({
-    queryKey: ["cat-parent", firstCatParentSlug],
-    enabled: !!firstCatParentSlug,
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("categories")
-        .select("slug, name")
-        .eq("slug", firstCatParentSlug!)
-        .maybeSingle();
-      return (data ?? null) as { slug: string; name: string } | null;
-    },
-  });
-
   if (isLoading) return <div className="container mx-auto px-4 py-20 text-center">טוען...</div>;
   if (!product) return <div className="container mx-auto px-4 py-20 text-center">המוצר לא נמצא</div>;
 
@@ -563,6 +562,15 @@ function ProductPage() {
   // for the base product; a selected size variant has no recorded former price.
   const baseSalePrice = selectedVariant ? null : (product.sale_price ?? null);
   const inStock = product.stock_status !== "outofstock";
+  // A product whose every in-place size is marked "אזל" cannot be bought even
+  // when products.stock_status still says instock — the admin variants panel
+  // only writes product_variants.in_stock and never touches the parent column.
+  // selectedVariant still falls back to the first size so the price and the
+  // selected chip stay coherent, but that id must never reach the cart:
+  // placeOrder rejects any line whose variant has in_stock === false.
+  const variantAvailable = inPlaceVariants.length === 0 || !!selectedVariant?.inStock;
+  // The single buy gate for this page — every add-to-cart entry point uses it.
+  const canBuy = inStock && variantAvailable;
   const firstCategory: any = (product.product_categories ?? [])[0]?.categories;
   const isCallOnly = (product.product_categories ?? []).some(
     (pc: any) => pc?.categories?.slug === "esh-sheli-gold"
@@ -589,6 +597,39 @@ function ProductPage() {
     >
       <Heart className={`h-5 w-5 ${favSaved ? "fill-accent text-accent" : "text-foreground/60"}`} />
     </button>
+  );
+
+  // Phone + WhatsApp pair — the single escape hatch for everything that cannot
+  // be completed in the cart right now: gold items priced by the daily rate,
+  // and products that are out of stock. Callers supply the flex wrapper.
+  const CONTACT_TEL = "+972545818486";
+  const CONTACT_WA = "972545818486";
+  const QUOTE_WA_TEXT = `שלום, אשמח לפרטים והצעת מחיר על: ${product.name}`;
+  // No restock date, no "we'll email you" — only an invitation to ask.
+  const RESTOCK_WA_TEXT = `שלום, המוצר "${product.name}" מופיע כאזל באתר. אשמח לבדוק אפשרות לחידוש מלאי או מוצר חלופי.`;
+  const contactCtas = (waText: string, compact = false) => (
+    <>
+      <a
+        href={`tel:${CONTACT_TEL}`}
+        className={
+          "inline-flex items-center justify-center gap-2 rounded-md bg-accent hover:bg-accent/90 text-accent-foreground font-semibold transition " +
+          (compact ? "flex-1 px-4 py-2.5 text-sm" : "px-5 py-3")
+        }
+      >
+        ☎ התקשרו עכשיו
+      </a>
+      <a
+        href={`https://wa.me/${CONTACT_WA}?text=${encodeURIComponent(waText)}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={
+          "inline-flex items-center justify-center gap-2 rounded-md border-2 border-[#25D366] text-[#128C7E] hover:bg-[#25D366]/10 font-semibold transition " +
+          (compact ? "flex-1 px-4 py-2.5 text-sm" : "px-5 py-3")
+        }
+      >
+        💬 שלחו וואטסאפ
+      </a>
+    </>
   );
 
   // Filter at render too — the component instance is reused across client-side
@@ -618,6 +659,47 @@ function ProductPage() {
 
       qty,
     );
+  }
+
+  // Roving focus for the size radiogroup: a role="radio" set is expected to be
+  // one tab stop with arrows moving between options. RTL — ArrowRight goes to
+  // the previous option, matching the visual order. Runs only from a real key
+  // event, so the DOM lookup is client-side by construction.
+  function onSizeKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (!["ArrowRight", "ArrowLeft", "ArrowUp", "ArrowDown"].includes(e.key)) return;
+    const selectable = inPlaceVariants.filter((v) => v.inStock);
+    if (selectable.length < 2) return;
+    e.preventDefault();
+    const curIdx = Math.max(
+      0,
+      selectable.findIndex((v) => v.id === (selectedVariant?.id ?? null)),
+    );
+    const forward = e.key === "ArrowLeft" || e.key === "ArrowDown";
+    const next = selectable[(curIdx + (forward ? 1 : -1) + selectable.length) % selectable.length];
+    setSelectedVariantId(next.id);
+    (e.currentTarget.querySelector(`[data-variant-id="${next.id}"]`) as HTMLElement | null)?.focus();
+  }
+
+  // The one add-to-cart entry point for the page — the desktop buy row and the
+  // mobile sticky bar must never drift apart.
+  function addToCartWithFeedback() {
+    if (!product) return;
+    addToCart();
+    const parts = [`נוסף לעגלה: ${qty} × ${product.name}`];
+    if (selectedVariant?.label) parts.push(`גודל: ${selectedVariant.label}`);
+    if (customText.trim()) {
+      parts.push(
+        customMethod === "embroidery"
+          ? `${embroideryLabel}: ${customText.trim()}`
+          : `חריטה: ${customText.trim()}`,
+      );
+    }
+    // Give the toast an exit — without it the user is stranded after it fades
+    // (worst on mobile / with personalization, which can only be reviewed in
+    // the cart).
+    toast.success(parts.join(" • "), {
+      action: { label: "לצפייה בעגלה", onClick: () => navigate({ to: "/cart" }) },
+    });
   }
 
 
@@ -774,7 +856,10 @@ function ProductPage() {
                     idx === selectedIndex ? "ring-2 ring-accent" : "ring-1 ring-border"
                   }`}
                 >
-                  <img src={url} alt="" loading="lazy" decoding="async" className="h-full w-full object-contain p-1" />
+                  {/* 80 CSS px — request a 160px transform (2× for retina)
+                      instead of the full-size original. The main slide and the
+                      zoom dialog keep the originals. */}
+                  <img src={thumbUrl(url, 160) ?? url} alt="" loading="lazy" decoding="async" className="h-full w-full object-contain p-1" />
                 </button>
               ))}
             </div>
@@ -808,9 +893,13 @@ function ProductPage() {
 
           {/* Stock */}
           <div className="mb-5 space-y-2">
-            {inStock ? (
+            {canBuy ? (
+              // Availability only. The single binding delivery statement lives
+              // in the row below (3–14 ימי עסקים) — no speed claim here.
+              // Uses canBuy so the badge can never say "במלאי" next to a
+              // disabled buy button when every size is sold out.
               <span className="inline-flex items-center gap-1.5 text-sm font-medium text-green-700">
-                <Check className="h-4 w-4" /> במלאי — משלוח מהיר
+                <Check className="h-4 w-4" /> במלאי
               </span>
             ) : (
               <span className="inline-flex items-center gap-1.5 text-sm font-medium text-destructive">
@@ -890,54 +979,80 @@ function ProductPage() {
           )}
 
 
-          {/* Size variants */}
+          {/* Size variants. Two genuinely different interaction models, so they
+              get two labelled rows instead of one undifferentiated chip list:
+              in-place sizes are radio buttons that reprice this page, sibling
+              SKUs are links that navigate to another product. */}
           {variants.length > 0 && (
-            <div className="mb-5">
-              <Label className="text-sm font-semibold mb-2 block">בחר גודל</Label>
-              <div className="flex flex-wrap gap-2">
-                {variants.map((v) => {
-                  // In-place variant (price set, no sibling slug) → toggle selection on this page.
-                  if (v.price !== null && !v.slug) {
+            <fieldset className="mb-5 m-0 border-0 p-0">
+              <legend className="text-sm font-semibold mb-2">בחר גודל</legend>
+
+              {inPlaceVariants.length > 0 && (
+                <div
+                  role="radiogroup"
+                  aria-label="בחירת גודל"
+                  onKeyDown={onSizeKeyDown}
+                  className="flex flex-wrap gap-2"
+                >
+                  {inPlaceVariants.map((v) => {
                     const isActive = (selectedVariant?.id ?? null) === v.id;
                     return (
                       <button
                         type="button"
                         key={v.id}
+                        role="radio"
+                        aria-checked={isActive}
+                        data-variant-id={v.id}
+                        tabIndex={isActive ? 0 : -1}
+                        disabled={!v.inStock}
                         onClick={() => setSelectedVariantId(v.id)}
                         className={
-                          "px-3 py-1.5 rounded-md text-sm transition " +
+                          "px-3 py-1.5 rounded-md text-sm transition disabled:cursor-not-allowed disabled:line-through disabled:opacity-50 " +
                           (isActive
                             ? "border-2 border-gold bg-cream font-medium"
-                            : "border border-border bg-background hover:border-gold hover:bg-muted")
+                            : "border border-border bg-background hover:border-gold hover:bg-muted disabled:hover:border-border disabled:hover:bg-background")
                         }
-                        aria-pressed={isActive}
                       >
                         {v.label}
+                        {!v.inStock && <span className="sr-only"> — אזל מהמלאי</span>}
                       </button>
                     );
-                  }
-                  // Sibling-product variant → link to the other product page.
-                  const isActive = v.sku === product.sku;
-                  return isActive ? (
-                    <span
-                      key={v.id}
-                      className="px-3 py-1.5 rounded-md border-2 border-gold bg-cream text-sm font-medium"
-                    >
-                      {v.label}
-                    </span>
-                  ) : (
-                    <Link
-                      key={v.id}
-                      to="/product/$slug"
-                      params={{ slug: v.slug! }}
-                      className="px-3 py-1.5 rounded-md border border-border bg-background text-sm hover:border-gold hover:bg-muted transition"
-                    >
-                      {v.label}
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
+                  })}
+                </div>
+              )}
+
+              {siblingVariants.length > 0 && (
+                <div className={inPlaceVariants.length > 0 ? "mt-3" : ""}>
+                  <span className="block text-xs font-medium text-muted-foreground mb-1.5" id="sibling-sizes-label">
+                    מידות נוספות
+                  </span>
+                  <div role="group" className="flex flex-wrap gap-2" aria-labelledby="sibling-sizes-label">
+                    {siblingVariants.map((v) => {
+                      // Sibling-product variant → link to the other product page.
+                      const isCurrent = v.sku === product.sku;
+                      return isCurrent ? (
+                        <span
+                          key={v.id}
+                          aria-current="true"
+                          className="px-3 py-1.5 rounded-md border-2 border-gold bg-cream text-sm font-medium"
+                        >
+                          {v.label}
+                        </span>
+                      ) : (
+                        <Link
+                          key={v.id}
+                          to="/product/$slug"
+                          params={{ slug: v.slug! }}
+                          className="px-3 py-1.5 rounded-md border border-border bg-background text-sm hover:border-gold hover:bg-muted transition"
+                        >
+                          {v.label}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </fieldset>
           )}
 
           {/* Qty + actions */}
@@ -948,20 +1063,7 @@ function ProductPage() {
                 ההזמנה והתשלום מתבצעים בשיחת טלפון או בפגישה במקום בלבד — לא ניתן לרכוש דרך האתר.
               </div>
               <div className="flex flex-wrap gap-3">
-                <a
-                  href="tel:+972545818486"
-                  className="inline-flex items-center justify-center gap-2 rounded-md bg-accent hover:bg-accent/90 text-accent-foreground font-semibold px-5 py-3 transition"
-                >
-                  ☎ התקשרו עכשיו
-                </a>
-                <a
-                  href={`https://wa.me/972545818486?text=${encodeURIComponent(`שלום, אשמח לפרטים והצעת מחיר על: ${product.name}`)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center gap-2 rounded-md border-2 border-[#25D366] text-[#128C7E] hover:bg-[#25D366]/10 font-semibold px-5 py-3 transition"
-                >
-                  💬 שלחו וואטסאפ
-                </a>
+                {contactCtas(QUOTE_WA_TEXT)}
                 {favButton}
               </div>
             </div>
@@ -979,29 +1081,12 @@ function ProductPage() {
               <Button
                 size="lg"
                 variant="outline"
-                disabled={!inStock}
-                onClick={() => {
-                  addToCart();
-                  const parts = [`נוסף לעגלה: ${qty} × ${product.name}`];
-                  if (selectedVariant?.label) parts.push(`גודל: ${selectedVariant.label}`);
-                  if (customText.trim()) {
-                    parts.push(
-                      customMethod === "embroidery"
-                        ? `${embroideryLabel}: ${customText.trim()}`
-                        : `חריטה: ${customText.trim()}`,
-                    );
-                  }
-                  // Give the toast an exit — without it the user is stranded
-                  // after it fades (worst on mobile / with personalization,
-                  // which can only be reviewed in the cart).
-                  toast.success(parts.join(" • "), {
-                    action: { label: "לצפייה בעגלה", onClick: () => navigate({ to: "/cart" }) },
-                  });
-                }}
+                disabled={!canBuy}
+                onClick={addToCartWithFeedback}
                 className="gap-2"
               >
                 <ShoppingCart className="h-4 w-4" />{" "}
-                {!inStock
+                {!canBuy
                   ? "אזל מהמלאי"
                   : qty > 1
                   ? `הוסף לעגלה — ${formatILS(effective * qty)}`
@@ -1009,7 +1094,7 @@ function ProductPage() {
               </Button>
               <Button
                 size="lg"
-                disabled={!inStock}
+                disabled={!canBuy}
                 onClick={() => {
                   addToCart();
                   navigate({ to: "/checkout" });
@@ -1022,16 +1107,33 @@ function ProductPage() {
             </div>
           )}
 
-          {/* Compact bundle right under the buy buttons */}
-          {related.length > 0 && (
+          {/* Out of stock is not a dead end: both buy buttons above are
+              disabled, so offer the same phone/WhatsApp pair the call-only
+              products use. Deliberately promises nothing — no restock date, no
+              back-in-stock notification, no claim the item will return. */}
+          {!isCallOnly && !canBuy && (
+            <div className="mb-3 space-y-3">
+              <div className="rounded-lg border border-gold/40 bg-white p-4 text-sm text-foreground">
+                <strong className="block text-accent mb-1">המוצר אזל כרגע</strong>
+                דברו איתנו לבדיקת חידוש מלאי או חלופה מתאימה.
+              </div>
+              <div className="flex flex-wrap gap-3">{contactCtas(RESTOCK_WA_TEXT)}</div>
+            </div>
+          )}
+
+          {/* Compact bundle right under the buy buttons. Hidden when the main
+              product is unavailable — "add the set" force-includes the main
+              item, so offering it here would drop an out-of-stock item into
+              the cart. The cross-sell carousel below still shows companions. */}
+          {canBuy && related.length > 0 && (
             <BundleOffer
               variant="compact"
               main={{
                 id: product.id,
                 slug: product.slug,
                 name: product.name,
-                // Same base price + strike-through inputs the page CTA uses, so
-                // the bundle total never contradicts the price shown above it.
+                // Same base price the page CTA uses, so the bundle total never
+                // contradicts the price shown above it.
                 price: effectiveBase,
                 sale_price: baseSalePrice,
                 thumbnail_url: product.thumbnail_url,
@@ -1106,15 +1208,16 @@ function ProductPage() {
         />
       )}
 
-      {/* Bundle offer — buy together and save */}
-      {related.length >= 1 && (
+      {/* Bundle offer — a one-click way to add the matching items. The total is
+          a plain sum; there is no set discount, so no saving is claimed. */}
+      {canBuy && related.length >= 1 && (
         <BundleOffer
           main={{
             id: product.id,
             slug: product.slug,
             name: product.name,
-            // Same base price + strike-through inputs the page CTA uses, so
-            // the bundle total never contradicts the price shown above it.
+            // Same base price the page CTA uses, so the bundle total never
+            // contradicts the price shown above it.
             price: effectiveBase,
             sale_price: baseSalePrice,
             thumbnail_url: product.thumbnail_url,
@@ -1134,9 +1237,16 @@ function ProductPage() {
         />
       )}
 
-      {/* Same-category recommendations */}
-      {similar.length >= 4 && (
-        <ProductCarousel eyebrow="עוד מהקטגוריה" heading="מוצרים דומים" items={similar} />
+      {/* Same-category recommendations. The 4-item floor keeps the strip from
+          looking thin on a normal page — but when the product is out of stock
+          this strip IS the way forward, so show whatever exists (the carousel
+          renders nothing on an empty list). */}
+      {(!canBuy || similar.length >= 4) && (
+        <ProductCarousel
+          eyebrow="עוד מהקטגוריה"
+          heading={canBuy ? "מוצרים דומים" : "מוצרים דומים שזמינים עכשיו"}
+          items={similar}
+        />
       )}
 
       {/* Recently viewed — local snapshots, zero extra queries */}
@@ -1146,6 +1256,37 @@ function ProductPage() {
 
       {/* Customer reviews + star ratings */}
       <ProductReviews productId={product.id} initialSummary={reviewSummary} />
+
+      {/* Mobile buy bar. `sticky` (not `fixed`) on purpose: it pins to the
+          bottom of the viewport while the page body is in view and then
+          retires into the flow at the end of the container, so it can never
+          cover the footer. Pure CSS — nothing here touches window/document, so
+          it renders identically on the server. */}
+      <div className="lg:hidden sticky bottom-0 z-40 -mx-4 mt-10 border-t border-gold/40 bg-background/95 px-4 py-3 shadow-[0_-4px_16px_-8px_rgba(0,0,0,0.35)] backdrop-blur supports-[backdrop-filter]:bg-background/85">
+        {isCallOnly || !canBuy ? (
+          <div className="flex items-center gap-2">
+            {contactCtas(isCallOnly ? QUOTE_WA_TEXT : RESTOCK_WA_TEXT, true)}
+          </div>
+        ) : (
+          <div className="flex items-center gap-3">
+            <div className="min-w-0 flex-shrink-0">
+              <div className="text-[11px] leading-none text-muted-foreground">
+                {qty > 1 ? `סה״כ ${qty} יח׳` : "מחיר"}
+              </div>
+              <div className="mt-0.5 text-lg font-bold leading-none text-accent">
+                {formatILS(effective * qty)}
+              </div>
+            </div>
+            <Button
+              size="lg"
+              onClick={addToCartWithFeedback}
+              className="flex-1 gap-2 bg-accent hover:bg-accent/90 text-accent-foreground"
+            >
+              <ShoppingCart className="h-4 w-4" /> הוסף לעגלה
+            </Button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

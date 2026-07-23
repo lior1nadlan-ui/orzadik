@@ -22,22 +22,36 @@
 
 import { runReviewRequests } from "@/lib/review-request.functions";
 import { runCampaignTick } from "@/lib/campaigns.functions";
+import { runAbandonedCartReminders } from "@/lib/abandoned-cart.functions";
 
 type NitroAppLike = {
   hooks: { hook: (name: string, fn: (payload: any) => unknown) => void };
 };
 
+// The keys MUST match wrangler.jsonc `triggers.crons` string-for-string —
+// Cloudflare passes the schedule back verbatim in controller.cron, so a
+// reformatted expression (e.g. "0 */1 * * *" vs "15 * * * *") silently maps to
+// nothing. Keep the two lists edited together.
 const JOBS: Record<string, { name: string; run: () => Promise<unknown> }> = {
   "0 7 * * *": { name: "review-requests", run: runReviewRequests },
   "*/5 * * * *": { name: "campaign-tick", run: runCampaignTick },
+  "15 * * * *": { name: "abandoned-cart-reminders", run: runAbandonedCartReminders },
 };
 
 export default function (nitroApp: NitroAppLike) {
+  // Printed once per isolate start. Without it, "no cron ran" is ambiguous
+  // between "the plugin was never registered" (the vite.config `plugins` key
+  // got dropped) and "the tick fired and the queue was empty" — both look like
+  // silence in the Worker log.
+  console.log("[cron] plugin loaded, jobs:", Object.keys(JOBS));
+
   nitroApp.hooks.hook("cloudflare:scheduled", async ({ controller }: any) => {
     const cron: string = controller?.cron ?? "";
     const job = JOBS[cron];
     if (!job) {
-      console.error(`[cron] no job mapped for "${cron}"`);
+      console.error(
+        `[cron] no job mapped for "${cron}" — known: ${JSON.stringify(Object.keys(JOBS))}`,
+      );
       return;
     }
     try {

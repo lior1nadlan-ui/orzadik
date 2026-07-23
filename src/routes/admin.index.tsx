@@ -138,15 +138,16 @@ function AdminHome() {
           </div>
         </Link>
 
-        {/* Catalog health. Plain link only — admin.products.tsx has no
-            validateSearch yet; follow-up: add it there next round so this can
-            deep-link pre-filtered (e.g. ?health=no-image). */}
+        {/* Catalog health. Each counter deep-links to /admin/products with the
+            matching health filter, which runs the SAME predicate this tile
+            counts — so the number and the list it opens always agree. The card
+            itself is no longer one big link: the two rows go to different
+            filtered views. */}
         {(() => {
           const healthIssues = s.catalogHealth.noImage > 0 || s.catalogHealth.outOfStock > 0;
           return (
-            <Link
-              to="/admin/products"
-              className={`block rounded-lg border p-5 transition-colors hover:border-primary/50 ${
+            <div
+              className={`rounded-lg border p-5 ${
                 healthIssues ? "border-amber-400/60 bg-amber-50 dark:bg-amber-950/20" : "bg-card"
               }`}
             >
@@ -165,16 +166,27 @@ function AdminHome() {
                 )}
               </div>
               <div className="mt-2 space-y-1 text-sm">
-                <div className="flex justify-between gap-3">
-                  <span>מוצרים פעילים ללא תמונה:</span>
+                <Link
+                  to="/admin/products"
+                  search={{ health: "no-image" }}
+                  className="flex justify-between gap-3 rounded px-1 -mx-1 py-0.5 transition-colors hover:bg-black/5 dark:hover:bg-white/10"
+                >
+                  <span className="underline-offset-2 hover:underline">מוצרים פעילים ללא תמונה:</span>
                   <strong>{s.catalogHealth.noImage}</strong>
-                </div>
-                <div className="flex justify-between gap-3">
-                  <span>מוצרים פעילים שאזלו מהמלאי:</span>
+                </Link>
+                <Link
+                  to="/admin/products"
+                  search={{ health: "out-of-stock" }}
+                  className="flex justify-between gap-3 rounded px-1 -mx-1 py-0.5 transition-colors hover:bg-black/5 dark:hover:bg-white/10"
+                >
+                  <span className="underline-offset-2 hover:underline">מוצרים פעילים שאזלו מהמלאי:</span>
                   <strong>{s.catalogHealth.outOfStock}</strong>
-                </div>
+                </Link>
               </div>
-            </Link>
+              <div className="mt-2 text-[11px] text-muted-foreground">
+                לחצו על שורה כדי לפתוח את רשימת המוצרים המסוננת.
+              </div>
+            </div>
           );
         })()}
       </div>

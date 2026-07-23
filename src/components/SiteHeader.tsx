@@ -191,6 +191,10 @@ export function SiteHeader() {
                   <Link to="/" onClick={() => setDrawerOpen(false)} className="py-3 border-b border-border/40 hover:text-accent transition-colors">בית</Link>
                   <Link to="/shop" onClick={() => setDrawerOpen(false)} className="py-3 border-b border-border/40 hover:text-accent transition-colors">כל המוצרים</Link>
                   <Link to="/categories" onClick={() => setDrawerOpen(false)} className="py-3 border-b border-border/40 hover:text-accent transition-colors">קטגוריות</Link>
+                  {/* /articles had no entry point anywhere in the shell; the drawer
+                      is the one nav that is visible at every breakpoint, so the
+                      guides live here as well as in the footer. */}
+                  <Link to="/articles" onClick={() => setDrawerOpen(false)} className="py-3 border-b border-border/40 hover:text-accent transition-colors">מדריכים ומאמרים</Link>
                   <Link to="/about" onClick={() => setDrawerOpen(false)} className="py-3 border-b border-border/40 hover:text-accent transition-colors">אודות</Link>
                 </nav>
 
@@ -463,6 +467,7 @@ export function SiteFooter() {
             <ul className="space-y-2.5 text-[15px] text-muted-foreground">
               <li><Link to="/shop" className="hover:text-accent transition-colors">כל המוצרים</Link></li>
               <li><Link to="/categories" className="hover:text-accent transition-colors">קטגוריות</Link></li>
+              <li><Link to="/articles" className="hover:text-accent transition-colors">מדריכים ומאמרים</Link></li>
               <li><Link to="/about" className="hover:text-accent transition-colors">אודות</Link></li>
               <li><Link to="/club" className="hover:text-accent transition-colors">מועדון חברים</Link></li>
               <li><Link to="/track" className="hover:text-accent transition-colors">מעקב הזמנה</Link></li>

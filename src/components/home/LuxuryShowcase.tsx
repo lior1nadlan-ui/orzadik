@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { thumbUrl } from "@/lib/img";
 
 /**
  * "פריטי יוקרה" — asymmetric curated showcase: one large flagship card and two
@@ -17,6 +18,10 @@ const LARGE_ITEM = {
   name: "מארז חתן — ליאם שלום גולי",
   price: "‏2,572 ₪",
   img: "/groom-sets/groom-02.jpeg",
+  // Intrinsic size of the file on disk — every public/groom-sets/*.jpeg is
+  // 1440×1920. Declared so the browser reserves the box before the bytes land.
+  width: 1440,
+  height: 1920,
 };
 
 const STACKED_ITEMS: { slug: string; name: string; price: string }[] = [
@@ -24,20 +29,41 @@ const STACKED_ITEMS: { slug: string; name: string; price: string }[] = [
   { slug: "acrilic-blessing-90x59-cm-gold-white-83127", name: "ברכת הבית אקריליק ענק 90×59 זהב-לבן", price: "‏1,737 ₪" },
 ];
 
-export function LuxuryShowcase() {
+const STACKED_SLUGS = STACKED_ITEMS.map((s) => s.slug);
+
+/**
+ * Rendered width of a stacked card: ~450 CSS px at the desktop breakpoint,
+ * full-width on mobile. We ask the storage transform for this size instead of
+ * the 500–1000 px original.
+ */
+const STACKED_THUMB_W = 600;
+
+export type LuxuryThumbs = Record<string, string | null>;
+
+/**
+ * The query behind the two stacked cards. Exported so a route loader can run it
+ * on the server and hand the result back as `initialThumbs` — same function,
+ * same shape, so the SSR HTML and the client refetch can never disagree.
+ */
+export async function fetchLuxuryShowcaseThumbs(): Promise<LuxuryThumbs> {
+  const { data, error } = await supabase
+    .from("products")
+    .select("slug, thumbnail_url")
+    .in("slug", STACKED_SLUGS);
+  if (error) throw error;
+  return Object.fromEntries((data ?? []).map((p) => [p.slug, p.thumbnail_url]));
+}
+
+export function LuxuryShowcase({ initialThumbs }: { initialThumbs?: LuxuryThumbs }) {
   // Same query pattern as the featured-products carousel — pull each product's
   // own thumbnail so the card always shows the real item photo.
   const { data: thumbs } = useQuery({
-    queryKey: ["home-luxury-showcase-thumbs", STACKED_ITEMS.map((s) => s.slug)],
+    queryKey: ["home-luxury-showcase-thumbs", STACKED_SLUGS],
     staleTime: 5 * 60_000,
-    queryFn: async (): Promise<Record<string, string | null>> => {
-      const { data, error } = await supabase
-        .from("products")
-        .select("slug, thumbnail_url")
-        .in("slug", STACKED_ITEMS.map((s) => s.slug));
-      if (error) throw error;
-      return Object.fromEntries((data ?? []).map((p) => [p.slug, p.thumbnail_url]));
-    },
+    // Seeded from the SSR loader when the caller has it, so the photos are in
+    // the initial HTML instead of appearing only after hydration.
+    initialData: initialThumbs,
+    queryFn: fetchLuxuryShowcaseThumbs,
   });
 
   return (
@@ -68,6 +94,8 @@ export function LuxuryShowcase() {
               alt={LARGE_ITEM.name}
               loading="lazy"
               decoding="async"
+              width={LARGE_ITEM.width}
+              height={LARGE_ITEM.height}
               className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]"
             />
             {/* Label-zone scrim: holds >=75% argaman through the bottom 45% so the
@@ -83,6 +111,16 @@ export function LuxuryShowcase() {
           <div className="md:col-span-2 grid gap-6 md:grid-rows-2">
             {STACKED_ITEMS.map((s) => {
               const thumb = thumbs?.[s.slug] ?? null;
+              // Right-sized transform of the catalog original. thumbUrl returns
+              // the input untouched for anything that is not a Supabase public
+              // object URL, so only offer a srcset when it actually rewrote it.
+              const src = thumbUrl(thumb, STACKED_THUMB_W);
+              const srcSet =
+                src && src !== thumb
+                  ? [400, STACKED_THUMB_W, 900]
+                      .map((w) => `${thumbUrl(thumb, w)} ${w}w`)
+                      .join(", ")
+                  : undefined;
               return (
                 <Link
                   key={s.slug}
@@ -90,12 +128,21 @@ export function LuxuryShowcase() {
                   params={{ slug: s.slug }}
                   className="group relative block aspect-[4/3] md:aspect-auto overflow-hidden rounded-lg border border-gold/40 bg-muted transition-shadow duration-700 hover:shadow-[var(--shadow-soft)]"
                 >
-                  {thumb && (
+                  {src && (
                     <img
-                      src={thumb}
+                      src={src}
+                      srcSet={srcSet}
+                      // Two of five columns inside a max-w-6xl grid on desktop,
+                      // full-bleed below it.
+                      sizes={srcSet ? "(min-width: 768px) 40vw, 100vw" : undefined}
                       alt={s.name}
                       loading="lazy"
                       decoding="async"
+                      // The transform is requested at STACKED_THUMB_W and catalog
+                      // thumbnails are square, so that is the delivered box. The
+                      // card's own aspect classes drive the layout regardless.
+                      width={STACKED_THUMB_W}
+                      height={STACKED_THUMB_W}
                       className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]"
                     />
                   )}
