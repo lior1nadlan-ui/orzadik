@@ -16,6 +16,7 @@ import { Route as ShopRouteImport } from './routes/shop'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
+import { Route as FeedDotxmlRouteImport } from './routes/feed[.]xml'
 import { Route as FavoritesRouteImport } from './routes/favorites'
 import { Route as ClubRouteImport } from './routes/club'
 import { Route as CheckoutRouteImport } from './routes/checkout'
@@ -79,6 +80,11 @@ const PrivacyRoute = PrivacyRouteImport.update({
 const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
   id: '/forgot-password',
   path: '/forgot-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FeedDotxmlRoute = FeedDotxmlRouteImport.update({
+  id: '/feed.xml',
+  path: '/feed.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FavoritesRoute = FavoritesRouteImport.update({
@@ -240,6 +246,7 @@ export interface FileRoutesByFullPath {
   '/checkout': typeof CheckoutRoute
   '/club': typeof ClubRoute
   '/favorites': typeof FavoritesRoute
+  '/feed.xml': typeof FeedDotxmlRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/privacy': typeof PrivacyRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -277,6 +284,7 @@ export interface FileRoutesByTo {
   '/checkout': typeof CheckoutRoute
   '/club': typeof ClubRoute
   '/favorites': typeof FavoritesRoute
+  '/feed.xml': typeof FeedDotxmlRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/privacy': typeof PrivacyRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -316,6 +324,7 @@ export interface FileRoutesById {
   '/checkout': typeof CheckoutRoute
   '/club': typeof ClubRoute
   '/favorites': typeof FavoritesRoute
+  '/feed.xml': typeof FeedDotxmlRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/privacy': typeof PrivacyRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -356,6 +365,7 @@ export interface FileRouteTypes {
     | '/checkout'
     | '/club'
     | '/favorites'
+    | '/feed.xml'
     | '/forgot-password'
     | '/privacy'
     | '/reset-password'
@@ -393,6 +403,7 @@ export interface FileRouteTypes {
     | '/checkout'
     | '/club'
     | '/favorites'
+    | '/feed.xml'
     | '/forgot-password'
     | '/privacy'
     | '/reset-password'
@@ -431,6 +442,7 @@ export interface FileRouteTypes {
     | '/checkout'
     | '/club'
     | '/favorites'
+    | '/feed.xml'
     | '/forgot-password'
     | '/privacy'
     | '/reset-password'
@@ -470,6 +482,7 @@ export interface RootRouteChildren {
   CheckoutRoute: typeof CheckoutRoute
   ClubRoute: typeof ClubRoute
   FavoritesRoute: typeof FavoritesRoute
+  FeedDotxmlRoute: typeof FeedDotxmlRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   PrivacyRoute: typeof PrivacyRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
@@ -538,6 +551,13 @@ declare module '@tanstack/react-router' {
       path: '/forgot-password'
       fullPath: '/forgot-password'
       preLoaderRoute: typeof ForgotPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/feed.xml': {
+      id: '/feed.xml'
+      path: '/feed.xml'
+      fullPath: '/feed.xml'
+      preLoaderRoute: typeof FeedDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/favorites': {
@@ -782,6 +802,7 @@ const rootRouteChildren: RootRouteChildren = {
   CheckoutRoute: CheckoutRoute,
   ClubRoute: ClubRoute,
   FavoritesRoute: FavoritesRoute,
+  FeedDotxmlRoute: FeedDotxmlRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
   PrivacyRoute: PrivacyRoute,
   ResetPasswordRoute: ResetPasswordRoute,
