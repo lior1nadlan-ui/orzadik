@@ -155,7 +155,7 @@ function ClubPage() {
         {!user && (
           <div className="mt-12 text-center">
             <Link to="/auth">
-              <Button size="lg" className="bg-[#D4AF37] hover:bg-[#A8862A] text-white px-10">
+              <Button size="lg" className="bg-accent text-accent-foreground hover:bg-accent/90 px-10">
                 הצטרפו עכשיו — חינם
               </Button>
             </Link>

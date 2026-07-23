@@ -10,6 +10,7 @@ import { sanitizeTerm } from "@/routes/shop";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { ClubBadge } from "@/components/ClubBadge";
 import { NewsletterSignup } from "@/components/NewsletterSignup";
+import { thumbUrl } from "@/lib/img";
 import { openCookieSettings } from "@/components/CookieConsent";
 import { BUSINESS } from "@/lib/business";
 import logoUrl from "@/assets/logo.webp";
@@ -100,6 +101,21 @@ export function SiteHeader() {
     enabled: suggestionsEnabled,
     staleTime: 60_000,
     queryFn: async () => {
+      // Same hybrid RPC the /shop results page uses, so the suggestions can
+      // never disagree with the page they lead to. Falls back to the old ILIKE
+      // lookup if the function is unavailable.
+      const { data: rpcRows, error: rpcErr } = await supabase.rpc("search_products", {
+        p_term: debounced.trim().slice(0, 100),
+        p_limit: 6,
+        p_offset: 0,
+        p_sort: "relevance",
+      });
+      if (!rpcErr) {
+        const rows = (rpcRows ?? []) as Array<SearchSuggestion & { total_count: number }>;
+        return { rows: rows as SearchSuggestion[], total: Number(rows[0]?.total_count ?? 0) };
+      }
+      console.warn("[header] search_products RPC unavailable, using ILIKE fallback:", rpcErr);
+
       const like = `%${term}%`;
       const { data, error, count } = await supabase
         .from("products")
@@ -372,9 +388,17 @@ export function SiteHeader() {
                       >
                         {p.thumbnail_url && (
                           <img
-                            src={p.thumbnail_url}
+                            src={thumbUrl(p.thumbnail_url, 96) ?? p.thumbnail_url}
                             alt=""
                             loading="lazy"
+                            decoding="async"
+                            // Suggestion rows are decorative next to the product
+                            // name, so a single fallback to the original is
+                            // enough — no placeholder stage needed.
+                            onError={(e) => {
+                              const img = e.currentTarget;
+                              if (img.src !== p.thumbnail_url) img.src = p.thumbnail_url!;
+                            }}
                             className="h-10 w-10 shrink-0 rounded-lg object-cover"
                           />
                         )}

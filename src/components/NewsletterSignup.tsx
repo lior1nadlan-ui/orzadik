@@ -42,6 +42,9 @@ export function NewsletterSignup({ source = "footer" as const }) {
     );
   }
 
+  // Buttons use --accent (the design system's CTA gold, 5.8:1 with white) and
+  // NOT the raw #D4AF37 used decoratively elsewhere: that is only 2.1:1 against
+  // white, which Lighthouse flagged on this very button.
   return (
     <form onSubmit={onSubmit} className="space-y-2">
       <div className="flex gap-2">
@@ -72,7 +75,7 @@ export function NewsletterSignup({ source = "footer" as const }) {
         <Button
           type="submit"
           disabled={busy}
-          className="shrink-0 bg-[#D4AF37] hover:bg-[#A8862A] text-white"
+          className="shrink-0 bg-accent text-accent-foreground hover:bg-accent/90"
         >
           {busy ? "רושם..." : "הרשמה"}
         </Button>

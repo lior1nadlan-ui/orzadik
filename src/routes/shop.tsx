@@ -95,6 +95,31 @@ function ShopPage() {
     placeholderData: keepPreviousData,
     initialPageParam: 0,
     queryFn: async ({ pageParam }) => {
+      // Preferred path: the pg_trgm hybrid RPC. It is word-order independent,
+      // folds gershayim/nikud, and tolerates a one-letter typo — none of which
+      // the ILIKE fallback below can do. Parameters are bound, so the raw term
+      // goes in unsanitized (sanitizeTerm exists for the ILIKE path only, where
+      // the term is interpolated into a PostgREST filter string).
+      if (term) {
+        const { data: rpcRows, error: rpcErr } = await supabase.rpc("search_products", {
+          p_term: debouncedQ.trim().slice(0, 100),
+          p_limit: PAGE,
+          p_offset: pageParam,
+          p_sort: sort,
+        });
+        if (!rpcErr) {
+          const rows = (rpcRows ?? []) as Array<ProductCardData & { total_count: number }>;
+          return {
+            rows: rows as ProductCardData[],
+            total: Number(rows[0]?.total_count ?? 0),
+            next: pageParam + PAGE,
+          };
+        }
+        // Never fail the page on a search-backend problem: log it and drop
+        // through to the ILIKE query, which needs no server-side function.
+        console.warn("[shop] search_products RPC unavailable, using ILIKE fallback:", rpcErr);
+      }
+
       let query = supabase
         .from("products")
         .select("id, slug, name, price, sale_price, thumbnail_url, stock_status", { count: "exact" })
@@ -165,7 +190,10 @@ function ShopPage() {
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground">מיון:</span>
             <Select value={sort} onValueChange={(v) => changeSort(v as ShopSort)}>
-              <SelectTrigger className="w-[180px]">
+              {/* Radix renders a <button role="combobox"> whose only content is
+                  the current value, which axe reports as a button with no
+                  accessible name. */}
+              <SelectTrigger className="w-[180px]" aria-label="מיון תוצאות">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

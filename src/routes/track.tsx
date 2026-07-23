@@ -121,7 +121,7 @@ function TrackPage() {
         <Button
           type="submit"
           disabled={mutation.isPending}
-          className="w-full bg-[#D4AF37] hover:bg-[#A8862A] text-white"
+          className="w-full bg-accent text-accent-foreground hover:bg-accent/90"
         >
           {mutation.isPending ? "מחפש..." : "הצג מצב הזמנה"}
         </Button>
@@ -145,7 +145,7 @@ function TrackPage() {
             <h2 className="font-display text-xl font-bold">
               הזמנה <span className="font-mono">{order.order_number}</span>
             </h2>
-            {order.is_gift && <span className="text-sm text-[#A8862A]">🎁 נארזת כמתנה</span>}
+            {order.is_gift && <span className="text-sm text-accent">🎁 נארזת כמתנה</span>}
           </div>
 
           {paymentStuck && (
@@ -163,14 +163,14 @@ function TrackPage() {
                   <span
                     aria-hidden="true"
                     className={`absolute top-9 right-[17px] h-[calc(100%-2.25rem)] w-px ${
-                      steps[i + 1].done ? "bg-[#D4AF37]" : "bg-border"
+                      steps[i + 1].done ? "bg-accent" : "bg-border"
                     }`}
                   />
                 )}
                 <span
                   className={`relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border ${
                     s.done
-                      ? "border-[#D4AF37] bg-[#D4AF37] text-white"
+                      ? "border-accent bg-accent text-accent-foreground"
                       : "border-border bg-background text-muted-foreground"
                   }`}
                 >
@@ -209,7 +209,7 @@ function TrackPage() {
       )}
 
       <div className="mt-8 text-center text-sm">
-        <Link to="/shop" className="text-[#A8862A] hover:underline">
+        <Link to="/shop" className="text-accent hover:underline">
           חזרה לחנות
         </Link>
       </div>

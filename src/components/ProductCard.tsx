@@ -2,6 +2,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { formatILS, useCart, getEffectivePrice, getDisplayOriginal, getDiscountPct } from "@/lib/cart";
 import { useFavorites } from "@/components/engagement/favorites";
+import { ProductThumb } from "@/components/ProductThumb";
 import { Heart } from "lucide-react";
 import { toast } from "sonner";
 
@@ -19,7 +20,6 @@ export function ProductCard({ p, priority = false }: { p: ProductCardData; prior
   const { add } = useCart();
   const { has, toggle } = useFavorites();
   const navigate = useNavigate();
-  const [imgError, setImgError] = useState(false);
   const [added, setAdded] = useState(false);
   // has(id) is false during SSR/first paint and flips after mount — an
   // acceptable unfilled→filled flash, same class as the header cart badge.
@@ -73,19 +73,13 @@ export function ProductCard({ p, priority = false }: { p: ProductCardData; prior
         params={{ slug: p.slug }}
         className="relative aspect-square overflow-hidden bg-muted block"
       >
-        {p.thumbnail_url && !imgError ? (
-          <img
-            src={p.thumbnail_url}
-            alt={p.name}
-            loading={priority ? "eager" : "lazy"}
-            fetchPriority={priority ? "high" : "auto"}
-            decoding="async"
-            onError={() => setImgError(true)}
-            className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
-          />
-        ) : (
-          <div className="flex h-full items-center justify-center text-muted-foreground text-sm">אין תמונה</div>
-        )}
+        <ProductThumb
+          url={p.thumbnail_url}
+          alt={p.name}
+          width={400}
+          priority={priority}
+          className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
+        />
       </Link>
 
       {/* Caption */}
