@@ -1,6 +1,6 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ShoppingBag, User as UserIcon, Search, Menu, X, Heart } from "lucide-react";
-import { useCart, formatILS, getEffectivePrice, getDisplayOriginal } from "@/lib/cart";
+import { useCart, formatILS, getEffectivePrice } from "@/lib/cart";
 import { useFavorites } from "@/components/engagement/favorites";
 import { useAuth } from "@/lib/auth";
 import { useState, useEffect, useRef } from "react";
@@ -9,6 +9,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { sanitizeTerm } from "@/routes/shop";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { ClubBadge } from "@/components/ClubBadge";
+import { NewsletterSignup } from "@/components/NewsletterSignup";
+import { thumbUrl } from "@/lib/img";
 import { openCookieSettings } from "@/components/CookieConsent";
 import { BUSINESS } from "@/lib/business";
 import logoUrl from "@/assets/logo.webp";
@@ -99,6 +101,21 @@ export function SiteHeader() {
     enabled: suggestionsEnabled,
     staleTime: 60_000,
     queryFn: async () => {
+      // Same hybrid RPC the /shop results page uses, so the suggestions can
+      // never disagree with the page they lead to. Falls back to the old ILIKE
+      // lookup if the function is unavailable.
+      const { data: rpcRows, error: rpcErr } = await supabase.rpc("search_products", {
+        p_term: debounced.trim().slice(0, 100),
+        p_limit: 6,
+        p_offset: 0,
+        p_sort: "relevance",
+      });
+      if (!rpcErr) {
+        const rows = (rpcRows ?? []) as Array<SearchSuggestion & { total_count: number }>;
+        return { rows: rows as SearchSuggestion[], total: Number(rows[0]?.total_count ?? 0) };
+      }
+      console.warn("[header] search_products RPC unavailable, using ILIKE fallback:", rpcErr);
+
       const like = `%${term}%`;
       const { data, error, count } = await supabase
         .from("products")
@@ -174,6 +191,10 @@ export function SiteHeader() {
                   <Link to="/" onClick={() => setDrawerOpen(false)} className="py-3 border-b border-border/40 hover:text-accent transition-colors">בית</Link>
                   <Link to="/shop" onClick={() => setDrawerOpen(false)} className="py-3 border-b border-border/40 hover:text-accent transition-colors">כל המוצרים</Link>
                   <Link to="/categories" onClick={() => setDrawerOpen(false)} className="py-3 border-b border-border/40 hover:text-accent transition-colors">קטגוריות</Link>
+                  {/* /articles had no entry point anywhere in the shell; the drawer
+                      is the one nav that is visible at every breakpoint, so the
+                      guides live here as well as in the footer. */}
+                  <Link to="/articles" onClick={() => setDrawerOpen(false)} className="py-3 border-b border-border/40 hover:text-accent transition-colors">מדריכים ומאמרים</Link>
                   <Link to="/about" onClick={() => setDrawerOpen(false)} className="py-3 border-b border-border/40 hover:text-accent transition-colors">אודות</Link>
                 </nav>
 
@@ -359,7 +380,6 @@ export function SiteHeader() {
                   )}
                   {(suggestions?.rows ?? []).map((p) => {
                     const effective = getEffectivePrice(p.price);
-                    const original = getDisplayOriginal(p.price, p.sale_price);
                     return (
                       <Link
                         key={p.id}
@@ -371,9 +391,17 @@ export function SiteHeader() {
                       >
                         {p.thumbnail_url && (
                           <img
-                            src={p.thumbnail_url}
+                            src={thumbUrl(p.thumbnail_url, 96) ?? p.thumbnail_url}
                             alt=""
                             loading="lazy"
+                            decoding="async"
+                            // Suggestion rows are decorative next to the product
+                            // name, so a single fallback to the original is
+                            // enough — no placeholder stage needed.
+                            onError={(e) => {
+                              const img = e.currentTarget;
+                              if (img.src !== p.thumbnail_url) img.src = p.thumbnail_url!;
+                            }}
                             className="h-10 w-10 shrink-0 rounded-lg object-cover"
                           />
                         )}
@@ -382,9 +410,6 @@ export function SiteHeader() {
                           <span className="shrink-0 text-xs font-semibold text-accent">לפי שער הזהב</span>
                         ) : (
                           <span className="flex shrink-0 items-center gap-1.5">
-                            {original > effective && (
-                              <span className="text-xs text-muted-foreground line-through">{formatILS(original)}</span>
-                            )}
                             <span className="text-sm font-semibold text-accent">{formatILS(effective)}</span>
                           </span>
                         )}
@@ -442,7 +467,10 @@ export function SiteFooter() {
             <ul className="space-y-2.5 text-[15px] text-muted-foreground">
               <li><Link to="/shop" className="hover:text-accent transition-colors">כל המוצרים</Link></li>
               <li><Link to="/categories" className="hover:text-accent transition-colors">קטגוריות</Link></li>
+              <li><Link to="/articles" className="hover:text-accent transition-colors">מדריכים ומאמרים</Link></li>
               <li><Link to="/about" className="hover:text-accent transition-colors">אודות</Link></li>
+              <li><Link to="/club" className="hover:text-accent transition-colors">מועדון חברים</Link></li>
+              <li><Link to="/track" className="hover:text-accent transition-colors">מעקב הזמנה</Link></li>
             </ul>
           </div>
           <div className="text-center">
@@ -475,6 +503,18 @@ export function SiteFooter() {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Newsletter capture — marketing consent, separate from the
+            operational contact consent collected at checkout. */}
+        <div className="mt-12 mx-auto max-w-lg text-center">
+          <div className="text-xs tracking-[0.35em] text-accent uppercase mb-3">
+            הצטרפו לרשימת התפוצה
+          </div>
+          <p className="text-sm text-muted-foreground mb-4">
+            מבצעים ועדכונים — בלי ספאם, אפשר להסיר בכל רגע.
+          </p>
+          <NewsletterSignup />
         </div>
 
         {/* Divider */}

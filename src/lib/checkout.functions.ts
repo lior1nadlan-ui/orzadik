@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getOptionalUserId } from "@/integrations/supabase/optional-auth";
 import { checkOrderRateLimit, checkOrderRateLimitByIp } from "@/lib/rate-limit.server";
 import { sendOrderCreatedOwnerAlert } from "@/lib/order-emails.server";
+import { recordNewsletterConsent } from "@/lib/newsletter.functions";
 import {
   SHIPPING_FLAT,
   getEffectivePrice as effectivePrice,
@@ -36,6 +37,14 @@ const CheckoutSchema = z.object({
   customer_city: z.string().trim().max(200).transform(stripHtml).optional().nullable(),
   notes: z.string().trim().max(2000).transform(stripHtml).optional().nullable(),
   contact_consent: z.boolean().optional(),
+  // Separate, optional marketing consent. Unrelated to contact_consent, whose
+  // checkout label explicitly promises the details are NOT used for marketing.
+  marketing_consent: z.boolean().optional(),
+  // Gift options are FREE and data-only — deliberately so. They are recorded on
+  // the order for packing, and are read by nothing in the price path.
+  is_gift: z.boolean().optional(),
+  gift_note: z.string().trim().max(300).transform(stripHtml).optional().nullable(),
+  gift_wrap: z.boolean().optional(),
   items: z
     .array(
       z.object({
@@ -82,14 +91,17 @@ export const placeOrder = createServerFn({ method: "POST" })
 
     // Fetch any referenced size variants for authoritative variant pricing
     const variantIds = data.items.map((i) => i.variant_id).filter(Boolean) as string[];
-    let variantsById = new Map<string, { id: string; product_id: string; label: string; price: number | null }>();
+    let variantsById = new Map<string, { id: string; product_id: string; label: string; price: number | null; in_stock: boolean | null }>();
     if (variantIds.length > 0) {
       const { data: vrows, error: vErr } = await supabaseAdmin
         .from("product_variants")
-        .select("id, product_id, label, price")
+        .select("id, product_id, label, price, in_stock")
         .in("id", variantIds);
       if (vErr) { console.error("[placeOrder] variants fetch:", vErr); throw new Error("שגיאה בטעינת גדלי המוצרים. אנא נסה שוב."); }
-      variantsById = new Map((vrows ?? []).map((v: any) => [v.id as string, { id: v.id, product_id: v.product_id, label: v.label, price: v.price !== null && v.price !== undefined ? Number(v.price) : null }]));
+      // in_stock is normalized to a tri-state on purpose: most rows never set
+      // it, and an unset size must stay purchasable. Only an explicit false
+      // blocks the line below.
+      variantsById = new Map((vrows ?? []).map((v: any) => [v.id as string, { id: v.id, product_id: v.product_id, label: v.label, price: v.price !== null && v.price !== undefined ? Number(v.price) : null, in_stock: typeof v.in_stock === "boolean" ? v.in_stock : null }]));
     }
 
     const byId = new Map(products?.map((p) => [p.id, p]) ?? []);
@@ -102,6 +114,10 @@ export const placeOrder = createServerFn({ method: "POST" })
       if (i.variant_id) {
         const v = variantsById.get(i.variant_id);
         if (!v || v.product_id !== p.id) throw new Error(`גודל לא תקין עבור ${p.name}`);
+        // The parent stock check above says nothing about a single size: a
+        // product can be in stock while one size is not. Reject only on an
+        // explicit false so the untouched rows stay orderable.
+        if (v.in_stock === false) throw new Error(`הגודל אזל מהמלאי: ${p.name} — ${v.label}`);
         if (v.price !== null) basePrice = v.price;
         variantLabel = v.label;
       }
@@ -163,6 +179,12 @@ export const placeOrder = createServerFn({ method: "POST" })
         payment_status: "unpaid",
         contact_consent: data.contact_consent ?? false,
         contact_consent_at: data.contact_consent ? new Date().toISOString() : null,
+        // Data-only: never read by the subtotal/shipping/total math above.
+        // The dedication is dropped unless the order is actually marked a gift,
+        // so an unticked-but-typed note can't reach the packing slip.
+        is_gift: data.is_gift ?? false,
+        gift_wrap: data.is_gift ? (data.gift_wrap ?? false) : false,
+        gift_note: data.is_gift ? (data.gift_note || null) : null,
       })
       .select()
       .single();
@@ -186,6 +208,22 @@ export const placeOrder = createServerFn({ method: "POST" })
       .update({ converted_order_id: order.id })
       .ilike("email", normalizedEmail)
       .is("converted_order_id", null);
+
+    // Optional marketing opt-in ticked at checkout. Fully isolated: the order
+    // is already committed at this point, and nothing in here may surface an
+    // error to the customer or interrupt the payment redirect.
+    if (data.marketing_consent) {
+      try {
+        await recordNewsletterConsent({
+          email: normalizedEmail,
+          name: data.customer_name,
+          source: "checkout",
+          userId: authedUserId,
+        });
+      } catch (e) {
+        console.error("[placeOrder] newsletter opt-in failed (non-fatal):", e);
+      }
+    }
 
     // Owner alert on creation (owner asked to hear about EVERY order, not only
     // paid ones — the paid confirmation still arrives from the webhook).

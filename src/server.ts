@@ -145,6 +145,10 @@ function applyCachePolicy(request: Request, response: Response): Response {
   });
 }
 
+// NOTE: cron triggers are NOT handled here. Nitro overrides wrangler's `main`
+// and emits its own Cloudflare module, so a `scheduled` export on this object
+// would never be invoked. The handler lives in src/nitro/cron.ts, registered on
+// Nitro's `cloudflare:scheduled` hook.
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     // Canonicalize host: 301-redirect www → apex so all SEO signals concentrate

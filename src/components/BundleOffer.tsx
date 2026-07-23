@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { formatILS, useCart, getEffectivePrice, getDisplayOriginal } from "@/lib/cart";
+import { formatILS, useCart, getEffectivePrice } from "@/lib/cart";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -11,7 +11,7 @@ export type BundleProduct = {
   slug: string;
   name: string;
   price: number;
-  /** Genuine recorded former price — drives the honest strike-through total. */
+  /** Recorded former price, carried onto the cart line as-is. Not displayed here. */
   sale_price: number | null;
   thumbnail_url: string | null;
   /**
@@ -26,6 +26,9 @@ export type BundleProduct = {
 // The set is a "frequently bought together" convenience. Items are added to
 // the cart at their normal (already site-discounted) price — there is no extra
 // bundle discount, so the displayed total must equal what checkout charges.
+// Because the total is a plain sum, the copy here must stay a CONVENIENCE
+// framing ("add the matching items in one click"). Never claim a saving,
+// a discount, a percentage or a "before" price for the set.
 
 export function BundleOffer({
   main,
@@ -45,7 +48,6 @@ export function BundleOffer({
 
   const all = useMemo(() => [main, ...addons], [main, addons]);
   const chosen = all.filter((p) => selected[p.id]);
-  const totalBase = chosen.reduce((s, p) => s + getDisplayOriginal(p.price, p.sale_price), 0);
   const totalEff = chosen.reduce((s, p) => s + getEffectivePrice(p.price), 0);
 
   function addBundle() {
@@ -75,11 +77,11 @@ export function BundleOffer({
           <div className="flex items-center gap-1.5 min-w-0">
             <Sparkles className="h-3.5 w-3.5 text-[#A8862A] flex-shrink-0" />
             <p className="text-[10px] tracking-[0.2em] text-[#A8862A] uppercase font-bold truncate">
-              ערכה משתלמת
+              הוסיפו לערכה
             </p>
           </div>
           <span className="rounded-full bg-[#D4AF37] text-white text-[10px] font-bold px-2 py-0.5 flex-shrink-0">
-            מומלץ יחד
+            נרכשים יחד
           </span>
         </div>
 
@@ -124,9 +126,6 @@ export function BundleOffer({
             <div className="text-[10px] text-muted-foreground leading-none">סה״כ ערכה</div>
             <div className="flex items-baseline gap-1.5 mt-0.5">
               <span className="text-base font-bold text-[#A8862A]">{formatILS(totalEff)}</span>
-              {totalBase > totalEff && (
-                <span className="text-[10px] text-muted-foreground line-through">{formatILS(totalBase)}</span>
-              )}
             </div>
           </div>
           <Button
@@ -146,14 +145,14 @@ export function BundleOffer({
       <div className="flex items-start justify-between gap-3 mb-1 flex-wrap">
         <div className="flex items-center gap-2">
           <Package className="h-5 w-5 text-[#A8862A]" />
-          <p className="text-xs tracking-[0.25em] text-[#A8862A] uppercase font-semibold">ערכה משתלמת</p>
+          <p className="text-xs tracking-[0.25em] text-[#A8862A] uppercase font-semibold">הוסיפו לערכה</p>
         </div>
         <span className="rounded-full bg-[#D4AF37] text-white text-xs font-bold px-3 py-1 shadow-sm">
-          ערכה מומלצת
+          נרכשים יחד
         </span>
       </div>
       <h3 className="font-display text-xl md:text-2xl font-bold mb-4">
-        קנו יחד וחסכו — הערכה המומלצת
+        משלימים את הסט בקליק אחד
       </h3>
 
       <div className="flex flex-wrap items-center gap-3 md:gap-4">
@@ -202,9 +201,6 @@ export function BundleOffer({
           </span>
           <div className="flex items-baseline gap-2 mt-0.5">
             <span className="text-2xl font-bold text-[#A8862A]">{formatILS(totalEff)}</span>
-            {totalBase > totalEff && (
-              <span className="text-sm text-muted-foreground line-through">{formatILS(totalBase)}</span>
-            )}
           </div>
         </div>
         <Button

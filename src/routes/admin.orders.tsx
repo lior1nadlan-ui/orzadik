@@ -245,6 +245,7 @@ function AdminOrders() {
               <tr key={o.id} className={`border-t ${isNew(o) ? "bg-primary/5" : ""}`}>
                 <td className="p-3 font-mono text-xs">
                   {o.order_number}
+                  {o.is_gift && <span className="mr-1" title="מתנה — יש לארוז ולהדפיס הקדשה">🎁</span>}
                   {isNew(o) && <span className="mr-1 text-[10px] text-primary font-sans font-semibold">חדש</span>}
                 </td>
                 <td className="p-3"><div>{o.customer_name}</div><div className="text-xs text-muted-foreground">{o.customer_phone}</div></td>
@@ -304,6 +305,23 @@ function AdminOrders() {
                 </div>
                 <div>{selected.customer_address}{selected.customer_city ? `, ${selected.customer_city}` : ""}</div>
                 {selected.notes && <div className="text-muted-foreground">הערות: {selected.notes}</div>}
+
+                {selected.is_gift && (
+                  <div className="rounded-md border border-[#D4AF37] bg-[#FAF6E9] px-3 py-2">
+                    <div className="font-semibold text-[#A8862A]">🎁 הזמנה זו היא מתנה</div>
+                    <div className="mt-1">
+                      {selected.gift_wrap ? "עטיפת מתנה חגיגית" : "ללא עטיפה"}
+                    </div>
+                    {selected.gift_note && (
+                      <div className="mt-1">
+                        הקדשה להדפסה:
+                        <div className="mt-1 whitespace-pre-wrap rounded border border-dashed border-[#D4AF37] bg-white px-2 py-1">
+                          {selected.gift_note}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Internal CRM notes — same store as the customer card. */}
                 <div className="border-t pt-3 space-y-2">

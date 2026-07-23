@@ -1,11 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { listAbandonedCarts } from "@/lib/admin-crm.functions";
+import { runAbandonedCartRemindersNow } from "@/lib/abandoned-cart.functions";
 import { formatILS } from "@/lib/cart";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Mail, MessageCircle } from "lucide-react";
+import { Loader2, Mail, MessageCircle, Send } from "lucide-react";
+import { toast } from "sonner";
 import { waLink } from "@/routes/admin.orders";
 
 export const Route = createFileRoute("/admin/abandoned")({
@@ -20,6 +22,17 @@ const FILTERS: { value: ShowFilter; label: string }[] = [
   { value: "all", label: "הכל" },
 ];
 
+/**
+ * Why a run sent nothing for a CONFIGURATION reason. Mirrors
+ * AbandonedCartRunResult["skipped"] — these must never be reported as success,
+ * because "0 נשלחו" would otherwise look identical to an empty queue.
+ */
+const SKIP_MESSAGES: Record<string, string> = {
+  "email-not-configured": "שירות הדיוור אינו מוגדר — לא נשלחה אף תזכורת.",
+  "unsubscribe-secret-missing": "חסרה הגדרת קישור ההסרה מרשימת התפוצה — השליחה נעצרה.",
+  "scan-failed": "סריקת העגלות נכשלה. פרטים ביומן השרת.",
+};
+
 /** Shape of each entry in the items jsonb (see abandoned-cart.functions.ts Schema). */
 type CartItem = {
   product_id: string;
@@ -31,7 +44,9 @@ type CartItem = {
 };
 
 function AdminAbandoned() {
+  const qc = useQueryClient();
   const list = useServerFn(listAbandonedCarts);
+  const runReminders = useServerFn(runAbandonedCartRemindersNow);
   const [show, setShow] = useState<ShowFilter>("open");
   const [page, setPage] = useState(0);
   useEffect(() => setPage(0), [show]);
@@ -41,6 +56,23 @@ function AdminAbandoned() {
     placeholderData: keepPreviousData,
     queryFn: () => list({ data: { page, show } }),
   });
+
+  // Manual sweep. The hourly cron does this on its own; the button is for
+  // verifying the pipeline and for draining a backlog straight after a fix.
+  // Idempotent — a cart already reminded is never mailed twice.
+  const remindersMutation = useMutation({
+    mutationFn: () => runReminders(),
+    onSuccess: (r) => {
+      const skipReason = r.skipped ? SKIP_MESSAGES[r.skipped] ?? r.skipped : null;
+      if (skipReason) {
+        toast.warning(skipReason);
+      } else {
+        toast.success(`נסרקו ${r.scanned}, נשלחו ${r.sent}`);
+      }
+      qc.invalidateQueries({ queryKey: ["abandoned"] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "שגיאה בהפעלת התזכורות"),
+  });
   const carts = data?.rows ?? [];
   const total = data?.total ?? 0;
   const pageSize = data?.pageSize ?? 25;
@@ -48,7 +80,25 @@ function AdminAbandoned() {
 
   return (
     <div>
-      <h1 className="font-display text-2xl font-bold mb-4">עגלות נטושות ({total})</h1>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <h1 className="font-display text-2xl font-bold">עגלות נטושות ({total})</h1>
+        <Button
+          size="sm"
+          onClick={() => remindersMutation.mutate()}
+          disabled={remindersMutation.isPending}
+        >
+          {remindersMutation.isPending ? (
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+          ) : (
+            <Send className="h-4 w-4" aria-hidden="true" />
+          )}
+          {remindersMutation.isPending ? "מריץ תזכורות…" : "הפעל תזכורות עכשיו"}
+        </Button>
+      </div>
+      <p className="mb-4 text-xs text-muted-foreground">
+        התזכורות נשלחות אוטומטית מדי שעה לעגלות שננטשו לפני שעה עד 30 יום, ורק ללקוחות שאישרו קבלת
+        דיוור. כל עגלה מקבלת תזכורת אחת בלבד.
+      </p>
 
       {/* Filter tabs */}
       <div className="flex flex-wrap gap-2 mb-4">

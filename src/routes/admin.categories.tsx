@@ -14,7 +14,23 @@ export const Route = createFileRoute("/admin/categories")({
   component: AdminCategories,
 });
 
-type Cat = { id: string; slug: string; name: string; description: string | null; sort_order: number };
+type Cat = {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  /** On-page SEO copy rendered at the bottom of the category page. */
+  long_description: string | null;
+  /** Hero banner image for the category page. */
+  image_url: string | null;
+  sort_order: number;
+};
+
+/** Empty inputs must be stored as NULL, not "", so the page falls back cleanly. */
+const orNull = (v: string | null | undefined) => {
+  const t = (v ?? "").trim();
+  return t ? t : null;
+};
 
 function AdminCategories() {
   const qc = useQueryClient();
@@ -23,20 +39,35 @@ function AdminCategories() {
   const { data: cats = [] } = useQuery({
     queryKey: ["admin-cats"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("categories").select("*").order("sort_order");
+      // Explicit column list so the SEO fields the form edits are always here.
+      const { data, error } = await supabase
+        .from("categories")
+        .select("id, slug, name, description, long_description, image_url, sort_order")
+        .order("sort_order");
       if (error) throw error;
       return data as Cat[];
     },
   });
 
   const onSave = async (f: Partial<Cat>) => {
+    const name = (f.name ?? "").trim();
+    const slug = (f.slug ?? "").trim();
+    if (!name || !slug) return toast.error("שם ו-Slug הם שדות חובה");
+    // Explicit payload: never write back columns the form doesn't edit
+    // (parent_slug, wp_id, timestamps) just because they rode along on the row.
+    const payload = {
+      name,
+      slug,
+      description: orNull(f.description),
+      long_description: orNull(f.long_description),
+      image_url: orNull(f.image_url),
+      sort_order: f.sort_order ?? 0,
+    };
     if (editing) {
-      const { error } = await supabase.from("categories").update(f).eq("id", editing.id);
+      const { error } = await supabase.from("categories").update(payload).eq("id", editing.id);
       if (error) return toast.error(error.message);
     } else {
-      const { error } = await supabase.from("categories").insert({
-        slug: f.slug!, name: f.name!, description: f.description ?? null, sort_order: f.sort_order ?? 0,
-      });
+      const { error } = await supabase.from("categories").insert(payload);
       if (error) return toast.error(error.message);
     }
     toast.success("נשמר"); setOpen(false); setEditing(null);
@@ -65,7 +96,8 @@ function AdminCategories() {
       <div className="rounded-lg border bg-card overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-muted/50"><tr className="text-right">
-            <th className="p-3">שם</th><th className="p-3">Slug</th><th className="p-3">סדר</th><th></th>
+            <th className="p-3">שם</th><th className="p-3">Slug</th><th className="p-3">סדר</th>
+            <th className="p-3">תוכן לעמוד הקטגוריה</th><th></th>
           </tr></thead>
           <tbody>
             {cats.map((c) => (
@@ -73,6 +105,15 @@ function AdminCategories() {
                 <td className="p-3">{c.name}</td>
                 <td className="p-3 font-mono text-xs">{c.slug}</td>
                 <td className="p-3">{c.sort_order}</td>
+                {/* At-a-glance view of which categories still have no copy —
+                    with 105 of them, the owner needs to see the gaps. */}
+                <td className="p-3 whitespace-nowrap text-xs">
+                  <Filled on={!!c.description} label="תיאור" />
+                  <span className="text-muted-foreground/40"> · </span>
+                  <Filled on={!!c.long_description} label="טקסט SEO" />
+                  <span className="text-muted-foreground/40"> · </span>
+                  <Filled on={!!c.image_url} label="תמונה" />
+                </td>
                 <td className="p-3 flex gap-2 justify-end">
                   <Button size="sm" variant="outline" onClick={() => { setEditing(c); setOpen(true); }}><Pencil className="h-3.5 w-3.5" /></Button>
                   <Button size="sm" variant="outline" onClick={() => onDelete(c.id)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
@@ -86,15 +127,78 @@ function AdminCategories() {
   );
 }
 
+/** Green when the field has content, muted when it's still empty. */
+function Filled({ on, label }: { on: boolean; label: string }) {
+  return (
+    <span className={on ? "text-accent" : "text-muted-foreground/60"}>
+      {label} {on ? "✓" : "—"}
+    </span>
+  );
+}
+
 function CatDialog({ cat, onSave }: { cat: Cat | null; onSave: (f: Partial<Cat>) => void }) {
   const [form, setForm] = useState<Partial<Cat>>(cat ?? { name: "", slug: "", sort_order: 0 });
+  const descLen = (form.description ?? "").trim().length;
   return (
-    <DialogContent>
+    <DialogContent className="max-h-[85vh] overflow-y-auto">
       <DialogHeader><DialogTitle>{cat ? "עריכת קטגוריה" : "קטגוריה חדשה"}</DialogTitle></DialogHeader>
-      <div className="space-y-3">
+      <div className="space-y-4">
         <div><Label>שם</Label><Input value={form.name ?? ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
         <div><Label>Slug</Label><Input value={form.slug ?? ""} onChange={(e) => setForm({ ...form, slug: e.target.value })} /></div>
-        <div><Label>תיאור</Label><Textarea value={form.description ?? ""} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
+        <div>
+          <Label>תיאור קצר</Label>
+          <Textarea
+            rows={3}
+            value={form.description ?? ""}
+            onChange={(e) => setForm({ ...form, description: e.target.value })}
+          />
+          <p className="mt-1 text-xs text-muted-foreground">
+            מוצג מתחת לכותרת בעמוד הקטגוריה, ומשמש גם כתיאור המטא (meta description) בתוצאות החיפוש.
+            מומלץ עד 160 תווים — גוגל גוזר טקסט ארוך יותר. אם נשאר ריק, נוצר תיאור כללי אוטומטי.
+          </p>
+          <p className={`mt-1 text-xs ${descLen > 160 ? "text-destructive" : "text-muted-foreground/70"}`}>
+            {descLen}/160 תווים
+          </p>
+        </div>
+        <div>
+          <Label>טקסט SEO ארוך</Label>
+          <Textarea
+            rows={7}
+            value={form.long_description ?? ""}
+            onChange={(e) => setForm({ ...form, long_description: e.target.value })}
+          />
+          <p className="mt-1 text-xs text-muted-foreground">
+            נכתב בעברית ומוצג בתחתית עמוד הקטגוריה, מתחת למוצרים, תחת הכותרת "קצת על …".
+            זהו התוכן שמנועי החיפוש קוראים — כדאי לכתוב כמה פסקאות ייחודיות לקטגוריה. ירידות שורה נשמרות.
+            אם נשאר ריק, האזור פשוט לא מוצג.
+          </p>
+        </div>
+        <div>
+          <Label>כתובת תמונת באנר (URL)</Label>
+          <Input
+            type="url"
+            dir="ltr"
+            inputMode="url"
+            placeholder="https://example.com/banner.jpg"
+            value={form.image_url ?? ""}
+            onChange={(e) => setForm({ ...form, image_url: e.target.value })}
+          />
+          {(form.image_url ?? "").trim().startsWith("http") && (
+            <img
+              src={(form.image_url ?? "").trim()}
+              alt="תצוגה מקדימה של באנר הקטגוריה"
+              loading="lazy"
+              decoding="async"
+              width={320}
+              height={140}
+              className="mt-2 h-[70px] w-40 rounded border object-cover"
+            />
+          )}
+          <p className="mt-1 text-xs text-muted-foreground">
+            תמונה רחבה שתוצג כבאנר בראש עמוד הקטגוריה (מומלץ יחס 21:8, לדוגמה 1600×700 פיקסלים).
+            אם נשאר ריק, מוצגת כותרת טקסט בלבד.
+          </p>
+        </div>
         <div><Label>סדר תצוגה</Label><Input type="number" value={form.sort_order ?? 0} onChange={(e) => setForm({ ...form, sort_order: Number(e.target.value) })} /></div>
       </div>
       <DialogFooter><Button onClick={() => onSave(form)}>שמור</Button></DialogFooter>

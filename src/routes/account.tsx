@@ -5,6 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { deleteMyAccount, exportMyData } from "@/lib/account.functions";
+import { setMarketingConsent } from "@/lib/marketing-consent.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -123,6 +124,7 @@ function AccountPage() {
   const [deleting, setDeleting] = useState(false);
   const removeAccount = useServerFn(deleteMyAccount);
   const exportData = useServerFn(exportMyData);
+  const saveConsent = useServerFn(setMarketingConsent);
   const [exporting, setExporting] = useState(false);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -198,20 +200,24 @@ function AccountPage() {
     }
   }, [profile]);
 
+  // Consent is never written from the client: an opt-out has to remove the
+  // address from EVERY send path (profile, newsletter list, cart reminders and
+  // the global suppression list), otherwise "הוסרת מרשימת הדיוור" would be a
+  // false promise for anyone who also opted in at checkout. The server function
+  // owns all of those writes and resolves the address from the session.
   const toggleConsent = async (next: boolean) => {
     setSavingConsent(true);
-    const { error } = await supabase
-      .from("profiles")
-      .update({
-        marketing_consent: next,
-        marketing_consent_at: next ? new Date().toISOString() : null,
-        marketing_consent_source: next ? "account" : null,
-      })
-      .eq("id", user!.id);
-    setSavingConsent(false);
-    if (error) { toast.error("שמירה נכשלה"); return; }
-    toast.success(next ? "נרשמת לתוכן פרסומי" : "הוסרת מרשימת הדיוור");
-    queryClient.invalidateQueries({ queryKey: ["profile", user!.id] });
+    try {
+      await saveConsent({ data: { optIn: next } });
+      toast.success(next ? "נרשמת לתוכן פרסומי" : "הוסרת מרשימת הדיוור");
+      queryClient.invalidateQueries({ queryKey: ["profile", user!.id] });
+    } catch {
+      // The Switch is controlled by the (unchanged) profile query, so it stays
+      // showing the previous value when the save fails.
+      toast.error("שמירה נכשלה");
+    } finally {
+      setSavingConsent(false);
+    }
   };
 
   const { data: orders = [] } = useQuery({
@@ -259,10 +265,10 @@ function AccountPage() {
           </div>
           <div className="flex flex-col items-start md:items-end gap-1">
             <span className="rounded-full bg-[#D4AF37] text-white text-sm font-bold px-4 py-1.5 shadow">
-              5% הנחת מועדון
+              חבר/ת מועדון
             </span>
             <span className="text-xs text-muted-foreground">
-              ההנחה חלה אוטומטית בכל הזמנה
+              ההטבות חלות אוטומטית בכל הזמנה
             </span>
           </div>
         </div>

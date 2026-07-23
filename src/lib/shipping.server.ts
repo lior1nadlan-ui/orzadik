@@ -32,6 +32,13 @@ export async function notifyShippingCompany(orderId: string) {
     items: items ?? [],
     notes: order.notes,
     total: order.total,
+    // Carrier/packing instructions: the parcel needs wrapping and the printed
+    // dedication before it ships.
+    gift: {
+      is_gift: order.is_gift ?? false,
+      gift_wrap: order.gift_wrap ?? false,
+      gift_note: order.gift_note ?? null,
+    },
   };
 
   // TODO: replace with real carrier API call or transactional email.

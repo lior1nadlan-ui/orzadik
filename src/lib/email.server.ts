@@ -88,11 +88,28 @@ export function unsubscribeUrl(email: string, token: string): string {
   return `https://orzadik.com/api/public/unsubscribe?e=${encodeURIComponent(email)}&t=${token}`;
 }
 
+/**
+ * RFC 8058 one-click opt-out headers for a bulk message.
+ *
+ * Gmail/Yahoo bulk-sender rules expect these on marketing mail, and the pair
+ * only works together: List-Unsubscribe-Post makes the mailbox provider POST
+ * the URL itself instead of opening it, which /api/public/unsubscribe already
+ * accepts (it registers both GET and POST).
+ */
+export function listUnsubscribeHeaders(url: string): Record<string, string> {
+  return {
+    "List-Unsubscribe": `<${url}>`,
+    "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+  };
+}
+
 export async function sendEmail(opts: {
   to: string;
   subject: string;
   html: string;
   replyTo?: string;
+  /** Extra RFC headers (e.g. List-Unsubscribe). Omitted from the body when empty. */
+  headers?: Record<string, string>;
 }): Promise<boolean> {
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.ORDER_EMAIL_FROM;
@@ -112,6 +129,9 @@ export async function sendEmail(opts: {
         subject: opts.subject,
         html: opts.html,
         ...(opts.replyTo ? { reply_to: opts.replyTo } : {}),
+        ...(opts.headers && Object.keys(opts.headers).length > 0
+          ? { headers: opts.headers }
+          : {}),
       }),
       signal: controller.signal,
     });

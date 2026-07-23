@@ -2,8 +2,29 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
+// /categories is the only hub that links all 105 categories. Fetching it in a
+// route loader (rather than only in useQuery) is what puts those links into the
+// server-rendered HTML — a client-only useQuery renders an empty grid for every
+// crawler that does not execute JS.
+async function fetchAllCategories() {
+  const { data, error } = await supabase
+    .from("categories")
+    .select("id, slug, name, description, parent_slug, sort_order")
+    .order("sort_order")
+    .order("name")
+    // PostgREST silently caps an unbounded select at 1000 rows. 105 categories
+    // today, but the bound is explicit so growth fails loudly rather than
+    // quietly dropping links off the hub page.
+    .range(0, 999);
+  if (error) throw error;
+  return data ?? [];
+}
+
+type CategoryRow = Awaited<ReturnType<typeof fetchAllCategories>>[number];
+
 export const Route = createFileRoute("/categories")({
   component: CategoriesPage,
+  loader: async () => ({ categories: await fetchAllCategories() }),
   head: () => ({
     meta: [
       { title: "קטגוריות המוצרים | אור זרוע לצדיק" },
@@ -20,17 +41,14 @@ export const Route = createFileRoute("/categories")({
 });
 
 function CategoriesPage() {
+  const { categories: initialCategories } = Route.useLoaderData();
+
   const { data = [] } = useQuery({
     queryKey: ["all-cats"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("categories")
-        .select("id, slug, name, description, parent_slug, sort_order")
-        .order("sort_order")
-        .order("name");
-      if (error) throw error;
-      return data;
-    },
+    queryFn: fetchAllCategories,
+    // Seed from the SSR loader so the whole category link graph is present in
+    // the initial HTML instead of appearing only after hydration.
+    initialData: initialCategories as CategoryRow[],
   });
 
   // Render one card per top-level category with its subcategories inside it.

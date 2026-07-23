@@ -22,13 +22,36 @@ function itemsRows(items: any[]): string {
     .join("");
 }
 
+/**
+ * Gift box for the order emails. Renders nothing unless the order is flagged a
+ * gift, so every template can include it unconditionally.
+ *
+ * `prominent` is for the owner-facing mails: the dedication has to be printed
+ * and the parcel wrapped, so it goes near the top rather than after the items.
+ */
+function giftBlock(order: any, prominent = false): string {
+  if (!order?.is_gift) return "";
+  const lines: string[] = [];
+  if (order.gift_wrap) lines.push("עטיפת מתנה חגיגית");
+  if (order.gift_note) {
+    lines.push(
+      `הקדשה להדפסה:<div style="margin-top:4px;padding:8px 10px;background:#fff;border:1px dashed #D4AF37;border-radius:6px;white-space:pre-wrap;">${esc(order.gift_note)}</div>`,
+    );
+  }
+  if (lines.length === 0) lines.push("סומנה כמתנה (ללא הקדשה או עטיפה)");
+  return `<div style="margin:${prominent ? "0 0 16px" : "16px 0 0"};padding:12px 14px;background:#FAF6E9;border:1px solid #D4AF37;border-radius:8px;font-size:14px;">
+      <div style="font-weight:bold;color:#A8862A;margin-bottom:6px;">🎁 הזמנה זו היא מתנה</div>
+      ${lines.map((l) => `<div style="margin-top:4px;">${l}</div>`).join("")}
+    </div>`;
+}
+
 export async function sendOrderConfirmationEmails(orderId: string) {
   const ownerEmail = process.env.SHOP_OWNER_EMAIL;
 
   const { data: order } = await supabaseAdmin
     .from("orders")
     .select(
-      "id, order_number, customer_name, customer_email, customer_phone, customer_address, customer_city, subtotal, shipping, total, order_items(product_name, quantity, line_total, variant_label, custom_text)",
+      "id, order_number, customer_name, customer_email, customer_phone, customer_address, customer_city, subtotal, shipping, total, is_gift, gift_note, gift_wrap, order_items(product_name, quantity, line_total, variant_label, custom_text)",
     )
     .eq("id", orderId)
     .single();
@@ -57,6 +80,7 @@ export async function sendOrderConfirmationEmails(orderId: string) {
       קיבלנו את התשלום עבור הזמנה <strong>${esc(order.order_number)}</strong>. נעדכן אותך בהמשך על מצב המשלוח.
     </p>
     <table style="width:100%;border-collapse:collapse;font-size:14px;">${rows}</table>
+    ${giftBlock(order)}
     ${totalsBlock}
     <p style="font-size:13px;color:#666;margin-top:16px;">
       כתובת למשלוח: ${esc(order.customer_address)}${order.customer_city ? ", " + esc(order.customer_city) : ""}
@@ -89,6 +113,7 @@ export async function sendOrderConfirmationEmails(orderId: string) {
     const ownerHtml = emailShell(`
       <h1 style="font-size:20px;margin:0 0 8px;">התקבלה הזמנה חדשה 🛒</h1>
       <p style="font-size:14px;color:#555;margin:0 0 12px;">הזמנה <strong>${esc(order.order_number)}</strong></p>
+      ${giftBlock(order, true)}
       <table style="width:100%;font-size:14px;margin-bottom:12px;">
         <tr><td style="color:#666;">לקוח</td><td style="text-align:left;">${esc(order.customer_name)}</td></tr>
         <tr><td style="color:#666;">טלפון</td><td style="text-align:left;">${esc(order.customer_phone)}</td></tr>
@@ -124,7 +149,7 @@ export async function sendOrderCreatedOwnerAlert(orderId: string) {
   const { data: order } = await supabaseAdmin
     .from("orders")
     .select(
-      "order_number, customer_name, customer_email, customer_phone, customer_address, customer_city, notes, subtotal, shipping, total, order_items(product_name, quantity, line_total, variant_label, custom_text)",
+      "order_number, customer_name, customer_email, customer_phone, customer_address, customer_city, notes, subtotal, shipping, total, is_gift, gift_note, gift_wrap, order_items(product_name, quantity, line_total, variant_label, custom_text)",
     )
     .eq("id", orderId)
     .single();
@@ -138,6 +163,7 @@ export async function sendOrderCreatedOwnerAlert(orderId: string) {
       <strong style="color:#b45309;">ממתינה לתשלום</strong>.
       אם התשלום יושלם יגיע מייל אישור נפרד.
     </p>
+    ${giftBlock(order, true)}
     <table style="width:100%;font-size:14px;margin-bottom:12px;">
       <tr><td style="color:#666;">לקוח</td><td style="text-align:left;">${esc(order.customer_name)}</td></tr>
       <tr><td style="color:#666;">טלפון</td><td style="text-align:left;">${esc(order.customer_phone)}</td></tr>
@@ -169,7 +195,7 @@ export async function sendOrderShippedEmail(orderId: string) {
   const { data: order } = await supabaseAdmin
     .from("orders")
     .select(
-      "order_number, customer_name, customer_email, customer_address, customer_city, tracking_number, shipping_carrier, order_items(product_name, quantity, line_total, variant_label, custom_text)",
+      "order_number, customer_name, customer_email, customer_address, customer_city, tracking_number, shipping_carrier, is_gift, gift_note, gift_wrap, order_items(product_name, quantity, line_total, variant_label, custom_text)",
     )
     .eq("id", orderId)
     .single();
@@ -191,8 +217,10 @@ export async function sendOrderShippedEmail(orderId: string) {
     </p>
     ${trackingBlock}
     <table style="width:100%;border-collapse:collapse;font-size:14px;">${rows}</table>
+    ${giftBlock(order)}
     <p style="font-size:13px;color:#666;margin-top:16px;">
       לשאלות על המשלוח אפשר להשיב למייל הזה ונשמח לעזור.
+      ניתן לעקוב אחר ההזמנה בכל רגע בכתובת <a href="https://orzadik.com/track" style="color:#A8862A;">orzadik.com/track</a>.
     </p>`);
 
   await sendEmail({

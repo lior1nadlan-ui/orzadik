@@ -19,5 +19,18 @@ export default defineConfig({
     preset: "cloudflare-module",
     output: { dir: "dist", serverDir: "dist/server", publicDir: "dist/client" },
     cloudflare: { nodeCompat: true, deployConfig: true },
+    // Cron triggers. Nitro generates its own Cloudflare worker entry (it
+    // overrides wrangler's `main`), so a `scheduled` export on src/server.ts is
+    // never invoked — the only hook that runs is `cloudflare:scheduled`, which
+    // this plugin registers. See src/nitro/cron.ts.
+    //
+    // DO NOT DELETE THIS LINE TO "FIX THE TYPE ERROR": deleting it silently
+    // disables EVERY cron job (review requests, campaign batches, abandoned-cart
+    // reminders) with no build or runtime failure to notice.
+    // @ts-expect-error — @lovable.dev/vite-tanstack-config types `nitro` as a
+    // closed object (preset/output/cloudflare only), but it forwards the whole
+    // object to Nitro via an unfiltered spread, so `plugins` does reach Nitro at
+    // build time. The value is correct; only the wrapper's type is too narrow.
+    plugins: ["./src/nitro/cron.ts"],
   },
 });

@@ -47,7 +47,7 @@ export const getDashboardStats = createServerFn({ method: "POST" }).handler(asyn
   await requireAdmin();
 
   const orders = await fetchAllOrders(
-    "id, order_number, customer_name, total, status, payment_status, created_at, paid_at, shipped_at",
+    "id, order_number, customer_name, customer_email, total, status, payment_status, created_at, paid_at, shipped_at",
   );
 
   const now = Date.now();
@@ -160,7 +160,53 @@ export const getDashboardStats = createServerFn({ method: "POST" }).handler(asyn
     ]);
   if (niErr || oosErr) console.error("[getDashboardStats] catalog health:", niErr ?? oosErr);
 
+  // Low stock — only products that actually opted into tracking, so the 4,672
+  // untracked supplier SKUs (stock_qty 0 and meaningless) never show up here.
+  const { data: lowStock, error: lsErr } = await supabaseAdmin
+    .from("products")
+    .select("id, name, sku, stock_qty")
+    .eq("track_stock", true)
+    .eq("is_active", true)
+    .lte("stock_qty", 3)
+    .order("stock_qty", { ascending: true })
+    .limit(8);
+  if (lsErr) console.error("[getDashboardStats] low stock:", lsErr);
+
+  // Repeat-customer analytics, keyed on the lowercased email (guest checkout
+  // means most customers have no auth.users row). Emails stay server-side —
+  // only names and amounts are returned to the widget.
+  const byCustomer = new Map<string, { name: string; orders: number; revenue: number }>();
+  for (const o of paid) {
+    const key = String(o.customer_email ?? "").trim().toLowerCase();
+    if (!key) continue;
+    const cur = byCustomer.get(key) ?? { name: o.customer_name, orders: 0, revenue: 0 };
+    cur.orders += 1;
+    cur.revenue += Number(o.total);
+    byCustomer.set(key, cur);
+  }
+  const customers = [...byCustomer.values()];
+  const returning = customers.filter((c) => c.orders > 1);
+  const returningRevenue = returning.reduce((s, c) => s + c.revenue, 0);
+  const repeat = {
+    totalCustomers: customers.length,
+    returningCustomers: returning.length,
+    repeatRate: customers.length ? Math.round((returning.length / customers.length) * 100) : 0,
+    returningRevenue,
+    newRevenue: revenueTotal - returningRevenue,
+    topCustomers: [...customers]
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 5)
+      .map((c) => ({ name: c.name, orders: c.orders, revenue: c.revenue })),
+  };
+
   return {
+    lowStock: (lowStock ?? []).map((p) => ({
+      id: p.id,
+      name: p.name,
+      sku: p.sku,
+      qty: p.stock_qty ?? 0,
+    })),
+    repeat,
     revenue: {
       today: revenueIn(startOfToday.getTime()),
       last7: revenueIn(now - 7 * DAY),
@@ -270,7 +316,7 @@ export const exportOrdersCsv = createServerFn({ method: "POST" })
       let query = supabaseAdmin
         .from("orders")
         .select(
-          "order_number, created_at, customer_name, customer_phone, customer_email, customer_address, customer_city, subtotal, shipping, total, status, payment_status, tracking_number, shipping_carrier, notes, order_items(product_name, quantity, line_total)",
+          "order_number, created_at, customer_name, customer_phone, customer_email, customer_address, customer_city, subtotal, shipping, total, status, payment_status, tracking_number, shipping_carrier, notes, is_gift, gift_note, gift_wrap, order_items(product_name, quantity, line_total)",
         );
       query = applyOrderFilters(query, f);
       const { data, error } = await query
@@ -284,6 +330,7 @@ export const exportOrdersCsv = createServerFn({ method: "POST" })
     const header = [
       "מספר הזמנה", "תאריך", "לקוח", "טלפון", "אימייל", "כתובת", "עיר",
       "ביניים", "משלוח", 'סה"כ', "סטטוס", "תשלום", "מעקב", "חברת שילוח", "פריטים", "הערות",
+      "מתנה", "הקדשה", "עטיפה",
     ];
     const lines = rows.map((o) =>
       [
@@ -295,6 +342,9 @@ export const exportOrdersCsv = createServerFn({ method: "POST" })
         o.tracking_number ?? "", o.shipping_carrier ?? "",
         (o.order_items ?? []).map((it: any) => `${it.product_name} x${it.quantity}`).join(" | "),
         o.notes ?? "",
+        o.is_gift ? "כן" : "לא",
+        o.gift_note ?? "",
+        o.gift_wrap ? "כן" : "לא",
       ].map(csvEsc).join(","),
     );
     // BOM so Excel opens Hebrew UTF-8 correctly.

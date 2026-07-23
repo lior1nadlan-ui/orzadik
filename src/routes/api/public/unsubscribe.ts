@@ -41,6 +41,19 @@ async function handle(request: Request): Promise<Response> {
       .from("profiles")
       .update({ marketing_consent: false })
       .ilike("email", email);
+    // Newsletter list: mark the subscription closed rather than deleting it, so
+    // the opt-out itself stays auditable (Spam Law §30א).
+    await supabaseAdmin
+      .from("newsletter_subscribers")
+      .update({ unsubscribed_at: new Date().toISOString() })
+      .ilike("email", email)
+      .is("unsubscribed_at", null);
+    // Global kill-switch. The lists above are the ones we know about today;
+    // this row is what every future sender checks, so an address that opts out
+    // stays out even if it is later re-added to some other list.
+    await supabaseAdmin
+      .from("email_suppressions")
+      .upsert({ email }, { onConflict: "email", ignoreDuplicates: true });
   } catch (e) {
     console.error("[unsubscribe] update failed:", e);
     return page("אירעה שגיאה", "לא הצלחנו להשלים את ההסרה כעת. אנא נסו שוב מאוחר יותר או פנו אלינו.", false);

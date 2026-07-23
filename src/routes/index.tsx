@@ -2,9 +2,12 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { FeaturedProductsCarousel } from "@/components/home/FeaturedProductsCarousel";
-import { LuxuryShowcase } from "@/components/home/LuxuryShowcase";
-import { HomeReviews } from "@/components/content/HomeReviews";
+import {
+  FeaturedProductsCarousel,
+  fetchHomeFeaturedProducts,
+} from "@/components/home/FeaturedProductsCarousel";
+import { LuxuryShowcase, fetchLuxuryShowcaseThumbs } from "@/components/home/LuxuryShowcase";
+import { HomeReviews, fetchHomeReviews } from "@/components/content/HomeReviews";
 import {
   Carousel,
   CarouselContent,
@@ -105,7 +108,54 @@ const OTHER_CATS_IMAGES: Record<string, string> = {
   "tefillin-cases": oc_tefillinCases,
 };
 
+/** The only category slugs this page has artwork for — see the map above. */
+const OTHER_CAT_SLUGS = Object.keys(OTHER_CATS_IMAGES);
 
+/** Every src/assets/other-cats/*.webp is authored at this size. */
+const OTHER_CAT_IMG_SIZE = 760;
+
+/** Every public/groom-sets/*.jpeg used on this page is 1440×1920. */
+const GROOM_IMG_W = 1440;
+const GROOM_IMG_H = 1920;
+
+/**
+ * Categories that are not in FEATURED but do have a tile image. Runs in the
+ * route loader (so the strip is server-rendered) and again as the client query.
+ */
+async function fetchOtherCategories(): Promise<CatTile[]> {
+  const featuredIds = FEATURED.map((f) => f.id);
+  const { data: cats, error } = await supabase
+    .from("categories")
+    .select("id, slug, name")
+    // Ask only for the ~32 slugs we can actually render. The previous
+    // unbounded select pulled every category row and discarded most of them.
+    .in("slug", OTHER_CAT_SLUGS)
+    .not("id", "in", `(${featuredIds.join(",")})`);
+  if (error) throw error;
+
+  const blacklist = new Set(["sale", "uncategorized"]);
+  const bySlug = new Map((cats ?? []).map((c) => [c.slug, c.name]));
+  // Emit in the curated map order rather than PostgREST's (unordered) row
+  // order, so the loader result and any later refetch render the same sequence.
+  return OTHER_CAT_SLUGS.filter((slug) => bySlug.has(slug) && !blacklist.has(slug)).map((slug) => ({
+    slug,
+    name: bySlug.get(slug)!,
+    img: OTHER_CATS_IMAGES[slug],
+    w: OTHER_CAT_IMG_SIZE,
+    h: OTHER_CAT_IMG_SIZE,
+  }));
+}
+
+/**
+ * A failed fetch must not blank the homepage: it degrades to `null`, the
+ * section falls back to its client query, and the page still renders.
+ */
+function settle<T>(p: Promise<T>): Promise<T | null> {
+  return p.catch((err) => {
+    console.error("[home loader]", err);
+    return null;
+  });
+}
 
 // Single source of truth for the homepage FAQ — feeds both the FAQPage JSON-LD
 // in head() (the SEO carrier) and the visible accordion. The fuller answers
@@ -139,6 +189,19 @@ const FAQ_ITEMS: { q: string; a: string }[] = [
 
 export const Route = createFileRoute("/")({
   component: HomePage,
+  // Everything below the hero used to be fetched only after hydration, which
+  // meant three whole sections injected themselves mid-page and shifted the
+  // rest down. Resolving them here puts them in the server-rendered HTML.
+  // Each fetch is independently fault-tolerant — see settle().
+  loader: async () => {
+    const [otherCats, featuredProducts, luxuryThumbs, reviews] = await Promise.all([
+      settle(fetchOtherCategories()),
+      settle(fetchHomeFeaturedProducts()),
+      settle(fetchLuxuryShowcaseThumbs()),
+      settle(fetchHomeReviews()),
+    ]);
+    return { otherCats, featuredProducts, luxuryThumbs, reviews };
+  },
   head: () => ({
     meta: [
       { title: "אור זרוע לצדיק | תשמישי קדושה ויודאיקה מהודרת" },
@@ -172,20 +235,23 @@ export const Route = createFileRoute("/")({
   }),
 });
 
-type CatTile = { slug: string; name: string; img: string };
+// `w`/`h` are the tile image's real intrinsic pixels, so the browser can size
+// the box before the file arrives. The tiles themselves are square (the CSS
+// aspect + object-cover own the layout); these are not display dimensions.
+type CatTile = { slug: string; name: string; img: string; w: number; h: number };
 
 // Curated featured categories. `slug` is hardcoded (verified against the DB) so
 // the section renders at SSR — no client round-trip, no post-hydration CLS.
-const FEATURED: { id: string; slug: string; name: string; img: string }[] = [
-  { id: "ac72c907-8981-404d-b776-642467e43110", slug: "%d7%98%d7%9c%d7%99%d7%aa%d7%95%d7%aa-%d7%95%d7%a6%d7%99%d7%a6%d7%99%d7%95%d7%aa", name: "טליתות", img: imgTallit },
-  { id: "51fd0522-192a-4ec2-bfc3-abf891b2e35e", slug: "%d7%9e%d7%95%d7%a6%d7%a8%d7%99-%d7%97%d7%aa%d7%95%d7%a0%d7%94-%d7%95%d7%91%d7%a8-%d7%9e%d7%a6%d7%95%d7%95%d7%94", name: "מארזים לחתנים", img: imgChatan },
-  { id: "f48e44e3-eab6-4281-a09d-cac9a96a8e96", slug: "talit-tefillin-sets", name: "כיסויים לטלית ותפילין", img: imgTallitTefillinCovers },
-  { id: "3109eed6-32e3-40eb-9fe4-874029b8ab4d", slug: "chalaka-set", name: "סט חלאקה", img: imgChalaka },
-  { id: "c78aea58-8a38-43ee-a236-3aa2f1942225", slug: "%d7%9e%d7%95%d7%a6%d7%a8%d7%99-%d7%99%d7%95%d7%93%d7%90%d7%99%d7%a7%d7%94", name: "מוצרי יודאיקה", img: imgJudaica },
-  { id: "b6854069-9746-4490-b6ea-ef7debe4d795", slug: "%d7%a1%d7%99%d7%93%d7%95%d7%a8%d7%99%d7%9d", name: "סידורים ותהילים", img: imgSiddur },
-  { id: "f356bae8-de78-45c6-ab68-f9b2e82444cf", slug: "study-books", name: "ספרי לימוד", img: imgBooks },
-  { id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890", slug: "esh-sheli-gold", name: "אש שלי - תכשיטי זהב", img: imgGoldJewelry },
-  { id: "b1e55fa1-0000-4000-8000-000000000002", slug: "laser-cut", name: "חיתוך בלייזר", img: imgWallArt },
+const FEATURED: { id: string; slug: string; name: string; img: string; w: number; h: number }[] = [
+  { id: "ac72c907-8981-404d-b776-642467e43110", slug: "%d7%98%d7%9c%d7%99%d7%aa%d7%95%d7%aa-%d7%95%d7%a6%d7%99%d7%a6%d7%99%d7%95%d7%aa", name: "טליתות", img: imgTallit, w: 800, h: 1000 },
+  { id: "51fd0522-192a-4ec2-bfc3-abf891b2e35e", slug: "%d7%9e%d7%95%d7%a6%d7%a8%d7%99-%d7%97%d7%aa%d7%95%d7%a0%d7%94-%d7%95%d7%91%d7%a8-%d7%9e%d7%a6%d7%95%d7%95%d7%94", name: "מארזים לחתנים", img: imgChatan, w: 800, h: 1067 },
+  { id: "f48e44e3-eab6-4281-a09d-cac9a96a8e96", slug: "talit-tefillin-sets", name: "כיסויים לטלית ותפילין", img: imgTallitTefillinCovers, w: 800, h: 1067 },
+  { id: "3109eed6-32e3-40eb-9fe4-874029b8ab4d", slug: "chalaka-set", name: "סט חלאקה", img: imgChalaka, w: 800, h: 1067 },
+  { id: "c78aea58-8a38-43ee-a236-3aa2f1942225", slug: "%d7%9e%d7%95%d7%a6%d7%a8%d7%99-%d7%99%d7%95%d7%93%d7%90%d7%99%d7%a7%d7%94", name: "מוצרי יודאיקה", img: imgJudaica, w: 800, h: 800 },
+  { id: "b6854069-9746-4490-b6ea-ef7debe4d795", slug: "%d7%a1%d7%99%d7%93%d7%95%d7%a8%d7%99%d7%9d", name: "סידורים ותהילים", img: imgSiddur, w: 800, h: 800 },
+  { id: "f356bae8-de78-45c6-ab68-f9b2e82444cf", slug: "study-books", name: "ספרי לימוד", img: imgBooks, w: 800, h: 800 },
+  { id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890", slug: "esh-sheli-gold", name: "אש שלי - תכשיטי זהב", img: imgGoldJewelry, w: 800, h: 1144 },
+  { id: "b1e55fa1-0000-4000-8000-000000000002", slug: "laser-cut", name: "חיתוך בלייזר", img: imgWallArt, w: 1500, h: 2000 },
 ];
 
 // Dark-ground button variants (hero / argaman bands). Solid = bright gold on
@@ -224,6 +290,8 @@ function prefersReducedMotion() {
 function HomePage() {
   const featuredIds = FEATURED.map((f) => f.id);
   const heroVideoRef = useRef<HTMLVideoElement | null>(null);
+  const { otherCats: loadedOtherCats, featuredProducts, luxuryThumbs, reviews } =
+    Route.useLoaderData();
 
   // Respect "reduce motion": stop the autoplaying hero loop after mount.
   useEffect(() => {
@@ -232,26 +300,21 @@ function HomePage() {
 
   const { data: otherCats = [] } = useQuery({
     queryKey: ["home-other-categories-static", featuredIds],
-    queryFn: async (): Promise<CatTile[]> => {
-      const { data: cats, error } = await supabase
-        .from("categories")
-        .select("id, slug, name")
-        .not("id", "in", `(${featuredIds.join(",")})`);
-      if (error) throw error;
-
-      const blacklist = new Set(["sale", "uncategorized"]);
-      return (cats || [])
-        .filter((c) => OTHER_CATS_IMAGES[c.slug] && !blacklist.has(c.slug))
-        .map((c) => ({ slug: c.slug, name: c.name, img: OTHER_CATS_IMAGES[c.slug] }));
-    },
+    // Seeded from the SSR loader so the strip is in the initial HTML; the
+    // query still refetches on its own schedule.
+    initialData: loadedOtherCats ?? undefined,
+    queryFn: fetchOtherCategories,
   });
 
-
-
+  // Loader data is stable for the life of the page and identical on the server
+  // and during hydration. `null` means the loader fetch failed and the strip is
+  // coming from the client query instead — hold its space so it cannot shift
+  // the page when it lands.
+  const reserveOtherCats = loadedOtherCats === null;
 
   // Static — rendered at SSR from the curated FEATURED list (slugs hardcoded), so
   // the tiles are in the initial HTML and the section never shifts after hydration.
-  const cats: CatTile[] = FEATURED.map((f) => ({ slug: f.slug, name: f.name, img: f.img }));
+  const cats: CatTile[] = FEATURED.map((f) => ({ slug: f.slug, name: f.name, img: f.img, w: f.w, h: f.h }));
 
   return (
     <>
@@ -292,7 +355,7 @@ function HomePage() {
             </h2>
             <span aria-hidden="true" className="block h-px w-24 mx-auto my-4 bg-[image:var(--gradient-gold-line)]" />
             <p className="text-cream/90 text-sm md:text-lg">
-              עד 15% הנחה על כל האתר
+              כשרות מהודרת ומשלוח עד הבית
             </p>
             <div className="mt-6 flex flex-wrap justify-center gap-3">
               <Link to="/shop" className={BTN_DARK_SOLID}>
@@ -355,6 +418,8 @@ function HomePage() {
                   alt="מארז חתן — טלית ועטרה"
                   loading="lazy"
                   decoding="async"
+                  width={GROOM_IMG_W}
+                  height={GROOM_IMG_H}
                   className="w-full aspect-[3/4] object-cover rounded-lg"
                 />
                 <span aria-hidden="true" className="absolute inset-3 border border-gold-bright/40 rounded-lg pointer-events-none" />
@@ -373,6 +438,8 @@ function HomePage() {
                       alt="מארז חתן — טלית ועטרה"
                       loading="lazy"
                       decoding="async"
+                      width={GROOM_IMG_W}
+                      height={GROOM_IMG_H}
                       className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
                     />
                     <span className="absolute inset-x-0 bottom-0 bg-argaman-deep/85 text-cream text-sm text-center py-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
@@ -404,8 +471,8 @@ function HomePage() {
                     alt={c.name}
                     loading="lazy"
                     decoding="async"
-                    width={1024}
-                    height={1024}
+                    width={c.w}
+                    height={c.h}
                     className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
                   />
                   <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-[#2A211A]/70 via-transparent to-transparent" />
@@ -423,53 +490,16 @@ function HomePage() {
       </section>
 
       {/* 4. חדש באתר — מוצרים אחרונים */}
-      <FeaturedProductsCarousel />
+      <FeaturedProductsCarousel
+        initialProducts={featuredProducts ?? undefined}
+        reserveSpace={featuredProducts === null}
+      />
 
       {/* 5. פריטי יוקרה — curated luxury showcase */}
-      <LuxuryShowcase />
+      <LuxuryShowcase initialThumbs={luxuryThumbs ?? undefined} />
 
       {/* 6. קטגוריות נוספות */}
-      {otherCats.length > 0 && (
-        <section className="bg-background">
-          <div className="container mx-auto px-4 py-14 md:py-20">
-            <SectionHeader eyebrow="גלו עוד" title="שאר הקטגוריות" />
-
-            <Carousel dir="rtl" opts={{ direction: "rtl", loop: true, dragFree: true, align: "start" }}>
-              <CarouselContent>
-                {otherCats.map((c) => (
-                  <CarouselItem key={c.slug} className="basis-1/2 sm:basis-1/3 lg:basis-1/5">
-                    <Link
-                      to="/category/$slug"
-                      params={{ slug: c.slug }}
-                      className="group/card relative block"
-                    >
-                      <div className="relative aspect-square overflow-hidden rounded-lg border border-gold/30 bg-muted">
-                        <img
-                          src={c.img}
-                          alt={c.name}
-                          loading="lazy"
-                          decoding="async"
-                          className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-out group-hover/card:scale-105"
-                        />
-                        <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-[#2A211A]/70 via-transparent to-transparent" />
-                        {/* Plaque label */}
-                        <div className="absolute inset-x-0 bottom-3 flex justify-center px-2">
-                          <span className="px-4 py-1.5 bg-background/95 border border-gold rounded-full font-display text-xs md:text-sm text-foreground text-center leading-tight">
-                            {c.name}
-                          </span>
-                        </div>
-                      </div>
-                    </Link>
-                  </CarouselItem>
-                ))}
-              </CarouselContent>
-              {/* RTL side + arrow icon come from the carousel component; only the edge offset is tuned here */}
-              <CarouselPrevious className="right-0 -translate-y-1/2 hidden md:inline-flex" />
-              <CarouselNext className="left-0 -translate-y-1/2 hidden md:inline-flex" />
-            </Carousel>
-          </div>
-        </section>
-      )}
+      <OtherCategoriesSection cats={otherCats} reserveSpace={reserveOtherCats} />
 
       {/* 7. חלאקה — framed promo band */}
       <section className="bg-background">
@@ -480,6 +510,8 @@ function HomePage() {
               alt="סט חלאקה מהודר"
               loading="lazy"
               decoding="async"
+              width={800}
+              height={1067}
               className="w-full h-full aspect-[4/3] object-cover"
             />
             <div className="bg-argaman text-cream p-10 md:p-14 flex flex-col justify-center">
@@ -565,7 +597,7 @@ function HomePage() {
       </section>
 
       {/* 9. לקוחות ממליצים — real approved reviews */}
-      <HomeReviews />
+      <HomeReviews initialReviews={reviews ?? undefined} reserveSpace={reviews === null} />
 
       {/* 10. Instagram — visual closer */}
       <section className="bg-background">
@@ -634,10 +666,86 @@ function HomePage() {
   );
 }
 
-const INSTAGRAM_MEDIA: { type: "video" | "image"; src: string }[] = [
+/**
+ * Height of the populated "שאר הקטגוריות" section, measured in-browser at the
+ * widths where the fluid container changes size (max per range, so it can only
+ * ever over-reserve): <768px 528 · 768–1279px 536 · >=1280px 589.
+ */
+const OTHER_CATS_RESERVED_HEIGHT = " min-h-[530px] md:min-h-[540px] xl:min-h-[590px]";
+
+/**
+ * "שאר הקטגוריות" — the tile carousel for every category with artwork that is
+ * not already in FEATURED.
+ *
+ * `reserveSpace` is set when the route loader could not resolve the strip, so
+ * the ">0 categories" decision happens after hydration. In that case the
+ * section keeps its height while the client query is in flight, instead of
+ * appearing mid-page and pushing the rest down.
+ */
+function OtherCategoriesSection({
+  cats,
+  reserveSpace,
+}: {
+  cats: CatTile[];
+  reserveSpace: boolean;
+}) {
+  if (cats.length === 0) {
+    return reserveSpace ? (
+      <section aria-hidden="true" className={`bg-background${OTHER_CATS_RESERVED_HEIGHT}`} />
+    ) : null;
+  }
+
+  return (
+    <section className={`bg-background${reserveSpace ? OTHER_CATS_RESERVED_HEIGHT : ""}`}>
+      <div className="container mx-auto px-4 py-14 md:py-20">
+        <SectionHeader eyebrow="גלו עוד" title="שאר הקטגוריות" />
+
+        <Carousel dir="rtl" opts={{ direction: "rtl", loop: true, dragFree: true, align: "start" }}>
+          <CarouselContent>
+            {cats.map((c) => (
+              <CarouselItem key={c.slug} className="basis-1/2 sm:basis-1/3 lg:basis-1/5">
+                <Link
+                  to="/category/$slug"
+                  params={{ slug: c.slug }}
+                  className="group/card relative block"
+                >
+                  <div className="relative aspect-square overflow-hidden rounded-lg border border-gold/30 bg-muted">
+                    <img
+                      src={c.img}
+                      alt={c.name}
+                      loading="lazy"
+                      decoding="async"
+                      width={c.w}
+                      height={c.h}
+                      className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-out group-hover/card:scale-105"
+                    />
+                    <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-[#2A211A]/70 via-transparent to-transparent" />
+                    {/* Plaque label */}
+                    <div className="absolute inset-x-0 bottom-3 flex justify-center px-2">
+                      <span className="px-4 py-1.5 bg-background/95 border border-gold rounded-full font-display text-xs md:text-sm text-foreground text-center leading-tight">
+                        {c.name}
+                      </span>
+                    </div>
+                  </div>
+                </Link>
+              </CarouselItem>
+            ))}
+          </CarouselContent>
+          {/* RTL side + arrow icon come from the carousel component; only the edge offset is tuned here */}
+          <CarouselPrevious className="right-0 -translate-y-1/2 hidden md:inline-flex" />
+          <CarouselNext className="left-0 -translate-y-1/2 hidden md:inline-flex" />
+        </Carousel>
+      </div>
+    </section>
+  );
+}
+
+// `w`/`h` are the still's intrinsic pixels (src/assets/ig/post-1.jpg is
+// 1080×1350); the tile's aspect-[4/5] box + object-cover own the layout.
+const INSTAGRAM_MEDIA: { type: "video" | "image"; src: string; w?: number; h?: number }[] = [
   { type: "video", src: igReel1 },
   { type: "video", src: igReel2 },
-  { type: "image", src: igPost1 },
+  { type: "image", src: igPost1, w: 1080, h: 1350 },
   { type: "video", src: igReel3 },
   { type: "video", src: igReel4 },
   { type: "video", src: igReel5 },
@@ -710,6 +818,8 @@ function InstagramFeed() {
                   alt="אור זרוע לצדיק"
                   loading="lazy"
                   decoding="async"
+                  width={m.w}
+                  height={m.h}
                   className="absolute inset-0 h-full w-full object-cover transition-transform duration-[1200ms] ease-out group-hover:scale-105"
                 />
               )}

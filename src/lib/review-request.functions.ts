@@ -1,0 +1,177 @@
+// Post-delivery review request, sent 7 days after an order ships.
+//
+// Consent basis: this is a SERVICE follow-up about an order the customer
+// actually placed — it contains no offer, no price and no product promotion,
+// only links back to the items they bought. That is why it may go out on
+// orders.contact_consent, which covers order-related contact. It deliberately
+// still honours the global suppression list and still carries a working
+// unsubscribe link: if someone has told us to stop emailing them, we stop,
+// regardless of which legal bucket the message falls into.
+//
+// Not client-callable — invoked from /api/cron/review-requests, mirroring
+// runAbandonedCartReminders.
+
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import {
+  sendEmail,
+  emailShell,
+  esc,
+  isEmailConfigured,
+  unsubscribeToken,
+  unsubscribeUrl,
+} from "@/lib/email.server";
+import { sellerIdentityLine, BUSINESS } from "@/lib/business";
+
+/** How long after shipping to ask — long enough that the parcel has arrived. */
+const DAYS_AFTER_SHIPPING = 7;
+/** Orders handled per cron tick. */
+const BATCH = 50;
+
+export async function runReviewRequests(): Promise<{ sent: number; scanned: number }> {
+  if (!isEmailConfigured()) {
+    console.log("[review-request] email not configured — skipping");
+    return { sent: 0, scanned: 0 };
+  }
+  if (!process.env.UNSUBSCRIBE_SECRET) {
+    console.log("[review-request] UNSUBSCRIBE_SECRET not set — skipping");
+    return { sent: 0, scanned: 0 };
+  }
+
+  const cutoff = new Date(
+    Date.now() - DAYS_AFTER_SHIPPING * 24 * 60 * 60 * 1000,
+  ).toISOString();
+
+  const { data: orders, error } = await supabaseAdmin
+    .from("orders")
+    .select(
+      "id, order_number, customer_name, customer_email, order_items(product_id, product_name)",
+    )
+    .eq("payment_status", "paid")
+    .in("status", ["shipped", "completed"])
+    .eq("contact_consent", true)
+    .is("review_request_sent_at", null)
+    .lte("shipped_at", cutoff)
+    .limit(BATCH);
+
+  if (error) {
+    console.error("[review-request] scan failed:", error);
+    return { sent: 0, scanned: 0 };
+  }
+  const rows = orders ?? [];
+  if (rows.length === 0) return { sent: 0, scanned: 0 };
+
+  // Global opt-out list. Small table, so one fetch and an in-memory Set.
+  const emails = [...new Set(rows.map((o) => (o.customer_email ?? "").toLowerCase()))];
+  const { data: suppressedRows, error: supErr } = await supabaseAdmin
+    .from("email_suppressions")
+    .select("email")
+    .in("email", emails);
+  if (supErr) {
+    // Fail CLOSED: without the opt-out list we cannot know who asked us to stop.
+    console.error("[review-request] suppression lookup failed — sending nothing:", supErr);
+    return { sent: 0, scanned: rows.length };
+  }
+  const suppressed = new Set((suppressedRows ?? []).map((r) => r.email.toLowerCase()));
+
+  // Resolve slugs so each product row can deep-link to its review section.
+  // Products deleted since the order simply lose their link.
+  const productIds = [
+    ...new Set(
+      rows.flatMap((o) =>
+        ((o.order_items as any[]) ?? []).map((it) => it.product_id).filter(Boolean),
+      ),
+    ),
+  ];
+  const slugById = new Map<string, { slug: string; thumbnail_url: string | null }>();
+  if (productIds.length > 0) {
+    const { data: products, error: pErr } = await supabaseAdmin
+      .from("products")
+      .select("id, slug, thumbnail_url")
+      .in("id", productIds);
+    if (pErr) console.error("[review-request] product lookup failed:", pErr);
+    for (const p of products ?? []) {
+      slugById.set(p.id, { slug: p.slug, thumbnail_url: p.thumbnail_url });
+    }
+  }
+
+  let sent = 0;
+  for (const order of rows) {
+    const email = (order.customer_email ?? "").toLowerCase();
+    const stamp = async () =>
+      supabaseAdmin
+        .from("orders")
+        .update({ review_request_sent_at: new Date().toISOString() })
+        .eq("id", order.id);
+
+    // Opted out: stamp anyway so this order is never re-scanned.
+    if (!email || suppressed.has(email)) {
+      await stamp();
+      continue;
+    }
+
+    const items = ((order.order_items as any[]) ?? [])
+      .map((it) => ({ ...it, product: slugById.get(it.product_id) }))
+      .filter((it) => it.product);
+    if (items.length === 0) {
+      await stamp();
+      continue;
+    }
+
+    const token = await unsubscribeToken(email);
+    if (!token) {
+      // Secret vanished mid-run — stop rather than send without an opt-out.
+      console.log("[review-request] UNSUBSCRIBE_SECRET missing mid-run — stopping");
+      break;
+    }
+    const unsub = unsubscribeUrl(email, token);
+
+    const rowsHtml = items
+      .map((it) => {
+        const url = `https://orzadik.com/product/${encodeURIComponent(it.product!.slug)}#reviews`;
+        const thumb = it.product!.thumbnail_url
+          ? `<td width="60" style="padding:8px 0;"><img src="${esc(it.product!.thumbnail_url)}" width="48" height="48" alt="" style="border-radius:8px;object-fit:cover;"></td>`
+          : `<td width="60"></td>`;
+        return `<tr>
+          ${thumb}
+          <td style="padding:8px 0;font-size:14px;">${esc(it.product_name)}</td>
+          <td style="padding:8px 0;text-align:left;">
+            <a href="${esc(url)}" style="display:inline-block;background:#D4AF37;color:#fff;text-decoration:none;padding:8px 16px;border-radius:9999px;font-size:13px;white-space:nowrap;">
+              כתיבת חוות דעת ⭐
+            </a>
+          </td>
+        </tr>`;
+      })
+      .join("");
+
+    const html = emailShell(`
+      <h1 style="font-size:20px;margin:0 0 8px;">${esc(order.customer_name)}, איך היה?</h1>
+      <p style="font-size:14px;color:#555;margin:0 0 16px;">
+        ההזמנה <strong>${esc(order.order_number)}</strong> הגיעה אליך — נשמח לשמוע איך היה!
+        חוות הדעת שלך עוזרת לנו ולקונים הבאים.
+      </p>
+      <table style="width:100%;border-collapse:collapse;">${rowsHtml}</table>
+      <div style="font-size:11px;color:#aaa;margin-top:20px;padding-top:12px;border-top:1px solid #eee;line-height:1.7;text-align:center;">
+        <div>${esc(sellerIdentityLine())}${BUSINESS.email ? " · " + esc(BUSINESS.email) : ""}</div>
+        <div style="margin-top:6px;">
+          קיבלת הודעה זו בעקבות הזמנה שביצעת באתר.
+          <a href="${esc(unsub)}" style="color:#A8862A;">להסרה מרשימת התפוצה לחצו כאן</a>.
+        </div>
+      </div>
+    `);
+
+    const ok = await sendEmail({
+      to: order.customer_email,
+      subject: "איך היו המוצרים? נשמח לחוות דעת — אור זרוע לצדיק",
+      html,
+      replyTo: process.env.SHOP_OWNER_EMAIL,
+    });
+
+    // Stamp regardless of send outcome — a failed send is logged inside
+    // sendEmail, and retrying on every tick would be a retry storm.
+    await stamp();
+    if (ok) sent++;
+  }
+
+  console.log(`[review-request] scanned=${rows.length} sent=${sent}`);
+  return { sent, scanned: rows.length };
+}

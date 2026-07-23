@@ -51,6 +51,33 @@ export async function checkOrderRateLimitByIp(
 }
 
 /**
+ * IP-based rate limiter for guest order tracking (/track).
+ *
+ * Deliberately a SEPARATE key namespace from `order:`. The tracking form is an
+ * unauthenticated lookup by (order number + email), so it needs a tight cap to
+ * make enumeration expensive — but sharing the order bucket would mean a
+ * customer who refreshes their tracking page a few times can no longer place an
+ * order. Different risk, different counter.
+ */
+export async function checkTrackRateLimitByIp(
+  ip: string,
+  maxPerWindow = 10,
+  windowSeconds = 10 * 60,
+): Promise<{ limited: boolean }> {
+  if (!ip || ip === "unknown") return { limited: false };
+  try {
+    const bucket = Math.floor(Date.now() / (windowSeconds * 1000));
+    const key = `track:${ip}:${bucket}`;
+    const { data, error } = await supabaseAdmin
+      .rpc("increment_rate_limit", { p_key: key, p_ttl_seconds: windowSeconds * 2 });
+    if (error) return { limited: false };
+    return { limited: (data as number) > maxPerWindow };
+  } catch {
+    return { limited: false };
+  }
+}
+
+/**
  * IP-based rate limiter for the CardCom webhook endpoint.
  * Uses the rate_limits table (see migration 20260626040000).
  * Returns { limited: true } if the IP has exceeded the threshold.

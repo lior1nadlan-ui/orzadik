@@ -23,7 +23,7 @@ export const Route = createFileRoute("/checkout")({
 });
 
 function CheckoutPage() {
-  const { items, subtotal, subtotalBase, discountAmount, shipping, grandTotal } = useCart();
+  const { items, subtotal, shipping } = useCart();
   const { user } = useAuth();
   const navigate = useNavigate();
   const submitOrder = useServerFn(placeOrder);
@@ -31,6 +31,13 @@ function CheckoutPage() {
   const saveCart = useServerFn(saveAbandonedCart);
   const [submitting, setSubmitting] = useState(false);
   const [contactConsent, setContactConsent] = useState(false);
+  // Optional and unchecked by default — never bundled with the required
+  // operational consent above it.
+  const [marketingConsent, setMarketingConsent] = useState(false);
+  // Gift options — free, so none of this touches the summary column below.
+  const [isGift, setIsGift] = useState(false);
+  const [giftNote, setGiftNote] = useState("");
+  const [giftWrap, setGiftWrap] = useState(false);
   const [form, setForm] = useState({
     name: "",
     email: user?.email ?? "",
@@ -54,7 +61,9 @@ function CheckoutPage() {
       const [{ data: profile }, { data: lastOrder }] = await Promise.all([
         supabase
           .from("profiles")
-          .select("full_name, phone")
+          // `is_member` is the SAME flag the server reads when it prices the
+          // order — see placeOrder() in src/lib/checkout.functions.ts.
+          .select("full_name, phone, is_member")
           .eq("id", user!.id)
           .maybeSingle(),
         supabase
@@ -83,10 +92,17 @@ function CheckoutPage() {
     }));
   }, [prefill]);
 
-  // Signed-in users are auto-enrolled as members
-  const isMember = !!user;
-  const memberSubtotal = applyMemberDiscount(subtotal, isMember);
-  const memberSavings = subtotal - memberSubtotal;
+  // Membership is decided by the SERVER: placeOrder() re-reads profiles.is_member
+  // and Cardcom is charged the total it computes. Quoting from `!!user` instead
+  // meant a signed-in non-member was shown less than they were about to pay, so
+  // read the authoritative flag here. Unknown (anonymous, or the profile query
+  // still in flight) ⇒ false, i.e. the quote is never lower than the charge.
+  const isMember = !!prefill?.profile?.is_member;
+  // Exactly the sum of the per-line amounts rendered in the summary column, so
+  // the breakdown below always reconciles against סך הכל.
+  const itemsTotal = items.reduce((s, i) => s + getEffectivePrice(i.price) * i.quantity, 0);
+  const memberSubtotal = applyMemberDiscount(itemsTotal, isMember);
+  const memberBenefit = itemsTotal - memberSubtotal;
   const finalTotal = memberSubtotal + shipping;
 
   // Save abandoned-cart snapshot 2s after the user types a valid email
@@ -146,6 +162,10 @@ function CheckoutPage() {
           customer_city: form.city || null,
           notes: form.notes || null,
           contact_consent: contactConsent,
+          marketing_consent: marketingConsent,
+          is_gift: isGift,
+          gift_note: isGift ? giftNote || null : null,
+          gift_wrap: isGift ? giftWrap : false,
           items: items.map((i) => ({
 
             product_id: i.productId,
@@ -198,7 +218,7 @@ function CheckoutPage() {
           </div>
           <div>
             <Label htmlFor="phone">טלפון *</Label>
-            <Input id="phone" required autoComplete="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+            <Input id="phone" type="tel" inputMode="tel" required autoComplete="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
           </div>
           <div>
             <Label htmlFor="city">עיר</Label>
@@ -213,6 +233,42 @@ function CheckoutPage() {
             <Textarea id="notes" autoComplete="off" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
           </div>
         </div>
+
+        {/* Gift options — free of charge. Nothing here feeds the price column. */}
+        <div className="rounded-md border border-[#D4AF37]/40 bg-[#FAF6E9]/60 p-3">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <Checkbox checked={isGift} onCheckedChange={(v) => setIsGift(v === true)} />
+            <span className="text-sm font-medium">🎁 זו מתנה</span>
+            <span className="text-xs text-[#A8862A]">ללא תוספת מחיר</span>
+          </label>
+          {isGift && (
+            <div className="mt-3 space-y-3 border-t border-[#D4AF37]/30 pt-3">
+              <div>
+                <Label htmlFor="gift-note">הקדשה אישית (תודפס ותצורף למתנה)</Label>
+                <Textarea
+                  id="gift-note"
+                  rows={3}
+                  maxLength={300}
+                  autoComplete="off"
+                  value={giftNote}
+                  onChange={(e) => setGiftNote(e.target.value)}
+                  placeholder="למשל: מזל טוב באהבה, משפחת כהן"
+                />
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  {giftNote.length}/300
+                </p>
+              </div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <Checkbox checked={giftWrap} onCheckedChange={(v) => setGiftWrap(v === true)} />
+                <span className="text-sm">עטיפת מתנה חגיגית — בחינם</span>
+              </label>
+              <p className="text-[11px] text-muted-foreground">
+                העטיפה וההקדשה ניתנות ללא עלות ואינן משפיעות על סכום ההזמנה.
+              </p>
+            </div>
+          )}
+        </div>
+
         <label className="flex items-start gap-2 rounded-md border border-[#D4AF37]/40 bg-[#FAF6E9] p-3 cursor-pointer">
           <Checkbox
             checked={contactConsent}
@@ -226,6 +282,18 @@ function CheckoutPage() {
             ללא הסכמה נפרדת.
           </span>
         </label>
+        {/* Marketing consent — lighter, optional, and visually secondary to the
+            required consent above so the two can't be mistaken for one. */}
+        <label className="flex items-start gap-2 rounded-md border border-border bg-muted/30 p-3 cursor-pointer">
+          <Checkbox
+            checked={marketingConsent}
+            onCheckedChange={(v) => setMarketingConsent(v === true)}
+            className="mt-0.5"
+          />
+          <span className="text-xs leading-relaxed text-muted-foreground">
+            אשמח לקבל דיוור שיווקי — מבצעים ועדכונים בדוא"ל (אופציונלי, ניתן להסרה בכל עת).
+          </span>
+        </label>
         <PrivacyNotice context="checkout" />
         {(
           <Button type="submit" size="lg" disabled={submitting || !contactConsent} className="w-full bg-[#D4AF37] hover:bg-[#A8862A] text-white">
@@ -233,7 +301,14 @@ function CheckoutPage() {
           </Button>
         )}
       </form>
-      <div className="rounded-lg border bg-card p-6 h-fit sticky top-20">
+      {/* The summary follows the form in the DOM, with no `order-*` overrides,
+          so visual, DOM and focus order agree at every breakpoint: on `lg` the
+          form fills the first two (right-hand, in RTL) columns and the summary
+          the third; below `lg` the single column stacks in the same sequence.
+          The page therefore still opens on its <h1> — this <h2> is a
+          sub-section of it and must not precede it. Sticky is lg-only: pinned
+          on a phone it would scroll over the fields. */}
+      <div className="rounded-lg border bg-card p-6 h-fit lg:sticky lg:top-20">
         <h2 className="font-display text-xl font-bold mb-4">סיכום</h2>
         <div className="space-y-2 mb-4">
           {items.map((i) => (
@@ -253,41 +328,33 @@ function CheckoutPage() {
             </div>
           ))}
         </div>
-        {discountAmount > 0 && (
-          <>
-            <div className="flex justify-between text-xs text-muted-foreground mb-1">
-              <span>מחיר מקורי</span>
-              <span className="line-through">{formatILS(subtotalBase)}</span>
-            </div>
-            <div className="flex justify-between text-xs text-[#A8862A] font-medium mb-2">
-              <span>הנחת מבצע</span>
-              <span>-{formatILS(discountAmount)}</span>
-            </div>
-          </>
-        )}
-        {isMember && memberSavings > 0 && (
-          <div className="flex justify-between text-xs text-[#A8862A] font-medium mb-2">
-            <span>✦ הנחת חבר מועדון (5%)</span>
-            <span>-{formatILS(memberSavings)}</span>
+        {/* Full breakdown of the exact amount Cardcom will charge. Every row is a
+            factual component of that number — no percentages, no "before" price
+            and no savings claims. סכום פריטים (− הטבת מועדון) + משלוח = סך הכל. */}
+        <div className="space-y-2 border-t pt-3">
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">סכום פריטים</span>
+            <span className="whitespace-nowrap">{formatILS(itemsTotal)}</span>
           </div>
-        )}
-        <div className="flex justify-between text-sm mb-2">
-          <span className="text-muted-foreground">משלוח</span>
-          <span>{formatILS(shipping)}</span>
+          {memberBenefit > 0 && (
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">הטבת מועדון</span>
+              <span className="whitespace-nowrap">{formatILS(-memberBenefit)}</span>
+            </div>
+          )}
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">משלוח</span>
+            <span className="whitespace-nowrap">{formatILS(shipping)}</span>
+          </div>
         </div>
-        <div className="flex justify-between text-lg border-t pt-3">
+        <div className="flex justify-between text-lg border-t pt-3 mt-3">
           <span className="font-bold">סך הכל</span>
-          <span className="font-bold text-[#A8862A]">{formatILS(finalTotal)}</span>
+          <span className="font-bold text-[#A8862A] whitespace-nowrap">{formatILS(finalTotal)}</span>
         </div>
         <p className="mt-1 text-[11px] text-muted-foreground">כל המחירים בשקלים (₪) וכוללים מע"מ.</p>
-        {!isMember && (
-          <div className="mt-3 rounded-md border border-[#D4AF37]/30 bg-[#FAF6E9] p-3 text-xs">
-            <Link to="/auth" className="font-semibold text-[#A8862A] hover:underline">
-              הצטרפו בחינם כחבר מועדון
-            </Link>
-            <span className="text-foreground/80"> וקבלו 5% הנחה נוספת על ההזמנה הזו</span>
-          </div>
-        )}
+        <Link to="/cart" className="mt-3 inline-block text-sm text-accent underline underline-offset-2">
+          חזרה לעגלה
+        </Link>
 
         {/* Trust signals — reduce checkout anxiety */}
         <TrustBadges />

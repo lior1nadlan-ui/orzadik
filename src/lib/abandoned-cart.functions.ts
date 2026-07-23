@@ -14,6 +14,7 @@ import {
   unsubscribeUrl,
 } from "@/lib/email.server";
 import { sellerIdentityLine, BUSINESS } from "@/lib/business";
+import { requireAdmin } from "@/lib/admin-authz.server";
 
 const Schema = z.object({
   email: z.string().trim().email().max(255),
@@ -98,21 +99,75 @@ export const saveAbandonedCart = createServerFn({ method: "POST" })
   });
 
 
+/** How long a cart stays eligible for its first reminder. */
+const MAX_AGE_DAYS = 30;
+
+/** Resend allows roughly 2 requests/second — same pacing as the campaign sender. */
+const SEND_GAP_MS = 550;
+
 /**
- * Send reminder emails for carts abandoned between 1h and 24h ago that were
- * never converted, aren't unsubscribed, and haven't already been reminded.
- * Idempotent per cart via `reminder_1_sent_at`. Intended to be invoked by a
- * scheduled job (see /api/cron/abandoned-cart-reminders). Not client-callable.
+ * Reminders actually attempted per run.
+ *
+ * The scan window is 30 days, so one tick can legitimately surface a large
+ * backlog; at SEND_GAP_MS apiece an unbounded run would sit in the request far
+ * longer than the cron route or the admin button can wait. Carts past the
+ * budget are simply left unstamped and go out on the next hourly tick.
  */
-export async function runAbandonedCartReminders(): Promise<{ sent: number; scanned: number }> {
+const MAX_SENDS_PER_RUN = 40;
+
+/**
+ * Consecutive send failures that mean the provider is down rather than one bad
+ * address. Past this we stop the run instead of burning the rest of the budget
+ * on calls that are all going to fail the same way.
+ */
+const MAX_CONSECUTIVE_FAILURES = 5;
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Outcome of one reminder sweep.
+ *
+ * `skipped` is the discriminator between "there was nothing to send" and
+ * "nothing could be sent": both return sent=0, but only the second one means
+ * the shop is silently broken. The cron log and the admin manual-run button
+ * both key off it, so it must survive being JSON round-tripped.
+ */
+export type AbandonedCartRunResult = {
+  sent: number;
+  scanned: number;
+  /** Sends that came back not-ok. Those carts stay unstamped and retry later. */
+  failed?: number;
+  skipped?:
+    | "email-not-configured"
+    | "unsubscribe-secret-missing"
+    | "scan-failed"
+    | "send-failed";
+};
+
+/**
+ * Send reminder emails for carts abandoned at least 1h ago (and at most 30d
+ * ago) that were never converted, aren't unsubscribed, and haven't already been
+ * reminded. Idempotent per cart via `reminder_1_sent_at`, which is stamped only
+ * after the provider accepts the message — a rejected send leaves the cart
+ * eligible so a later tick can retry it. Sends are paced and capped per run.
+ * Invoked by the hourly cron trigger (see src/nitro/cron.ts and
+ * /api/cron/abandoned-cart-reminders) and by the admin "run now" button below.
+ * Not directly client-callable.
+ */
+export async function runAbandonedCartReminders(): Promise<AbandonedCartRunResult> {
   if (!isEmailConfigured()) {
     console.log("[abandoned-cart] email not configured — skipping reminders");
-    return { sent: 0, scanned: 0 };
+    return { sent: 0, scanned: 0, skipped: "email-not-configured" };
   }
 
   const now = Date.now();
   const olderThan = new Date(now - 60 * 60 * 1000).toISOString(); // abandoned ≥ 1h
-  const newerThan = new Date(now - 24 * 60 * 60 * 1000).toISOString(); // but < 24h
+  // Upper age used to be 24h, which made this job lossy rather than merely
+  // late: any cart not swept within a day — no cron mapped, a deploy gap, a
+  // mail outage — aged out permanently and was never reminded at all. 30 days
+  // keeps the scan bounded while letting a backlog drain over successive ticks;
+  // `reminder_1_sent_at` still guarantees exactly one reminder per cart.
+  const newerThan = new Date(now - MAX_AGE_DAYS * 24 * 60 * 60 * 1000).toISOString(); // but < 30d
 
   const { data: carts, error } = await supabaseAdmin
     .from("abandoned_carts")
@@ -122,17 +177,22 @@ export async function runAbandonedCartReminders(): Promise<{ sent: number; scann
     .eq("unsubscribed", false)
     .lte("created_at", olderThan)
     .gte("created_at", newerThan)
+    // Freshest first. With a 30-day window the eligible set can exceed the
+    // 100-row budget, and PostgREST would otherwise return an arbitrary slice;
+    // newest-first means the reminders most likely to still be relevant go out
+    // on this tick, and every cart sent is stamped so the rest drain next tick.
+    .order("created_at", { ascending: false })
     .limit(100);
 
   if (error) {
     console.error("[abandoned-cart] scan failed:", error);
-    return { sent: 0, scanned: 0 };
+    return { sent: 0, scanned: 0, skipped: "scan-failed" };
   }
 
   // Spam Law §30א: the reminder is a marketing message ("פרסומת"), so it may
   // only go to recipients who gave explicit marketing consent. Anonymous
   // checkout emails have no such consent — they are skipped and simply age out
-  // of the 24h reminder window.
+  // of the reminder window.
   const cartEmails = [...new Set((carts ?? []).map((c) => c.email.toLowerCase()))];
   let consented = new Set<string>();
   if (cartEmails.length > 0) {
@@ -149,8 +209,15 @@ export async function runAbandonedCartReminders(): Promise<{ sent: number; scann
   }
 
   let sent = 0;
+  let failed = 0;
+  let attempted = 0;
+  let consecutiveFailures = 0;
+  let skipped: AbandonedCartRunResult["skipped"];
   for (const cart of carts ?? []) {
     if (!consented.has(cart.email.toLowerCase())) continue;
+    // Budget reached — the remaining carts keep reminder_1_sent_at null and are
+    // picked up by the next tick.
+    if (attempted >= MAX_SENDS_PER_RUN) break;
     const items = Array.isArray(cart.items) ? (cart.items as any[]) : [];
     const rows = items
       .map(
@@ -167,6 +234,7 @@ export async function runAbandonedCartReminders(): Promise<{ sent: number; scann
     const token = await unsubscribeToken(cart.email);
     if (!token) {
       console.log("[abandoned-cart] UNSUBSCRIBE_SECRET not set — skipping marketing reminders");
+      skipped = "unsubscribe-secret-missing";
       break;
     }
     const unsub = unsubscribeUrl(cart.email, token);
@@ -175,7 +243,7 @@ export async function runAbandonedCartReminders(): Promise<{ sent: number; scann
       <p style="font-size:11px;color:#999;margin:0 0 8px;">פרסומת</p>
       <h1 style="font-size:20px;margin:0 0 8px;">שכחתם משהו בעגלה? 🛍️</h1>
       <p style="font-size:14px;color:#555;margin:0 0 16px;">
-        ${cart.name ? esc(cart.name) + ", " : ""}העגלה שלכם עדיין ממתינה — המוצרים שמורים לכם וההנחה עדיין בתוקף.
+        ${cart.name ? esc(cart.name) + ", " : ""}העגלה שלכם עדיין ממתינה — המוצרים שבחרתם שמורים לכם.
       </p>
       <table style="width:100%;border-collapse:collapse;font-size:14px;">${rows}</table>
       <div style="text-align:center;margin-top:20px;">
@@ -192,6 +260,7 @@ export async function runAbandonedCartReminders(): Promise<{ sent: number; scann
       </div>
     `);
 
+    attempted++;
     const ok = await sendEmail({
       to: cart.email,
       subject: "פרסומת: העגלה שלכם ממתינה — אור זרוע לצדיק",
@@ -199,16 +268,65 @@ export async function runAbandonedCartReminders(): Promise<{ sent: number; scann
       replyTo: process.env.SHOP_OWNER_EMAIL,
     });
 
-    // Mark as reminded regardless of send success to avoid retry storms; a
-    // failed send is logged inside sendEmail.
-    await supabaseAdmin
-      .from("abandoned_carts")
-      .update({ reminder_1_sent_at: new Date().toISOString() })
-      .eq("id", cart.id);
+    if (ok) {
+      // Stamp ONLY on a confirmed send. sendEmail returns false (it does not
+      // throw) on an HTTP error such as a 429 rate-limit rejection, and
+      // reminder_1_sent_at is a one-shot flag: stamping a rejected send would
+      // permanently retire the cart from every future tick and the customer
+      // would never be reminded at all. Leaving it null costs one retry on the
+      // next hourly tick, which the 30-day window has ample room for.
+      const { error: stampError } = await supabaseAdmin
+        .from("abandoned_carts")
+        .update({ reminder_1_sent_at: new Date().toISOString() })
+        .eq("id", cart.id);
+      if (stampError) {
+        // The mail went out but the flag did not stick — log it, because the
+        // next tick will see this cart as un-reminded and mail it again.
+        console.error("[abandoned-cart] stamp failed for", cart.id, stampError);
+      }
+      sent++;
+      consecutiveFailures = 0;
+    } else {
+      failed++;
+      consecutiveFailures++;
+      if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+        console.error(
+          `[abandoned-cart] ${consecutiveFailures} consecutive send failures — stopping run`,
+        );
+        skipped = "send-failed";
+        break;
+      }
+    }
 
-    if (ok) sent++;
+    // Resend allows ~2 req/s. Without this a full budget of back-to-back POSTs
+    // is rate-limited from the third request on. This is I/O wait, not Worker
+    // CPU time.
+    await sleep(SEND_GAP_MS);
   }
 
-  console.log(`[abandoned-cart] reminders: scanned=${(carts ?? []).length} sent=${sent}`);
-  return { sent, scanned: (carts ?? []).length };
+  console.log(
+    `[abandoned-cart] reminders: scanned=${(carts ?? []).length} sent=${sent} failed=${failed}${skipped ? ` skipped=${skipped}` : ""}`,
+  );
+  return {
+    sent,
+    scanned: (carts ?? []).length,
+    ...(failed ? { failed } : {}),
+    ...(skipped ? { skipped } : {}),
+  };
 }
+
+
+/**
+ * Admin-triggered "run the sweep now".
+ *
+ * The hourly cron is the normal path; this exists so the shop owner can verify
+ * the job end-to-end and drain a backlog after an outage without waiting for
+ * the next tick. Same idempotency guarantees — a cart already stamped with
+ * `reminder_1_sent_at` is not re-mailed, so pressing the button twice is safe.
+ */
+export const runAbandonedCartRemindersNow = createServerFn({ method: "POST" }).handler(
+  async (): Promise<AbandonedCartRunResult> => {
+    await requireAdmin();
+    return runAbandonedCartReminders();
+  },
+);

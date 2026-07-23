@@ -72,7 +72,7 @@ function ArticlesListPage() {
           </h1>
           <div className="mx-auto mb-6 h-0.5 w-20 bg-primary" />
           <p className="max-w-2xl mx-auto text-muted-foreground leading-relaxed">
-            למדו על תשמישי קדושה, הלכות קדושה, בחירה נכונה וטיפול במוצריים מהודרים.
+            למדו על תשמישי קדושה, הלכות קדושה, בחירה נכונה וטיפול במוצרים מהודרים.
           </p>
         </div>
       </header>
