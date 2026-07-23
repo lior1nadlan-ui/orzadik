@@ -6,6 +6,7 @@ import {
   FeaturedProductsCarousel,
   fetchHomeFeaturedProducts,
 } from "@/components/home/FeaturedProductsCarousel";
+import { MobileCarousel } from "@/components/MobileCarousel";
 import { LuxuryShowcase, fetchLuxuryShowcaseThumbs } from "@/components/home/LuxuryShowcase";
 import { HomeReviews, fetchHomeReviews } from "@/components/content/HomeReviews";
 import {
@@ -457,7 +458,7 @@ function HomePage() {
       <section className="bg-background">
         <div className="container mx-auto px-4 py-14 md:py-20">
           <SectionHeader eyebrow="הקולקציות שלנו" title="מה תרצו לגלות?" />
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-6 max-w-6xl mx-auto">
+          <MobileCarousel basis="basis-1/2" mdGrid="md:grid-cols-3" mdGap="md:gap-6" className="max-w-6xl mx-auto">
             {cats.map((c) => (
               <Link
                 key={c.slug}
@@ -485,7 +486,7 @@ function HomePage() {
                 </div>
               </Link>
             ))}
-          </div>
+          </MobileCarousel>
         </div>
       </section>
 

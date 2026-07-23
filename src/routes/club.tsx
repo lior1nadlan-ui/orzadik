@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
+import { MobileCarousel } from "@/components/MobileCarousel";
 import { Sparkles, Gift, PackageSearch, BellRing, BadgePercent } from "lucide-react";
 
 export const Route = createFileRoute("/club")({
@@ -115,7 +116,7 @@ function ClubPage() {
 
       <div className="container mx-auto px-4 py-14 max-w-4xl">
         <h2 className="font-display text-2xl md:text-3xl font-bold text-center">מה מקבלים</h2>
-        <div className="mt-8 grid gap-5 sm:grid-cols-2">
+        <MobileCarousel basis="basis-4/5" mdGrid="md:grid-cols-2" mdGap="md:gap-5" className="mt-8">
           {BENEFITS.map((b) => (
             <div
               key={b.title}
@@ -128,7 +129,7 @@ function ClubPage() {
               <p className="mt-1.5 text-sm text-muted-foreground leading-relaxed">{b.body}</p>
             </div>
           ))}
-        </div>
+        </MobileCarousel>
 
         <div className="mt-14 flex items-center gap-4" aria-hidden="true">
           <span className="h-px flex-1 bg-gradient-to-r from-transparent via-gold/40 to-transparent" />
