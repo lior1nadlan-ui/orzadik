@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { useCart, formatILS, getEffectivePrice, applyMemberDiscount, lineKey } from "@/lib/cart";
+import { trackBeginCheckout } from "@/lib/analytics";
 import { useAuth } from "@/lib/auth";
 import { placeOrder } from "@/lib/checkout.functions";
 import { createCardcomPayment } from "@/lib/cardcom.functions";
@@ -15,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { PrivacyNotice } from "@/components/PrivacyNotice";
 import { TrustBadges } from "@/components/cart/TrustBadges";
+import { Lock } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/checkout")({
@@ -153,6 +155,12 @@ function CheckoutPage() {
       toast.error("יש לאשר יצירת קשר לצורך טיפול בהזמנה");
       return;
     }
+    // GA4 begin_checkout / Meta InitiateCheckout — the shopper committed to
+    // paying. Fired before the async order call so an order-server hiccup can't
+    // swallow the funnel signal. no-ops on SSR.
+    trackBeginCheckout(
+      items.map((i) => ({ id: i.productId, name: i.name, price: i.price, quantity: i.quantity })),
+    );
     setSubmitting(true);
     try {
       const result = await submitOrder({
@@ -297,7 +305,7 @@ function CheckoutPage() {
             className="mt-0.5"
           />
           <span className="text-xs leading-relaxed text-muted-foreground">
-            אשמח לקבל דיוור שיווקי — מבצעים ועדכונים בדוא"ל (אופציונלי, ניתן להסרה בכל עת).
+            אשמח לקבל דיוור שיווקי — מדריכים, תוכן לקראת החגים ועדכונים בדוא"ל (אופציונלי, ניתן להסרה בכל עת).
           </span>
         </label>
         <PrivacyNotice context="checkout" />
@@ -306,6 +314,14 @@ function CheckoutPage() {
             {submitting ? "טוען..." : `המשך לתשלום · ${formatILS(finalTotal)}`}
           </Button>
         )}
+        {/* Reassurance AT the submit button — checkout anxiety peaks here, but on
+            mobile the full TrustBadges sit in the summary column far below the
+            form, so this one line keeps the security promise adjacent to the
+            action. Same wording as TrustBadges so the copy can't drift. */}
+        <p className="flex items-center justify-center gap-1.5 text-[11px] text-muted-foreground">
+          <Lock className="h-3.5 w-3.5 text-accent" />
+          תשלום מאובטח בסליקת Cardcom · תקן PCI
+        </p>
       </form>
       {/* The summary follows the form in the DOM, with no `order-*` overrides,
           so visual, DOM and focus order agree at every breakpoint: on `lg` the

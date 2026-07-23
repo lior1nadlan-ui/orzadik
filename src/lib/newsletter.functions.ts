@@ -29,7 +29,7 @@ import { sellerIdentityLine, BUSINESS } from "@/lib/business";
 const Schema = z.object({
   email: z.string().trim().email().max(255),
   name: z.string().trim().max(200).optional().nullable(),
-  source: z.enum(["footer", "checkout", "account"]),
+  source: z.enum(["footer", "checkout", "account", "article", "home", "category"]),
   // Honeypot: a real person never fills a hidden field. Bots fill everything.
   website: z.string().max(0).optional(),
 });
@@ -43,7 +43,7 @@ const Schema = z.object({
 export async function recordNewsletterConsent(opts: {
   email: string;
   name?: string | null;
-  source: "footer" | "checkout" | "account";
+  source: "footer" | "checkout" | "account" | "article" | "home" | "category";
   userId?: string | null;
 }): Promise<void> {
   const email = opts.email.trim().toLowerCase();
@@ -97,8 +97,8 @@ export async function sendNewsletterWelcome(email: string, name?: string | null)
         <p style="font-size:11px;color:#999;margin:0 0 8px;">פרסומת</p>
         <h1 style="font-size:20px;margin:0 0 8px;">${name ? esc(name) + ", ב" : "ב"}רוכים הבאים! ✨</h1>
         <p style="font-size:14px;color:#555;margin:0 0 16px;">
-          נרשמת לרשימת התפוצה של אור זרוע לצדיק. נשלח מדי פעם מבצעים, פריטים חדשים
-          ועדכונים לקראת החגים — בלי ספאם, ואפשר להסיר בכל רגע.
+          נרשמת לרשימת התפוצה של אור זרוע לצדיק. נשלח מדי פעם מדריכים ותוכן לקראת
+          החגים, פריטים חדשים ועדכונים — בלי ספאם, ואפשר להסיר בכל רגע.
         </p>
         <div style="text-align:center;margin-top:20px;">
           <a href="https://orzadik.com/shop" style="display:inline-block;background:#D4AF37;color:#fff;text-decoration:none;padding:12px 28px;border-radius:9999px;font-weight:bold;">

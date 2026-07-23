@@ -1,7 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { formatILS, useCart, getEffectivePrice, applyMemberDiscount, lineKey } from "@/lib/cart";
+import { trackViewCart } from "@/lib/analytics";
 import { useAuth } from "@/lib/auth";
 
 import { Button } from "@/components/ui/button";
@@ -34,6 +36,16 @@ function CartPage() {
       return data;
     },
   });
+  // GA4 view_cart once the cart contents are known. Keyed on item count so it
+  // fires on a real cart, not on the empty first paint. no-ops on SSR.
+  useEffect(() => {
+    if (items.length === 0) return;
+    trackViewCart(
+      items.map((i) => ({ id: i.productId, name: i.name, price: i.price, quantity: i.quantity })),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items.length]);
+
   // Unknown (anonymous, or still loading) ⇒ no benefit, so the quote is never
   // lower than the charge.
   const isMember = !!memberProfile?.is_member;

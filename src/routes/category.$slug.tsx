@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getDiscountPct } from "@/lib/cart";
 import { ProductCard, ProductCardData } from "@/components/ProductCard";
 import { SubcategoryChips, type CategoryChipRow } from "@/components/catalog/SubcategoryChips";
+import { NewsletterSignup } from "@/components/NewsletterSignup";
 import {
   Select,
   SelectContent,
@@ -514,6 +515,19 @@ function CategoryPage() {
             )}
           </>
         )}
+
+        {/* Email capture — a category browser has shown intent for a whole
+            product world; offer the content list here, not only in the footer.
+            Content/holiday value proposition, not deals. */}
+        <section className="mt-14 glass max-w-xl mx-auto px-6 py-7 text-center [--glass-radius:1.25rem]">
+          <div className="text-xs tracking-[0.35em] text-accent uppercase mb-2">רשימת התפוצה</div>
+          <p className="text-sm text-muted-foreground mb-4">
+            מדריכים ותוכן לקראת החגים, ופריטים חדשים לפני כולם — בלי ספאם.
+          </p>
+          <div className="mx-auto max-w-md">
+            <NewsletterSignup source="category" />
+          </div>
+        </section>
 
 
         {/* SEO long description */}

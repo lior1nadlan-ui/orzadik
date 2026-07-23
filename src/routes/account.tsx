@@ -364,9 +364,9 @@ function AccountPage() {
           <div className="flex items-start gap-3">
             <Mail className="h-5 w-5 text-accent mt-0.5" />
             <div>
-              <div className="text-sm font-semibold">תוכן פרסומי ומבצעים</div>
+              <div className="text-sm font-semibold">דיוור שיווקי</div>
               <p className="text-xs text-muted-foreground mt-1 leading-relaxed max-w-md">
-                קבלת עדכונים על מבצעים, מוצרים חדשים והטבות בלעדיות לחברי מועדון
+                מדריכים ותוכן לקראת החגים, מוצרים חדשים ועדכונים לחברי מועדון
                 באימייל וב-SMS. ניתן להסיר את ההסכמה בכל עת.
               </p>
             </div>

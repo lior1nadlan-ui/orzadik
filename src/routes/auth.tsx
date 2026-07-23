@@ -130,7 +130,7 @@ function AuthPage() {
         <p className="text-sm font-semibold text-accent">✦ חבר מועדון אור זרוע</p>
         <p className="text-xs text-foreground/80 mt-1 leading-relaxed">
           הצטרפות חינם — <span className="font-bold text-accent">מועדון הלקוחות</span> מעניק מעקב הזמנות והטבות,
-          תזכורות לעגלות שלא הושלמו, ועדכונים על מבצעים, מוצרים חדשים ותוכן מיוחד לחברי המועדון
+          תזכורות לעגלות שלא הושלמו, מדריכים ותוכן לקראת החגים ועדכונים על מוצרים חדשים
           באימייל וב-SMS.
         </p>
       </div>
@@ -200,7 +200,7 @@ function AuthPage() {
                   className="mt-0.5"
                 />
                 <span className="text-xs leading-relaxed text-foreground/90">
-                  אני מאשר/ת קבלת <strong>תוכן פרסומי, מבצעים ועדכונים</strong> מאור זרוע
+                  אני מאשר/ת קבלת <strong>דיוור שיווקי — מדריכים, תוכן ועדכונים</strong> מאור זרוע
                   באימייל וב-SMS. ניתן להסיר את ההסכמה בכל עת מתוך אזור החשבון
                   או בקישור ההסרה שבכל הודעה.
                 </span>

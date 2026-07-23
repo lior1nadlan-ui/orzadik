@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { fetchArticlesWithRetry, type Article } from "@/lib/articles.server";
 import { ArticleCard } from "@/components/ArticleCard";
+import { NewsletterSignup } from "@/components/NewsletterSignup";
 import { useState, useMemo } from "react";
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
@@ -121,6 +122,21 @@ function ArticlesListPage() {
             <p className="text-muted-foreground">לא נמצאו מאמרים התואמים את החיפוש.</p>
           </div>
         )}
+
+        {/* Email capture — readers on the guides index are content-motivated,
+            the newsletter's core audience. Value proposition is content, not
+            deals. */}
+        <section className="mt-14 glass glass-gold [--glass-radius:1.25rem] max-w-xl mx-auto px-6 py-8 text-center">
+          <div className="text-xs tracking-[0.35em] text-accent uppercase mb-2">
+            רשימת התפוצה
+          </div>
+          <p className="text-sm text-muted-foreground mb-4">
+            מדריכים ותוכן לקראת החגים, ופריטים חדשים לפני כולם — בלי ספאם.
+          </p>
+          <div className="mx-auto max-w-md">
+            <NewsletterSignup source="article" />
+          </div>
+        </section>
       </div>
     </div>
   );

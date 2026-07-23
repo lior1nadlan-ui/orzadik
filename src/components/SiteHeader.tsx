@@ -585,7 +585,7 @@ export function SiteFooter() {
             הצטרפו לרשימת התפוצה
           </div>
           <p className="text-sm text-muted-foreground mb-4">
-            מבצעים ועדכונים — בלי ספאם, אפשר להסיר בכל רגע.
+            מדריכים ותוכן לקראת החגים, ופריטים חדשים לפני כולם — בלי ספאם, אפשר להסיר בכל רגע.
           </p>
           <NewsletterSignup />
         </div>
