@@ -514,6 +514,23 @@ function ProductPage() {
 
   // Same-category recommendations — the related query above deliberately
   // excludes the product's own categories, so this fills the "מוצרים דומים" strip.
+  // Other models sold under the SAME name. The supplier reuses one generic name
+  // across many distinct SKUs, so listings collapse them to a single tile — this
+  // rail is where the shopper actually picks between them. Ordered images-first
+  // by the RPC.
+  const { data: models = [] } = useQuery({
+    queryKey: ["product-models", product?.id],
+    enabled: !!product?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("list_product_models", {
+        p_product_id: product!.id,
+        p_limit: 24,
+      });
+      if (error) throw error;
+      return (data ?? []) as ProductCardData[];
+    },
+  });
+
   const { data: similar = [] } = useQuery({
     queryKey: ["similar", product?.id],
     enabled: !!product?.id && categoryIds.length > 0,
@@ -1197,6 +1214,17 @@ function ProductPage() {
           </Accordion>
         </div>
       </div>
+
+      {/* Other models under the same supplier name — the counterpart to the
+          "N דגמים" tile in the listings. */}
+      {models.length > 0 && (
+        <ProductCarousel
+          eyebrow="אותו פריט, גוונים ודגמים נוספים"
+          heading={`עוד ${models.length} דגמים`}
+          items={models}
+          itemClassName="basis-1/2 md:basis-1/4 lg:basis-1/5"
+        />
+      )}
 
       {/* Cross-sells — one carousel showing every fetched companion */}
       {related.length > 0 && (

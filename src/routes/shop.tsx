@@ -73,8 +73,14 @@ async function fetchShopPage(opts: {
   // the ILIKE fallback below can do. Parameters are bound, so the raw term
   // goes in unsanitized (sanitizeTerm exists for the ILIKE path only, where
   // the term is interpolated into a PostgREST filter string).
-  if (term) {
-    const { data: rpcRows, error: rpcErr } = await supabase.rpc("search_products", {
+  // Preferred path for BOTH browse and search: list_products_collapsed. On top
+  // of the trgm search it returns one row per name group with model_count, so
+  // the 527 supplier name-collisions (1,630 products) render as one tile each
+  // instead of 43 identical-looking ones. Collapsing must happen in the DB —
+  // doing it on a fetched page would turn 24 tiles into 3 and break the count
+  // and "load more".
+  {
+    const { data: rpcRows, error: rpcErr } = await supabase.rpc("list_products_collapsed", {
       p_term: rawQ.trim().slice(0, 100),
       p_limit: PAGE,
       p_offset: offset,
@@ -88,9 +94,10 @@ async function fetchShopPage(opts: {
         next: offset + PAGE,
       };
     }
-    // Never fail the page on a search-backend problem: log it and drop
-    // through to the ILIKE query, which needs no server-side function.
-    console.warn("[shop] search_products RPC unavailable, using ILIKE fallback:", rpcErr);
+    // Never fail the page on a search-backend problem: log it and drop through
+    // to the plain query below, which needs no server-side function (it does
+    // not collapse — correctness of the listing beats tidiness of it).
+    console.warn("[shop] list_products_collapsed unavailable, using fallback:", rpcErr);
   }
 
   let query = supabase

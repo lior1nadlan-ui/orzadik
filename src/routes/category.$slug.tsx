@@ -260,7 +260,41 @@ function CategoryPage() {
   });
 
   const visible = useMemo(() => {
-    let list = [...products];
+    // Collapse same-name models into one tile. The supplier reuses one generic
+    // name across many distinct SKUs (43 × 'נטלה מהודרת מפולימר 14 ס"מ'), so a
+    // category renders dozens of identical-looking cards. Every row is a real
+    // product with its own SKU and photo, so nothing is dropped from the
+    // catalogue — the group is represented by one card carrying model_count,
+    // and the product page lists the rest. Done here rather than in SQL because
+    // this page already loads the whole category and sorts it client-side.
+    //
+    // Key mirrors norm_he(): lowercase, fold the quote family, collapse spaces.
+    const groupKey = (name: string) =>
+      name
+        .toLowerCase()
+        .replace(/[׳״'"`‘’“”]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+    const groups = new Map<string, Row[]>();
+    for (const p of products) {
+      const k = groupKey(p.name);
+      if (!groups.has(k)) groups.set(k, []);
+      groups.get(k)!.push(p);
+    }
+    // Representative: prefer one that HAS a photo (so a collapsed group never
+    // shows the placeholder while its siblings have images), then in stock,
+    // then cheapest.
+    const collapsed: Row[] = [...groups.values()].map((g) => {
+      const rep = [...g].sort(
+        (a, b) =>
+          Number(!!b.thumbnail_url) - Number(!!a.thumbnail_url) ||
+          Number(b.stock_status !== "outofstock") - Number(a.stock_status !== "outofstock") ||
+          a.price - b.price,
+      )[0];
+      return g.length > 1 ? ({ ...rep, model_count: g.length } as Row) : rep;
+    });
+
+    let list = collapsed;
     if (inStockOnly) list = list.filter((p) => p.stock_status !== "outofstock");
     switch (sort) {
       case "price-asc":

@@ -14,6 +14,8 @@ export type ProductCardData = {
   sale_price: number | null;
   thumbnail_url: string | null;
   stock_status?: string | null;
+  /** How many same-name models this tile stands for. >1 collapses the group. */
+  model_count?: number | null;
 };
 
 export function ProductCard({ p, priority = false }: { p: ProductCardData; priority?: boolean }) {
@@ -27,14 +29,22 @@ export function ProductCard({ p, priority = false }: { p: ProductCardData; prior
   const isCallOnly = Number(p.price) === 0;
   const isOutOfStock = p.stock_status === "outofstock";
   const effective = getEffectivePrice(p.price);
+  // The supplier gives many distinct SKUs the same name. Listings show one tile
+  // per name; this says how many real models sit behind it.
+  const modelCount = Number(p.model_count ?? 1);
+  const hasModels = modelCount > 1;
 
   return (
     <div className="group relative flex flex-col h-full bg-card rounded-lg shadow-[var(--shadow-card)] overflow-hidden border border-border transition-all duration-300 hover:shadow-[var(--shadow-soft)] hover:-translate-y-1">
-      {isOutOfStock && (
+      {isOutOfStock ? (
         <div className="absolute top-3 right-3 z-10 rounded-full bg-muted text-muted-foreground text-xs font-bold px-2.5 py-1 shadow">
           אזל מהמלאי
         </div>
-      )}
+      ) : hasModels ? (
+        <div className="absolute top-3 right-3 z-10 rounded-full bg-argaman text-white text-xs font-bold px-2.5 py-1 shadow">
+          {modelCount} דגמים
+        </div>
+      ) : null}
 
       {/* Favorites heart — a sibling of the image link (not inside it) so a
           click never navigates. Top-left is the one corner free both here
@@ -109,6 +119,17 @@ export function ProductCard({ p, priority = false }: { p: ProductCardData; prior
             className="mt-4 w-full rounded-full bg-accent hover:bg-accent/90 text-accent-foreground text-sm py-2.5 text-center transition-colors"
           >
             צרו קשר להזמנה
+          </Link>
+        ) : hasModels ? (
+          // This tile stands for several distinct SKUs. Adding to cart here
+          // would silently pick one of them for the shopper, so send them to
+          // the product page to choose.
+          <Link
+            to="/product/$slug"
+            params={{ slug: p.slug }}
+            className="mt-4 w-full rounded-full bg-accent hover:bg-accent/90 text-accent-foreground text-sm py-2.5 text-center transition-colors"
+          >
+            לבחירת דגם
           </Link>
         ) : (
           <button
