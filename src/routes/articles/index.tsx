@@ -65,12 +65,13 @@ function ArticlesListPage() {
   return (
     <div className="pb-12">
       {/* Hero */}
-      <header className="relative w-full overflow-hidden border-b bg-gradient-to-b from-primary/5 to-background">
+      <header className="relative w-full overflow-hidden border-b border-glass-line">
         <div className="container mx-auto px-4 py-12 md:py-16 text-center">
           <h1 className="font-display text-4xl md:text-5xl font-bold text-foreground tracking-wide mb-3">
             מאמרים וטיפים
           </h1>
-          <div className="mx-auto mb-6 h-0.5 w-20 bg-primary" />
+          {/* Decorative gold rule — kept out of the accessibility tree. */}
+          <div className="gold-rule mx-auto mb-6 w-20" aria-hidden="true" />
           <p className="max-w-2xl mx-auto text-muted-foreground leading-relaxed">
             למדו על תשמישי קדושה, הלכות קדושה, בחירה נכונה וטיפול במוצרים מהודרים.
           </p>
@@ -81,7 +82,10 @@ function ArticlesListPage() {
         {/* Search */}
         <div className="max-w-md mx-auto mb-10">
           <div className="relative">
-            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+            <Search
+              aria-hidden="true"
+              className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground pointer-events-none"
+            />
             <Input
               type="search"
               placeholder="חיפוש מאמרים..."
@@ -113,7 +117,7 @@ function ArticlesListPage() {
             ))}
           </div>
         ) : (
-          <div className="max-w-md mx-auto text-center py-12">
+          <div className="glass max-w-md mx-auto text-center px-6 py-12">
             <p className="text-muted-foreground">לא נמצאו מאמרים התואמים את החיפוש.</p>
           </div>
         )}

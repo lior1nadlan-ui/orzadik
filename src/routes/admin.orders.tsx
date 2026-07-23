@@ -231,7 +231,7 @@ function AdminOrders() {
         </select>
       </div>
 
-      <div className={`rounded-lg border bg-card overflow-x-auto transition-opacity ${isFetching ? "opacity-60" : ""}`}>
+      <div className={`rounded-lg border bg-card overflow-x-auto transition-opacity duration-200 ease-out ${isFetching ? "opacity-60" : ""}`}>
         <table className="w-full text-sm">
           <thead className="bg-muted/50"><tr className="text-right">
             <th className="p-3">מס׳</th><th className="p-3">לקוח</th><th className="p-3">תאריך</th>
@@ -283,7 +283,7 @@ function AdminOrders() {
                   <Link
                     to="/admin/customers"
                     search={{ q: selected.customer_email }}
-                    className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs hover:bg-muted"
+                    className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"
                     title="כרטיס לקוח"
                   >
                     <User className="h-3 w-3" /> כרטיס לקוח
@@ -293,13 +293,13 @@ function AdminOrders() {
               <div className="space-y-3 text-sm">
                 <div className="flex flex-wrap items-center gap-2">
                   <strong>{selected.customer_name}</strong>
-                  <a href={`tel:${selected.customer_phone}`} className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs hover:bg-muted" title="חיוג">
+                  <a href={`tel:${selected.customer_phone}`} className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted" title="חיוג">
                     <Phone className="h-3 w-3" /> {selected.customer_phone}
                   </a>
-                  <a href={waLink(selected.customer_phone)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs hover:bg-muted text-emerald-700" title="WhatsApp">
+                  <a href={waLink(selected.customer_phone)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted text-emerald-700" title="WhatsApp">
                     <MessageCircle className="h-3 w-3" /> וואטסאפ
                   </a>
-                  <a href={`mailto:${selected.customer_email}`} className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs hover:bg-muted" title="אימייל">
+                  <a href={`mailto:${selected.customer_email}`} className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted" title="אימייל">
                     <Mail className="h-3 w-3" /> {selected.customer_email}
                   </a>
                 </div>
@@ -307,15 +307,15 @@ function AdminOrders() {
                 {selected.notes && <div className="text-muted-foreground">הערות: {selected.notes}</div>}
 
                 {selected.is_gift && (
-                  <div className="rounded-md border border-[#D4AF37] bg-[#FAF6E9] px-3 py-2">
-                    <div className="font-semibold text-[#A8862A]">🎁 הזמנה זו היא מתנה</div>
+                  <div className="rounded-md hairline-gold bg-card px-3 py-2">
+                    <div className="font-semibold text-accent">🎁 הזמנה זו היא מתנה</div>
                     <div className="mt-1">
                       {selected.gift_wrap ? "עטיפת מתנה חגיגית" : "ללא עטיפה"}
                     </div>
                     {selected.gift_note && (
                       <div className="mt-1">
                         הקדשה להדפסה:
-                        <div className="mt-1 whitespace-pre-wrap rounded border border-dashed border-[#D4AF37] bg-white px-2 py-1">
+                        <div className="mt-1 whitespace-pre-wrap rounded border border-dashed border-gold bg-secondary px-2 py-1">
                           {selected.gift_note}
                         </div>
                       </div>

@@ -82,13 +82,15 @@ function TrackPage() {
 
   return (
     <div className="container mx-auto px-4 py-12 max-w-2xl">
-      <h1 className="font-display text-3xl md:text-4xl font-bold text-center">מעקב הזמנה</h1>
+      <h1 className="font-display text-3xl md:text-4xl font-bold text-center text-foreground">
+        מעקב הזמנה
+      </h1>
       <p className="mt-2 text-center text-sm text-muted-foreground">
         הזינו את מספר ההזמנה ואת כתובת הדוא"ל שאיתה בוצעה ההזמנה.
       </p>
 
       <form
-        className="mt-8 rounded-lg border bg-card p-6 space-y-4"
+        className="mt-8 glass p-6 space-y-4"
         onSubmit={(e) => {
           e.preventDefault();
           mutation.mutate({ order_number: orderNumber.trim(), email: email.trim() });
@@ -121,7 +123,7 @@ function TrackPage() {
         <Button
           type="submit"
           disabled={mutation.isPending}
-          className="w-full bg-accent text-accent-foreground hover:bg-accent/90"
+          className="press w-full bg-accent text-accent-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:bg-accent-strong"
         >
           {mutation.isPending ? "מחפש..." : "הצג מצב הזמנה"}
         </Button>
@@ -133,16 +135,16 @@ function TrackPage() {
       {mutation.isError && (
         <div
           role="alert"
-          className="mt-6 rounded-md border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm"
+          className="mt-6 rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-foreground"
         >
           {mutation.error.message}
         </div>
       )}
 
       {order && (
-        <div className="mt-8 rounded-lg border bg-card p-6">
+        <div className="mt-8 glass p-6">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="font-display text-xl font-bold">
+            <h2 className="font-display text-xl font-bold text-foreground">
               הזמנה <span className="font-mono">{order.order_number}</span>
             </h2>
             {order.is_gift && <span className="text-sm text-accent">🎁 נארזת כמתנה</span>}
@@ -190,8 +192,8 @@ function TrackPage() {
             ))}
           </ol>
 
-          <div className="mt-6 border-t pt-4">
-            <div className="text-sm font-medium mb-2">פריטים בהזמנה</div>
+          <div className="mt-6 border-t border-glass-line pt-4">
+            <div className="text-sm font-medium mb-2 text-foreground">פריטים בהזמנה</div>
             <ul className="space-y-1 text-sm text-muted-foreground">
               {(order.order_items ?? []).map((it, i) => (
                 <li key={i}>
@@ -209,7 +211,10 @@ function TrackPage() {
       )}
 
       <div className="mt-8 text-center text-sm">
-        <Link to="/shop" className="text-accent hover:underline">
+        <Link
+          to="/shop"
+          className="text-accent underline-offset-4 [@media(hover:hover)_and_(pointer:fine)]:hover:underline"
+        >
           חזרה לחנות
         </Link>
       </div>

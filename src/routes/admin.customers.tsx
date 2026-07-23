@@ -131,7 +131,7 @@ function AdminCustomers() {
         </Button>
       </div>
 
-      <div className={`rounded-lg border bg-card overflow-x-auto transition-opacity ${isFetching ? "opacity-60" : ""}`}>
+      <div className={`rounded-lg border bg-card overflow-x-auto transition-opacity duration-200 ease-out ${isFetching ? "opacity-60" : ""}`}>
         <table className="w-full text-sm">
           <thead className="bg-muted/50"><tr className="text-right">
             <th className="p-3">לקוח</th><th className="p-3">קשר</th><th className="p-3">הזמנות</th>
@@ -151,9 +151,9 @@ function AdminCustomers() {
                 </td>
                 <td className="p-3">
                   <div className="flex gap-1.5">
-                    <a href={`tel:${c.phone}`} className="rounded-full border p-1.5 hover:bg-muted" title={c.phone}><Phone className="h-3.5 w-3.5" /></a>
-                    <a href={waLink(c.phone)} target="_blank" rel="noreferrer" className="rounded-full border p-1.5 hover:bg-muted text-emerald-700" title="WhatsApp"><MessageCircle className="h-3.5 w-3.5" /></a>
-                    <a href={`mailto:${c.email}`} className="rounded-full border p-1.5 hover:bg-muted" title={c.email}><Mail className="h-3.5 w-3.5" /></a>
+                    <a href={`tel:${c.phone}`} className="rounded-full border p-1.5 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted" title={c.phone}><Phone className="h-3.5 w-3.5" /></a>
+                    <a href={waLink(c.phone)} target="_blank" rel="noreferrer" className="rounded-full border p-1.5 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted text-emerald-700" title="WhatsApp"><MessageCircle className="h-3.5 w-3.5" /></a>
+                    <a href={`mailto:${c.email}`} className="rounded-full border p-1.5 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted" title={c.email}><Mail className="h-3.5 w-3.5" /></a>
                   </div>
                 </td>
                 <td className="p-3">{c.orders}{c.paidOrders !== c.orders && <span className="text-xs text-muted-foreground"> ({c.paidOrders} שולמו)</span>}</td>
@@ -181,9 +181,9 @@ function AdminCustomers() {
               <DialogHeader><DialogTitle>{selected.name}</DialogTitle></DialogHeader>
               <div className="space-y-4 text-sm">
                 <div className="flex flex-wrap items-center gap-2">
-                  <a href={`tel:${selected.phone}`} className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs hover:bg-muted"><Phone className="h-3 w-3" /> {selected.phone}</a>
-                  <a href={waLink(selected.phone)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs hover:bg-muted text-emerald-700"><MessageCircle className="h-3 w-3" /> וואטסאפ</a>
-                  <a href={`mailto:${selected.email}`} className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs hover:bg-muted"><Mail className="h-3 w-3" /> {selected.email}</a>
+                  <a href={`tel:${selected.phone}`} className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"><Phone className="h-3 w-3" /> {selected.phone}</a>
+                  <a href={waLink(selected.phone)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted text-emerald-700"><MessageCircle className="h-3 w-3" /> וואטסאפ</a>
+                  <a href={`mailto:${selected.email}`} className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"><Mail className="h-3 w-3" /> {selected.email}</a>
                   {selected.contactConsent && <span className="text-[11px] rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5">אישר/ה יצירת קשר</span>}
                 </div>
                 <div className="grid grid-cols-3 gap-2 text-center">
@@ -213,7 +213,7 @@ function AdminCustomers() {
                           <div>{n.note}</div>
                           <div className="text-[11px] text-muted-foreground">{new Date(n.created_at).toLocaleString("he-IL")}</div>
                         </div>
-                        <button onClick={() => onDeleteNote(n.id)} className="text-muted-foreground hover:text-destructive" title="מחק">
+                        <button onClick={() => onDeleteNote(n.id)} className="text-muted-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:text-destructive" title="מחק">
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       </div>

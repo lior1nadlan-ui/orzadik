@@ -73,8 +73,14 @@ async function fetchShopPage(opts: {
   // the ILIKE fallback below can do. Parameters are bound, so the raw term
   // goes in unsanitized (sanitizeTerm exists for the ILIKE path only, where
   // the term is interpolated into a PostgREST filter string).
-  if (term) {
-    const { data: rpcRows, error: rpcErr } = await supabase.rpc("search_products", {
+  // Preferred path for BOTH browse and search: list_products_collapsed. On top
+  // of the trgm search it returns one row per name group with model_count, so
+  // the 527 supplier name-collisions (1,630 products) render as one tile each
+  // instead of 43 identical-looking ones. Collapsing must happen in the DB —
+  // doing it on a fetched page would turn 24 tiles into 3 and break the count
+  // and "load more".
+  {
+    const { data: rpcRows, error: rpcErr } = await supabase.rpc("list_products_collapsed", {
       p_term: rawQ.trim().slice(0, 100),
       p_limit: PAGE,
       p_offset: offset,
@@ -88,9 +94,10 @@ async function fetchShopPage(opts: {
         next: offset + PAGE,
       };
     }
-    // Never fail the page on a search-backend problem: log it and drop
-    // through to the ILIKE query, which needs no server-side function.
-    console.warn("[shop] search_products RPC unavailable, using ILIKE fallback:", rpcErr);
+    // Never fail the page on a search-backend problem: log it and drop through
+    // to the plain query below, which needs no server-side function (it does
+    // not collapse — correctness of the listing beats tidiness of it).
+    console.warn("[shop] list_products_collapsed unavailable, using fallback:", rpcErr);
   }
 
   let query = supabase
@@ -309,12 +316,22 @@ function ShopPage() {
     sort: sort === "newest" ? undefined : sort,
     page: n <= 1 ? undefined : n,
   });
+  // Glass-era pagination chip. No gold anywhere on /shop by design — this page
+  // scores Lighthouse Accessibility 100 precisely because it contains none, and
+  // gold-on-glass is the easiest way to lose that. Ink-on-white only: the resting
+  // chip is foreground on a 70% white pane (~17:1), the hover swap is
+  // background-on-foreground (16.7:1). The hairline is an inset ring, so it adds
+  // no layout size and cannot shift the row the way the old 1px border did.
   const pageLinkClass =
-    "rounded-full border border-foreground/70 px-6 py-2.5 text-sm font-medium hover:bg-foreground hover:text-background transition-colors";
+    "press rounded-full bg-card/70 px-6 py-2.5 text-sm font-medium text-foreground hairline transition-[background-color,color,transform] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:text-background";
 
   return (
     <div className="container mx-auto px-4 py-10">
-      <div className="flex flex-wrap items-end justify-between gap-4 mb-6">
+      {/* Toolbar as a single glass pane over the light ground. .glass owns
+          background-color, border-radius and box-shadow (see the override
+          contract in styles.css) — retune it through its variables, not through
+          background or radius utilities, which it outranks. */}
+      <div className="glass mb-8 flex flex-wrap items-end justify-between gap-4 p-5 md:p-6 [--glass-radius:1.25rem]">
         <div>
           <h1 className="font-display text-3xl md:text-4xl font-bold">כל המוצרים</h1>
           <p className="text-sm text-muted-foreground mt-1">
@@ -348,15 +365,23 @@ function ShopPage() {
         </div>
       </div>
       {isLoading ? (
+        // Skeleton panes: quiet surface + hairline ring, matching the glass
+        // vocabulary without the cost of 8 simultaneous backdrop-filters.
+        // animate-pulse animates opacity ONLY — nothing moves — so it is already
+        // correct under prefers-reduced-motion, which keeps opacity and drops
+        // movement. Do not swap this for a translating shimmer.
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="aspect-square animate-pulse rounded-lg bg-muted" />
+            <div key={i} className="aspect-square animate-pulse rounded-2xl bg-muted hairline" />
           ))}
         </div>
       ) : isError ? (
         <div className="py-20 text-center space-y-3">
           <p className="text-muted-foreground">אירעה שגיאה בטעינת המוצרים. בדקו את החיבור ונסו שוב.</p>
-          <button onClick={() => refetch()} className="rounded-md border px-4 py-2 text-sm hover:bg-muted transition-colors">
+          <button
+            onClick={() => refetch()}
+            className="press rounded-full bg-card/70 px-6 py-2.5 text-sm font-medium text-foreground hairline transition-[background-color,color,transform] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary"
+          >
             נסו שוב
           </button>
         </div>
@@ -366,7 +391,7 @@ function ShopPage() {
         </div>
       ) : (
         <>
-          <div className={`grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 transition-opacity ${isFetching ? "opacity-60" : ""}`}>
+          <div className={`grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 transition-opacity duration-200 ease-out ${isFetching ? "opacity-60" : ""}`}>
             {products.map((p, i) => (
               <ProductCard key={p.id} p={p} priority={i < 8} />
             ))}
@@ -376,7 +401,7 @@ function ShopPage() {
               <button
                 onClick={() => fetchNextPage()}
                 disabled={isFetchingNextPage}
-                className="rounded-full border border-foreground/70 px-8 py-3 text-sm font-medium hover:bg-foreground hover:text-background transition-colors disabled:opacity-60"
+                className="press rounded-full bg-card/70 px-8 py-3 text-sm font-medium text-foreground hairline transition-[background-color,color,transform] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:text-background disabled:opacity-60"
               >
                 {isFetchingNextPage ? "טוען..." : `טען עוד מוצרים (${Math.max(0, total - pageStart - products.length)})`}
               </button>

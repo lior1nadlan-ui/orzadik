@@ -224,7 +224,7 @@ function AdminCampaigns() {
         להודעה שתישלח בפועל, כולל קישור ההסרה שבה, שהוא פעיל.
       </p>
 
-      <div className={`rounded-lg border bg-card overflow-x-auto transition-opacity ${isFetching ? "opacity-60" : ""}`}>
+      <div className={`rounded-lg border bg-card overflow-x-auto transition-opacity duration-200 ease-out ${isFetching ? "opacity-60" : ""}`}>
         <table className="w-full text-sm">
           <thead className="bg-muted/50"><tr className="text-right">
             <th className="p-3 font-medium">נושא</th>
@@ -347,7 +347,7 @@ function AdminCampaigns() {
                       key={p.id}
                       type="button"
                       onClick={() => togglePick(p)}
-                      className="flex w-full items-center gap-2 p-2 text-right text-sm hover:bg-muted"
+                      className="flex w-full items-center gap-2 p-2 text-right text-sm [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"
                     >
                       {p.thumbnail_url && <img src={p.thumbnail_url} alt="" className="h-8 w-8 rounded object-cover" />}
                       <span className="flex-1 line-clamp-1">{p.name}</span>

@@ -10,7 +10,11 @@ const AccordionItem = React.forwardRef<
   React.ElementRef<typeof AccordionPrimitive.Item>,
   React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Item>
 >(({ className, ...props }, ref) => (
-  <AccordionPrimitive.Item ref={ref} className={cn("border-b", className)} {...props} />
+  <AccordionPrimitive.Item
+    ref={ref}
+    className={cn("border-b border-glass-line", className)}
+    {...props}
+  />
 ));
 AccordionItem.displayName = "AccordionItem";
 
@@ -22,13 +26,15 @@ const AccordionTrigger = React.forwardRef<
     <AccordionPrimitive.Trigger
       ref={ref}
       className={cn(
-        "flex flex-1 items-center justify-between py-4 text-sm font-medium transition-all hover:underline text-left [&[data-state=open]>svg]:rotate-180",
+        "flex flex-1 items-center justify-between py-4 text-sm font-medium transition-colors duration-160 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:underline text-left [&[data-state=open]>svg]:rotate-180",
         className,
       )}
       {...props}
     >
       {children}
-      <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200" />
+      {/* v4 emits rotate-* to the standalone `rotate` property, so a bare
+          `transition-transform` would never fire. Name both. */}
+      <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-[transform,rotate] duration-200 ease-out" />
     </AccordionPrimitive.Trigger>
   </AccordionPrimitive.Header>
 ));
@@ -38,9 +44,18 @@ const AccordionContent = React.forwardRef<
   React.ElementRef<typeof AccordionPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Content>
 >(({ className, children, ...props }, ref) => (
+  // `animate-accordion-up/down` animated HEIGHT — forbidden, and this is
+  // high-frequency UI (product spec panels, the home FAQ). It is replaced by an
+  // opacity-only fade seeded with @starting-style, which is interruptible and
+  // survives reduced motion (the standard KEEPS opacity, drops movement).
+  //
+  // Radix mounts this element already carrying data-state="open", so the resting
+  // state is deliberately left as the element's natural opacity and ONLY the
+  // hidden value lives in `starting:`. If @starting-style is unsupported the
+  // panel simply opens with no fade — it can never get stuck invisible.
   <AccordionPrimitive.Content
     ref={ref}
-    className="overflow-hidden text-sm data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down"
+    className="overflow-hidden text-sm transition-opacity duration-200 ease-out starting:opacity-0"
     {...props}
   >
     <div className={cn("pb-4 pt-0", className)}>{children}</div>

@@ -884,6 +884,38 @@ export type Database = {
         Args: { p_key: string; p_ttl_seconds: number }
         Returns: number
       }
+      list_product_models: {
+        Args: { p_limit?: number; p_product_id: string }
+        Returns: {
+          id: string
+          name: string
+          price: number
+          sale_price: number
+          slug: string
+          stock_status: string
+          thumbnail_url: string
+        }[]
+      }
+      list_products_collapsed: {
+        Args: {
+          p_category_id?: string
+          p_limit?: number
+          p_offset?: number
+          p_sort?: string
+          p_term?: string
+        }
+        Returns: {
+          id: string
+          model_count: number
+          name: string
+          price: number
+          sale_price: number
+          slug: string
+          stock_status: string
+          thumbnail_url: string
+          total_count: number
+        }[]
+      }
       norm_he: { Args: { t: string }; Returns: string }
       search_products: {
         Args: {

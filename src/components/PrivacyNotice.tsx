@@ -27,15 +27,25 @@ export function PrivacyNotice({
       : "מסירת הפרטים תלויה ברצונך ובהסכמתך, אך היא נדרשת להשלמת הפעולה — ללא הפרטים לא נוכל להשלים את ההזמנה/הרישום.";
 
   return (
-    <p className={`text-[11px] leading-relaxed text-muted-foreground ${className}`}>
+    // Token-driven: a hairline-ruled well on the light ground, muted body text.
+    // Copy is legally mandated and is not touched here.
+    <p
+      className={`rounded-xl hairline px-4 py-3 text-[11px] leading-relaxed text-muted-foreground ${className}`}
+    >
       {consequence} המידע נאסף {purpose}. הפרטים נמסרים לספקי השירות המעבדים אותם עבורנו — Supabase
       (אחסון וניהול בסיס הנתונים), Cardcom (סליקת התשלום) ו-Resend (משלוח הודעות דוא"ל) — ולא ייעשה
       בהם שימוש למטרה אחרת ללא הסכמתך. זכותך לעיין במידע שנשמר עליך ולבקש את תיקונו או מחיקתו זמינה בעמוד{" "}
-      <Link to="/account" className="underline hover:text-accent">
+      <Link
+        to="/account"
+        className="underline underline-offset-2 transition-[color] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
+      >
         החשבון שלי
       </Link>{" "}
       או בפנייה אלינו. פרטים מלאים ב
-      <Link to="/privacy" className="underline hover:text-accent">
+      <Link
+        to="/privacy"
+        className="underline underline-offset-2 transition-[color] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
+      >
         מדיניות הפרטיות
       </Link>
       .

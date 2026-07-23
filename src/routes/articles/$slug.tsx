@@ -105,16 +105,16 @@ function ArticleDetailPage() {
 
   if (!article) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-3xl font-bold mb-2">מאמר לא נמצא</h1>
+      <div className="min-h-screen flex items-center justify-center px-4">
+        <div className="glass px-8 py-12 text-center">
+          <h1 className="font-display text-3xl font-bold mb-2 text-foreground">מאמר לא נמצא</h1>
           <p className="text-muted-foreground mb-6">המאמר שחיפשת אינו קיים או הוסר.</p>
           <Link
             to="/articles"
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition"
+            className="press inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary text-primary-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:bg-primary/90"
           >
             חזרה למאמרים
-            <ArrowRight className="w-4 h-4" />
+            <ArrowRight className="w-4 h-4" aria-hidden="true" />
           </Link>
         </div>
       </div>
@@ -139,7 +139,7 @@ function ArticleDetailPage() {
           `featured_image` is null (true for every seeded article today) and
           removed again if the URL fails to load. */}
       {a.featured_image && !heroFailed && (
-        <div className="relative w-full h-[400px] md:h-[500px] bg-muted overflow-hidden border-b">
+        <div className="relative w-full h-[400px] md:h-[500px] bg-muted overflow-hidden border-b border-glass-line">
           <img
             src={a.featured_image}
             alt={a.title_he}
@@ -157,9 +157,9 @@ function ArticleDetailPage() {
         <header className="mb-8">
           <Link
             to="/articles"
-            className="inline-flex items-center gap-2 text-sm text-primary hover:underline mb-4"
+            className="inline-flex items-center gap-2 text-sm text-accent underline-offset-4 [@media(hover:hover)_and_(pointer:fine)]:hover:underline mb-4"
           >
-            <ArrowRight className="w-4 h-4 rotate-180" />
+            <ArrowRight className="w-4 h-4 rotate-180" aria-hidden="true" />
             חזרה למאמרים
           </Link>
 
@@ -168,29 +168,46 @@ function ArticleDetailPage() {
           </h1>
 
           {/* Meta info */}
-          <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground border-b border-border pb-4 mb-4">
+          <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground border-b border-glass-line pb-4 mb-4">
             <div className="flex items-center gap-1">
-              <Calendar className="w-4 h-4" />
+              <Calendar className="w-4 h-4" aria-hidden="true" />
               <time dateTime={a.published_at}>{publishedDate}</time>
             </div>
             <div className="flex items-center gap-1">
-              <Clock className="w-4 h-4" />
+              <Clock className="w-4 h-4" aria-hidden="true" />
               קריאה של {a.read_time_minutes} דקות
             </div>
             <div className="flex items-center gap-1">
-              <User className="w-4 h-4" />
+              <User className="w-4 h-4" aria-hidden="true" />
               {a.author || "אור זרוע לצדיק"}
             </div>
-            <button className="flex items-center gap-1 hover:text-foreground transition">
-              <Share2 className="w-4 h-4" />
+            <button
+              type="button"
+              className="press flex items-center gap-1 rounded-full transition-colors duration-200 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
+            >
+              <Share2 className="w-4 h-4" aria-hidden="true" />
               שתף
             </button>
           </div>
         </header>
 
-        {/* Article body */}
+        {/* Article body. The old `prose-legal prose-he` hooks were never backed
+            by a stylesheet (no @tailwindcss/typography in this project), so the
+            sanitized HTML rendered unstyled — the Hebrew RTL measure and rhythm
+            are now set explicitly with scoped utilities. */}
         <div
-          className="prose-legal prose-he mb-12 max-w-none"
+          className="mb-12 max-w-none text-[17px] leading-[1.9] text-foreground
+            [&_h2]:font-display [&_h2]:text-2xl [&_h2]:font-bold [&_h2]:mt-10 [&_h2]:mb-3 [&_h2]:text-foreground
+            [&_h3]:font-display [&_h3]:text-xl [&_h3]:font-bold [&_h3]:mt-8 [&_h3]:mb-2 [&_h3]:text-foreground
+            [&_p]:mb-5
+            [&_ul]:mb-5 [&_ul]:list-disc [&_ul]:pr-6 [&_ul]:space-y-2
+            [&_ol]:mb-5 [&_ol]:list-decimal [&_ol]:pr-6 [&_ol]:space-y-2
+            [&_li]:leading-[1.85]
+            [&_strong]:font-semibold
+            [&_a]:text-accent [&_a]:underline [&_a]:underline-offset-4
+            [&_img]:rounded-xl [&_img]:max-w-full [&_img]:h-auto
+            [&_blockquote]:pr-5 [&_blockquote]:border-r-2 [&_blockquote]:border-glass-line [&_blockquote]:text-muted-foreground
+            [&_hr]:my-10 [&_hr]:border-0 [&_hr]:h-px [&_hr]:bg-glass-line"
           dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(a.body_html) }}
         />
 
@@ -198,8 +215,8 @@ function ArticleDetailPage() {
             category_id, so while that column is null the whole section is
             omitted rather than rendering an empty heading. */}
         {related.length > 0 && (
-          <section className="pt-8 border-t border-border">
-            <h2 className="font-display text-2xl font-bold mb-6">מאמרים קשורים</h2>
+          <section className="pt-8 border-t border-glass-line">
+            <h2 className="font-display text-2xl font-bold mb-6 text-foreground">מאמרים קשורים</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {related.map((ra: any) => (
                 <ArticleCard
@@ -223,8 +240,8 @@ function ArticleDetailPage() {
             button dropped readers into a 4,600-product catalog with no way to
             narrow down. Until a category is attached, offer /categories as the
             second step; once one is, related reading appears above instead. */}
-        <section className="mt-12 p-8 md:p-10 rounded-xl bg-gradient-to-b from-primary/5 to-background border border-primary/20">
-          <h2 className="font-display text-2xl font-bold mb-3">
+        <section className="glass glass-gold mt-12 p-8 md:p-10 [--glass-radius:1.25rem]">
+          <h2 className="font-display text-2xl font-bold mb-3 text-foreground">
             מצאו את המוצרים המתאימים בחנות שלנו
           </h2>
           <p className="text-muted-foreground mb-6">
@@ -235,17 +252,17 @@ function ArticleDetailPage() {
           <div className="flex flex-wrap items-center gap-3">
             <Link
               to="/shop"
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition font-medium"
+              className="press inline-flex items-center gap-2 px-6 py-3 rounded-full bg-primary text-primary-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:bg-primary/90 font-medium"
             >
               לעיין בחנות
-              <ArrowRight className="w-4 h-4" />
+              <ArrowRight className="w-4 h-4" aria-hidden="true" />
             </Link>
             <Link
               to="/categories"
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-lg border border-accent text-accent hover:bg-accent hover:text-accent-foreground transition font-medium"
+              className="press inline-flex items-center gap-2 px-6 py-3 rounded-full border border-accent text-accent [@media(hover:hover)_and_(pointer:fine)]:hover:bg-accent [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-foreground font-medium"
             >
               לכל הקטגוריות
-              <ArrowRight className="w-4 h-4" />
+              <ArrowRight className="w-4 h-4" aria-hidden="true" />
             </Link>
           </div>
         </section>

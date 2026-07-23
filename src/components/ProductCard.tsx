@@ -14,6 +14,8 @@ export type ProductCardData = {
   sale_price: number | null;
   thumbnail_url: string | null;
   stock_status?: string | null;
+  /** How many same-name models this tile stands for. >1 collapses the group. */
+  model_count?: number | null;
 };
 
 export function ProductCard({ p, priority = false }: { p: ProductCardData; priority?: boolean }) {
@@ -27,14 +29,45 @@ export function ProductCard({ p, priority = false }: { p: ProductCardData; prior
   const isCallOnly = Number(p.price) === 0;
   const isOutOfStock = p.stock_status === "outofstock";
   const effective = getEffectivePrice(p.price);
+  // The supplier gives many distinct SKUs the same name. Listings show one tile
+  // per name; this says how many real models sit behind it.
+  const modelCount = Number(p.model_count ?? 1);
+  const hasModels = modelCount > 1;
 
   return (
-    <div className="group relative flex flex-col h-full bg-card rounded-lg shadow-[var(--shadow-card)] overflow-hidden border border-border transition-all duration-300 hover:shadow-[var(--shadow-soft)] hover:-translate-y-1">
-      {isOutOfStock && (
+    // Glass tile, spelled out rather than composed from `.glass`. DELIBERATE:
+    // `.glass` carries `backdrop-filter: blur(16px) saturate(1.25)`, and this
+    // component renders 24 tiles per /shop page (+24 per "load more") and up to
+    // ~1000 at once on /category/$slug, which would put that many live
+    // backdrop-filter layers on the two highest-traffic routes — the compositor
+    // re-snapshots and re-blurs every one of them on every scrolled frame.
+    // shop.tsx's skeleton block already refuses this for a mere 8 panes. The
+    // blur also buys nothing here: the tiles sit on the flat near-white ground
+    // plus a very low-alpha fixed mesh, so 72%-white-over-it is visually the
+    // same as an opaque fill. So: `bg-card` + the SAME radius token + the SAME
+    // three-part glass box-shadow (inset hairline + inner highlight + the wide
+    // drop shadow), minus the two backdrop-filter declarations. Opaque white
+    // also raises --accent from 5.71:1 to 5.81:1. Restating the vars rather
+    // than hard-coding keeps `html.a11y-contrast` working (it repoints
+    // --glass-line to #000 and --glass-highlight to transparent).
+    // `isolate` restores the stacking context that backdrop-filter used to
+    // create, so the z-10 badge/heart stay scoped to their own tile.
+    // The hover lift restates the full shadow (inset rings + the LIFT drop
+    // shadow) instead of a bare `shadow-*`, which would blow away the rings.
+    // Hover is gated to real pointers; movement is additionally motion-safe
+    // gated (reduced motion keeps colour/opacity, drops movement).
+    // Tailwind v4 emits -translate-y-* to the standalone `translate` property,
+    // so `translate` is named in the transition list alongside `transform`.
+    <div className="group relative isolate flex flex-col h-full overflow-hidden rounded-[var(--glass-radius)] bg-card shadow-[inset_0_0_0_1px_var(--glass-line),inset_0_1px_0_var(--glass-highlight),var(--glass-shadow)] transition-[transform,translate,box-shadow] duration-200 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:shadow-[inset_0_0_0_1px_var(--glass-line),inset_0_1px_0_var(--glass-highlight),var(--glass-shadow-lift)] motion-safe:[@media(hover:hover)_and_(pointer:fine)]:hover:-translate-y-1">
+      {isOutOfStock ? (
         <div className="absolute top-3 right-3 z-10 rounded-full bg-muted text-muted-foreground text-xs font-bold px-2.5 py-1 shadow">
           אזל מהמלאי
         </div>
-      )}
+      ) : hasModels ? (
+        <div className="absolute top-3 right-3 z-10 rounded-full bg-argaman text-white text-xs font-bold px-2.5 py-1 shadow">
+          {modelCount} דגמים
+        </div>
+      ) : null}
 
       {/* Favorites heart — a sibling of the image link (not inside it) so a
           click never navigates. Top-left is the one corner free both here
@@ -53,7 +86,11 @@ export function ProductCard({ p, priority = false }: { p: ProductCardData; prior
         }}
         aria-pressed={saved}
         aria-label={saved ? "הסר מהמועדפים" : "הוסף למועדפים"}
-        className="absolute top-3 left-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 shadow hover:bg-white transition-colors"
+        // Press + hover written out rather than composed from `.press`: that
+        // utility declares `transition-property: transform` and, being emitted
+        // after Tailwind's own utilities, it would win over `transition-colors`
+        // and make the fill snap. Naming every property keeps both.
+        className="absolute top-3 left-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 shadow transition-[background-color,transform,scale] duration-160 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-white motion-safe:active:scale-[0.97] focus-visible:active:scale-100"
       >
         <Heart className={`h-4 w-4 ${saved ? "fill-accent text-accent" : "text-foreground/60"}`} />
       </button>
@@ -69,7 +106,9 @@ export function ProductCard({ p, priority = false }: { p: ProductCardData; prior
           alt={p.name}
           width={400}
           priority={priority}
-          className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
+          // 700ms was well over the 300ms UI ceiling. v4 emits scale-* to the
+          // standalone `scale` property, so it is named in the transition list.
+          className="h-full w-full object-cover transition-[transform,scale] duration-300 ease-out motion-safe:[@media(hover:hover)_and_(pointer:fine)]:group-hover:scale-105"
         />
       </Link>
 
@@ -78,7 +117,7 @@ export function ProductCard({ p, priority = false }: { p: ProductCardData; prior
         <Link
           to="/product/$slug"
           params={{ slug: p.slug }}
-          className="font-display text-base leading-snug text-foreground hover:text-accent transition-colors line-clamp-2 min-h-[2.75em]"
+          className="font-display text-base leading-snug text-foreground transition-colors duration-160 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent line-clamp-2 min-h-[2.75em]"
         >
           {p.name}
         </Link>
@@ -98,7 +137,7 @@ export function ProductCard({ p, priority = false }: { p: ProductCardData; prior
           <Link
             to="/product/$slug"
             params={{ slug: p.slug }}
-            className="mt-4 w-full rounded-full border border-muted-foreground/40 text-muted-foreground text-sm py-2.5 text-center hover:bg-muted transition-colors"
+            className="mt-4 w-full rounded-full border border-muted-foreground/40 text-muted-foreground text-sm py-2.5 text-center transition-[background-color,transform,scale] duration-160 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted motion-safe:active:scale-[0.97] focus-visible:active:scale-100"
           >
             אזל מהמלאי — לפרטים
           </Link>
@@ -106,9 +145,20 @@ export function ProductCard({ p, priority = false }: { p: ProductCardData; prior
           <Link
             to="/product/$slug"
             params={{ slug: p.slug }}
-            className="mt-4 w-full rounded-full bg-accent hover:bg-accent/90 text-accent-foreground text-sm py-2.5 text-center transition-colors"
+            className="mt-4 w-full rounded-full bg-accent text-accent-foreground text-sm py-2.5 text-center transition-[background-color,transform,scale] duration-160 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-accent-strong motion-safe:active:scale-[0.97] focus-visible:active:scale-100"
           >
             צרו קשר להזמנה
+          </Link>
+        ) : hasModels ? (
+          // This tile stands for several distinct SKUs. Adding to cart here
+          // would silently pick one of them for the shopper, so send them to
+          // the product page to choose.
+          <Link
+            to="/product/$slug"
+            params={{ slug: p.slug }}
+            className="mt-4 w-full rounded-full bg-accent text-accent-foreground text-sm py-2.5 text-center transition-[background-color,transform,scale] duration-160 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-accent-strong motion-safe:active:scale-[0.97] focus-visible:active:scale-100"
+          >
+            לבחירת דגם
           </Link>
         ) : (
           <button
@@ -120,10 +170,10 @@ export function ProductCard({ p, priority = false }: { p: ProductCardData; prior
               window.setTimeout(() => setAdded(false), 1500);
             }}
             disabled={added}
-            className={`mt-4 w-full rounded-full border text-sm py-2.5 transition-colors ${
+            className={`mt-4 w-full rounded-full border text-sm py-2.5 transition-[color,background-color,border-color,transform,scale] duration-160 ease-out motion-safe:active:scale-[0.97] focus-visible:active:scale-100 ${
               added
                 ? "border-foreground bg-foreground text-background"
-                : "border-foreground/80 text-foreground hover:bg-foreground hover:text-background"
+                : "border-foreground/80 text-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:bg-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:text-background"
             }`}
           >
             {added ? "נוסף ✓" : "הוסף לעגלה"}

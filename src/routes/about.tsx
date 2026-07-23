@@ -42,22 +42,23 @@ export const Route = createFileRoute("/about")({
 
 function AboutPage() {
   return (
-    <div className="bg-background">
-      {/* Hero */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-[#FAF6E9] via-background to-background">
+    <div>
+      {/* Hero — no band, no wash. The page's light mesh is the ground; the
+          section only holds air and a hairline ornament. */}
+      <section className="relative overflow-hidden">
         <div className="container mx-auto px-4 py-16 md:py-24 text-center max-w-3xl">
           <div className="flex items-center justify-center gap-3 mb-5" aria-hidden="true">
-            <span className="h-px w-12 bg-gradient-to-r from-transparent to-accent/70" />
-            <span className="text-accent text-sm tracking-[0.4em]">✦</span>
-            <span className="h-px w-12 bg-gradient-to-l from-transparent to-accent/70" />
+            <span className="gold-rule w-12" />
+            <span className="text-gold text-sm tracking-[0.4em]">✦</span>
+            <span className="gold-rule w-12" />
           </div>
           <p className="text-[11px] tracking-[0.4em] uppercase text-accent mb-4">
             אור זרוע לצדיק
           </p>
-          <h1 className="font-display text-4xl md:text-5xl font-bold leading-tight mb-5">
+          <h1 className="font-display text-4xl md:text-5xl font-bold leading-tight mb-5 text-foreground">
             אור זרוע לצדיק<br />תשמישי קדושה ויודאיקה שמלווים את החיים היהודיים
           </h1>
-          <p className="text-base md:text-lg text-foreground/80 leading-relaxed">
+          <p className="text-base md:text-lg text-muted-foreground leading-relaxed">
             מבריתות וחלאקות, דרך בר מצוות וחתונות, ועד לרגעי השבת והחג בבית —
             אנחנו כאן עם מוצרים מהודרים, איכותיים ובכשרות מובחרת.
           </p>
@@ -65,9 +66,9 @@ function AboutPage() {
       </section>
 
       {/* Story */}
-      <section className="container mx-auto px-4 py-14 max-w-3xl">
-        <div className="prose prose-lg max-w-none text-foreground space-y-5 text-right leading-relaxed">
-          <h2 className="font-display text-2xl md:text-3xl font-bold">הסיפור שלנו</h2>
+      <section className="container mx-auto px-4 pb-14 max-w-3xl">
+        <div className="glass max-w-none space-y-5 px-6 py-10 md:px-12 md:py-12 text-right text-foreground leading-relaxed [--glass-radius:1.25rem]">
+          <h2 className="font-display text-2xl md:text-3xl font-bold text-foreground">הסיפור שלנו</h2>
           <p>
             <strong>אור זרוע לצדיק</strong> הוקמה מתוך אהבה אמיתית לתשמישי קדושה ולמסורת היהודית.
             ראינו את החשיבות של להחזיק בבית פריטים שמלווים את הרגעים הקדושים ביותר —
@@ -88,21 +89,34 @@ function AboutPage() {
             <strong> רקמה אישית או חריטת לייזר</strong> בהתאמה לאירוע — ערך מוסף שהופך
             מוצר רגיל למתנה אישית ובלתי נשכחת.
           </p>
-          <p className="text-base text-foreground/75">
-            החנות בבעלות <strong>ליאור בן עמי</strong> ופועלת מקרית ביאליק (דרך עכו 190).
+          <p className="text-base text-muted-foreground">
+            החנות בבעלות <strong className="text-foreground">ליאור בן עמי</strong> ופועלת מקרית ביאליק (דרך עכו 190).
             אפשר ליצור איתנו קשר בטלפון{" "}
-            <a href="tel:+972545818486" className="text-accent hover:underline">054-581-8486</a>,
+            <a
+              href="tel:+972545818486"
+              className="text-accent underline-offset-4 [@media(hover:hover)_and_(pointer:fine)]:hover:underline"
+            >
+              054-581-8486
+            </a>,
             בוואטסאפ או במייל — נשמח לסייע בבחירה ובהתאמה אישית.
           </p>
         </div>
       </section>
 
       {/* Values grid */}
-      <section className="bg-cream/30 border-y border-border/40">
+      <section className="border-y border-glass-line">
         <div className="container mx-auto px-4 py-14 max-w-5xl">
-          <h2 className="font-display text-2xl md:text-3xl font-bold text-center mb-10">
+          <h2 className="font-display text-2xl md:text-3xl font-bold text-center mb-10 text-foreground">
             הערכים שלנו
           </h2>
+          {/* Deliberately NOT .stagger here — same reasoning as categories.tsx.
+              `.stagger > *` runs orz-reveal with `both` fill, and that keyframe
+              ends on `transform: none`. A filled animation keeps applying at the
+              animation cascade origin, which outranks normal author rules, so
+              every card would stay pinned to `transform: none` and the
+              .glass-lift hover raise would silently stop working once the reveal
+              finished (leaving only a shadow flicker). The ongoing hover
+              feedback is worth more than a one-shot entrance. */}
           <div className="grid gap-6 md:grid-cols-3">
             {[
               {
@@ -130,13 +144,10 @@ function AboutPage() {
                 d: "אנחנו זמינים בוואטסאפ, באימייל ובטלפון לכל שאלה או בקשה מיוחדת.",
               },
             ].map((it) => (
-              <div
-                key={it.t}
-                className="rounded-xl border border-accent/30 bg-background p-5 shadow-[var(--shadow-card)]"
-              >
-                <div className="text-accent text-lg mb-2" aria-hidden="true">✦</div>
-                <h3 className="font-display text-lg font-bold mb-2">{it.t}</h3>
-                <p className="text-sm text-foreground/80 leading-relaxed">{it.d}</p>
+              <div key={it.t} className="glass glass-lift h-full p-5">
+                <div className="text-gold text-lg mb-2" aria-hidden="true">✦</div>
+                <h3 className="font-display text-lg font-bold mb-2 text-foreground">{it.t}</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed">{it.d}</p>
               </div>
             ))}
           </div>
@@ -148,20 +159,23 @@ function AboutPage() {
 
       {/* CTA */}
       <section className="container mx-auto px-4 py-16 text-center max-w-2xl">
-        <h2 className="font-display text-2xl md:text-3xl font-bold mb-4">
+        <h2 className="font-display text-2xl md:text-3xl font-bold mb-4 text-foreground">
           בואו להתרשם מהמבחר
         </h2>
-        <p className="text-foreground/80 leading-relaxed mb-8">
+        <p className="text-muted-foreground leading-relaxed mb-8">
           מעל 4,500 פריטים מוקפדים — מתנות לאירועים, רגעים של קדושה לבית
           וכל מה שצריך להידור מצווה.
         </p>
         <div className="flex flex-wrap items-center justify-center gap-3">
-          <Link to="/shop">
-            <Button size="lg" className="bg-accent hover:bg-accent/90 text-accent-foreground">
+          <Link to="/shop" className="press inline-block">
+            <Button
+              size="lg"
+              className="bg-accent text-accent-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:bg-accent-strong"
+            >
               לכל המוצרים
             </Button>
           </Link>
-          <Link to="/categories">
+          <Link to="/categories" className="press inline-block">
             <Button size="lg" variant="outline">
               לפי קטגוריות
             </Button>

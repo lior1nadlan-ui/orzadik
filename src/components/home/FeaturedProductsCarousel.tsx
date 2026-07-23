@@ -78,14 +78,17 @@ export function FeaturedProductsCarousel({
   return (
     <section className={sectionClass}>
       <div className="container mx-auto px-4">
+        {/* Same block as SectionHeader in src/routes/index.tsx — this component is
+            standalone (it also renders on /about), so the markup is duplicated on
+            purpose. Keep the two identical: eyebrow → title → .gold-rule. */}
         <div className="text-center mb-10 md:mb-14">
-          <p className="text-[10px] md:text-xs tracking-[0.35em] text-accent mb-3">
+          <p className="text-[10px] md:text-xs tracking-[0.35em] text-accent uppercase mb-3">
             הגיע עכשיו
           </p>
-          <h2 className="font-display text-3xl md:text-4xl tracking-wide">
+          <h2 className="font-display text-3xl md:text-4xl tracking-wide text-foreground">
             חדש באתר
           </h2>
-          <span aria-hidden="true" className="block h-px w-24 mx-auto mt-4 bg-[image:var(--gradient-gold-line)]" />
+          <span aria-hidden="true" className="gold-rule block w-24 mx-auto mt-4" />
         </div>
 
         <Carousel dir="rtl" opts={{ direction: "rtl", align: "start" }} className="px-2">
@@ -103,7 +106,7 @@ export function FeaturedProductsCarousel({
         <div className="text-center">
           <Link
             to="/shop"
-            className="mt-6 inline-block text-sm underline underline-offset-4 hover:text-accent"
+            className="mt-6 inline-block text-sm text-accent underline underline-offset-4 transition-colors duration-200 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-strong"
           >
             לכל המוצרים ←
           </Link>

@@ -97,7 +97,7 @@ function AdminHome() {
             key={c.label}
             to="/admin/orders"
             search={c.days ? { payment: "paid", days: c.days } : { payment: "paid" }}
-            className="block rounded-lg border bg-card p-5 transition-colors hover:border-primary/50"
+            className="block rounded-lg border bg-card p-5 transition-colors duration-160 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:border-primary/50"
           >
             <div className="text-sm text-muted-foreground">{c.label}</div>
             <div className="text-2xl font-bold mt-1">{c.value}</div>
@@ -115,7 +115,7 @@ function AdminHome() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Link
           to="/admin/abandoned"
-          className={`block rounded-lg border p-5 transition-colors hover:border-primary/50 ${
+          className={`block rounded-lg border p-5 transition-colors duration-160 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:border-primary/50 ${
             s.abandoned.openCount > 0
               ? "border-amber-400/60 bg-amber-50 dark:bg-amber-950/20"
               : "bg-card"
@@ -169,17 +169,17 @@ function AdminHome() {
                 <Link
                   to="/admin/products"
                   search={{ health: "no-image" }}
-                  className="flex justify-between gap-3 rounded px-1 -mx-1 py-0.5 transition-colors hover:bg-black/5 dark:hover:bg-white/10"
+                  className="flex justify-between gap-3 rounded px-1 -mx-1 py-0.5 transition-colors duration-160 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-black/5 dark:[@media(hover:hover)_and_(pointer:fine)]:hover:bg-white/10"
                 >
-                  <span className="underline-offset-2 hover:underline">מוצרים פעילים ללא תמונה:</span>
+                  <span className="underline-offset-2 [@media(hover:hover)_and_(pointer:fine)]:hover:underline">מוצרים פעילים ללא תמונה:</span>
                   <strong>{s.catalogHealth.noImage}</strong>
                 </Link>
                 <Link
                   to="/admin/products"
                   search={{ health: "out-of-stock" }}
-                  className="flex justify-between gap-3 rounded px-1 -mx-1 py-0.5 transition-colors hover:bg-black/5 dark:hover:bg-white/10"
+                  className="flex justify-between gap-3 rounded px-1 -mx-1 py-0.5 transition-colors duration-160 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-black/5 dark:[@media(hover:hover)_and_(pointer:fine)]:hover:bg-white/10"
                 >
-                  <span className="underline-offset-2 hover:underline">מוצרים פעילים שאזלו מהמלאי:</span>
+                  <span className="underline-offset-2 [@media(hover:hover)_and_(pointer:fine)]:hover:underline">מוצרים פעילים שאזלו מהמלאי:</span>
                   <strong>{s.catalogHealth.outOfStock}</strong>
                 </Link>
               </div>
@@ -193,7 +193,7 @@ function AdminHome() {
 
       {/* Repeat customers + low stock */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Link to="/admin/customers" className="block rounded-lg border bg-card p-5 transition-colors hover:border-primary/50">
+        <Link to="/admin/customers" className="block rounded-lg border bg-card p-5 transition-colors duration-160 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:border-primary/50">
           <div className="text-sm text-muted-foreground">לקוחות חוזרים</div>
           <div className="text-2xl font-bold mt-1">{s.repeat.repeatRate}%</div>
           <div className="text-xs text-muted-foreground mt-1">
@@ -252,7 +252,7 @@ function AdminHome() {
                   <Link
                     to="/admin/products"
                     search={{ q: p.sku ?? p.name }}
-                    className="line-clamp-1 hover:underline"
+                    className="line-clamp-1 [@media(hover:hover)_and_(pointer:fine)]:hover:underline"
                   >
                     {p.name}
                   </Link>
@@ -342,7 +342,10 @@ function AdminHome() {
                   formatter={(v: any) => [formatILS(Number(v)), "הכנסות"]}
                   labelFormatter={(d: any) => new Date(d).toLocaleDateString("he-IL")}
                 />
-                <Bar dataKey="revenue" fill="#A8862A" radius={[3, 3, 0, 0]} />
+                {/* Literal, not a token: recharts renders an SVG attribute, so it
+                    cannot read var(--accent). #7E611E IS --accent — keep the two
+                    in step if the accent ever moves. */}
+                <Bar dataKey="revenue" fill="#7E611E" radius={[3, 3, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -365,7 +368,7 @@ function AdminHome() {
                   key={o.id}
                   to="/admin/orders"
                   search={{ q: o.order_number }}
-                  className="flex items-center justify-between border-b border-border/40 pb-2 last:border-0 transition-colors hover:bg-muted/40"
+                  className="flex items-center justify-between border-b border-border/40 pb-2 last:border-0 transition-colors duration-160 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted/40"
                 >
                   <div>
                     <span className="font-mono text-xs">{o.order_number}</span>
@@ -422,7 +425,7 @@ function AdminHome() {
                     key={st}
                     to="/admin/orders"
                     search={{ status: st }}
-                    className="rounded-full border px-3 py-1 transition-colors hover:bg-muted"
+                    className="rounded-full border px-3 py-1 transition-colors duration-160 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"
                   >
                     {STATUS_HE[st] ?? st}: <strong>{n as number}</strong>
                   </Link>

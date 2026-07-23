@@ -73,33 +73,53 @@ export function CookieConsent() {
     setOpen(false);
   };
 
-  if (!open) return null;
-
+  // The band stays MOUNTED and toggles classes so first-show and dismiss are the
+  // same interruptible transition (keyframe utilities are one-shot and cannot be
+  // reversed mid-flight). `visibility` is in the transition list so CSS holds
+  // `visible` through the fade-out before the band leaves the tab order and the
+  // a11y tree — which is also why no aria-hidden is needed here.
   return (
     <div
       role="dialog"
       aria-modal="false"
       aria-label="הגדרות עוגיות"
-      className="fixed inset-x-0 bottom-0 z-[60] px-3 pb-3 sm:px-4 sm:pb-4 pointer-events-none animate-in fade-in slide-in-from-bottom-4 duration-300"
+      className={
+        "fixed inset-x-0 bottom-0 z-[60] px-3 pb-3 sm:px-4 sm:pb-4 pointer-events-none " +
+        "transition-[opacity,transform,visibility] duration-300 ease-out " +
+        (open
+          ? "visible opacity-100"
+          : // prefers-reduced-motion: the movement class is never emitted, so the
+            // band only fades — colour and opacity are kept, motion is dropped.
+            "invisible opacity-0 motion-safe:[transform:translateY(16px)]")
+      }
     >
-      <div className="pointer-events-auto mx-auto max-w-md bg-background/95 backdrop-blur-md border border-border rounded-2xl shadow-2xl p-4 sm:p-5 relative">
+      {/* glass-strong is the only glass that is contrast-safe over an unknown
+          backdrop, and this band floats over whatever page the visitor landed
+          on. It already carries its own hairline + lift shadow, so no .hairline
+          here (that would replace the box-shadow and drop the shadow). */}
+      <div className="glass-strong pointer-events-auto mx-auto max-w-md p-4 sm:p-5 relative overflow-hidden [--glass-radius:1.25rem]">
+        {/* Decorative gold hairline along the top edge of the pane. */}
+        <div className="gold-rule absolute inset-x-0 top-0" aria-hidden="true" />
         <button
           onClick={() => setOpen(false)}
-          className="absolute top-2 left-2 inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition"
+          className="press absolute top-2 left-2 inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary [@media(hover:hover)_and_(pointer:fine)]:hover:text-foreground"
           aria-label="סגור"
         >
           <X className="h-3.5 w-3.5" />
         </button>
 
         <div className="flex items-start gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
             <Cookie className="h-4 w-4" />
           </div>
           <div className="flex-1 min-w-0">
             <h2 className="font-display text-base mb-1">הגדרות עוגיות</h2>
             <p className="text-xs text-muted-foreground leading-relaxed">
               אנו משתמשים בעוגיות לשיפור החוויה ולניתוח שימוש. בחרו אילו קטגוריות לאשר.{" "}
-              <Link to="/privacy" className="underline hover:text-accent">
+              <Link
+                to="/privacy"
+                className="text-accent underline underline-offset-2 transition-[color] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-strong"
+              >
                 למידע נוסף
               </Link>
               .
@@ -130,22 +150,25 @@ export function CookieConsent() {
               </div>
             </div>
 
+            {/* All three consent actions keep the same size and shape — only the
+                fill differs — so declining is never harder to find than accepting.
+                The stored default stays analytics:false / marketing:false. */}
             <div className="mt-4 flex flex-wrap gap-2">
               <button
                 onClick={() => persist(true, true)}
-                className="flex-1 inline-flex items-center justify-center rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition"
+                className="press flex-1 inline-flex items-center justify-center rounded-lg bg-accent px-3 py-2 text-xs font-medium text-accent-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:bg-accent-strong"
               >
                 אישור הכל
               </button>
               <button
                 onClick={() => persist(analytics, marketing)}
-                className="flex-1 inline-flex items-center justify-center rounded-lg border border-primary/40 bg-background px-3 py-2 text-xs font-medium text-primary hover:bg-primary/5 transition"
+                className="press flex-1 inline-flex items-center justify-center rounded-lg border border-input px-3 py-2 text-xs font-medium text-accent [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary"
               >
                 שמירת בחירה
               </button>
               <button
                 onClick={() => persist(false, false)}
-                className="flex-1 inline-flex items-center justify-center rounded-lg border border-input bg-background px-3 py-2 text-xs font-medium hover:bg-muted transition"
+                className="press flex-1 inline-flex items-center justify-center rounded-lg border border-input px-3 py-2 text-xs font-medium text-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary"
               >
                 דחיית לא-הכרחיות
               </button>

@@ -260,7 +260,41 @@ function CategoryPage() {
   });
 
   const visible = useMemo(() => {
-    let list = [...products];
+    // Collapse same-name models into one tile. The supplier reuses one generic
+    // name across many distinct SKUs (43 × 'נטלה מהודרת מפולימר 14 ס"מ'), so a
+    // category renders dozens of identical-looking cards. Every row is a real
+    // product with its own SKU and photo, so nothing is dropped from the
+    // catalogue — the group is represented by one card carrying model_count,
+    // and the product page lists the rest. Done here rather than in SQL because
+    // this page already loads the whole category and sorts it client-side.
+    //
+    // Key mirrors norm_he(): lowercase, fold the quote family, collapse spaces.
+    const groupKey = (name: string) =>
+      name
+        .toLowerCase()
+        .replace(/[׳״'"`‘’“”]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+    const groups = new Map<string, Row[]>();
+    for (const p of products) {
+      const k = groupKey(p.name);
+      if (!groups.has(k)) groups.set(k, []);
+      groups.get(k)!.push(p);
+    }
+    // Representative: prefer one that HAS a photo (so a collapsed group never
+    // shows the placeholder while its siblings have images), then in stock,
+    // then cheapest.
+    const collapsed: Row[] = [...groups.values()].map((g) => {
+      const rep = [...g].sort(
+        (a, b) =>
+          Number(!!b.thumbnail_url) - Number(!!a.thumbnail_url) ||
+          Number(b.stock_status !== "outofstock") - Number(a.stock_status !== "outofstock") ||
+          a.price - b.price,
+      )[0];
+      return g.length > 1 ? ({ ...rep, model_count: g.length } as Row) : rep;
+    });
+
+    let list = collapsed;
     if (inStockOnly) list = list.filter((p) => p.stock_status !== "outofstock");
     switch (sort) {
       case "price-asc":
@@ -299,14 +333,14 @@ function CategoryPage() {
       <nav aria-label="ניווט מיקום באתר" className="container mx-auto px-4 py-3">
         <ol className="flex items-center gap-1.5 text-xs md:text-sm text-muted-foreground" itemScope itemType="https://schema.org/BreadcrumbList">
           <li itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
-            <Link to="/" className="hover:text-accent transition-colors" itemProp="item">
+            <Link to="/" className="transition-[color] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent" itemProp="item">
               <span itemProp="name">בית</span>
             </Link>
             <meta itemProp="position" content="1" />
           </li>
           <li aria-hidden="true" className="text-muted-foreground/40">/</li>
           <li itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
-            <Link to="/shop" className="hover:text-accent transition-colors" itemProp="item">
+            <Link to="/shop" className="transition-[color] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent" itemProp="item">
               <span itemProp="name">מוצרים</span>
             </Link>
             <meta itemProp="position" content="2" />
@@ -315,7 +349,7 @@ function CategoryPage() {
             <>
               <li aria-hidden="true" className="text-muted-foreground/40">/</li>
               <li itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
-                <Link to="/category/$slug" params={{ slug: parent.slug }} className="hover:text-accent transition-colors" itemProp="item">
+                <Link to="/category/$slug" params={{ slug: parent.slug }} className="transition-[color] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent" itemProp="item">
                   <span itemProp="name">{parent.name}</span>
                 </Link>
                 <meta itemProp="position" content="3" />
@@ -360,15 +394,23 @@ function CategoryPage() {
                 width={1600}
                 height={700}
               />
-              <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-[#421720]/75 to-transparent" />
-              <div className="absolute inset-x-0 bottom-0 px-4 pb-6 md:pb-10 text-center">
-                <h1
-                  className="font-display text-3xl md:text-5xl font-bold text-cream tracking-wide"
-                  style={{ textShadow: "0 2px 18px rgba(0,0,0,0.55), 0 1px 2px rgba(0,0,0,0.6)" }}
-                >
-                  {cat?.name ?? slug}
-                </h1>
-                <div className="mx-auto mt-3 h-[3px] w-24 bg-gradient-to-r from-transparent via-[#C2A25E] to-transparent" />
+              {/* Light scrim, not the old wine band: it only softens the bottom
+                  edge of the photo into the white ground. It carries no text, so
+                  it has no contrast duty of its own. */}
+              <div aria-hidden="true" className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-background/85 via-background/25 to-transparent" />
+              <div className="absolute inset-x-0 bottom-0 px-4 pb-5 md:pb-8">
+                {/* The H1 sits in a .glass-strong caption panel — 94% white, the
+                    only glass that is contrast-safe over unknown imagery (worst
+                    case backing #F0F0F0). That is what lets the title be plain
+                    --foreground ink at ~15.9:1 and retires the textShadow hack,
+                    which was propping up light-on-photo text that could never be
+                    measured. */}
+                <div className="glass-strong mx-auto max-w-2xl px-6 py-4 md:px-10 md:py-6 text-center [--glass-radius:1.25rem]">
+                  <h1 className="font-display text-3xl md:text-5xl font-bold text-foreground tracking-wide">
+                    {cat?.name ?? slug}
+                  </h1>
+                  <div aria-hidden="true" className="gold-rule mx-auto mt-3 w-24" />
+                </div>
               </div>
             </div>
             {cat?.description && (
@@ -384,7 +426,7 @@ function CategoryPage() {
             <h1 className="font-display text-3xl md:text-5xl font-bold text-foreground">
               {cat?.name ?? slug}
             </h1>
-            <div className="mx-auto mt-3 h-[3px] w-24 bg-gradient-to-r from-transparent via-[#C2A25E] to-transparent" />
+            <div aria-hidden="true" className="gold-rule mx-auto mt-3 w-24" />
             {cat?.description && (
               <p className="mt-4 max-w-2xl mx-auto text-sm md:text-base text-muted-foreground leading-relaxed">
                 {cat.description}
@@ -395,12 +437,18 @@ function CategoryPage() {
       </header>
 
       <div className="container mx-auto px-4 pt-8">
-        {/* Subcategory / sibling chips — restyled from here (gold outline, argaman
-            active) via scoped descendant overrides: SubcategoryChips is a shared
-            component other pages use, so its own classes stay untouched. The
-            active chip is targeted through the aria-current="page" attribute the
-            router puts on the link for the current category. */}
-        <div className="[&_a]:border-gold/60 [&_a]:bg-background [&_a]:text-foreground [&_a:hover]:border-accent [&_a[aria-current=page]]:bg-argaman [&_a[aria-current=page]]:border-argaman [&_a[aria-current=page]]:text-white">
+        {/* Subcategory / sibling chips — restyled from here (gold hairline,
+            argaman active) via scoped descendant overrides: SubcategoryChips is a
+            shared component other pages use, so its own classes stay untouched.
+            The active chip is targeted through the aria-current="page" attribute
+            the router puts on the link for the current category.
+
+            Kept in step with the chip base in SubcategoryChips.tsx: the base now
+            draws its hairline as an INSET RING rather than a border, so the
+            override swaps the ring colour (decorative gold, never text) instead
+            of a border colour. The argaman fill is the one legitimate small
+            semantic burgundy left in the system — 12.57:1 with white text. */}
+        <div className="[&_a]:shadow-[inset_0_0_0_1px_var(--glass-line-gold)] [&_a]:bg-card/70 [&_a]:text-foreground [&_a[aria-current=page]]:bg-argaman [&_a[aria-current=page]]:text-white [&_a[aria-current=page]]:shadow-none">
           <SubcategoryChips
             slug={slug}
             parentSlug={cat?.parent_slug ?? null}
@@ -409,14 +457,14 @@ function CategoryPage() {
         </div>
 
         {(slug === "study-books" || slug === "esh-sheli-gold") && products.length === 0 ? (
-          <div className="max-w-2xl mx-auto my-12 text-center bg-gradient-to-b from-primary/5 to-transparent border border-primary/20 rounded-2xl p-10 md:p-14">
-            <div className="mx-auto mb-5 w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
+          <div className="glass max-w-2xl mx-auto my-12 text-center p-10 md:p-14 [--glass-radius:1.5rem]">
+            <div className="mx-auto mb-5 w-14 h-14 rounded-full bg-secondary hairline flex items-center justify-center">
               <span className="text-3xl">✨</span>
             </div>
             <h2 className="font-display text-2xl md:text-3xl font-bold mb-3">
               המוצרים בקטגוריה זו בדרך אליכם
             </h2>
-            <div className="mx-auto mb-5 h-[3px] w-16 bg-gradient-to-r from-transparent via-[#C2A25E] to-transparent" />
+            <div aria-hidden="true" className="gold-rule mx-auto mb-5 w-16" />
             <p className="text-muted-foreground leading-relaxed">
               אנו עובדים בימים אלו על העלאת המוצרים בקטגוריית <span className="font-semibold text-foreground">{cat?.name ?? ""}</span>.
               <br />
@@ -425,8 +473,8 @@ function CategoryPage() {
           </div>
         ) : (
           <>
-            {/* Toolbar */}
-            <div className="flex flex-wrap items-center justify-between gap-4 mb-6 pb-4 border-b">
+            {/* Toolbar — one glass pane, matching /shop */}
+            <div className="glass flex flex-wrap items-center justify-between gap-4 mb-6 p-4 md:px-5 [--glass-radius:1.25rem]">
               <p className="text-sm text-muted-foreground">{visible.length} מוצרים</p>
               <div className="flex flex-wrap items-center gap-4">
                 <label className="flex items-center gap-2 text-sm cursor-pointer">
@@ -472,7 +520,7 @@ function CategoryPage() {
         {cat?.long_description && (
           <section className="mt-16 max-w-3xl mx-auto text-center">
             <h2 className="font-display text-2xl font-bold mb-3">קצת על {cat.name}</h2>
-            <div className="mx-auto mb-5 h-[3px] w-12 bg-gradient-to-r from-transparent via-[#C2A25E] to-transparent" />
+            <div aria-hidden="true" className="gold-rule mx-auto mb-5 w-12" />
             <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
               {cat.long_description}
             </p>
@@ -488,14 +536,18 @@ function CategoryPage() {
         {cat?.name && (
           <section className="mt-16 max-w-3xl mx-auto">
             <h2 className="font-display text-2xl font-bold mb-5 text-center">שאלות נפוצות — {cat.name}</h2>
-            <div className="w-full border-t border-gold/30">
+            {/* Native <details>/<summary> stays — the FAQPage JSON-LD in the route
+                head claims this text, so every answer must be in the server HTML.
+                Hairline rules replace the gold borders; the chevron keeps
+                --accent (5.47:1 on the ground, and an icon only needs 3:1). */}
+            <div className="w-full border-t border-glass-line">
               {categoryFaq(cat.name).map((item, i) => (
-                <details key={i} className="group border-b border-gold/30">
-                  <summary className="flex cursor-pointer list-none items-center justify-between gap-3 py-4 text-right font-display text-base font-medium transition-colors hover:text-accent [&::-webkit-details-marker]:hidden">
+                <details key={i} className="group border-b border-glass-line">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-3 py-4 text-right font-display text-base font-medium transition-[color] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent [&::-webkit-details-marker]:hidden">
                     <span>{item.q}</span>
                     <ChevronDown
                       aria-hidden="true"
-                      className="h-4 w-4 shrink-0 text-accent transition-transform duration-200 group-open:rotate-180"
+                      className="h-4 w-4 shrink-0 text-accent transition-[transform,rotate] duration-200 ease-out group-open:rotate-180"
                     />
                   </summary>
                   <p className="pb-4 text-sm text-muted-foreground leading-relaxed">{item.a}</p>

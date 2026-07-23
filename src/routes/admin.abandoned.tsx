@@ -114,7 +114,7 @@ function AdminAbandoned() {
         ))}
       </div>
 
-      <div className={`rounded-lg border bg-card overflow-x-auto transition-opacity ${isFetching ? "opacity-60" : ""}`}>
+      <div className={`rounded-lg border bg-card overflow-x-auto transition-opacity duration-200 ease-out ${isFetching ? "opacity-60" : ""}`}>
         <table className="w-full text-sm">
           <thead className="bg-muted/50"><tr className="text-right">
             <th className="p-3">תאריך</th><th className="p-3">לקוח</th><th className="p-3">פריטים</th>
@@ -202,7 +202,7 @@ function AdminAbandoned() {
                           href={`mailto:${c.email}`}
                           aria-label="שליחת מייל"
                           title={c.email}
-                          className="rounded-full border p-1.5 hover:bg-muted"
+                          className="rounded-full border p-1.5 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"
                         >
                           <Mail className="h-3.5 w-3.5" />
                         </a>
@@ -213,7 +213,7 @@ function AdminAbandoned() {
                             rel="noreferrer"
                             aria-label="WhatsApp"
                             title="WhatsApp"
-                            className="rounded-full border p-1.5 hover:bg-muted text-emerald-700"
+                            className="rounded-full border p-1.5 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted text-emerald-700"
                           >
                             <MessageCircle className="h-3.5 w-3.5" />
                           </a>

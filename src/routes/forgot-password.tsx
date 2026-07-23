@@ -39,18 +39,18 @@ function ForgotPasswordPage() {
       </p>
 
       {sent ? (
-        <div className="rounded-lg border bg-card p-6 text-center space-y-3">
+        <div className="glass p-6 text-center space-y-3">
           <p className="text-sm">
             ✦ נשלח קישור לאיפוס סיסמה אל <strong>{email}</strong>.
             <br />
             בדקו את תיבת הדואר (וגם את תיקיית הספאם).
           </p>
-          <Link to="/auth" className="text-sm underline text-[#A8862A]">
+          <Link to="/auth" className="text-sm underline text-accent">
             חזרה לדף הכניסה
           </Link>
         </div>
       ) : (
-        <form onSubmit={onSubmit} className="space-y-4 rounded-lg border bg-card p-6">
+        <form onSubmit={onSubmit} className="space-y-4 glass p-6">
           <div>
             <Label htmlFor="email">אימייל</Label>
             <Input
@@ -61,7 +61,7 @@ function ForgotPasswordPage() {
               onChange={(e) => setEmail(e.target.value)}
             />
           </div>
-          <Button type="submit" className="w-full" disabled={loading}>
+          <Button type="submit" className="w-full press" disabled={loading}>
             {loading ? "..." : "שלחו לי קישור"}
           </Button>
           <div className="text-center">

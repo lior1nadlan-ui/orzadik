@@ -60,15 +60,31 @@ function CategoriesPage() {
   return (
     <div className="container mx-auto px-4 py-10">
       <h1 className="font-display text-3xl md:text-4xl font-bold mb-6">קטגוריות</h1>
+      {/* Deliberately NOT .stagger here. Its keyframe ends on `transform: none`
+          with `both` fill, and a filled animation applies at the animation
+          origin — which outranks author declarations — so every card would be
+          permanently pinned to `transform: none` and both the hover lift and
+          .press would silently stop working after the reveal finished. The
+          cards' ongoing interaction feedback is worth more than a one-shot
+          flourish; .stagger belongs on rows that are not pressable. */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
         {tops.map((c) => {
           const kids = childrenOf(c.slug);
           return (
+            // .glass owns background/radius/shadow. The hover raise is a plain
+            // gated transform rather than .glass-lift, because glass-lift swaps
+            // the whole box-shadow and would blink the inset hairline off on
+            // hover; .press already supplies the transform transition (160ms
+            // ease-out) and the reduced-motion opt-out.
             <div
               key={c.id}
-              className="rounded-lg border bg-card p-5 shadow-[var(--shadow-card)] transition-all hover:border-accent hover:shadow-[var(--shadow-soft)]"
+              className="glass press p-5 motion-safe:[@media(hover:hover)_and_(pointer:fine)]:hover:-translate-y-0.5"
             >
-              <Link to="/category/$slug" params={{ slug: c.slug }} className="font-medium hover:text-accent transition-colors">
+              <Link
+                to="/category/$slug"
+                params={{ slug: c.slug }}
+                className="font-medium transition-[color] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
+              >
                 {c.name}
               </Link>
               {c.description && <div className="text-xs text-muted-foreground mt-1 line-clamp-2">{c.description}</div>}
@@ -79,7 +95,7 @@ function CategoriesPage() {
                       key={k.id}
                       to="/category/$slug"
                       params={{ slug: k.slug }}
-                      className="text-xs text-muted-foreground hover:text-accent transition-colors"
+                      className="text-xs text-muted-foreground transition-[color] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
                     >
                       {k.name}
                     </Link>

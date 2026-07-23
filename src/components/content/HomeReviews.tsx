@@ -65,22 +65,23 @@ export function HomeReviews({
     // section simply never exists and cannot appear later. Only the degraded
     // path holds space open for a result that is still in flight.
     return reserveSpace ? (
-      <section aria-hidden="true" className={`bg-background${RESERVED_HEIGHT}`} />
+      <section aria-hidden="true" className={RESERVED_HEIGHT.trim()} />
     ) : null;
   }
 
   return (
-    <section className={`bg-background${reserveSpace ? RESERVED_HEIGHT : ""}`}>
+    // No opaque section fill — the page's own white glass mesh is the ground.
+    <section className={reserveSpace ? RESERVED_HEIGHT.trim() : undefined}>
       <div className="container mx-auto px-4 py-14 md:py-20">
         <div className="text-center mb-10 md:mb-14">
           <div className="flex items-center justify-center gap-3 mb-3" aria-hidden="true">
-            <span className="h-px w-10 bg-accent/40" />
+            <span className="gold-rule w-10 shrink-0" />
             <span className="text-[10px] md:text-xs tracking-[0.35em] text-accent uppercase">
               לקוחות ממליצים
             </span>
-            <span className="h-px w-10 bg-accent/40" />
+            <span className="gold-rule w-10 shrink-0" />
           </div>
-          <h2 className="font-display text-2xl md:text-4xl tracking-wide">
+          <h2 className="font-display text-2xl md:text-4xl tracking-wide text-foreground">
             מה הלקוחות שלנו מספרים
           </h2>
         </div>
@@ -89,19 +90,23 @@ export function HomeReviews({
           <CarouselContent>
             {reviews.map((r) => (
               <CarouselItem key={r.id} className="basis-full sm:basis-1/2 lg:basis-1/3">
-                <div className="rounded-2xl border border-accent/20 bg-background p-6 h-full flex flex-col">
+                {/* Embla's viewport is overflow-hidden, so the default wide glass
+                    shadow would be sliced off at the strip's edges — the panel is
+                    retuned through its own variable rather than fought with a
+                    utility (see the override contract in styles.css). */}
+                <div className="glass p-6 h-full flex flex-col [--glass-radius:1rem] [--glass-shadow:var(--shadow-card)]">
                   <Stars value={r.rating} />
-                  {r.title && <p className="mt-3 font-semibold">{r.title}</p>}
+                  {r.title && <p className="mt-3 font-semibold text-foreground">{r.title}</p>}
                   <p className="mt-2 text-sm text-muted-foreground leading-relaxed line-clamp-4 flex-1">
                     {r.body}
                   </p>
-                  <div className="mt-4 pt-4 border-t border-accent/10">
-                    <p className="font-medium">{r.author_name}</p>
+                  <div className="mt-4 pt-4 border-t border-border">
+                    <p className="font-medium text-foreground">{r.author_name}</p>
                     {r.products && (
                       <Link
                         to="/product/$slug"
                         params={{ slug: r.products.slug }}
-                        className="text-sm text-accent hover:underline"
+                        className="text-sm text-accent underline-offset-4 transition-colors duration-200 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-strong [@media(hover:hover)_and_(pointer:fine)]:hover:underline"
                       >
                         לצפייה במוצר: {r.products.name}
                       </Link>

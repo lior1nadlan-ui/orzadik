@@ -15,11 +15,14 @@ export const Route = createFileRoute("/terms")({
 
 function LegalPage() {
   return (
-    <article className="container mx-auto px-4 py-12 md:py-16 max-w-3xl prose-legal">
-      <header className="mb-10 text-center">
+    <article className="container mx-auto px-4 py-12 md:py-16 max-w-3xl">
+      <header className="mb-10 md:mb-14 text-center">
         <p className="text-[10px] md:text-xs tracking-[0.35em] text-accent uppercase mb-3">מסמך משפטי</p>
-        <h1 className="font-display text-3xl md:text-5xl tracking-wide">תקנון ותנאי שימוש</h1>
-        <p className="mt-3 text-sm text-muted-foreground">עודכן לאחרונה: 26.6.2026</p>
+        <h1 className="font-display text-3xl md:text-5xl tracking-wide text-foreground">תקנון ותנאי שימוש</h1>
+        <div className="gold-rule mx-auto mt-5 w-24" aria-hidden="true" />
+        <p className="glass mt-5 inline-block px-4 py-1.5 text-xs text-muted-foreground [--glass-radius:9999px]">
+          עודכן לאחרונה: 26.6.2026
+        </p>
       </header>
 
       <Section title={"1. כללי וקבלת התנאים"}>
@@ -138,11 +141,13 @@ function LegalPage() {
   );
 }
 
+/* Hairline-separated sections rather than boxed cards: precision rules and
+   negative space, and no page-tall backdrop-blur panel to repaint on scroll. */
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="mb-8">
+    <section className="mb-9 border-t border-glass-line pt-8 last:mb-0">
       <h2 className="font-display text-xl md:text-2xl mb-3 text-foreground">{title}</h2>
-      <div className="text-[15px] leading-relaxed text-foreground/85 space-y-3 [&_ul]:list-disc [&_ul]:pr-5 [&_ul]:space-y-2 [&_a]:text-accent">
+      <div className="text-[15px] leading-[1.85] text-foreground space-y-4 [&_ul]:list-disc [&_ul]:pr-5 [&_ul]:space-y-2 [&_a]:text-accent [&_a]:underline [&_a]:underline-offset-4 [&_strong]:font-semibold">
         {children}
       </div>
     </section>

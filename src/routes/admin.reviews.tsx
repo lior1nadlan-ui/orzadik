@@ -76,7 +76,7 @@ function AdminReviews() {
                   {r.is_approved ? (
                     <Button size="sm" variant="outline" onClick={() => onApprove(r.id, false)}>בטל אישור</Button>
                   ) : (
-                    <Button size="sm" className="bg-[#D4AF37] hover:bg-[#A8862A] text-white" onClick={() => onApprove(r.id, true)}>אשר ופרסם</Button>
+                    <Button size="sm" className="press" onClick={() => onApprove(r.id, true)}>אשר ופרסם</Button>
                   )}
                   <Button size="sm" variant="ghost" className="text-destructive" onClick={() => onDelete(r.id)}>מחק</Button>
                 </div>

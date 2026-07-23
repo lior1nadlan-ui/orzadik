@@ -42,9 +42,15 @@ export function NewsletterSignup({ source = "footer" as const }) {
     );
   }
 
-  // Buttons use --accent (the design system's CTA gold, 5.8:1 with white) and
+  // Buttons use --accent (the design system's CTA gold, 5.81:1 with white) and
   // NOT the raw #D4AF37 used decoratively elsewhere: that is only 2.1:1 against
   // white, which Lighthouse flagged on this very button.
+  //
+  // The hover fill is --accent-strong (#6B5219, 7.38:1 with white) and NOT
+  // `bg-accent/90`: 90% of --accent over the panel behind it composites to
+  // #8B7135, where the button's own white label drops to 4.66:1 — passing by
+  // 0.16 with no headroom at all, and failing outright the moment the surface
+  // under it is anything but pure white. accent-strong has real margin.
   return (
     <form onSubmit={onSubmit} className="space-y-2">
       <div className="flex gap-2">
@@ -59,7 +65,7 @@ export function NewsletterSignup({ source = "footer" as const }) {
           placeholder="הדוא״ל שלכם"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="bg-background"
+          className="bg-card"
         />
         {/* Honeypot: hidden from people and assistive tech, irresistible to bots. */}
         <input
@@ -75,7 +81,7 @@ export function NewsletterSignup({ source = "footer" as const }) {
         <Button
           type="submit"
           disabled={busy}
-          className="shrink-0 bg-accent text-accent-foreground hover:bg-accent/90"
+          className="shrink-0 bg-accent text-accent-foreground press [@media(hover:hover)_and_(pointer:fine)]:hover:bg-accent-strong"
         >
           {busy ? "רושם..." : "הרשמה"}
         </Button>

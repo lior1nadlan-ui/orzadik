@@ -59,7 +59,7 @@ export function ProductReviews({
     // scroll-mt offsets the pinned sticky header (bar h-20 + lg nav h-11) so
     // the #reviews anchor is not hidden under it.
     <section id="reviews" className="mt-16 relative scroll-mt-24 lg:scroll-mt-32">
-      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#D4AF37]/40 to-transparent" />
+      <div className="gold-rule absolute inset-x-0 top-0" aria-hidden="true" />
       <div className="pt-10">
         <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
           <div>
@@ -78,14 +78,13 @@ export function ProductReviews({
           <Button
             type="button"
             onClick={() => setOpen((v) => !v)}
-            className="bg-[#D4AF37] hover:bg-[#A8862A] text-white"
           >
             כתיבת חוות דעת
           </Button>
         </div>
 
         {open && (
-          <form onSubmit={onSubmit} className="mb-8 rounded-lg border bg-card p-5 space-y-4 max-w-xl">
+          <form onSubmit={onSubmit} className="glass mb-8 p-5 space-y-4 max-w-xl">
             <div>
               <Label className="mb-1 block">הדירוג שלך</Label>
               <StarInput value={rating} onChange={setRating} />
@@ -105,7 +104,7 @@ export function ProductReviews({
               <Textarea id="rv-body" value={body} onChange={(e) => setBody(e.target.value)} maxLength={2000} rows={4} />
             </div>
             <div className="flex items-center gap-3">
-              <Button type="submit" disabled={submitting} className="bg-[#D4AF37] hover:bg-[#A8862A] text-white">
+              <Button type="submit" disabled={submitting}>
                 {submitting ? "שולח..." : "שליחה"}
               </Button>
               <span className="text-xs text-muted-foreground">חוות הדעת תפורסם לאחר בדיקה.</span>
@@ -116,7 +115,7 @@ export function ProductReviews({
         {reviews.length > 0 && (
           <ul className="space-y-5">
             {reviews.map((r) => (
-              <li key={r.id} className="border-b border-border/50 pb-5">
+              <li key={r.id} className="border-b border-glass-line pb-5">
                 <div className="flex items-center gap-2">
                   <Stars value={r.rating} size={15} />
                   <span className="sr-only">דירוג {r.rating} מתוך 5</span>

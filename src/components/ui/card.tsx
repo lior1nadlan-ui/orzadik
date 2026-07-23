@@ -6,10 +6,12 @@ const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElemen
   ({ className, ...props }, ref) => (
     <div
       ref={ref}
-      className={cn(
-        "rounded-lg border bg-card text-card-foreground shadow-[var(--shadow-card)]",
-        className,
-      )}
+      // The canonical glass panel. `.glass` owns background-color, border-radius
+      // and box-shadow (it draws its hairline as an inset ring, so no `border`
+      // utility is needed and none is added — a real border would double the
+      // edge). Retune per instance through the variables rather than fighting
+      // it with utilities, e.g. <Card className="[--glass-radius:1.5rem]" />.
+      className={cn("glass text-card-foreground", className)}
       {...props}
     />
   ),
