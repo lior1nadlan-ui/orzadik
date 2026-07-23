@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { getDashboardStats } from "@/lib/admin-crm.functions";
 import { formatILS } from "@/lib/cart";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from "recharts";
+import { TrendingUp, TrendingDown } from "lucide-react";
 
 export const Route = createFileRoute("/admin/")({
   component: AdminHome,
@@ -14,6 +15,35 @@ const STATUS_HE: Record<string, string> = {
   completed: "הושלמה", cancelled: "בוטלה", refunded: "זוכתה",
 };
 const PAYMENT_HE: Record<string, string> = { paid: "שולם", unpaid: "לא שולם", refunded: "זוכה" };
+
+function daysAgoHe(ts: string): string {
+  const d = Math.max(0, Math.floor((Date.now() - new Date(ts).getTime()) / 864e5));
+  if (d === 0) return "היום";
+  if (d === 1) return "לפני יום";
+  return `לפני ${d} ימים`;
+}
+
+/** Period-over-period delta line under a KPI value. Hebrew convention puts the
+ * sign after the number ('12%+'); prev === 0 renders a no-data note, never
+ * Infinity. */
+function TrendDelta({ curr, prev }: { curr: number; prev: number }) {
+  const pct = prev > 0 ? Math.round(((curr - prev) / prev) * 100) : null;
+  if (pct === null) {
+    return <span className="text-xs text-muted-foreground">— אין נתונים לתקופה הקודמת</span>;
+  }
+  if (pct === 0) {
+    return <span className="text-xs text-muted-foreground">ללא שינוי</span>;
+  }
+  return pct > 0 ? (
+    <span className="inline-flex items-center gap-1 text-xs text-emerald-600">
+      <TrendingUp className="h-3.5 w-3.5" /> {pct}%+ לעומת התקופה הקודמת
+    </span>
+  ) : (
+    <span className="inline-flex items-center gap-1 text-xs text-red-600">
+      <TrendingDown className="h-3.5 w-3.5" /> {Math.abs(pct)}%- לעומת התקופה הקודמת
+    </span>
+  );
+}
 
 function AdminHome() {
   const load = useServerFn(getDashboardStats);
@@ -36,10 +66,19 @@ function AdminHome() {
     );
   }
 
-  const kpis = [
-    { label: "הכנסות היום", value: formatILS(s.revenue.today), sub: `${s.orders.today} הזמנות` },
-    { label: "7 ימים", value: formatILS(s.revenue.last7), sub: `${s.orders.last7} הזמנות` },
-    { label: "30 יום", value: formatILS(s.revenue.last30), sub: `${s.orders.last30} הזמנות` },
+  const kpis: { label: string; value: string; sub: string; days?: number; curr?: number; prev?: number }[] = [
+    {
+      label: "הכנסות היום", value: formatILS(s.revenue.today), sub: `${s.orders.today} הזמנות`,
+      days: 1, curr: s.revenue.today, prev: s.revenue.prevToday,
+    },
+    {
+      label: "7 ימים", value: formatILS(s.revenue.last7), sub: `${s.orders.last7} הזמנות`,
+      days: 7, curr: s.revenue.last7, prev: s.revenue.prev7,
+    },
+    {
+      label: "30 יום", value: formatILS(s.revenue.last30), sub: `${s.orders.last30} הזמנות`,
+      days: 30, curr: s.revenue.last30, prev: s.revenue.prev30,
+    },
     {
       label: 'סה"כ הכנסות',
       value: formatILS(s.revenue.total),
@@ -51,15 +90,93 @@ function AdminHome() {
     <div className="space-y-6">
       <h1 className="font-display text-2xl font-bold">סקירה כללית</h1>
 
-      {/* KPI row */}
+      {/* KPI row — each card deep-links to the orders page pre-filtered */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {kpis.map((c) => (
-          <div key={c.label} className="rounded-lg border bg-card p-5">
+          <Link
+            key={c.label}
+            to="/admin/orders"
+            search={c.days ? { payment: "paid", days: c.days } : { payment: "paid" }}
+            className="block rounded-lg border bg-card p-5 transition-colors hover:border-primary/50"
+          >
             <div className="text-sm text-muted-foreground">{c.label}</div>
             <div className="text-2xl font-bold mt-1">{c.value}</div>
             <div className="text-xs text-muted-foreground mt-1">{c.sub}</div>
-          </div>
+            {c.prev !== undefined && (
+              <div className="mt-1">
+                <TrendDelta curr={c.curr ?? 0} prev={c.prev} />
+              </div>
+            )}
+          </Link>
         ))}
+      </div>
+
+      {/* Abandoned carts KPI + catalog health */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Link
+          to="/admin/abandoned"
+          className={`block rounded-lg border p-5 transition-colors hover:border-primary/50 ${
+            s.abandoned.openCount > 0
+              ? "border-amber-400/60 bg-amber-50 dark:bg-amber-950/20"
+              : "bg-card"
+          }`}
+        >
+          <div
+            className={`text-sm ${
+              s.abandoned.openCount > 0
+                ? "font-semibold text-amber-800 dark:text-amber-300"
+                : "text-muted-foreground"
+            }`}
+          >
+            🛒 עגלות נטושות פתוחות
+          </div>
+          <div className="text-2xl font-bold mt-1">{s.abandoned.openCount}</div>
+          <div className="text-xs text-muted-foreground mt-1">
+            {s.abandoned.openCount > 0
+              ? `${formatILS(s.abandoned.recoverable)} לשחזור`
+              : "אין עגלות נטושות פתוחות כרגע"}
+          </div>
+        </Link>
+
+        {/* Catalog health. Plain link only — admin.products.tsx has no
+            validateSearch yet; follow-up: add it there next round so this can
+            deep-link pre-filtered (e.g. ?health=no-image). */}
+        {(() => {
+          const healthIssues = s.catalogHealth.noImage > 0 || s.catalogHealth.outOfStock > 0;
+          return (
+            <Link
+              to="/admin/products"
+              className={`block rounded-lg border p-5 transition-colors hover:border-primary/50 ${
+                healthIssues ? "border-amber-400/60 bg-amber-50 dark:bg-amber-950/20" : "bg-card"
+              }`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div
+                  className={`text-sm font-semibold ${
+                    healthIssues ? "text-amber-800 dark:text-amber-300" : ""
+                  }`}
+                >
+                  תקינות קטלוג
+                </div>
+                {!healthIssues && (
+                  <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                    הקטלוג תקין ✓
+                  </span>
+                )}
+              </div>
+              <div className="mt-2 space-y-1 text-sm">
+                <div className="flex justify-between gap-3">
+                  <span>מוצרים פעילים ללא תמונה:</span>
+                  <strong>{s.catalogHealth.noImage}</strong>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <span>מוצרים פעילים שאזלו מהמלאי:</span>
+                  <strong>{s.catalogHealth.outOfStock}</strong>
+                </div>
+              </div>
+            </Link>
+          );
+        })()}
       </div>
 
       {/* Stuck-unpaid alert */}
@@ -80,8 +197,40 @@ function AdminHome() {
               </div>
             ))}
           </div>
-          <Link to="/admin/orders" className="text-xs underline text-amber-700 dark:text-amber-400 mt-2 inline-block">
+          <Link
+            to="/admin/orders"
+            search={{ payment: "unpaid" }}
+            className="text-xs underline text-amber-700 dark:text-amber-400 mt-2 inline-block"
+          >
             לכל ההזמנות ←
+          </Link>
+        </div>
+      )}
+
+      {/* Ready-to-ship action queue */}
+      {s.readyToShip.count > 0 && (
+        <div className="rounded-lg border border-emerald-400/60 bg-emerald-50 dark:bg-emerald-950/20 p-4">
+          <div className="font-semibold text-emerald-800 dark:text-emerald-300 mb-2">
+            📦 {s.readyToShip.count} הזמנות שולמו וממתינות למשלוח
+          </div>
+          <div className="space-y-1 text-sm">
+            {s.readyToShip.items.map((o: any) => (
+              <div key={o.id} className="flex justify-between">
+                <span>
+                  <span className="font-mono text-xs">{o.order_number}</span> · {o.customer_name}
+                </span>
+                <span className="text-muted-foreground">
+                  {formatILS(o.total)} · {daysAgoHe(o.paid_at)}
+                </span>
+              </div>
+            ))}
+          </div>
+          <Link
+            to="/admin/orders"
+            search={{ payment: "paid" }}
+            className="text-xs underline text-emerald-700 dark:text-emerald-400 mt-2 inline-block"
+          >
+            לכל ההזמנות הממתינות ←
           </Link>
         </div>
       )}
@@ -127,7 +276,12 @@ function AdminHome() {
           ) : (
             <div className="space-y-2 text-sm">
               {s.recentOrders.map((o: any) => (
-                <div key={o.id} className="flex items-center justify-between border-b border-border/40 pb-2 last:border-0">
+                <Link
+                  key={o.id}
+                  to="/admin/orders"
+                  search={{ q: o.order_number }}
+                  className="flex items-center justify-between border-b border-border/40 pb-2 last:border-0 transition-colors hover:bg-muted/40"
+                >
                   <div>
                     <span className="font-mono text-xs">{o.order_number}</span>
                     <span className="mx-2">{o.customer_name}</span>
@@ -147,7 +301,7 @@ function AdminHome() {
                       {new Date(o.created_at).toLocaleDateString("he-IL")}
                     </div>
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           )}
@@ -179,9 +333,14 @@ function AdminHome() {
             ) : (
               <div className="flex flex-wrap gap-2 text-sm">
                 {Object.entries(s.statusCounts).map(([st, n]) => (
-                  <span key={st} className="rounded-full border px-3 py-1">
+                  <Link
+                    key={st}
+                    to="/admin/orders"
+                    search={{ status: st }}
+                    className="rounded-full border px-3 py-1 transition-colors hover:bg-muted"
+                  >
                     {STATUS_HE[st] ?? st}: <strong>{n as number}</strong>
-                  </span>
+                  </Link>
                 ))}
               </div>
             )}

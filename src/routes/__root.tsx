@@ -318,11 +318,13 @@ function RootComponent() {
             >
               דלג לתוכן המרכזי
             </a>
-            <div className="sticky top-0 z-40">
-              <SalePromoBar />
-              <SiteHeader />
-            </div>
-            <main id="main-content" tabIndex={-1} className="flex-1">
+            {/* Promo bar scrolls away; the header pins itself (sticky -top-9 —
+                the club strip scrolls off while the parchment-glass bar stays).
+                No sticky wrapper here: sticky can't travel beyond its parent,
+                so the header must sit directly in the full-height app root. */}
+            <SalePromoBar />
+            <SiteHeader />
+            <main id="main-content" tabIndex={-1} className="flex-1 scroll-mt-24 lg:scroll-mt-32">
               <Outlet />
             </main>
             <SiteFooter />

@@ -4,10 +4,27 @@ import { supabase } from "@/integrations/supabase/client";
 import { ProductCard, ProductCardData } from "@/components/ProductCard";
 import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+type ShopSort = "newest" | "price-asc" | "price-desc" | "name";
+
+function isShopSort(v: unknown): v is ShopSort {
+  return v === "newest" || v === "price-asc" || v === "price-desc" || v === "name";
+}
 
 export const Route = createFileRoute("/shop")({
   component: ShopPage,
-  validateSearch: (s: Record<string, unknown>): { q?: string } => ({ q: typeof s.q === "string" ? s.q : undefined }),
+  validateSearch: (s: Record<string, unknown>): { q?: string; sort?: ShopSort } => ({
+    q: typeof s.q === "string" ? s.q : undefined,
+    // Unknown values narrow to undefined and render as the default ("newest").
+    sort: isShopSort(s.sort) ? s.sort : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "כל המוצרים | אור זרוע לצדיק" },
@@ -24,16 +41,37 @@ export const Route = createFileRoute("/shop")({
 });
 
 // Escape PostgREST `.or()` reserved characters in user input so a search term
-// can never inject additional filter clauses.
-function sanitizeTerm(raw: string): string {
-  return raw.replace(/[,()%\\]/g, " ").replace(/\s+/g, " ").trim();
+// can never inject additional filter clauses, then map the whole quote family
+// (ASCII quotes, geresh/gershayim, curly quotes) to an ilike `%` wildcard so a
+// typed ס"מ matches the DB's ס״מ and vice versa. The injected % is safe: it is
+// only ever used as a filter VALUE (supabase-js URL-encodes it) — clause
+// injection needs `,` or `()`, which are stripped first, along with any
+// user-typed % or \.
+export function sanitizeTerm(raw: string): string {
+  return raw
+    .replace(/[,()%\\]/g, " ")    // strip clause-injection + user-typed % first
+    .replace(/["'`׳״‘’“”]/g, "%") // quote family → wildcard
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function ShopPage() {
-  const { q: qFromUrl } = Route.useSearch();
+  const { q: qFromUrl, sort: sortFromUrl } = Route.useSearch();
+  const navigate = Route.useNavigate();
   const [q, setQ] = useState(qFromUrl || "");
   const [debouncedQ, setDebouncedQ] = useState(qFromUrl || "");
+  // Seed from the URL so sorted views survive reload and sharing.
+  const [sort, setSort] = useState<ShopSort>(sortFromUrl ?? "newest");
   useEffect(() => { setQ(qFromUrl || ""); }, [qFromUrl]);
+
+  const changeSort = (v: ShopSort) => {
+    setSort(v);
+    navigate({
+      search: (prev) => ({ ...prev, sort: v === "newest" ? undefined : v }),
+      replace: true,
+      resetScroll: false,
+    });
+  };
 
   // Debounce keystrokes so we hit the DB at most a few times per search.
   useEffect(() => {
@@ -53,7 +91,7 @@ function ShopPage() {
     data, isLoading, isFetching, isError, refetch,
     fetchNextPage, hasNextPage, isFetchingNextPage,
   } = useInfiniteQuery({
-    queryKey: ["shop-products", term],
+    queryKey: ["shop-products", term, sort],
     placeholderData: keepPreviousData,
     initialPageParam: 0,
     queryFn: async ({ pageParam }) => {
@@ -65,14 +103,35 @@ function ShopPage() {
       // Server-side (DB) search across the whole catalog — name, both
       // description fields and SKU — not just the names already loaded.
       if (term) {
-        const like = `%${term}%`;
-        query = query.or(
-          `name.ilike.${like},description.ilike.${like},short_description.ilike.${like},sku.ilike.${like}`,
-        );
+        const words = term.split(" ").filter(Boolean);
+        const fields = ["name", "description", "short_description", "sku"];
+        if (words.length > 1) {
+          // Multi-word queries: every word must appear in the SAME field
+          // (order-independent) — per-field and() groups nested inside or().
+          const groups = fields.map(
+            (f) => `and(${words.map((w) => `${f}.ilike.%${w}%`).join(",")})`,
+          );
+          query = query.or(groups.join(","));
+        } else {
+          const like = `%${term}%`;
+          query = query.or(fields.map((f) => `${f}.ilike.${like}`).join(","));
+        }
       }
 
+      // Server-side ordering — the page is fetched 24 rows at a time via
+      // .range(), so the DB must produce the order; client-side sorting can
+      // only ever see the pages already loaded. Ordering by the raw `price`
+      // column matches what users see: the displayed selling price is
+      // getEffectivePrice(price), a monotonic transform of price.
+      if (sort === "price-asc") query = query.order("price", { ascending: true });
+      else if (sort === "price-desc") query = query.order("price", { ascending: false });
+      else if (sort === "name") query = query.order("name", { ascending: true });
+      else query = query.order("created_at", { ascending: false });
+
       const { data, error, count } = await query
-        .order("created_at", { ascending: false })
+        // Deterministic tiebreaker: thousands of rows share identical prices,
+        // and .range() paging needs a total order to avoid dupes/gaps.
+        .order("id", { ascending: true })
         .range(pageParam, pageParam + PAGE - 1);
       if (error) throw error;
       return { rows: (data ?? []) as ProductCardData[], total: count ?? 0, next: pageParam + PAGE };
@@ -83,6 +142,9 @@ function ShopPage() {
   const products = data?.pages.flatMap((p) => p.rows) ?? [];
   // Total across the whole result set, not just what has been loaded.
   const total = data?.pages[0]?.total ?? 0;
+  // Echo the user's raw input in copy — the sanitized term may contain
+  // injected % wildcards that should never be shown.
+  const rawTerm = debouncedQ.trim();
 
   return (
     <div className="container mx-auto px-4 py-10">
@@ -90,15 +152,31 @@ function ShopPage() {
         <div>
           <h1 className="font-display text-3xl md:text-4xl font-bold">כל המוצרים</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {term ? `${total} תוצאות עבור "${term}"` : `${total} מוצרים`}
+            {term ? `${total} תוצאות עבור "${rawTerm}"` : `${total} מוצרים`}
           </p>
         </div>
-        <Input
-          placeholder="חיפוש מוצר..."
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          className="max-w-xs"
-        />
+        <div className="flex flex-wrap items-center gap-4">
+          <Input
+            placeholder="חיפוש מוצר..."
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            className="max-w-xs"
+          />
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">מיון:</span>
+            <Select value={sort} onValueChange={(v) => changeSort(v as ShopSort)}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="newest">החדשים ביותר</SelectItem>
+                <SelectItem value="price-asc">מחיר: מהנמוך לגבוה</SelectItem>
+                <SelectItem value="price-desc">מחיר: מהגבוה לנמוך</SelectItem>
+                <SelectItem value="name">א-ב</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
       </div>
       {isLoading ? (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -115,7 +193,7 @@ function ShopPage() {
         </div>
       ) : products.length === 0 ? (
         <div className="py-20 text-center text-muted-foreground">
-          לא נמצאו מוצרים{term ? ` עבור "${term}"` : ""}. נסו מונח חיפוש אחר.
+          לא נמצאו מוצרים{term ? ` עבור "${rawTerm}"` : ""}. נסו מונח חיפוש אחר.
         </div>
       ) : (
         <>

@@ -56,7 +56,9 @@ export function ProductReviews({
   };
 
   return (
-    <section id="reviews" className="mt-16 relative">
+    // scroll-mt offsets the pinned sticky header (bar h-20 + lg nav h-11) so
+    // the #reviews anchor is not hidden under it.
+    <section id="reviews" className="mt-16 relative scroll-mt-24 lg:scroll-mt-32">
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#D4AF37]/40 to-transparent" />
       <div className="pt-10">
         <div className="flex flex-wrap items-center justify-between gap-4 mb-6">

@@ -11,14 +11,25 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Dialog, DialogContent, DialogTrigger, DialogTitle } from "@/components/ui/dialog";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+  type CarouselApi,
+} from "@/components/ui/carousel";
 import { formatILS, useCart, getEffectivePrice, getDisplayOriginal, getDiscountPct, FREE_SHIPPING_THRESHOLD, SHIPPING_FLAT, type CustomMethod } from "@/lib/cart";
-import { ProductCard, ProductCardData } from "@/components/ProductCard";
+import { ProductCardData } from "@/components/ProductCard";
+import { ProductCarousel } from "@/components/product/ProductCarousel";
 import { BundleOffer } from "@/components/BundleOffer";
 import { ProductReviews } from "@/components/ProductReviews";
 import { Stars } from "@/components/Stars";
 import { ClubBadge } from "@/components/ClubBadge";
 import { CROSS_SELL_MAP, DEFAULT_CROSS_SELL_CATEGORY } from "@/lib/cross-sells";
-import { ShoppingCart, Minus, Plus, Check, Truck, RotateCcw, ZoomIn } from "lucide-react";
+import { ShoppingCart, Minus, Plus, Check, Truck, RotateCcw, ZoomIn, Heart } from "lucide-react";
+import { useFavorites } from "@/components/engagement/favorites";
+import { readRecent, recordRecent } from "@/components/engagement/recently-viewed";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import DOMPurify from "isomorphic-dompurify";
@@ -29,7 +40,7 @@ async function fetchProductWithRetry(slug: string, maxRetries = 2) {
       const { data, error } = await supabase
         .from("products")
         .select(
-          "id, slug, name, description, short_description, price, sale_price, sku, stock_status, thumbnail_url, product_images(url, sort_order), product_categories(categories(id, slug, name))",
+          "id, slug, name, description, short_description, price, sale_price, sku, stock_status, thumbnail_url, product_images(url, sort_order), product_categories(categories(id, slug, name, parent_slug))",
         )
         .eq("slug", slug)
         .eq("is_active", true)
@@ -71,7 +82,26 @@ export const Route = createFileRoute("/product/$slug")({
     const reviewSummary = product.id
       ? await fetchReviewSummary(product.id as string)
       : { average: 0, count: 0 };
-    return { product, reviewSummary };
+    // When the first category is a subcategory, resolve its parent so the
+    // breadcrumb trail (JSON-LD in head + visible nav) includes the full path.
+    const loaderCats = ((product as any).product_categories ?? [])
+      .map((pc: any) => pc?.categories)
+      .filter(Boolean);
+    const loaderFirstCat = loaderCats[0];
+    let parentCat: { slug: string; name: string } | null = null;
+    if (loaderFirstCat?.parent_slug) {
+      try {
+        const { data } = await supabase
+          .from("categories")
+          .select("slug, name")
+          .eq("slug", loaderFirstCat.parent_slug)
+          .maybeSingle();
+        parentCat = data ?? null;
+      } catch {
+        parentCat = null;
+      }
+    }
+    return { product, reviewSummary, parentCat };
   },
   head: ({ loaderData, params }) => {
     const url = `https://orzadik.com/product/${params.slug}`;
@@ -166,17 +196,29 @@ export const Route = createFileRoute("/product/$slug")({
       };
     }
 
+    // Build the trail dynamically — positions come from the array index so
+    // they stay consecutive whether or not the parent/category levels exist.
+    const parentCat = (loaderData as any)?.parentCat as { slug: string; name: string } | null | undefined;
+    const crumbs: Array<{ name: string; item: string }> = [
+      { name: "בית", item: "https://orzadik.com/" },
+      { name: "מוצרים", item: "https://orzadik.com/shop" },
+      ...(parentCat
+        ? [{ name: parentCat.name, item: `https://orzadik.com/category/${parentCat.slug}` }]
+        : []),
+      ...(firstCat
+        ? [{ name: firstCat.name, item: `https://orzadik.com/category/${firstCat.slug}` }]
+        : []),
+      { name: p.name, item: url },
+    ];
     const breadcrumbLd = {
       "@context": "https://schema.org",
       "@type": "BreadcrumbList",
-      itemListElement: [
-        { "@type": "ListItem", position: 1, name: "בית", item: "https://orzadik.com/" },
-        { "@type": "ListItem", position: 2, name: "מוצרים", item: "https://orzadik.com/shop" },
-        ...(firstCat
-          ? [{ "@type": "ListItem", position: 3, name: firstCat.name, item: `https://orzadik.com/category/${firstCat.slug}` }]
-          : []),
-        { "@type": "ListItem", position: firstCat ? 4 : 3, name: p.name, item: url },
-      ],
+      itemListElement: crumbs.map((c, i) => ({
+        "@type": "ListItem",
+        position: i + 1,
+        name: c.name,
+        item: c.item,
+      })),
     };
 
     const desc = ((plainDesc ? plainDesc + " — " : "") + "כשרות מהודרת, אפשרות רקמה אישית ומשלוח עד הבית.").slice(0, 200);
@@ -259,18 +301,37 @@ function ProductPage() {
   const { product: initialProduct, reviewSummary } = Route.useLoaderData();
   const navigate = useNavigate();
   const { add } = useCart();
+  const { has: hasFav, toggle: toggleFav } = useFavorites();
   const [qty, setQty] = useState(1);
-  const [activeImg, setActiveImg] = useState<string | null>(null);
+  // Recently-viewed snapshots — empty on the server, SSR-safe.
+  const [recent, setRecent] = useState<ProductCardData[]>([]);
+  const [api, setApi] = useState<CarouselApi>();
+  const [selectedIndex, setSelectedIndex] = useState(0);
   const [customText, setCustomText] = useState("");
   const [customMethod, setCustomMethod] = useState<CustomMethod>("embroidery");
+  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
+
+  // Keep the thumbnail highlight in sync with the slide the carousel shows.
+  useEffect(() => {
+    if (!api) return;
+    const onSelect = () => setSelectedIndex(api.selectedScrollSnap());
+    api.on("select", onSelect);
+    return () => {
+      api.off("select", onSelect);
+    };
+  }, [api]);
 
   // The router reuses this component instance across /product/$slug navigations,
   // so per-product UI state would otherwise bleed from one product to the next
-  // (e.g. product B showing product A's selected image / quantity / custom text).
+  // (e.g. product B showing product A's selected image / quantity / size variant /
+  // personalization).
   useEffect(() => {
-    setActiveImg(null);
+    api?.scrollTo(0, true);
+    setSelectedIndex(0);
     setQty(1);
     setCustomText("");
+    setCustomMethod("embroidery");
+    setSelectedVariantId(null);
   }, [slug]);
 
   const { data: product, isLoading } = useQuery({
@@ -279,7 +340,7 @@ function ProductPage() {
       const { data, error } = await supabase
         .from("products")
         .select(
-          "id, slug, name, description, short_description, price, sale_price, sku, stock_status, thumbnail_url, product_images(url, sort_order), product_categories(categories(id, slug, name))",
+          "id, slug, name, description, short_description, price, sale_price, sku, stock_status, thumbnail_url, product_images(url, sort_order), product_categories(categories(id, slug, name, parent_slug))",
         )
         .eq("slug", slug)
         .eq("is_active", true)
@@ -292,6 +353,23 @@ function ProductPage() {
     // fetch on load. React Query still refetches per its staleness rules.
     initialData: initialProduct ?? undefined,
   });
+
+  // Recently-viewed: read BEFORE recording so the current product stays out of
+  // its own strip. Keyed on product.id (not slug) and separate from the
+  // UI-reset effect above — it runs only once the loaded product is known.
+  useEffect(() => {
+    if (!product) return; // skip when the loader 404s
+    setRecent(readRecent());
+    recordRecent({
+      id: product.id,
+      slug: product.slug,
+      name: product.name,
+      price: product.price,
+      sale_price: product.sale_price,
+      thumbnail_url: product.thumbnail_url,
+      stock_status: product.stock_status,
+    });
+  }, [product?.id]);
 
   // Size variants — supports two styles:
   //  (a) in-place variants: row in product_variants with `price` set and no SKU → render as
@@ -332,7 +410,6 @@ function ProductPage() {
 
   // For in-place variants, track the selected one (defaults to the first).
   const inPlaceVariants = variants.filter((v) => v.price !== null && !v.slug);
-  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
   const selectedVariant = inPlaceVariants.find((v) => v.id === selectedVariantId) ?? inPlaceVariants[0] ?? null;
 
 
@@ -419,16 +496,66 @@ function ProductPage() {
     },
   });
 
+  // Same-category recommendations — the related query above deliberately
+  // excludes the product's own categories, so this fills the "מוצרים דומים" strip.
+  const { data: similar = [] } = useQuery({
+    queryKey: ["similar", product?.id],
+    enabled: !!product?.id && categoryIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("product_categories")
+        .select("products!inner(id, slug, name, price, sale_price, thumbnail_url, is_active, stock_status)")
+        .in("category_id", categoryIds)
+        .limit(24);
+      if (error) throw error;
+      const seen = new Set<string>();
+      const out: ProductCardData[] = [];
+      for (const r of (data ?? [])) {
+        const p: any = (r as any).products;
+        if (!p?.is_active || !p.thumbnail_url) continue;
+        if (p.id === product!.id) continue;
+        if (p.stock_status === "outofstock") continue;
+        if (seen.has(p.id)) continue;
+        seen.add(p.id);
+        out.push(p);
+        if (out.length >= 10) break;
+      }
+      return out;
+    },
+  });
+
+  // Parent of the product's first category — inserts the missing breadcrumb
+  // level when that category is a subcategory.
+  const firstCatParentSlug: string | null =
+    ((product?.product_categories ?? [])[0] as any)?.categories?.parent_slug ?? null;
+  const { data: parentCategory = null } = useQuery({
+    queryKey: ["cat-parent", firstCatParentSlug],
+    enabled: !!firstCatParentSlug,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("categories")
+        .select("slug, name")
+        .eq("slug", firstCatParentSlug!)
+        .maybeSingle();
+      return (data ?? null) as { slug: string; name: string } | null;
+    },
+  });
+
   if (isLoading) return <div className="container mx-auto px-4 py-20 text-center">טוען...</div>;
   if (!product) return <div className="container mx-auto px-4 py-20 text-center">המוצר לא נמצא</div>;
 
-  const gallery = [
-    ...(product.thumbnail_url ? [product.thumbnail_url] : []),
-    ...((product.product_images ?? [])
-      .sort((a: any, b: any) => a.sort_order - b.sort_order)
-      .map((i: any) => i.url)),
-  ];
-  const mainImg = activeImg || gallery[0];
+  // Dedupe (thumbnail_url often repeats inside product_images) and copy before
+  // sorting so the React Query cache object is never mutated — mirrors head().
+  const gallery: string[] = Array.from(
+    new Set<string>([
+      ...(product.thumbnail_url ? [product.thumbnail_url] : []),
+      ...((product.product_images ?? [])
+        .slice()
+        .sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+        .map((i: any) => i.url)
+        .filter(Boolean)),
+    ]),
+  );
   // If an in-place size variant is selected, use its price as the base.
   const effectiveBase = selectedVariant ? selectedVariant.price! : Number(product.price);
   const effective = getEffectivePrice(effectiveBase);
@@ -443,6 +570,38 @@ function ProductPage() {
   const isCallOnly = (product.product_categories ?? []).some(
     (pc: any) => pc?.categories?.slug === "esh-sheli-gold"
   );
+
+  // Favorites heart — rendered in every branch (regular, call-only and
+  // out-of-stock), since wishlisting an unavailable item is the feature's
+  // best use case.
+  const favSaved = hasFav(product.id);
+  const favButton = (
+    <button
+      type="button"
+      onClick={() => {
+        const wasAdded = toggleFav(product.id);
+        if (wasAdded) {
+          toast.success("נשמר במועדפים", {
+            action: { label: "למועדפים", onClick: () => navigate({ to: "/favorites" }) },
+          });
+        }
+      }}
+      aria-pressed={favSaved}
+      aria-label={favSaved ? "הסר מהמועדפים" : "הוסף למועדפים"}
+      className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-border hover:bg-muted transition-colors"
+    >
+      <Heart className={`h-5 w-5 ${favSaved ? "fill-accent text-accent" : "text-foreground/60"}`} />
+    </button>
+  );
+
+  // Filter at render too — the component instance is reused across client-side
+  // slug navigations, so state can briefly carry the previous product's list.
+  const recentToShow = recent.filter((r) => r.id !== product.id);
+
+  // Running breadcrumb positions — stay consecutive whether or not the
+  // parent-category li renders.
+  const categoryCrumbPos = parentCategory ? 4 : 3;
+  const productCrumbPos = firstCategory ? categoryCrumbPos + 1 : 3;
 
   function addToCart() {
     if (!product) return;
@@ -468,7 +627,7 @@ function ProductPage() {
   return (
     <div className="container mx-auto px-4 py-10">
       {/* Breadcrumb */}
-      <nav aria-label="ניווט ארוחות לחם" className="mb-4">
+      <nav aria-label="ניווט מיקום באתר" className="mb-4">
         <ol className="flex flex-wrap items-center gap-1.5 text-xs md:text-sm text-muted-foreground" itemScope itemType="https://schema.org/BreadcrumbList">
           <li itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
             <Link to="/" className="hover:text-accent transition-colors" itemProp="item">
@@ -483,6 +642,22 @@ function ProductPage() {
             </Link>
             <meta itemProp="position" content="2" />
           </li>
+          {parentCategory && (
+            <>
+              <li aria-hidden="true" className="text-muted-foreground/40">/</li>
+              <li itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
+                <Link
+                  to="/category/$slug"
+                  params={{ slug: parentCategory.slug }}
+                  className="hover:text-accent transition-colors"
+                  itemProp="item"
+                >
+                  <span itemProp="name">{parentCategory.name}</span>
+                </Link>
+                <meta itemProp="position" content="3" />
+              </li>
+            </>
+          )}
           {firstCategory && (
             <>
               <li aria-hidden="true" className="text-muted-foreground/40">/</li>
@@ -495,7 +670,7 @@ function ProductPage() {
                 >
                   <span itemProp="name">{firstCategory.name}</span>
                 </Link>
-                <meta itemProp="position" content="3" />
+                <meta itemProp="position" content={String(categoryCrumbPos)} />
               </li>
             </>
           )}
@@ -510,7 +685,7 @@ function ProductPage() {
                 aria-current="page"
               >
                 <span itemProp="name">{product.name}</span>
-                <meta itemProp="position" content={firstCategory ? "4" : "3"} />
+                <meta itemProp="position" content={String(productCrumbPos)} />
               </li>
             </>
           )}
@@ -523,55 +698,91 @@ function ProductPage() {
       <div className="grid md:grid-cols-2 gap-10">
         {/* Gallery */}
         <div>
-          <Dialog>
-            <DialogTrigger asChild>
-              <button
-                type="button"
-                className="group relative aspect-square w-full overflow-hidden rounded-lg border bg-gradient-to-br from-[#FAF6E9] to-white cursor-zoom-in"
-                aria-label="הגדל תמונה"
+          {gallery.length > 0 ? (
+            <Dialog>
+              <Carousel
+                dir="rtl"
+                opts={{ direction: "rtl", loop: true }}
+                setApi={setApi}
+                className="w-full overflow-hidden rounded-lg border border-gold/40 bg-cream"
               >
-                {mainImg && (
-                  <img
-                    src={mainImg}
-                    alt={product.name}
-                    className="h-full w-full object-contain p-4 transition-transform duration-500 group-hover:scale-105"
-                  />
-                )}
+                <CarouselContent>
+                  {gallery.map((url, i) => (
+                    <CarouselItem key={url}>
+                      <div className="aspect-square w-full">
+                        <img
+                          src={url}
+                          alt={`${product.name} — תמונה ${i + 1}`}
+                          // First slide is the page's LCP; the rest sit off-screen
+                          // in the strip until swiped to.
+                          loading={i === 0 ? "eager" : "lazy"}
+                          fetchPriority={i === 0 ? "high" : "auto"}
+                          decoding="async"
+                          className="h-full w-full object-contain p-4"
+                        />
+                      </div>
+                    </CarouselItem>
+                  ))}
+                </CarouselContent>
                 {hasDiscount && (
-                  <span className="absolute top-3 right-3 rounded-full bg-[#D4AF37] text-white text-xs font-bold px-3 py-1.5 shadow">
+                  <span className="absolute top-3 right-3 z-10 rounded-full bg-argaman text-white text-xs font-bold px-3 py-1.5 shadow pointer-events-none">
                     {discountPct}%- הנחה
                   </span>
                 )}
-                <span className="absolute bottom-3 left-3 rounded-full bg-white/90 backdrop-blur p-2 shadow opacity-0 group-hover:opacity-100 transition-opacity">
-                  <ZoomIn className="h-4 w-4 text-[#A8862A]" />
-                </span>
-              </button>
-            </DialogTrigger>
-            <DialogContent className="max-w-4xl p-2 bg-white">
-              <DialogTitle className="sr-only">{product.name}</DialogTitle>
-              {mainImg && (
-                <img
-                  src={mainImg}
-                  alt={product.name}
-                  className="h-auto w-full object-contain rounded"
-                />
-              )}
-            </DialogContent>
-          </Dialog>
+                <DialogTrigger asChild>
+                  <button
+                    type="button"
+                    className="absolute bottom-3 left-3 z-10 rounded-full bg-white/90 backdrop-blur p-2 shadow cursor-zoom-in hover:bg-white transition-colors"
+                    aria-label="הגדל תמונה"
+                  >
+                    <ZoomIn className="h-4 w-4 text-accent" />
+                  </button>
+                </DialogTrigger>
+                {gallery.length > 1 && (
+                  <>
+                    <CarouselPrevious className="right-2 top-1/2" />
+                    <CarouselNext className="left-2 top-1/2" />
+                  </>
+                )}
+              </Carousel>
+              <DialogContent className="max-w-4xl p-2 bg-white">
+                <DialogTitle className="sr-only">{product.name}</DialogTitle>
+                {/* Mounted only while the dialog is open, so startIndex opens on
+                    the slide the user was viewing. */}
+                <Carousel dir="rtl" opts={{ direction: "rtl", loop: true, startIndex: selectedIndex }}>
+                  <CarouselContent>
+                    {gallery.map((url, i) => (
+                      <CarouselItem key={url}>
+                        <img
+                          src={url}
+                          alt={`${product.name} — תמונה ${i + 1}`}
+                          className="h-auto w-full object-contain rounded"
+                        />
+                      </CarouselItem>
+                    ))}
+                  </CarouselContent>
+                  <CarouselPrevious className="right-2 top-1/2" />
+                  <CarouselNext className="left-2 top-1/2" />
+                </Carousel>
+              </DialogContent>
+            </Dialog>
+          ) : (
+            <div className="aspect-square w-full rounded-lg border border-gold/40 bg-cream" />
+          )}
           {gallery.length > 1 && (
             <div className="mt-3 flex gap-2 overflow-x-auto" role="group" aria-label="תמונות נוספות של המוצר">
               {gallery.map((url, idx) => (
                 <button
                   key={url}
                   type="button"
-                  onClick={() => setActiveImg(url)}
+                  onClick={() => api?.scrollTo(idx)}
                   aria-label={`הצג תמונה ${idx + 1} מתוך ${gallery.length}`}
-                  aria-pressed={mainImg === url}
-                  className={`h-20 w-20 flex-shrink-0 overflow-hidden rounded border-2 bg-white ${
-                    mainImg === url ? "border-[#D4AF37]" : "border-transparent"
+                  aria-pressed={idx === selectedIndex}
+                  className={`h-20 w-20 flex-shrink-0 overflow-hidden rounded-lg bg-white ${
+                    idx === selectedIndex ? "ring-2 ring-accent" : "ring-1 ring-border"
                   }`}
                 >
-                  <img src={url} alt="" className="h-full w-full object-contain p-1" />
+                  <img src={url} alt="" loading="lazy" decoding="async" className="h-full w-full object-contain p-1" />
                 </button>
               ))}
             </div>
@@ -580,7 +791,7 @@ function ProductPage() {
 
         {/* Details */}
         <div>
-          <h1 className="font-display text-2xl md:text-3xl font-bold mb-3">{product.name}</h1>
+          <h1 className="font-display text-3xl md:text-4xl font-bold mb-3">{product.name}</h1>
           {reviewSummary && reviewSummary.count > 0 && (
             <a href="#reviews" className="mb-3 inline-flex items-center gap-2 text-sm">
               <Stars value={reviewSummary.average} size={16} />
@@ -593,17 +804,17 @@ function ProductPage() {
 
           {/* Price block */}
           {isCallOnly ? (
-            <div className="mb-3 rounded-lg border border-[#D4AF37]/40 bg-[#FAF6E9] px-4 py-3">
-              <div className="text-lg font-bold text-[#A8862A]">המחיר משתנה לפי שער הזהב היומי</div>
+            <div className="mb-3 rounded-lg border border-gold/40 bg-cream px-4 py-3">
+              <div className="text-lg font-bold text-accent">המחיר משתנה לפי שער הזהב היומי</div>
               <div className="text-sm text-foreground mt-1">לקבלת הצעת מחיר עדכנית - צרו קשר בטלפון או בוואטסאפ</div>
             </div>
           ) : (
             <div className="flex items-baseline gap-3 mb-3 flex-wrap">
-              <span className="text-3xl font-bold text-[#A8862A]">{formatILS(effective)}</span>
+              <span className="text-3xl font-bold text-accent">{formatILS(effective)}</span>
               {hasDiscount && (
                 <>
                   <span className="text-lg text-muted-foreground line-through">{formatILS(original)}</span>
-                  <span className="rounded-full bg-[#D4AF37]/15 text-[#A8862A] text-xs font-bold px-2.5 py-1">
+                  <span className="rounded-full bg-argaman/10 text-argaman text-sm font-bold px-3 py-1">
                     חיסכון {formatILS(original - effective)}
                   </span>
                 </>
@@ -622,10 +833,10 @@ function ProductPage() {
                 אזל מהמלאי
               </span>
             )}
-            <div className="inline-flex items-center gap-1.5 text-sm text-foreground bg-[#FAF6E9] border border-[#D4AF37]/30 rounded-md px-2.5 py-1">
-              <Truck className="h-4 w-4 text-[#A8862A]" />
+            <div className="inline-flex items-center gap-1.5 text-sm text-foreground bg-cream border border-gold/50 rounded-md px-2.5 py-1">
+              <Truck className="h-4 w-4 text-accent" />
               <span>
-                דמי משלוח {formatILS(SHIPPING_FLAT)} (מתווספים בעגלה) • <span className="font-semibold text-[#A8862A]">זמן אספקה 3–14 ימי עסקים</span>
+                דמי משלוח {formatILS(SHIPPING_FLAT)} (מתווספים בעגלה) • <span className="font-semibold text-accent">זמן אספקה 3–14 ימי עסקים</span>
               </span>
 
             </div>
@@ -641,8 +852,8 @@ function ProductPage() {
 
           {/* Personalization (embroidery / laser engraving) */}
           {showEmbroidery && (
-            <div className="mb-5 rounded-lg border border-[#D4AF37]/30 bg-[#FAF6E9] p-4">
-              <Label htmlFor="embroidery" className="text-sm font-semibold text-[#A8862A]">
+            <div className="mb-5 rounded-lg border border-gold/40 bg-cream p-4">
+              <Label htmlFor="embroidery" className="text-sm font-semibold text-accent">
                 ✦ הוספת שם אישי על המוצר (אופציונלי)
               </Label>
               <Input
@@ -655,7 +866,7 @@ function ProductPage() {
               />
               {customText.trim() && !embroideryOnly && (
                 <div className="mt-3">
-                  <span className="block text-xs font-medium text-[#A8862A] mb-1.5">בחרו שיטת התאמה:</span>
+                  <span className="block text-xs font-medium text-accent mb-1.5">בחרו שיטת התאמה:</span>
                   <div className="flex gap-2">
                     {([
                       { value: "embroidery" as const, label: embroideryLabel },
@@ -671,8 +882,8 @@ function ProductPage() {
                           className={
                             "flex-1 rounded-md border px-3 py-2 text-sm transition " +
                             (active
-                              ? "border-[#D4AF37] bg-white text-[#A8862A] font-semibold shadow-sm"
-                              : "border-border bg-white/60 text-foreground hover:border-[#D4AF37]/60")
+                              ? "border-gold bg-white text-accent font-semibold shadow-sm"
+                              : "border-border bg-white/60 text-foreground hover:border-gold/60")
                           }
                           aria-pressed={active}
                         >
@@ -712,8 +923,8 @@ function ProductPage() {
                         className={
                           "px-3 py-1.5 rounded-md text-sm transition " +
                           (isActive
-                            ? "border-2 border-[#D4AF37] bg-[#FAF6E9] font-medium"
-                            : "border border-border bg-background hover:border-[#D4AF37] hover:bg-muted")
+                            ? "border-2 border-gold bg-cream font-medium"
+                            : "border border-border bg-background hover:border-gold hover:bg-muted")
                         }
                         aria-pressed={isActive}
                       >
@@ -726,7 +937,7 @@ function ProductPage() {
                   return isActive ? (
                     <span
                       key={v.id}
-                      className="px-3 py-1.5 rounded-md border-2 border-[#D4AF37] bg-[#FAF6E9] text-sm font-medium"
+                      className="px-3 py-1.5 rounded-md border-2 border-gold bg-cream text-sm font-medium"
                     >
                       {v.label}
                     </span>
@@ -735,7 +946,7 @@ function ProductPage() {
                       key={v.id}
                       to="/product/$slug"
                       params={{ slug: v.slug! }}
-                      className="px-3 py-1.5 rounded-md border border-border bg-background text-sm hover:border-[#D4AF37] hover:bg-muted transition"
+                      className="px-3 py-1.5 rounded-md border border-border bg-background text-sm hover:border-gold hover:bg-muted transition"
                     >
                       {v.label}
                     </Link>
@@ -748,14 +959,14 @@ function ProductPage() {
           {/* Qty + actions */}
           {isCallOnly ? (
             <div className="mb-3 space-y-3">
-              <div className="rounded-lg border border-[#D4AF37]/40 bg-white p-4 text-sm text-foreground">
-                <strong className="block text-[#A8862A] mb-1">להזמנת התכשיט:</strong>
+              <div className="rounded-lg border border-gold/40 bg-white p-4 text-sm text-foreground">
+                <strong className="block text-accent mb-1">להזמנת התכשיט:</strong>
                 ההזמנה והתשלום מתבצעים בשיחת טלפון או בפגישה במקום בלבד — לא ניתן לרכוש דרך האתר.
               </div>
               <div className="flex flex-wrap gap-3">
                 <a
                   href="tel:+972545818486"
-                  className="inline-flex items-center justify-center gap-2 rounded-md bg-[#D4AF37] hover:bg-[#A8862A] text-white font-semibold px-5 py-3 transition"
+                  className="inline-flex items-center justify-center gap-2 rounded-md bg-accent hover:bg-accent/90 text-accent-foreground font-semibold px-5 py-3 transition"
                 >
                   ☎ התקשרו עכשיו
                 </a>
@@ -767,12 +978,13 @@ function ProductPage() {
                 >
                   💬 שלחו וואטסאפ
                 </a>
+                {favButton}
               </div>
             </div>
           ) : (
             <div className="flex items-center gap-3 mb-3 flex-wrap">
-              <div className="inline-flex items-center rounded-md border">
-                <button onClick={() => setQty((q) => Math.max(1, q - 1))} className="px-3 py-2 hover:bg-muted" aria-label="הפחת">
+              <div className="inline-flex items-center overflow-hidden rounded-full border border-border">
+                <button onClick={() => setQty((q) => Math.max(1, q - 1))} disabled={qty <= 1} className="px-3 py-2 hover:bg-muted disabled:pointer-events-none disabled:opacity-50" aria-label="הפחת">
                   <Minus className="h-4 w-4" />
                 </button>
                 <span className="px-4 font-medium">{qty}</span>
@@ -786,11 +998,30 @@ function ProductPage() {
                 disabled={!inStock}
                 onClick={() => {
                   addToCart();
-                  toast.success(`${qty} × ${product.name} נוסף לעגלה`);
+                  const parts = [`נוסף לעגלה: ${qty} × ${product.name}`];
+                  if (selectedVariant?.label) parts.push(`גודל: ${selectedVariant.label}`);
+                  if (customText.trim()) {
+                    parts.push(
+                      customMethod === "embroidery"
+                        ? `${embroideryLabel}: ${customText.trim()}`
+                        : `חריטה: ${customText.trim()}`,
+                    );
+                  }
+                  // Give the toast an exit — without it the user is stranded
+                  // after it fades (worst on mobile / with personalization,
+                  // which can only be reviewed in the cart).
+                  toast.success(parts.join(" • "), {
+                    action: { label: "לצפייה בעגלה", onClick: () => navigate({ to: "/cart" }) },
+                  });
                 }}
                 className="gap-2"
               >
-                <ShoppingCart className="h-4 w-4" /> {inStock ? "הוסף לעגלה" : "אזל מהמלאי"}
+                <ShoppingCart className="h-4 w-4" />{" "}
+                {!inStock
+                  ? "אזל מהמלאי"
+                  : qty > 1
+                  ? `הוסף לעגלה — ${formatILS(effective * qty)}`
+                  : "הוסף לעגלה"}
               </Button>
               <Button
                 size="lg"
@@ -799,10 +1030,11 @@ function ProductPage() {
                   addToCart();
                   navigate({ to: "/checkout" });
                 }}
-                className="gap-2 bg-[#D4AF37] hover:bg-[#A8862A] text-white"
+                className="gap-2 bg-accent hover:bg-accent/90 text-accent-foreground"
               >
                 קנה עכשיו
               </Button>
+              {favButton}
             </div>
           )}
 
@@ -814,14 +1046,22 @@ function ProductPage() {
                 id: product.id,
                 slug: product.slug,
                 name: product.name,
-                price: product.price,
+                // Same base price + strike-through inputs the page CTA uses, so
+                // the bundle total never contradicts the price shown above it.
+                price: effectiveBase,
+                sale_price: baseSalePrice,
                 thumbnail_url: product.thumbnail_url,
+                // Keep the cart line tied to the size whose price is shown —
+                // checkout reprices by variantId, mirroring addToCart().
+                variantId: selectedVariant?.id,
+                variantLabel: selectedVariant?.label,
               }}
               addons={related.slice(0, 2).map((p) => ({
                 id: p.id,
                 slug: p.slug,
                 name: p.name,
                 price: p.price,
+                sale_price: p.sale_price,
                 thumbnail_url: p.thumbnail_url,
               }))}
             />
@@ -831,14 +1071,14 @@ function ProductPage() {
 
           {/* Trust strip */}
           <div className="mt-6 grid grid-cols-2 gap-3 text-xs text-muted-foreground">
-            <div className="flex items-center gap-2"><Truck className="h-4 w-4 text-[#D4AF37]" /> משלוח לכל הארץ</div>
-            <div className="flex items-center gap-2"><RotateCcw className="h-4 w-4 text-[#D4AF37]" /> 14 יום להחזרה</div>
+            <div className="flex items-center gap-2"><Truck className="h-4 w-4 text-accent" /> משלוח לכל הארץ</div>
+            <div className="flex items-center gap-2"><RotateCcw className="h-4 w-4 text-accent" /> 14 יום להחזרה</div>
           </div>
 
           {/* Accordion */}
           <Accordion type="single" collapsible className="mt-8" defaultValue="desc">
             {product.description && (
-              <AccordionItem value="desc">
+              <AccordionItem value="desc" className="border-gold/30">
                 <AccordionTrigger className="font-display text-base">תיאור המוצר</AccordionTrigger>
                 <AccordionContent>
                   <div
@@ -848,7 +1088,7 @@ function ProductPage() {
                 </AccordionContent>
               </AccordionItem>
             )}
-            <AccordionItem value="ship">
+            <AccordionItem value="ship" className="border-gold/30">
               <AccordionTrigger className="font-display text-base">משלוחים</AccordionTrigger>
               <AccordionContent>
                 <p className="text-sm text-muted-foreground leading-relaxed">
@@ -857,7 +1097,7 @@ function ProductPage() {
                 </p>
               </AccordionContent>
             </AccordionItem>
-            <AccordionItem value="ret">
+            <AccordionItem value="ret" className="border-gold/30">
               <AccordionTrigger className="font-display text-base">מדיניות החזרות וביטולים</AccordionTrigger>
               <AccordionContent>
                 <p className="text-sm text-muted-foreground leading-relaxed">
@@ -872,21 +1112,14 @@ function ProductPage() {
         </div>
       </div>
 
-      {/* Cross-sells — near the description */}
+      {/* Cross-sells — one carousel showing every fetched companion */}
       {related.length > 0 && (
-        <section className="mt-14">
-          <div className="flex items-end justify-between mb-5 border-b border-[#D4AF37]/30 pb-3">
-            <div>
-              <p className="text-[11px] tracking-[0.25em] text-[#A8862A] uppercase font-semibold mb-1">מוצרים נלווים</p>
-              <h2 className="font-display text-xl md:text-2xl font-bold text-foreground">
-                משלימים את הקנייה
-              </h2>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-5">
-            {related.slice(0, 4).map((p) => <ProductCard key={p.id} p={p} />)}
-          </div>
-        </section>
+        <ProductCarousel
+          eyebrow="מוצרים נלווים"
+          heading="משלימים את הקנייה"
+          items={related}
+          itemClassName="basis-1/2 md:basis-1/4 lg:basis-1/5"
+        />
       )}
 
       {/* Bundle offer — buy together and save */}
@@ -896,38 +1129,35 @@ function ProductPage() {
             id: product.id,
             slug: product.slug,
             name: product.name,
-            price: product.price,
+            // Same base price + strike-through inputs the page CTA uses, so
+            // the bundle total never contradicts the price shown above it.
+            price: effectiveBase,
+            sale_price: baseSalePrice,
             thumbnail_url: product.thumbnail_url,
+            // Keep the cart line tied to the size whose price is shown —
+            // checkout reprices by variantId, mirroring addToCart().
+            variantId: selectedVariant?.id,
+            variantLabel: selectedVariant?.label,
           }}
           addons={related.slice(0, 2).map((p) => ({
             id: p.id,
             slug: p.slug,
             name: p.name,
             price: p.price,
+            sale_price: p.sale_price,
             thumbnail_url: p.thumbnail_url,
           }))}
         />
       )}
 
-      {/* Also bought */}
-      {related.length > 4 && (
-        <section className="mt-16 relative">
-          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#D4AF37]/40 to-transparent" />
-          <div className="text-center pt-10 mb-8">
-            <p className="text-xs tracking-[0.3em] text-[#A8862A] uppercase mb-3 font-medium">לקוחות נוספים הוסיפו</p>
-            <h2 className="font-display text-2xl md:text-3xl font-bold text-foreground">
-              מוצרים שגם אהבו
-            </h2>
-            <div className="flex items-center justify-center gap-2 mt-4">
-              <span className="h-px w-12 bg-[#D4AF37]/40" />
-              <span className="text-[#D4AF37] text-lg">✦</span>
-              <span className="h-px w-12 bg-[#D4AF37]/40" />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
-            {related.slice(4, 8).map((p) => <ProductCard key={p.id} p={p} />)}
-          </div>
-        </section>
+      {/* Same-category recommendations */}
+      {similar.length >= 4 && (
+        <ProductCarousel eyebrow="עוד מהקטגוריה" heading="מוצרים דומים" items={similar} />
+      )}
+
+      {/* Recently viewed — local snapshots, zero extra queries */}
+      {recentToShow.length >= 2 && (
+        <ProductCarousel eyebrow="במיוחד בשבילך" heading="צפית לאחרונה" items={recentToShow} />
       )}
 
       {/* Customer reviews + star ratings */}

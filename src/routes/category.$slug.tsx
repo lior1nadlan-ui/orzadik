@@ -1,7 +1,9 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { getDiscountPct } from "@/lib/cart";
 import { ProductCard, ProductCardData } from "@/components/ProductCard";
+import { SubcategoryChips } from "@/components/catalog/SubcategoryChips";
 import {
   Select,
   SelectContent,
@@ -24,11 +26,11 @@ async function fetchCategoryWithRetry(slug: string, maxRetries = 2) {
     try {
       const { data: cat, error: catErr } = await supabase
         .from("categories")
-        .select("id, name, description, long_description, image_url")
+        .select("id, name, description, long_description, image_url, parent_slug")
         .eq("slug", slug)
         .maybeSingle();
       if (catErr) throw catErr;
-      if (!cat) return { cat: null, products: [] };
+      if (!cat) return { cat: null, parent: null, products: [] };
       // Page through explicitly: PostgREST caps an unbounded select at 1000
       // rows, and the largest category is already at 742 after the supplier
       // import. Left unbounded, a category that grows past 1000 would silently
@@ -46,7 +48,19 @@ async function fetchCategoryWithRetry(slug: string, maxRetries = 2) {
         if ((batch ?? []).length < PAGE) break;
       }
       const products = rows.map((r: any) => r.products).filter((p: any) => p?.is_active);
-      return { cat, products };
+      // Subcategories surface their parent level in the breadcrumb trail
+      // (visible nav + JSON-LD) — fetch it once here so crawlers get the full
+      // trail in the initial SSR HTML.
+      let parent: { slug: string; name: string } | null = null;
+      if (cat.parent_slug) {
+        const { data: parentRow } = await supabase
+          .from("categories")
+          .select("slug, name")
+          .eq("slug", cat.parent_slug)
+          .maybeSingle();
+        parent = parentRow ?? null;
+      }
+      return { cat, parent, products };
     } catch (err: any) {
       if (i === maxRetries || !["ECONNREFUSED", "ETIMEDOUT", "network"].some(m => String(err).includes(m))) {
         // Real error → route error boundary, not a soft-404 "category not found".
@@ -55,10 +69,14 @@ async function fetchCategoryWithRetry(slug: string, maxRetries = 2) {
       await new Promise(r => setTimeout(r, Math.pow(2, i) * 100));
     }
   }
-  return { cat: null, products: [] };
+  return { cat: null, parent: null, products: [] };
 }
 
 export const Route = createFileRoute("/category/$slug")({
+  validateSearch: (s: Record<string, unknown>): { sort?: string; instock?: boolean } => ({
+    sort: typeof s.sort === "string" ? s.sort : undefined,
+    instock: s.instock === true || s.instock === "true" ? true : undefined,
+  }),
   loader: async ({ params }) => {
     const result = await fetchCategoryWithRetry(params.slug);
     if (!result.cat) throw notFound(); // real HTTP 404 for non-existent categories
@@ -101,14 +119,19 @@ export const Route = createFileRoute("/category/$slug")({
         })),
       },
     };
+    // Surface the parent-category level on subcategory pages so the trail is
+    // בית / מוצרים / parent / cat — positions stay consecutive either way.
+    const parent = (loaderData?.parent ?? null) as { slug: string; name: string } | null;
+    const crumbs = [
+      { name: "בית", item: "https://orzadik.com/" },
+      { name: "מוצרים", item: "https://orzadik.com/shop" },
+      ...(parent ? [{ name: parent.name, item: `https://orzadik.com/category/${parent.slug}` }] : []),
+      { name: cat.name, item: url },
+    ];
     const breadcrumbLd = {
       "@context": "https://schema.org",
       "@type": "BreadcrumbList",
-      itemListElement: [
-        { "@type": "ListItem", position: 1, name: "בית", item: "https://orzadik.com/" },
-        { "@type": "ListItem", position: 2, name: "מוצרים", item: "https://orzadik.com/shop" },
-        { "@type": "ListItem", position: 3, name: cat.name, item: url },
-      ],
+      itemListElement: crumbs.map((c, i) => ({ "@type": "ListItem", position: i + 1, ...c })),
     };
 
     return {
@@ -136,22 +159,48 @@ export const Route = createFileRoute("/category/$slug")({
   component: CategoryPage,
 });
 
-type SortMode = "recommended" | "price-asc" | "price-desc" | "newest" | "oldest";
+type SortMode = "recommended" | "price-asc" | "price-desc" | "newest" | "oldest" | "discount" | "name";
+
+function isSortMode(v: unknown): v is SortMode {
+  return v === "recommended" || v === "price-asc" || v === "price-desc" || v === "newest"
+    || v === "oldest" || v === "discount" || v === "name";
+}
 
 type Row = ProductCardData & { is_active: boolean; stock_status: string; created_at: string };
 
 function CategoryPage() {
   const { slug } = Route.useParams();
-  const { cat: initialCat, products: initialProducts } = Route.useLoaderData();
-  const [sort, setSort] = useState<SortMode>("recommended");
-  const [inStockOnly, setInStockOnly] = useState(false);
+  const { cat: initialCat, products: initialProducts, parent } = Route.useLoaderData();
+  const { sort: sortFromUrl, instock: instockFromUrl } = Route.useSearch();
+  const navigate = Route.useNavigate();
+  // Seed from the URL so sorted/filtered views survive reload and sharing.
+  const [sort, setSort] = useState<SortMode>(isSortMode(sortFromUrl) ? sortFromUrl : "recommended");
+  const [inStockOnly, setInStockOnly] = useState(instockFromUrl ?? false);
+
+  const changeSort = (v: SortMode) => {
+    setSort(v);
+    navigate({
+      search: (prev) => ({ ...prev, sort: v === "recommended" ? undefined : v }),
+      replace: true,
+      resetScroll: false,
+    });
+  };
+
+  const changeInStockOnly = (v: boolean) => {
+    setInStockOnly(v);
+    navigate({
+      search: (prev) => ({ ...prev, instock: v ? true : undefined }),
+      replace: true,
+      resetScroll: false,
+    });
+  };
 
   const { data: cat } = useQuery({
     queryKey: ["cat", slug],
     queryFn: async () => {
       const { data } = await supabase
         .from("categories")
-        .select("id, name, description, long_description, image_url")
+        .select("id, name, description, long_description, image_url, parent_slug")
         .eq("slug", slug)
         .maybeSingle();
       return data;
@@ -198,18 +247,28 @@ function CategoryPage() {
       case "oldest":
         list.sort((a, b) => +new Date(a.created_at) - +new Date(b.created_at));
         break;
+      case "discount":
+        list.sort((a, b) => getDiscountPct(b.price, b.sale_price) - getDiscountPct(a.price, a.sale_price));
+        break;
+      case "name":
+        list.sort((a, b) => a.name.localeCompare(b.name, "he"));
+        break;
       default:
         // recommended: more expensive items first; within same price, older items first (newer items go to the back)
         list.sort((a, b) => (b.price - a.price) || (+new Date(a.created_at) - +new Date(b.created_at)));
         break;
     }
-    return list;
+    // Whatever the sort mode, out-of-stock items always sink to the end
+    // (stable partition — in-stock order is untouched).
+    const inStock = list.filter((p) => p.stock_status !== "outofstock");
+    const oos = list.filter((p) => p.stock_status === "outofstock");
+    return [...inStock, ...oos];
   }, [products, sort, inStockOnly]);
 
   return (
     <div className="pb-12">
       {/* Visible breadcrumb nav */}
-      <nav aria-label="ניווט ארוחות לחם" className="container mx-auto px-4 py-3">
+      <nav aria-label="ניווט מיקום באתר" className="container mx-auto px-4 py-3">
         <ol className="flex items-center gap-1.5 text-xs md:text-sm text-muted-foreground" itemScope itemType="https://schema.org/BreadcrumbList">
           <li itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
             <Link to="/" className="hover:text-accent transition-colors" itemProp="item">
@@ -224,6 +283,17 @@ function CategoryPage() {
             </Link>
             <meta itemProp="position" content="2" />
           </li>
+          {parent && (
+            <>
+              <li aria-hidden="true" className="text-muted-foreground/40">/</li>
+              <li itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
+                <Link to="/category/$slug" params={{ slug: parent.slug }} className="hover:text-accent transition-colors" itemProp="item">
+                  <span itemProp="name">{parent.name}</span>
+                </Link>
+                <meta itemProp="position" content="3" />
+              </li>
+            </>
+          )}
           {cat?.name && (
             <>
               <li aria-hidden="true" className="text-muted-foreground/40">/</li>
@@ -235,7 +305,7 @@ function CategoryPage() {
                 aria-current="page"
               >
                 <span itemProp="name">{cat.name}</span>
-                <meta itemProp="position" content="3" />
+                <meta itemProp="position" content={parent ? "4" : "3"} />
               </li>
             </>
           )}
@@ -250,19 +320,22 @@ function CategoryPage() {
               <img
                 src={heroImage}
                 alt={cat?.name ? `תמונת קטגוריה עבור ${cat.name}` : "תמונת קטגוריה"}
+                // Above-the-fold hero — the category page's LCP element.
+                fetchPriority="high"
+                decoding="async"
                 className="absolute inset-0 h-full w-full object-cover"
                 width={1600}
                 height={700}
               />
-              <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
+              <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-[#421720]/75 to-transparent" />
               <div className="absolute inset-x-0 bottom-0 px-4 pb-6 md:pb-10 text-center">
                 <h1
-                  className="font-display text-3xl md:text-6xl font-bold text-white tracking-wide"
+                  className="font-display text-3xl md:text-5xl font-bold text-cream tracking-wide"
                   style={{ textShadow: "0 2px 18px rgba(0,0,0,0.55), 0 1px 2px rgba(0,0,0,0.6)" }}
                 >
                   {cat?.name ?? slug}
                 </h1>
-                <div className="mx-auto mt-3 h-0.5 w-20 bg-primary" />
+                <div className="mx-auto mt-3 h-[3px] w-24 bg-gradient-to-r from-transparent via-[#C2A25E] to-transparent" />
               </div>
             </div>
             {cat?.description && (
@@ -278,7 +351,7 @@ function CategoryPage() {
             <h1 className="font-display text-3xl md:text-5xl font-bold text-foreground">
               {cat?.name ?? slug}
             </h1>
-            <div className="mx-auto mt-3 h-0.5 w-16 bg-primary" />
+            <div className="mx-auto mt-3 h-[3px] w-24 bg-gradient-to-r from-transparent via-[#C2A25E] to-transparent" />
             {cat?.description && (
               <p className="mt-4 max-w-2xl mx-auto text-sm md:text-base text-muted-foreground leading-relaxed">
                 {cat.description}
@@ -289,6 +362,15 @@ function CategoryPage() {
       </header>
 
       <div className="container mx-auto px-4 pt-8">
+        {/* Subcategory / sibling chips — restyled from here (gold outline, argaman
+            active) via scoped descendant overrides: SubcategoryChips is a shared
+            component other pages use, so its own classes stay untouched. The
+            active chip is targeted through the aria-current="page" attribute the
+            router puts on the link for the current category. */}
+        <div className="[&_a]:border-gold/60 [&_a]:bg-background [&_a]:text-foreground [&_a:hover]:border-accent [&_a[aria-current=page]]:bg-argaman [&_a[aria-current=page]]:border-argaman [&_a[aria-current=page]]:text-white">
+          <SubcategoryChips slug={slug} parentSlug={cat?.parent_slug ?? null} />
+        </div>
+
         {(slug === "study-books" || slug === "esh-sheli-gold") && products.length === 0 ? (
           <div className="max-w-2xl mx-auto my-12 text-center bg-gradient-to-b from-primary/5 to-transparent border border-primary/20 rounded-2xl p-10 md:p-14">
             <div className="mx-auto mb-5 w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
@@ -297,7 +379,7 @@ function CategoryPage() {
             <h2 className="font-display text-2xl md:text-3xl font-bold mb-3">
               המוצרים בקטגוריה זו בדרך אליכם
             </h2>
-            <div className="mx-auto mb-5 h-0.5 w-16 bg-primary" />
+            <div className="mx-auto mb-5 h-[3px] w-16 bg-gradient-to-r from-transparent via-[#C2A25E] to-transparent" />
             <p className="text-muted-foreground leading-relaxed">
               אנו עובדים בימים אלו על העלאת המוצרים בקטגוריית <span className="font-semibold text-foreground">{cat?.name ?? ""}</span>.
               <br />
@@ -311,21 +393,27 @@ function CategoryPage() {
               <p className="text-sm text-muted-foreground">{visible.length} מוצרים</p>
               <div className="flex flex-wrap items-center gap-4">
                 <label className="flex items-center gap-2 text-sm cursor-pointer">
-                  <Checkbox checked={inStockOnly} onCheckedChange={(v) => setInStockOnly(!!v)} />
+                  <Checkbox
+                    checked={inStockOnly}
+                    onCheckedChange={(v) => changeInStockOnly(!!v)}
+                    className="data-[state=checked]:bg-accent data-[state=checked]:border-accent data-[state=checked]:text-accent-foreground"
+                  />
                   במלאי בלבד
                 </label>
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-muted-foreground">מיון:</span>
-                  <Select value={sort} onValueChange={(v) => setSort(v as SortMode)}>
-                    <SelectTrigger className="w-[200px]">
+                  <Select value={sort} onValueChange={(v) => changeSort(v as SortMode)}>
+                    <SelectTrigger className="w-[200px] h-10 rounded-lg border-border">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="recommended">מומלצים</SelectItem>
+                      <SelectItem value="discount">מבצעים</SelectItem>
                       <SelectItem value="price-asc">מחיר: מהנמוך לגבוה</SelectItem>
                       <SelectItem value="price-desc">מחיר: מהגבוה לנמוך</SelectItem>
                       <SelectItem value="newest">תאריך: מהחדש לישן</SelectItem>
                       <SelectItem value="oldest">תאריך: מהישן לחדש</SelectItem>
+                      <SelectItem value="name">א-ב</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -347,8 +435,8 @@ function CategoryPage() {
         {cat?.long_description && (
           <section className="mt-16 max-w-3xl mx-auto text-center">
             <h2 className="font-display text-2xl font-bold mb-3">קצת על {cat.name}</h2>
-            <div className="mx-auto mb-5 h-0.5 w-12 bg-primary" />
-            <p className="text-sm md:text-base text-muted-foreground leading-relaxed whitespace-pre-line">
+            <div className="mx-auto mb-5 h-[3px] w-12 bg-gradient-to-r from-transparent via-[#C2A25E] to-transparent" />
+            <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
               {cat.long_description}
             </p>
           </section>
@@ -361,9 +449,9 @@ function CategoryPage() {
             <h2 className="font-display text-2xl font-bold mb-5 text-center">שאלות נפוצות — {cat.name}</h2>
             <Accordion type="single" collapsible className="w-full">
               {categoryFaq(cat.name).map((item, i) => (
-                <AccordionItem key={i} value={`faq-${i}`}>
-                  <AccordionTrigger className="text-right font-medium">{item.q}</AccordionTrigger>
-                  <AccordionContent className="text-muted-foreground leading-relaxed">
+                <AccordionItem key={i} value={`faq-${i}`} className="border-gold/30">
+                  <AccordionTrigger className="text-right font-display text-base">{item.q}</AccordionTrigger>
+                  <AccordionContent className="text-sm text-muted-foreground leading-relaxed">
                     {item.a}
                   </AccordionContent>
                 </AccordionItem>

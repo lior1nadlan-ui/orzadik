@@ -119,7 +119,7 @@ function AdminProducts() {
             {filtered.map((p) => (
               <tr key={p.id} className="border-t">
                 <td className="p-2">
-                  {p.thumbnail_url && <img src={p.thumbnail_url} alt="" className="h-12 w-12 rounded object-cover" />}
+                  {p.thumbnail_url && <img src={p.thumbnail_url} alt="" loading="lazy" decoding="async" className="h-12 w-12 rounded object-cover" />}
                 </td>
                 <td className="p-3 max-w-xs"><div className="line-clamp-2">{p.name}</div></td>
                 <td className="p-3 whitespace-nowrap">{formatILS(p.sale_price ?? p.price)}</td>

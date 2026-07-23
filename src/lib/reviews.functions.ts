@@ -95,6 +95,23 @@ export const getProductReviews = createServerFn({ method: "POST" })
     return { summary: { average, count }, reviews };
   });
 
+// ---- Public: recent approved reviews for the homepage ----------------------
+
+export const getRecentApprovedReviews = createServerFn({ method: "POST" }).handler(async () => {
+  const { data, error } = await supabaseAdmin
+    .from("reviews")
+    .select("id, author_name, rating, title, body, created_at, products(name, slug)")
+    .eq("is_approved", true)
+    .not("body", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(12);
+  if (error) {
+    console.error("[getRecentApprovedReviews]:", error);
+    return [];
+  }
+  return data ?? [];
+});
+
 // ---- Admin: moderation -----------------------------------------------------
 
 // requireAdmin moved to admin-authz.server.ts — shared with the CRM functions.

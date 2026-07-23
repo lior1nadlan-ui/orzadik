@@ -11,7 +11,16 @@ export type BundleProduct = {
   slug: string;
   name: string;
   price: number;
+  /** Genuine recorded former price — drives the honest strike-through total. */
+  sale_price: number | null;
   thumbnail_url: string | null;
+  /**
+   * When `price` is a size variant's price, these carry the variant onto the
+   * cart line — checkout reprices from the DB, so a line missing variantId
+   * would be charged the base product price instead of the displayed one.
+   */
+  variantId?: string;
+  variantLabel?: string;
 };
 
 // The set is a "frequently bought together" convenience. Items are added to
@@ -36,7 +45,7 @@ export function BundleOffer({
 
   const all = useMemo(() => [main, ...addons], [main, addons]);
   const chosen = all.filter((p) => selected[p.id]);
-  const totalBase = chosen.reduce((s, p) => s + getDisplayOriginal(p.price), 0);
+  const totalBase = chosen.reduce((s, p) => s + getDisplayOriginal(p.price, p.sale_price), 0);
   const totalEff = chosen.reduce((s, p) => s + getEffectivePrice(p.price), 0);
 
   function addBundle() {
@@ -50,7 +59,10 @@ export function BundleOffer({
         slug: p.slug,
         name: p.name,
         price: p.price,
+        salePrice: p.sale_price,
         thumbnail: p.thumbnail_url,
+        variantId: p.variantId,
+        variantLabel: p.variantLabel,
       });
     }
     toast.success(`${chosen.length} פריטים נוספו לעגלה`);
@@ -89,7 +101,7 @@ export function BundleOffer({
                   }
                 >
                   {p.thumbnail_url ? (
-                    <img src={p.thumbnail_url} alt={p.name} className="h-full w-full object-contain p-0.5" />
+                    <img src={p.thumbnail_url} alt={p.name} loading="lazy" decoding="async" className="h-full w-full object-contain p-0.5" />
                   ) : null}
                 </Link>
                 <div className="absolute -top-1 -right-1 bg-white rounded border border-border shadow-sm">
@@ -157,7 +169,7 @@ export function BundleOffer({
                   className="block h-24 w-24 md:h-28 md:w-28 rounded-lg overflow-hidden bg-white border border-border/60 hover:border-[#D4AF37] transition"
                 >
                   {p.thumbnail_url ? (
-                    <img src={p.thumbnail_url} alt={p.name} className="h-full w-full object-contain p-1" />
+                    <img src={p.thumbnail_url} alt={p.name} loading="lazy" decoding="async" className="h-full w-full object-contain p-1" />
                   ) : null}
                 </Link>
                 <div className="absolute -top-1.5 -right-1.5 bg-white rounded-md border border-border shadow-sm p-0.5">
