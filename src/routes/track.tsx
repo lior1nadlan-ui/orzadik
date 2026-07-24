@@ -6,6 +6,7 @@ import { trackOrder } from "@/lib/order.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PageHeader } from "@/components/PageHeader";
 import { Check, Package, CreditCard, ClipboardList, Home } from "lucide-react";
 
 export const Route = createFileRoute("/track")({
@@ -82,15 +83,14 @@ function TrackPage() {
 
   return (
     <div className="container mx-auto px-4 py-12 max-w-2xl">
-      <h1 className="font-display text-3xl md:text-4xl font-bold text-center text-foreground">
-        מעקב הזמנה
-      </h1>
-      <p className="mt-2 text-center text-sm text-muted-foreground">
-        הזינו את מספר ההזמנה ואת כתובת הדוא"ל שאיתה בוצעה ההזמנה.
-      </p>
+      <PageHeader
+        eyebrow="שירות ומעקב"
+        title="מעקב הזמנה"
+        sub={'הזינו את מספר ההזמנה ואת כתובת הדוא"ל שאיתה בוצעה ההזמנה.'}
+      />
 
       <form
-        className="mt-8 glass p-6 space-y-4"
+        className="glass p-6 space-y-4"
         onSubmit={(e) => {
           e.preventDefault();
           mutation.mutate({ order_number: orderNumber.trim(), email: email.trim() });
@@ -150,10 +150,17 @@ function TrackPage() {
             {order.is_gift && <span className="text-sm text-accent">🎁 נארזת כמתנה</span>}
           </div>
 
+          {/* Payment-pending notice — a calm hairline + muted surface, not a
+              scarcity colour. Raw amber (border-amber-400 / bg-amber-50 /
+              text-amber-900) is off the palette; the emphasis is carried by
+              --accent, the only gold allowed for text. */}
           {paymentStuck && (
-            <div className="mt-4 rounded-md border border-amber-400 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-              ההזמנה ממתינה לתשלום. אם ביטלתם בטעות, ניתן לחזור לעגלה ולהשלים את
-              התשלום או ליצור איתנו קשר.
+            <div className="mt-4 flex items-start gap-2.5 rounded-lg hairline bg-muted/50 px-4 py-3 text-sm text-foreground">
+              <CreditCard className="h-4 w-4 shrink-0 mt-0.5 text-accent" aria-hidden="true" />
+              <p className="leading-relaxed">
+                <span className="font-semibold text-accent">ההזמנה ממתינה לתשלום.</span>{" "}
+                אם ביטלתם בטעות, ניתן לחזור לעגלה ולהשלים את התשלום או ליצור איתנו קשר.
+              </p>
             </div>
           )}
 

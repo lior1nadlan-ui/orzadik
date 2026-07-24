@@ -1,6 +1,18 @@
 import { Link } from "@tanstack/react-router";
 import { Clock, ArrowRight } from "lucide-react";
 
+/**
+ * A branded stand-in for a missing `featured_image`. Every seeded article has a
+ * null image today, so a bare-text card reads as broken. This mirrors the exact
+ * composition of --gradient-hero (styles.css) — a gold radial + a cool argaman
+ * radial over a near-white base — but scaled to a small panel, so the ✦ ornament
+ * (the about-page motif) sits on the same light mesh the rest of the site uses.
+ * Kept as a plain string (not a class) so the multi-layer background survives
+ * SSR untouched and the identical value can be reused by the article hero.
+ */
+export const ARTICLE_FALLBACK_BG =
+  "radial-gradient(115% 130% at 50% -15%, rgba(194,162,94,0.16), transparent 60%), radial-gradient(90% 120% at 12% 8%, rgba(126,145,190,0.10), transparent 62%), linear-gradient(180deg, #FFFFFF, #F7F8FA)";
+
 interface ArticleCardProps {
   slug: string;
   title_he: string;
@@ -52,8 +64,11 @@ export function ArticleCard({
       to={`/articles/${slug}`}
       className="glass glass-lift group block h-full overflow-hidden"
     >
-      {/* Featured image */}
-      {featured_image && (
+      {/* Featured image — or, when none is set, a branded mesh + ✦ panel so the
+          card still reads as intentional. Both branches occupy the SAME
+          aspect-video box, so a grid mixing imaged and image-less articles stays
+          on one baseline. */}
+      {featured_image ? (
         <div className="relative overflow-hidden bg-muted aspect-video">
           <img
             src={featured_image}
@@ -61,6 +76,18 @@ export function ArticleCard({
             className="w-full h-full object-cover transition-transform duration-200 ease-out motion-safe:[@media(hover:hover)_and_(pointer:fine)]:group-hover:scale-105"
             loading="lazy"
           />
+        </div>
+      ) : (
+        <div
+          className="relative flex aspect-video items-center justify-center overflow-hidden"
+          style={{ backgroundImage: ARTICLE_FALLBACK_BG }}
+          aria-hidden="true"
+        >
+          <span className="flex items-center gap-2.5">
+            <span className="gold-rule w-8" />
+            <span className="text-gold text-lg tracking-[0.35em]">✦</span>
+            <span className="gold-rule w-8" />
+          </span>
         </div>
       )}
 

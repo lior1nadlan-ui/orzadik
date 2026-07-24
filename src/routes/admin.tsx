@@ -2,6 +2,7 @@ import { createFileRoute, Outlet, Link, useNavigate, useRouterState, redirect } 
 import { useEffect } from "react";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
+import { CardSkeleton } from "@/components/Skeletons";
 import { Package, FolderTree, ShoppingBag, ShoppingCart, LayoutDashboard, Star, Users, Mail } from "lucide-react";
 
 export const Route = createFileRoute("/admin")({
@@ -51,7 +52,14 @@ function AdminLayout() {
   // in flight (user present but isAdmin not yet true). beforeLoad guarantees a
   // non-admin never reaches this component.
   if (loading || (user && !isAdmin)) {
-    return <div className="container mx-auto px-4 py-20 text-center">טוען...</div>;
+    // Keep the panel's sidebar + content footprint while auth/role resolves,
+    // instead of a bare one-line loader that collapses the layout.
+    return (
+      <div className="container mx-auto px-4 py-6 grid lg:grid-cols-[220px_1fr] gap-6">
+        <CardSkeleton className="min-h-[16rem]" />
+        <CardSkeleton className="min-h-[24rem]" />
+      </div>
+    );
   }
   if (!user) return <div className="container mx-auto px-4 py-20 text-center">אין הרשאה</div>;
 

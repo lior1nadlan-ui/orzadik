@@ -17,14 +17,28 @@ export function ProductThumb({
   alt,
   width = 400,
   className = "",
+  sizes,
   priority = false,
+  eager,
+  highPriority,
   placeholderClassName = "flex h-full items-center justify-center text-muted-foreground text-sm",
 }: {
   url: string | null | undefined;
   alt: string;
   width?: number;
   className?: string;
+  /** srcset `sizes` hint; only used when a responsive srcSet is actually emitted. */
+  sizes?: string;
+  /**
+   * Legacy single knob: sets BOTH eager loading and high fetchPriority. Kept so
+   * existing callers keep their exact behaviour; `eager`/`highPriority` below
+   * each override it independently when a caller wants to decouple the two.
+   */
   priority?: boolean;
+  /** Load eagerly (an above-the-fold row). Falls back to `priority` when unset. */
+  eager?: boolean;
+  /** fetchPriority="high" (only the 1–2 LCP tiles). Falls back to `priority` when unset. */
+  highPriority?: boolean;
   placeholderClassName?: string;
 }) {
   const [stage, setStage] = useState(0);
@@ -33,7 +47,28 @@ export function ProductThumb({
     return <div className={placeholderClassName}>אין תמונה</div>;
   }
 
-  const src = stage === 0 ? (thumbUrl(url, width) ?? url) : url;
+  // stage 0 serves the width-capped render transform; stage 1 falls back to the
+  // original object URL. thumbUrl returns the input untouched for anything that
+  // is not a Supabase public-object URL, so `didTransform` is the SAME guard
+  // LuxuryShowcase uses before offering a srcSet.
+  const rendered = thumbUrl(url, width);
+  const didTransform = rendered != null && rendered !== url;
+  const src = stage === 0 ? (rendered ?? url) : url;
+
+  // Only offer a responsive srcSet on the transform stage and only when the URL
+  // was actually rewritten — otherwise every candidate would be the same
+  // original at one size. The width=400 transform stays as the plain src
+  // fallback for browsers that ignore srcset.
+  const srcSet =
+    stage === 0 && didTransform
+      ? [200, 400, 600, 800].map((w) => `${thumbUrl(url, w)} ${w}w`).join(", ")
+      : undefined;
+
+  // eager and fetchPriority are decoupled: an above-the-fold ROW can load eager
+  // while only the first 1–2 tiles claim high fetchPriority. Both default to the
+  // legacy `priority` flag so untouched callers keep their current behaviour.
+  const isEager = eager ?? priority;
+  const isHigh = highPriority ?? priority;
 
   return (
     <img
@@ -41,9 +76,15 @@ export function ProductThumb({
       // reusing the errored image element.
       key={stage}
       src={src}
+      srcSet={srcSet}
+      sizes={srcSet ? (sizes ?? "(max-width:640px) 45vw, (max-width:1024px) 30vw, 220px") : undefined}
       alt={alt}
-      loading={priority ? "eager" : "lazy"}
-      fetchPriority={priority ? "high" : "auto"}
+      // Catalogue thumbnails are square; the intrinsic dims reserve the box and
+      // kill layout shift. The container's own sizing still drives display size.
+      width={width}
+      height={width}
+      loading={isEager ? "eager" : "lazy"}
+      fetchPriority={isHigh ? "high" : "auto"}
       decoding="async"
       onError={() => setStage((s) => s + 1)}
       className={className}

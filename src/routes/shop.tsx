@@ -11,6 +11,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Breadcrumb } from "@/components/Breadcrumb";
+import { ProductGridSkeleton } from "@/components/Skeletons";
 
 type ShopSort = "newest" | "price-asc" | "price-desc" | "name";
 
@@ -144,11 +147,14 @@ async function fetchShopPage(opts: {
 
 export const Route = createFileRoute("/shop")({
   component: ShopPage,
-  validateSearch: (s: Record<string, unknown>): { q?: string; sort?: ShopSort; page?: number } => ({
+  validateSearch: (s: Record<string, unknown>): { q?: string; sort?: ShopSort; page?: number; instock?: boolean } => ({
     q: typeof s.q === "string" ? s.q : undefined,
     // Unknown values narrow to undefined and render as the default ("newest").
     sort: isShopSort(s.sort) ? s.sort : undefined,
     page: parsePage(s.page),
+    // Client-side view filter only (see displayProducts) — deliberately kept OUT
+    // of loaderDeps, so toggling it never re-runs the SSR loader or refetches.
+    instock: s.instock === true || s.instock === "true" ? true : undefined,
   }),
   loaderDeps: ({ search }) => ({
     q: search.q ?? "",
@@ -210,7 +216,9 @@ export const Route = createFileRoute("/shop")({
       "@type": "BreadcrumbList",
       itemListElement: [
         { "@type": "ListItem", position: 1, name: "בית", item: `${SITE}/` },
-        { "@type": "ListItem", position: 2, name: "חנות", item: `${SITE}/shop` },
+        // "מוצרים" — matches the visible trail below and the /shop node label the
+        // category route already emits, so one URL isn't named two ways.
+        { "@type": "ListItem", position: 2, name: "מוצרים", item: `${SITE}/shop` },
       ],
     };
 
@@ -239,11 +247,14 @@ export const Route = createFileRoute("/shop")({
 });
 
 function ShopPage() {
-  const { q: qFromUrl, sort: sortFromUrl, page: pageFromUrl } = Route.useSearch();
+  const { q: qFromUrl, sort: sortFromUrl, page: pageFromUrl, instock: instockFromUrl } = Route.useSearch();
   const loaderData = Route.useLoaderData();
   const navigate = Route.useNavigate();
   const [q, setQ] = useState(qFromUrl || "");
   const [debouncedQ, setDebouncedQ] = useState(qFromUrl || "");
+  // "In stock only" is a client-side view filter over the loaded pages, seeded
+  // from the URL so it survives reload/share (mirrors /category's instock).
+  const [inStockOnly, setInStockOnly] = useState(instockFromUrl ?? false);
   // Sort is read straight off the URL (not mirrored into state) so the route
   // loader, the head tags and the query key can never disagree about it.
   const sort: ShopSort = sortFromUrl ?? "newest";
@@ -255,6 +266,11 @@ function ShopPage() {
     setDebouncedQ(qFromUrl || "");
   }, [qFromUrl]);
 
+  // Keep the checkbox in step with the URL on back/forward.
+  useEffect(() => {
+    setInStockOnly(instockFromUrl ?? false);
+  }, [instockFromUrl]);
+
   const changeSort = (v: ShopSort) => {
     navigate({
       // A different order means a different page 1 — drop ?page= so the user
@@ -263,6 +279,29 @@ function ShopPage() {
       replace: true,
       resetScroll: false,
     });
+  };
+
+  const changeInStockOnly = (v: boolean) => {
+    setInStockOnly(v);
+    navigate({
+      search: (prev) => ({ ...prev, instock: v ? true : undefined }),
+      replace: true,
+      resetScroll: false,
+    });
+  };
+
+  // Clear the active search: reset the box + debounced term, and drop ?q= (and
+  // ?page=, which belonged to that search) from the URL when present.
+  const clearSearch = () => {
+    setQ("");
+    setDebouncedQ("");
+    if ((qFromUrl ?? "").trim()) {
+      navigate({
+        search: (prev) => ({ ...prev, q: undefined, page: undefined }),
+        replace: true,
+        resetScroll: false,
+      });
+    }
   };
 
   // Debounce keystrokes so we hit the DB at most a few times per search.
@@ -300,6 +339,14 @@ function ShopPage() {
   });
 
   const products = data?.pages.flatMap((p) => p.rows) ?? [];
+  // Client-side "in stock only" view filter. /shop is server-paged — the
+  // collapse RPC hands back 24 rows at a time with its own total and takes no
+  // stock argument — so this can only hide out-of-stock tiles from the pages
+  // already loaded. The catalog total and the load-more math below stay keyed
+  // off the unfiltered server result on purpose.
+  const displayProducts = inStockOnly
+    ? products.filter((p) => p.stock_status !== "outofstock")
+    : products;
   // Total across the whole result set, not just what has been loaded.
   const total = data?.pages[0]?.total ?? 0;
   // Echo the user's raw input in copy — the sanitized term may contain
@@ -311,10 +358,11 @@ function ShopPage() {
   // "load more" twice does not get a link back to products they can see.
   const nextPage = Math.min(MAX_PAGE, Math.floor((pageStart + products.length) / PAGE) + 1);
   const hasMorePages = pageStart + products.length < total;
-  const pageSearch = (n: number): { q?: string; sort?: ShopSort; page?: number } => ({
+  const pageSearch = (n: number): { q?: string; sort?: ShopSort; page?: number; instock?: boolean } => ({
     q: activeQ || undefined,
     sort: sort === "newest" ? undefined : sort,
     page: n <= 1 ? undefined : n,
+    instock: inStockOnly ? true : undefined,
   });
   // Glass-era pagination chip. No gold anywhere on /shop by design — this page
   // scores Lighthouse Accessibility 100 precisely because it contains none, and
@@ -327,17 +375,28 @@ function ShopPage() {
 
   return (
     <div className="container mx-auto px-4 py-10">
+      {/* Location trail + title band. Note the pagination-chip comment further
+          down: /shop is deliberately gold-free (it scores Lighthouse A11y 100
+          for it), so this is a plain ink title band, NOT the gold-ruled
+          PageHeader the rest of the site adopts — and the toolbar's own h1 is
+          retired in favour of this single one. */}
+      <Breadcrumb items={[{ label: "בית", to: "/" }, { label: "מוצרים" }]} />
+      <div className="mt-4 mb-8 text-center">
+        <h1 className="font-display text-3xl md:text-4xl tracking-wide text-foreground">כל המוצרים</h1>
+        <p className="mt-3 text-sm md:text-base text-muted-foreground max-w-xl mx-auto">
+          כל תשמישי הקדושה והיודאיקה של אור זרוע לצדיק במקום אחד.
+        </p>
+      </div>
+
       {/* Toolbar as a single glass pane over the light ground. .glass owns
           background-color, border-radius and box-shadow (see the override
           contract in styles.css) — retune it through its variables, not through
-          background or radius utilities, which it outranks. */}
-      <div className="glass mb-8 flex flex-wrap items-end justify-between gap-4 p-5 md:p-6 [--glass-radius:1.25rem]">
-        <div>
-          <h1 className="font-display text-3xl md:text-4xl font-bold">כל המוצרים</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {term ? `${total} תוצאות עבור "${rawTerm}"` : `${total} מוצרים`}
-          </p>
-        </div>
+          background or radius utilities, which it outranks. Controls mirror
+          /category: result count, then search + 'במלאי בלבד' + sort. */}
+      <div className="glass mb-8 flex flex-wrap items-center justify-between gap-4 p-5 md:p-6 [--glass-radius:1.25rem]">
+        <p className="text-sm text-muted-foreground">
+          {term ? `${total} תוצאות עבור "${rawTerm}"` : `${total} מוצרים`}
+        </p>
         <div className="flex flex-wrap items-center gap-4">
           <Input
             placeholder="חיפוש מוצר..."
@@ -345,17 +404,26 @@ function ShopPage() {
             onChange={(e) => setQ(e.target.value)}
             className="max-w-xs"
           />
+          {/* Default (ink --primary) checkbox — no accent override, so /shop
+              stays gold-free. */}
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <Checkbox
+              checked={inStockOnly}
+              onCheckedChange={(v) => changeInStockOnly(!!v)}
+            />
+            במלאי בלבד
+          </label>
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground">מיון:</span>
             <Select value={sort} onValueChange={(v) => changeSort(v as ShopSort)}>
               {/* Radix renders a <button role="combobox"> whose only content is
                   the current value, which axe reports as a button with no
                   accessible name. */}
-              <SelectTrigger className="w-[180px]" aria-label="מיון תוצאות">
+              <SelectTrigger className="w-[200px]" aria-label="מיון תוצאות">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="newest">החדשים ביותר</SelectItem>
+                <SelectItem value="newest">תאריך: מהחדש לישן</SelectItem>
                 <SelectItem value="price-asc">מחיר: מהנמוך לגבוה</SelectItem>
                 <SelectItem value="price-desc">מחיר: מהגבוה לנמוך</SelectItem>
                 <SelectItem value="name">א-ב</SelectItem>
@@ -365,16 +433,11 @@ function ShopPage() {
         </div>
       </div>
       {isLoading ? (
-        // Skeleton panes: quiet surface + hairline ring, matching the glass
-        // vocabulary without the cost of 8 simultaneous backdrop-filters.
-        // animate-pulse animates opacity ONLY — nothing moves — so it is already
-        // correct under prefers-reduced-motion, which keeps opacity and drops
-        // movement. Do not swap this for a translating shimmer.
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="aspect-square animate-pulse rounded-2xl bg-muted hairline" />
-          ))}
-        </div>
+        // Shared product-grid skeleton: same columns + tile height as the real
+        // grid, so real cards drop in with zero CLS. animate-pulse animates
+        // opacity ONLY — nothing moves — so it already satisfies
+        // prefers-reduced-motion (keep opacity, drop movement).
+        <ProductGridSkeleton count={8} />
       ) : isError ? (
         <div className="py-20 text-center space-y-3">
           <p className="text-muted-foreground">אירעה שגיאה בטעינת המוצרים. בדקו את החיבור ונסו שוב.</p>
@@ -386,16 +449,45 @@ function ShopPage() {
           </button>
         </div>
       ) : products.length === 0 ? (
-        <div className="py-20 text-center text-muted-foreground">
-          לא נמצאו מוצרים{term ? ` עבור "${rawTerm}"` : ""}. נסו מונח חיפוש אחר.
+        // Designed glass empty state (icon + display heading + body), kept
+        // gold-free per the /shop invariant. /category renders the same card so
+        // the two discovery pages read consistently. The 'נקה חיפוש' chip is
+        // ink-on-white for the same gold-free reason.
+        <div className="glass max-w-2xl mx-auto my-12 text-center p-10 md:p-14 [--glass-radius:1.5rem]">
+          <div className="mx-auto mb-5 w-14 h-14 rounded-full bg-secondary hairline flex items-center justify-center">
+            <span className="text-3xl">🔍</span>
+          </div>
+          <h2 className="font-display text-2xl md:text-3xl font-bold mb-3">לא נמצאו מוצרים</h2>
+          <p className="text-muted-foreground leading-relaxed">
+            {term ? (
+              <>לא מצאנו תוצאות עבור <span className="font-semibold text-foreground">"{rawTerm}"</span>. נסו מונח חיפוש אחר.</>
+            ) : (
+              "לא נמצאו מוצרים תואמים כרגע. נסו שוב מאוחר יותר."
+            )}
+          </p>
+          {term && (
+            <button
+              onClick={clearSearch}
+              className="press mt-6 rounded-full bg-card/70 px-6 py-2.5 text-sm font-medium text-foreground hairline transition-[background-color,color,transform] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:text-background"
+            >
+              נקה חיפוש
+            </button>
+          )}
         </div>
       ) : (
         <>
           <div className={`grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 transition-opacity duration-200 ease-out ${isFetching ? "opacity-60" : ""}`}>
-            {products.map((p, i) => (
-              <ProductCard key={p.id} p={p} priority={i < 8} />
+            {displayProducts.map((p, i) => (
+              <ProductCard key={p.id} p={p} eager={i < 4} highPriority={i < 2} />
             ))}
           </div>
+          {/* The in-stock view filter hides tiles from the loaded pages; if it
+              empties them all, say so rather than showing a blank grid. */}
+          {inStockOnly && displayProducts.length === 0 && (
+            <p className="py-10 text-center text-muted-foreground">
+              אין מוצרים במלאי בין התוצאות שנטענו.
+            </p>
+          )}
           {hasNextPage && (
             <div className="mt-10 text-center">
               <button

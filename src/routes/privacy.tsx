@@ -1,5 +1,25 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { BUSINESS } from "@/lib/business";
+import { BUSINESS, LEGAL_LAST_UPDATED } from "@/lib/business";
+
+// Stable anchor ids for each section, single-sourced here so the table of
+// contents and the section headings can never drift: the TOC renders from this
+// list, and <Section> looks its own id up by matching its title against it.
+const SECTIONS: { id: string; title: string }[] = [
+  { id: "klali", title: "1. כללי ותחולת המדיניות" },
+  { id: "hagdarot", title: "2. הגדרות" },
+  { id: "meida", title: "3. המידע שאנו אוספים" },
+  { id: "matarot", title: "4. מטרות השימוש במידע והבסיס החוקי" },
+  { id: "tzad-gimel", title: "5. מסירת מידע לצדדים שלישיים (מחזיקים וספקי שירות)" },
+  { id: "haavara", title: "6. העברת מידע אל מחוץ לישראל" },
+  { id: "cookies", title: "7. עוגיות (Cookies) וטכנולוגיות דומות" },
+  { id: "avtacha", title: "8. אבטחת מידע" },
+  { id: "divur", title: "9. דיוור ישיר ותכנים שיווקיים" },
+  { id: "shmira", title: "10. תקופות שמירת המידע" },
+  { id: "zchuyot", title: "11. זכויותיכם ביחס למידע" },
+  { id: "ktinim", title: "12. קטינים" },
+  { id: "shinuyim", title: "13. שינויים במדיניות הפרטיות" },
+  { id: "din", title: "14. הדין החל, סמכות שיפוט ויצירת קשר" },
+];
 
 export const Route = createFileRoute("/privacy")({
   component: LegalPage,
@@ -21,9 +41,28 @@ function LegalPage() {
         <h1 className="font-display text-3xl md:text-5xl tracking-wide text-foreground">מדיניות פרטיות</h1>
         <div className="gold-rule mx-auto mt-5 w-24" aria-hidden="true" />
         <p className="glass mt-5 inline-block px-4 py-1.5 text-xs text-muted-foreground [--glass-radius:9999px]">
-          עודכן לאחרונה: 26.6.2026
+          עודכן לאחרונה: {LEGAL_LAST_UPDATED}
         </p>
       </header>
+
+      {/* Compact glass table of contents — pure in-page anchors (no JS), so it
+          works server-rendered; each section carries scroll-mt to clear the
+          sticky header when jumped to. */}
+      <nav aria-label="תוכן העניינים" className="glass mb-10 md:mb-12 p-5 md:p-6 [--glass-radius:1.25rem]">
+        <p className="mb-3 text-[11px] tracking-[0.2em] text-accent">תוכן העניינים</p>
+        <ul className="grid list-none gap-x-6 gap-y-0.5 sm:grid-cols-2">
+          {SECTIONS.map((s) => (
+            <li key={s.id}>
+              <a
+                href={`#${s.id}`}
+                className="block py-1.5 text-sm text-muted-foreground transition-[color] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
+              >
+                {s.title}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </nav>
 
       <Section title={"1. כללי ותחולת המדיניות"}>
         <p>{`אתר "אור זרוע לצדיק" (להלן: "האתר" או "החנות"), בכתובת orzadik.com, מופעל על ידי ${BUSINESS.name}${BUSINESS.legalId ? ", " + BUSINESS.legalId : ""}${BUSINESS.address ? ", " + BUSINESS.address : ""} (להלן: "בעל האתר", "אנחנו" או "החברה"). האתר משמש לשיווק ולמכירה של תשמישי קדושה ומוצרי יודאיקה, ובכלל זה טליתות, תפילין, מזוזות, כיפות, פמוטים, גביעי קידוש, מערכות לחתן, תכשיטי זהב, ומוצרים בהתאמה אישית (חריטה, רקמה והזמנה מיוחדת).`}</p>
@@ -163,8 +202,11 @@ function LegalPage() {
    page-tall backdrop-blur panel would be an expensive paint on a document
    this long. */
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  // Derive the stable anchor id from the single SECTIONS source by title match,
+  // so headings and the TOC stay in lockstep without repeating the id at each call.
+  const id = SECTIONS.find((s) => s.title === title)?.id;
   return (
-    <section className="mb-9 border-t border-glass-line pt-8 last:mb-0">
+    <section id={id} className="mb-9 border-t border-glass-line pt-8 last:mb-0 scroll-mt-24 lg:scroll-mt-32">
       <h2 className="font-display text-xl md:text-2xl mb-3 text-foreground">{title}</h2>
       <div className="text-[15px] leading-[1.85] text-foreground space-y-4 [&_ul]:list-disc [&_ul]:pr-5 [&_ul]:space-y-2 [&_a]:text-accent [&_a]:underline [&_a]:underline-offset-4 [&_strong]:font-semibold">
         {children}

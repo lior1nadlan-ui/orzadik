@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { fetchArticlesWithRetry, type Article } from "@/lib/articles.server";
 import { ArticleCard } from "@/components/ArticleCard";
 import { NewsletterSignup } from "@/components/NewsletterSignup";
+import { PageHeader } from "@/components/PageHeader";
 import { useState, useMemo } from "react";
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
@@ -64,22 +65,14 @@ function ArticlesListPage() {
   }, [articles, searchQuery]);
 
   return (
-    <div className="pb-12">
-      {/* Hero */}
-      <header className="relative w-full overflow-hidden border-b border-glass-line">
-        <div className="container mx-auto px-4 py-12 md:py-16 text-center">
-          <h1 className="font-display text-4xl md:text-5xl font-bold text-foreground tracking-wide mb-3">
-            מאמרים וטיפים
-          </h1>
-          {/* Decorative gold rule — kept out of the accessibility tree. */}
-          <div className="gold-rule mx-auto mb-6 w-20" aria-hidden="true" />
-          <p className="max-w-2xl mx-auto text-muted-foreground leading-relaxed">
-            למדו על תשמישי קדושה, הלכות קדושה, בחירה נכונה וטיפול במוצרים מהודרים.
-          </p>
-        </div>
-      </header>
+    <div className="container mx-auto px-4 py-10 md:py-14 pb-12">
+      <PageHeader
+        eyebrow="מדריכים ותוכן"
+        title="מאמרים וטיפים"
+        sub="למדו על תשמישי קדושה, הלכות קדושה, בחירה נכונה וטיפול במוצרים מהודרים."
+      />
 
-      <div className="container mx-auto px-4 py-8 md:py-12">
+      <div>
         {/* Search */}
         <div className="max-w-md mx-auto mb-10">
           <div className="relative">

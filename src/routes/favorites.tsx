@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { ProductCard, ProductCardData } from "@/components/ProductCard";
+import { ProductGridSkeleton } from "@/components/Skeletons";
 import { useFavorites, writeFavs } from "@/components/engagement/favorites";
 
 export const Route = createFileRoute("/favorites")({
@@ -77,13 +78,11 @@ function FavoritesPage() {
           </Link>
         </div>
       ) : !hydrated || isLoading ? (
-        // animate-pulse is opacity-only — no movement, so it already satisfies
+        // Shared product-grid skeleton: same columns + tile height as the real
+        // grid, so real cards drop in with zero CLS. animate-pulse is
+        // opacity-only — no movement — so it already satisfies
         // prefers-reduced-motion (keep opacity, drop movement).
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="aspect-square animate-pulse rounded-2xl bg-muted hairline" />
-          ))}
-        </div>
+        <ProductGridSkeleton count={8} />
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {rows.map((p) => (

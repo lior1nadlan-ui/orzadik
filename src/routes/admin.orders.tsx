@@ -11,6 +11,7 @@ import {
   addCustomerNote,
   updateOrderStatus,
 } from "@/lib/admin-crm.functions";
+import { waThankYou, waShipped, waFollowUpUnpaid } from "@/lib/wa-templates";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -47,6 +48,28 @@ export function waLink(phone: string): string {
   const digits = String(phone ?? "").replace(/\D/g, "");
   const intl = digits.startsWith("0") ? "972" + digits.slice(1) : digits;
   return `https://wa.me/${intl}`;
+}
+
+/** Pick a context-appropriate pre-filled WhatsApp message for an order, so the
+ * per-order action opens a ready-to-send Hebrew draft instead of an empty chat:
+ * unpaid -> gentle follow-up, shipped/completed -> shipped-with-tracking,
+ * otherwise (a fresh paid order) -> a warm thank-you. The template helpers read
+ * the order's snake_case fields (name/phone/order_number/tracking) directly and
+ * return null when there is no usable phone, in which case we fall back to the
+ * bare wa.me link so the anchor keeps its existing behavior. */
+function waForOrder(o: any): string {
+  // A cancelled/refunded order must NOT get a "thank you, preparing it" draft —
+  // open an empty chat so the owner writes the right message himself.
+  if (["cancelled", "refunded"].includes(o?.status) || o?.payment_status === "refunded") {
+    return waLink(o?.customer_phone);
+  }
+  const templated =
+    o?.payment_status === "unpaid"
+      ? waFollowUpUnpaid(o)
+      : o?.status === "shipped" || o?.status === "completed" || o?.shipped_at
+        ? waShipped(o)
+        : waThankYou(o);
+  return templated ?? waLink(o?.customer_phone);
 }
 
 function PaymentBadge({ status }: { status: string }) {
@@ -302,7 +325,7 @@ function AdminOrders() {
                   <a href={`tel:${selected.customer_phone}`} className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted" title="חיוג">
                     <Phone className="h-3 w-3" /> {selected.customer_phone}
                   </a>
-                  <a href={waLink(selected.customer_phone)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted text-emerald-700" title="WhatsApp">
+                  <a href={waForOrder(selected)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted text-emerald-700" title="WhatsApp — הודעה מוכנה לפי סטטוס ההזמנה">
                     <MessageCircle className="h-3 w-3" /> וואטסאפ
                   </a>
                   <a href={`mailto:${selected.customer_email}`} className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted" title="אימייל">

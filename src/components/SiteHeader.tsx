@@ -35,6 +35,17 @@ type SearchSuggestion = {
 // ---------------------------------------------------------------------------
 const TALITOT_SLUG = "%d7%98%d7%9c%d7%99%d7%aa%d7%95%d7%aa-%d7%95%d7%a6%d7%99%d7%a6%d7%99%d7%95%d7%aa";
 
+// The curated category shortcuts, shared by the desktop nav row AND the drawer's
+// category section so the two surfaces can never drift. Every slug is a real
+// category verified in the DB (see note above). Owner: edit here to retarget a
+// shortcut in both places at once.
+const CURATED_CATEGORIES: { slug: string; label: string }[] = [
+  { slug: "wedding", label: "מארזים לחתן" },
+  { slug: "chatan-kala", label: "חתן וכלה" },
+  { slug: "chalaka-set", label: "סטי חלאקה" },
+  { slug: TALITOT_SLUG, label: "טליתות" },
+];
+
 // ---------------------------------------------------------------------------
 // Shared class idioms for the chrome.
 //
@@ -97,6 +108,14 @@ export function SiteHeader() {
 
   const { data: categories = [] } = useQuery({
     queryKey: ["header-categories"],
+    // The top-level category list is effectively static across a session — it
+    // changes only when the owner edits the catalog. A generous staleTime (10m)
+    // plus a long gcTime keeps the nav out of the refetch path so navigating
+    // between pages doesn't trigger a fresh Supabase round-trip. (The global
+    // default is only 60s with refetchOnWindowFocus off; this is the nav's own,
+    // longer budget.) What the nav renders is unchanged.
+    staleTime: 10 * 60 * 1000,
+    gcTime: 60 * 60 * 1000,
     queryFn: async () => {
       // Top level only. With the full supplier catalog loaded there are 72
       // categories, and listing every subcategory turns the drawer into a
@@ -241,6 +260,11 @@ export function SiteHeader() {
                   <Link to="/" onClick={() => setDrawerOpen(false)} className={`py-3 border-b border-border/40 ${LINK_HOVER_CLS}`}>בית</Link>
                   <Link to="/shop" onClick={() => setDrawerOpen(false)} className={`py-3 border-b border-border/40 ${LINK_HOVER_CLS}`}>כל המוצרים</Link>
                   <Link to="/categories" onClick={() => setDrawerOpen(false)} className={`py-3 border-b border-border/40 ${LINK_HOVER_CLS}`}>קטגוריות</Link>
+                  {/* Occasion/holiday gift hubs are indexed by the "קונים לפי
+                      אירוע" section at the top of /categories; this dedicated
+                      entry surfaces that shop-by-occasion path in the one nav
+                      visible at every breakpoint. */}
+                  <Link to="/categories" onClick={() => setDrawerOpen(false)} className={`py-3 border-b border-border/40 ${LINK_HOVER_CLS}`}>מתנות לפי אירוע</Link>
                   {/* /articles had no entry point anywhere in the shell; the drawer
                       is the one nav that is visible at every breakpoint, so the
                       guides live here as well as in the footer. */}
@@ -249,7 +273,25 @@ export function SiteHeader() {
                 </nav>
 
                 <div className="px-6 pt-4 pb-2">
-                  <div className="text-[11px] tracking-[0.2em] uppercase text-muted-foreground mb-2">קטגוריות</div>
+                  {/* Curated shortcuts — the same picks surfaced in the desktop
+                      nav row, mirrored here as quick-access chips (the gold-hairline
+                      chip idiom the search suggestions already use). The full
+                      category list follows below, unchanged. */}
+                  <div className="text-[11px] tracking-[0.2em] uppercase text-muted-foreground mb-2">קטגוריות מובחרות</div>
+                  <div className="flex flex-wrap gap-2 mb-5">
+                    {CURATED_CATEGORIES.map((c) => (
+                      <Link
+                        key={c.slug}
+                        to="/category/$slug"
+                        params={{ slug: c.slug }}
+                        onClick={() => setDrawerOpen(false)}
+                        className="rounded-full border border-gold/40 px-3 py-1.5 text-xs text-foreground/85 press [@media(hover:hover)_and_(pointer:fine)]:hover:border-accent [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
+                      >
+                        {c.label}
+                      </Link>
+                    ))}
+                  </div>
+                  <div className="text-[11px] tracking-[0.2em] uppercase text-muted-foreground mb-2">כל הקטגוריות</div>
                   <div className="flex flex-col">
                     {categories.map((c) => (
                       <Link
@@ -363,11 +405,23 @@ export function SiteHeader() {
           labels/slugs here; every slug is a real category verified in the DB. */}
       <nav aria-label="ניווט ראשי" className="hidden lg:flex h-11 items-center justify-center gap-8 text-[15px]">
         <Link to="/shop" className={NAV_LINK_CLS}>חנות</Link>
-        <Link to="/category/$slug" params={{ slug: "wedding" }} className={NAV_LINK_CLS}>מארזים לחתן</Link>
-        <Link to="/category/$slug" params={{ slug: "chatan-kala" }} className={NAV_LINK_CLS}>חתן וכלה</Link>
-        <Link to="/category/$slug" params={{ slug: "chalaka-set" }} className={NAV_LINK_CLS}>סטי חלאקה</Link>
-        <Link to="/category/$slug" params={{ slug: TALITOT_SLUG }} className={NAV_LINK_CLS}>טליתות</Link>
+        {CURATED_CATEGORIES.map((c) => (
+          <Link key={c.slug} to="/category/$slug" params={{ slug: c.slug }} className={NAV_LINK_CLS}>
+            {c.label}
+          </Link>
+        ))}
         <Link to="/categories" className={NAV_LINK_CLS}>כל הקטגוריות</Link>
+        {/* Secondary group — a discovery entry plus the informational
+            destinations that only lived in the drawer/footer before. A hairline
+            divider sets them off from the curated shopping links so the row
+            reads as two clusters. "מתנות לפי אירוע" points at /categories, whose
+            top section ("קונים לפי אירוע") indexes every occasion/holiday hub
+            (/collection/<slug>) — the discovery path into those rankable pages,
+            surfaced here without adding another item to the shopping cluster. */}
+        <span aria-hidden="true" className="h-4 w-px bg-border" />
+        <Link to="/categories" className={NAV_LINK_CLS}>מתנות לפי אירוע</Link>
+        <Link to="/articles" className={NAV_LINK_CLS}>מדריכים</Link>
+        <Link to="/about" className={NAV_LINK_CLS}>אודות</Link>
       </nav>
 
       {/* Bottom edge: full-width gold hairline */}

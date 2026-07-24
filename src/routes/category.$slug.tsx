@@ -1,9 +1,11 @@
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { createFileRoute, notFound, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { isPersonalizable } from "@/lib/personalization";
 import { ProductCard, ProductCardData } from "@/components/ProductCard";
 import { SubcategoryChips, type CategoryChipRow } from "@/components/catalog/SubcategoryChips";
 import { NewsletterSignup } from "@/components/NewsletterSignup";
+import { Breadcrumb } from "@/components/Breadcrumb";
 import {
   Select,
   SelectContent,
@@ -12,8 +14,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { categoryFaq, faqJsonLd } from "@/lib/category-faq";
+import { getEffectivePrice } from "@/lib/pricing";
+import { cn } from "@/lib/utils";
 import { ChevronDown } from "lucide-react";
 
 async function fetchCategoryWithRetry(slug: string, maxRetries = 2) {
@@ -82,9 +86,12 @@ async function fetchCategoryWithRetry(slug: string, maxRetries = 2) {
 }
 
 export const Route = createFileRoute("/category/$slug")({
-  validateSearch: (s: Record<string, unknown>): { sort?: string; instock?: boolean } => ({
+  validateSearch: (s: Record<string, unknown>): { sort?: string; instock?: boolean; price?: string } => ({
     sort: typeof s.sort === "string" ? s.sort : undefined,
     instock: s.instock === true || s.instock === "true" ? true : undefined,
+    // Client-side price-range facet (see PRICE_BUCKETS). An unknown value narrows
+    // to no filter in the component, so a hand-edited ?price= never throws.
+    price: typeof s.price === "string" ? s.price : undefined,
   }),
   loader: async ({ params }) => {
     const result = await fetchCategoryWithRetry(params.slug);
@@ -171,6 +178,7 @@ export const Route = createFileRoute("/category/$slug")({
         { property: "og:type", content: "website" },
         { property: "og:url", content: url },
         { property: "og:image", content: cat.image_url || "https://orzadik.com/og-default.jpg" },
+        { property: "og:image:alt", content: cat.name },
         { name: "twitter:card", content: "summary_large_image" },
         { name: "twitter:title", content: `${cat.name} | אור זרוע לצדיק` },
         { name: "twitter:description", content: desc },
@@ -194,16 +202,36 @@ function isSortMode(v: unknown): v is SortMode {
     || v === "oldest" || v === "name";
 }
 
+// Static price-range buckets for the client-side facet. Bounds are the price the
+// customer actually pays — getEffectivePrice(price) — so the labels match the
+// numbers shown on every card. Ranges are contiguous and non-overlapping:
+// עד ₪100 (≤100), ₪100–300 (100<x≤300), ₪300+ (>300). Pure filtering — the
+// buckets carry no sale/discount language, only the paid price.
+type PriceBucketId = "0-100" | "100-300" | "300-plus";
+
+const PRICE_BUCKETS: { id: PriceBucketId; label: string; test: (eff: number) => boolean }[] = [
+  { id: "0-100", label: "עד ₪100", test: (eff) => eff <= 100 },
+  { id: "100-300", label: "₪100–300", test: (eff) => eff > 100 && eff <= 300 },
+  { id: "300-plus", label: "₪300+", test: (eff) => eff > 300 },
+];
+
+function isPriceBucketId(v: unknown): v is PriceBucketId {
+  return v === "0-100" || v === "100-300" || v === "300-plus";
+}
+
 type Row = ProductCardData & { is_active: boolean; stock_status: string; created_at: string };
 
 function CategoryPage() {
   const { slug } = Route.useParams();
   const { cat: initialCat, products: initialProducts, parent, allCats } = Route.useLoaderData();
-  const { sort: sortFromUrl, instock: instockFromUrl } = Route.useSearch();
+  const { sort: sortFromUrl, instock: instockFromUrl, price: priceFromUrl } = Route.useSearch();
   const navigate = Route.useNavigate();
   // Seed from the URL so sorted/filtered views survive reload and sharing.
   const [sort, setSort] = useState<SortMode>(isSortMode(sortFromUrl) ? sortFromUrl : "recommended");
   const [inStockOnly, setInStockOnly] = useState(instockFromUrl ?? false);
+  const [priceBucket, setPriceBucket] = useState<PriceBucketId | null>(
+    isPriceBucketId(priceFromUrl) ? priceFromUrl : null,
+  );
 
   const changeSort = (v: SortMode) => {
     setSort(v);
@@ -218,6 +246,16 @@ function CategoryPage() {
     setInStockOnly(v);
     navigate({
       search: (prev) => ({ ...prev, instock: v ? true : undefined }),
+      replace: true,
+      resetScroll: false,
+    });
+  };
+
+  // Single-select facet: tapping the active bucket clears it (null → no ?price=).
+  const changePriceBucket = (v: PriceBucketId | null) => {
+    setPriceBucket(v);
+    navigate({
+      search: (prev) => ({ ...prev, price: v ?? undefined }),
       replace: true,
       resetScroll: false,
     });
@@ -296,6 +334,14 @@ function CategoryPage() {
 
     let list = collapsed;
     if (inStockOnly) list = list.filter((p) => p.stock_status !== "outofstock");
+    // Price-range facet — filter on the effective (paid) price so the buckets
+    // agree with the numbers on the cards. Applied to the collapsed
+    // representatives, so a group is kept/dropped by the price of the card that
+    // actually shows (the cheapest imaged/in-stock model chosen above).
+    if (priceBucket) {
+      const bucket = PRICE_BUCKETS.find((b) => b.id === priceBucket);
+      if (bucket) list = list.filter((p) => bucket.test(getEffectivePrice(p.price)));
+    }
     switch (sort) {
       case "price-asc":
         list.sort((a, b) => a.price - b.price);
@@ -322,54 +368,38 @@ function CategoryPage() {
     const inStock = list.filter((p) => p.stock_status !== "outofstock");
     const oos = list.filter((p) => p.stock_status === "outofstock");
     return [...inStock, ...oos];
-  }, [products, sort, inStockOnly]);
+  }, [products, sort, inStockOnly, priceBucket]);
+
+  // Client-side windowing. This page loads its whole category into memory (the
+  // largest is 742 rows) and sorts/filters it there, but mounting every card at
+  // once is wasteful; slice the fully sorted+filtered list to a growing window
+  // and reveal +24 per click, mirroring /shop's "load more".
+  const PAGE_SIZE = 24;
+  const [shown, setShown] = useState(PAGE_SIZE);
+  // A new sort / stock filter / category is a fresh "page 1" — reset the window
+  // so the user starts from the top of the reordered list, matching /shop
+  // dropping ?page= on re-sort.
+  useEffect(() => {
+    setShown(PAGE_SIZE);
+  }, [sort, inStockOnly, priceBucket, slug]);
+  const windowed = visible.slice(0, shown);
+  const remaining = visible.length - windowed.length;
 
   return (
     <div className="pb-12">
-      {/* Visible breadcrumb nav */}
-      <nav aria-label="ניווט מיקום באתר" className="container mx-auto px-4 py-3">
-        <ol className="flex items-center gap-1.5 text-xs md:text-sm text-muted-foreground" itemScope itemType="https://schema.org/BreadcrumbList">
-          <li itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
-            <Link to="/" className="transition-[color] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent" itemProp="item">
-              <span itemProp="name">בית</span>
-            </Link>
-            <meta itemProp="position" content="1" />
-          </li>
-          <li aria-hidden="true" className="text-muted-foreground/40">/</li>
-          <li itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
-            <Link to="/shop" className="transition-[color] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent" itemProp="item">
-              <span itemProp="name">מוצרים</span>
-            </Link>
-            <meta itemProp="position" content="2" />
-          </li>
-          {parent && (
-            <>
-              <li aria-hidden="true" className="text-muted-foreground/40">/</li>
-              <li itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
-                <Link to="/category/$slug" params={{ slug: parent.slug }} className="transition-[color] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent" itemProp="item">
-                  <span itemProp="name">{parent.name}</span>
-                </Link>
-                <meta itemProp="position" content="3" />
-              </li>
-            </>
-          )}
-          {cat?.name && (
-            <>
-              <li aria-hidden="true" className="text-muted-foreground/40">/</li>
-              <li
-                itemProp="itemListElement"
-                itemScope
-                itemType="https://schema.org/ListItem"
-                className="text-foreground font-medium truncate max-w-[200px]"
-                aria-current="page"
-              >
-                <span itemProp="name">{cat.name}</span>
-                <meta itemProp="position" content={parent ? "4" : "3"} />
-              </li>
-            </>
-          )}
-        </ol>
-      </nav>
+      {/* Location trail — the shared, RTL-correct primitive. The route still
+          emits its own BreadcrumbList JSON-LD from head(), so this visible trail
+          carries no microdata; the old hand-rolled <ol> duplicated that graph. */}
+      <div className="container mx-auto px-4 py-3">
+        <Breadcrumb
+          items={[
+            { label: "בית", to: "/" },
+            { label: "מוצרים", to: "/shop" },
+            ...(parent ? [{ label: parent.name, to: "/category/$slug", params: { slug: parent.slug } }] : []),
+            { label: cat?.name ?? slug },
+          ]}
+        />
+      </div>
 
       {/* Hero banner */}
       <header className="relative w-full overflow-hidden border-b bg-muted/40">
@@ -434,6 +464,22 @@ function CategoryPage() {
       </header>
 
       <div className="container mx-auto px-4 pt-8">
+        {/* When the category itself is personalizable (its slug is in the shared
+            PERSONALIZABLE_CATEGORY_SLUGS source of truth), a single tasteful line
+            surfaces the store's real differentiator and links to the dedicated
+            story page. One row, above the chips — it never touches the grid. */}
+        {isPersonalizable([slug]) && (
+          <div className="mb-6 flex justify-center">
+            <Link
+              to="/collection/personalized"
+              className="press inline-flex items-center gap-2 rounded-full bg-card/70 px-4 py-2 text-sm text-accent hairline transition-[background-color,transform] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary"
+            >
+              <span aria-hidden="true">✦</span>
+              פריטי הקטגוריה ניתנים להוספת רקמה/חריטה אישית
+            </Link>
+          </div>
+        )}
+
         {/* Subcategory / sibling chips — restyled from here (gold hairline,
             argaman active) via scoped descendant overrides: SubcategoryChips is a
             shared component other pages use, so its own classes stay untouched.
@@ -474,6 +520,49 @@ function CategoryPage() {
             <div className="glass flex flex-wrap items-center justify-between gap-4 mb-6 p-4 md:px-5 [--glass-radius:1.25rem]">
               <p className="text-sm text-muted-foreground">{visible.length} מוצרים</p>
               <div className="flex flex-wrap items-center gap-4">
+                {/* Price-range facet — single-select chips over the effective
+                    (paid) price. Pure filtering; no sale/discount language. The
+                    active chip takes the gold --accent fill (CTA colour); the
+                    rest are the same white-glass chips used elsewhere on the
+                    page. "הכל" clears the facet. */}
+                <div className="flex items-center gap-2" role="group" aria-label="סינון לפי טווח מחיר">
+                  <span className="text-sm text-muted-foreground">מחיר:</span>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => changePriceBucket(null)}
+                      aria-pressed={priceBucket === null}
+                      className={cn(
+                        "press rounded-full px-3 py-1.5 text-xs font-medium transition-[background-color,color,transform] duration-150 ease-out",
+                        priceBucket === null
+                          ? "bg-accent text-white"
+                          : "bg-card/70 text-foreground hairline [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary",
+                      )}
+                    >
+                      הכל
+                    </button>
+                    {PRICE_BUCKETS.map((b) => {
+                      const active = priceBucket === b.id;
+                      return (
+                        <button
+                          key={b.id}
+                          type="button"
+                          // Tap the active chip again to clear it back to "הכל".
+                          onClick={() => changePriceBucket(active ? null : b.id)}
+                          aria-pressed={active}
+                          className={cn(
+                            "press rounded-full px-3 py-1.5 text-xs font-medium transition-[background-color,color,transform] duration-150 ease-out",
+                            active
+                              ? "bg-accent text-white"
+                              : "bg-card/70 text-foreground hairline [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary",
+                          )}
+                        >
+                          {b.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
                 <label className="flex items-center gap-2 text-sm cursor-pointer">
                   <Checkbox
                     checked={inStockOnly}
@@ -501,12 +590,54 @@ function CategoryPage() {
               </div>
             </div>
 
-            {/* Grid */}
+            {/* Grid — sliced to the current window (see `shown` above) */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {visible.map((p, i) => <ProductCard key={p.id} p={p} priority={i < 8} />)}
+              {windowed.map((p, i) => <ProductCard key={p.id} p={p} eager={i < 4} highPriority={i < 2} />)}
             </div>
             {visible.length === 0 && (
-              <p className="text-center py-10 text-muted-foreground">לא נמצאו מוצרים תואמים.</p>
+              // Same designed glass empty state as /shop (gold-free), so the two
+              // discovery pages read consistently. When the in-stock filter is
+              // what emptied the grid, offer a one-tap way back to the full list.
+              <div className="glass max-w-2xl mx-auto my-12 text-center p-10 md:p-14 [--glass-radius:1.5rem]">
+                <div className="mx-auto mb-5 w-14 h-14 rounded-full bg-secondary hairline flex items-center justify-center">
+                  <span className="text-3xl">🔍</span>
+                </div>
+                <h2 className="font-display text-2xl md:text-3xl font-bold mb-3">לא נמצאו מוצרים</h2>
+                <p className="text-muted-foreground leading-relaxed">
+                  {inStockOnly || priceBucket
+                    ? "אין כרגע מוצרים שתואמים את הסינון בקטגוריה הזו."
+                    : "אין כרגע מוצרים בקטגוריה הזו."}
+                </p>
+                {(inStockOnly || priceBucket) && (
+                  <button
+                    onClick={() => {
+                      setInStockOnly(false);
+                      setPriceBucket(null);
+                      navigate({
+                        search: (prev) => ({ ...prev, instock: undefined, price: undefined }),
+                        replace: true,
+                        resetScroll: false,
+                      });
+                    }}
+                    className="press mt-6 rounded-full bg-card/70 px-6 py-2.5 text-sm font-medium text-foreground hairline transition-[background-color,color,transform] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:text-background"
+                  >
+                    הצג את כל המוצרים
+                  </button>
+                )}
+              </div>
+            )}
+            {/* Load more — same ink-on-white chip and label as /shop. No async
+                state: the whole list is already in memory, so revealing more is
+                instant. */}
+            {remaining > 0 && (
+              <div className="mt-10 text-center">
+                <button
+                  onClick={() => setShown((c) => c + PAGE_SIZE)}
+                  className="press rounded-full bg-card/70 px-8 py-3 text-sm font-medium text-foreground hairline transition-[background-color,color,transform] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:text-background"
+                >
+                  טען עוד מוצרים ({remaining})
+                </button>
+              </div>
             )}
           </>
         )}

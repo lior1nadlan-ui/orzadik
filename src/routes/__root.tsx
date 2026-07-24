@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   Outlet,
@@ -15,7 +16,7 @@ import { CookieConsent } from "@/components/CookieConsent";
 import { GoogleAnalytics } from "@/components/GoogleAnalytics";
 import { MetaPixel } from "@/components/MetaPixel";
 import { WhatsAppButton } from "@/components/WhatsAppButton";
-import { AccessibilityWidget } from "@/components/AccessibilityWidget";
+import { AccessibilityWidget, applySavedA11ySettings } from "@/components/AccessibilityWidget";
 
 // Origin of the Supabase project, for the preconnect/dns-prefetch hints below.
 // Falls back to the current project ref so the hint is still correct if the
@@ -96,6 +97,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { name: "referrer", content: "strict-origin-when-cross-origin" },
       { name: "format-detection", content: "telephone=no" },
+      // Browser UI chrome tint (Android address bar, installed-PWA splash).
+      // Matches theme_color in /manifest.webmanifest and the deep-gold --accent.
+      { name: "theme-color", content: "#7E611E" },
       // Global crawl directive. Without it Google caps every page to a tiny
       // thumbnail and the site is ineligible for Discover / large SERP images.
       // Private routes (auth/cart/checkout/account/order/track/favorites/admin)
@@ -119,6 +123,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:description", content: "חנות תשמישי קדושה - כלי כסף, כוסות קידוש, חנוכיות, מזוזות ועוד." },
       { name: "twitter:description", content: "חנות תשמישי קדושה - כלי כסף, כוסות קידוש, חנוכיות, מזוזות ועוד." },
       { property: "og:image", content: "https://orzadik.com/og-default.jpg" },
+      // NOTE: no og:image:secure_url / :width / :height here on purpose. og:image
+      // is already https, so secure_url is redundant. More importantly, product /
+      // category / article routes override og:image with a per-item photo but
+      // cannot re-declare these siblings (HeadContent dedupes by property, so a
+      // root-level width/height/secure_url would stay glued to the per-item image
+      // and mis-describe it — 1920×1080 and the generic banner instead of the
+      // actual square product photo, which Facebook prefers via secure_url).
+      // Declaring only og:image keeps every route's card correct.
+      { property: "og:image:alt", content: "אור זרוע לצדיק — תשמישי קדושה ויודאיקה מהודרת" },
       { name: "twitter:image", content: "https://orzadik.com/og-default.jpg" },
       { name: "twitter:card", content: "summary_large_image" },
       { property: "og:type", content: "website" },
@@ -135,6 +148,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       // the migration, warming the wrong origin and wasting the LCP hint.
       { rel: "preconnect", href: SUPABASE_ORIGIN, crossOrigin: "" },
       { rel: "dns-prefetch", href: SUPABASE_ORIGIN },
+      // gtag.js is fetched from this origin on every page (see the GA snippet in
+      // scripts below). Warm the TCP+TLS handshake early so analytics doesn't
+      // add a cold round-trip after first paint.
+      { rel: "preconnect", href: "https://www.googletagmanager.com", crossOrigin: "anonymous" },
+      { rel: "dns-prefetch", href: "https://www.googletagmanager.com" },
       // NOTE: no hreflang tags — the site is single-language (he-IL). Static
       // self-referential-to-homepage alternates on every page were incorrect
       // and conflicted with each page's own canonical, so they were removed.
@@ -147,6 +165,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         href: "https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;500;600;700&family=Noto+Serif+Hebrew:wght@400;500;600;700&family=Cormorant+Garamond:wght@400;600&display=swap",
       },
       { rel: "stylesheet", href: appCss },
+      // PWA + icons. All same-origin (allowed under the CSP default-src 'self').
+      // No apple-touch-icon: the only logo asset (/logo.png) is a landscape
+      // 586×200, and iOS forces the home-screen icon into a square — a non-square
+      // source is stretched/distorted, which harms the brand more than iOS's own
+      // fallback. Re-add a <link rel="apple-touch-icon"> only once a real square
+      // (180×180) PNG exists. The classic favicon stays .ico.
+      { rel: "manifest", href: "/manifest.webmanifest" },
+      { rel: "icon", type: "image/x-icon", href: "/favicon.ico" },
     ],
     scripts: [
       // Google Analytics 4 with Consent Mode v2. gtag.js loads on every page, but
@@ -196,8 +222,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           logo: {
             "@type": "ImageObject",
             url: "https://orzadik.com/logo.png",
-            width: 512,
-            height: 512,
+            width: 586,
+            height: 200,
           },
           image: "https://orzadik.com/og-default.jpg",
           description:
@@ -274,8 +300,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           logo: {
             "@type": "ImageObject",
             url: "https://orzadik.com/logo.png",
-            width: 512,
-            height: 512,
+            width: 586,
+            height: 200,
           },
           image: "https://orzadik.com/og-default.jpg",
           description:
@@ -336,6 +362,40 @@ function RootShell({ children }: { children: React.ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+
+  // Defer the two non-critical global widgets (WhatsApp FAB + Accessibility
+  // panel) so they mount AFTER first paint instead of competing with hydration.
+  // CookieConsent, GoogleAnalytics and MetaPixel stay immediate — consent and
+  // analytics must run right away. SSR renders nothing for the deferred widgets;
+  // this effect runs client-side only, so it is SSR-safe.
+  const [idle, setIdle] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    // Restore a returning visitor's saved accessibility preferences (contrast,
+    // larger text, stop-animations…) IMMEDIATELY — deferring the widget's UI
+    // must not delay the actual page adaptation those users depend on.
+    applySavedA11ySettings();
+
+    const w = window as typeof window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    };
+    let idleHandle: number | undefined;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    if (typeof w.requestIdleCallback === "function") {
+      idleHandle = w.requestIdleCallback(() => setIdle(true), { timeout: 2000 });
+    } else {
+      timer = setTimeout(() => setIdle(true), 800);
+    }
+    return () => {
+      if (idleHandle !== undefined && typeof w.cancelIdleCallback === "function") {
+        w.cancelIdleCallback(idleHandle);
+      }
+      if (timer !== undefined) clearTimeout(timer);
+    };
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
@@ -366,8 +426,9 @@ function RootComponent() {
           <CookieConsent />
           <GoogleAnalytics />
           <MetaPixel />
-          <WhatsAppButton />
-          <AccessibilityWidget />
+          {/* Deferred to browser-idle after first paint (see the effect above). */}
+          {idle && <WhatsAppButton />}
+          {idle && <AccessibilityWidget />}
         </CartProvider>
       </AuthProvider>
     </QueryClientProvider>

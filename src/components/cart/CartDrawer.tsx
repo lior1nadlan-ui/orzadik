@@ -2,6 +2,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { ShoppingBag, Minus, Plus, Trash2 } from "lucide-react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
+import { CartCrossSell } from "@/components/cart/CartCrossSell";
 import { useCart, formatILS, getEffectivePrice, lineKey } from "@/lib/cart";
 
 // -----------------------------------------------------------------------------
@@ -26,6 +27,10 @@ import { useCart, formatILS, getEffectivePrice, lineKey } from "@/lib/cart";
 export function CartDrawer() {
   const { items, remove, setQty, count, subtotal, shipping, grandTotal, isCartOpen, closeCart } = useCart();
   const navigate = useNavigate();
+
+  // Distinct products in the cart — drives the compact cross-sell strip below.
+  // Deduped so a product added in two variants doesn't skew the suggestion set.
+  const productIds = Array.from(new Set(items.map((i) => i.productId)));
 
   const goToCheckout = () => {
     closeCart();
@@ -144,12 +149,13 @@ export function CartDrawer() {
             </div>
 
             {/* Summary + CTAs — pinned below the scroll area. Reconciles as
-                סכום ביניים + משלוח = סך הכל, using the same flat ₪37 shipping the
-                cart page and checkout charge. */}
+                סכום פריטים + משלוח = סך הכל, using the same flat ₪37 shipping the
+                cart page and checkout charge. The label matches the cart and
+                checkout summaries so the wording can't drift between surfaces. */}
             <div className="border-t border-glass-line px-5 py-4">
               <div className="space-y-1.5">
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">סכום ביניים</span>
+                  <span className="text-muted-foreground">סכום פריטים</span>
                   <span className="whitespace-nowrap">{formatILS(subtotal)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
@@ -162,6 +168,13 @@ export function CartDrawer() {
                 <span className="font-bold">סך הכל</span>
                 <span className="whitespace-nowrap font-bold text-accent">{formatILS(grandTotal)}</span>
               </div>
+
+              {/* Compact "complete the purchase" strip — genuine companions to
+                  what's in the cart, sitting between the total and the checkout
+                  CTA so peak-intent shoppers see them. Renders nothing when
+                  there are no real complements, so the CTA never gets pushed
+                  down for an empty rail. */}
+              <CartCrossSell productIds={productIds} variant="compact" onNavigate={closeCart} />
 
               <Button className="press w-full" size="lg" onClick={goToCheckout}>
                 מעבר לתשלום

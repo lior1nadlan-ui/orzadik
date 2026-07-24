@@ -6,7 +6,8 @@ import { getOrderConfirmation } from "@/lib/order.functions";
 import { formatILS, useCart } from "@/lib/cart";
 import { BUSINESS } from "@/lib/business";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, Clock } from "lucide-react";
+import { CardSkeleton } from "@/components/Skeletons";
+import { CheckCircle2, Clock, Mail, Truck, Package, MessageCircle } from "lucide-react";
 
 export const Route = createFileRoute("/order/$id")({
   component: OrderConfirmationPage,
@@ -103,7 +104,14 @@ function OrderConfirmationPage() {
     }
   }, [isPaid, order, id]);
 
-  if (isLoading) return <div className="container mx-auto px-4 py-20 text-center">טוען...</div>;
+  if (isLoading) {
+    return (
+      <div className="container mx-auto px-4 py-14 max-w-2xl space-y-6">
+        <CardSkeleton className="min-h-[12rem]" />
+        <CardSkeleton className="min-h-[16rem]" />
+      </div>
+    );
+  }
   if (isError || !order) {
     return (
       <div className="container mx-auto px-4 py-20">
@@ -114,6 +122,13 @@ function OrderConfirmationPage() {
       </div>
     );
   }
+
+  // Contact affordance — the store's own WhatsApp, pre-filled with the order
+  // number so a question lands with context. wa.me is the store's number, not a
+  // destination taken from untrusted content.
+  const waHref = `https://wa.me/${BUSINESS.whatsapp}?text=${encodeURIComponent(
+    `שלום, יש לי שאלה לגבי הזמנה ${order.order_number}`,
+  )}`;
 
   return (
     <div className="container mx-auto px-4 py-14 max-w-2xl">
@@ -157,15 +172,66 @@ function OrderConfirmationPage() {
           /* Inset well inside the glass panel: a gold hairline chip, no second
              shadow stacking on the panel it sits in. */
           <div className="mb-4 rounded-xl hairline-gold bg-secondary/70 px-4 py-3 text-sm">
-            🎁 סימנת את ההזמנה כמתנה{order.gift_wrap ? " — נארוז אותה בעטיפת מתנה חגיגית" : ""}. ללא תוספת מחיר.
+            <p>🎁 סימנת את ההזמנה כמתנה{order.gift_wrap ? " — נארוז אותה בעטיפת מתנה חגיגית" : ""}. ללא תוספת מחיר.</p>
+            {order.gift_note && (
+              <p className="mt-2 text-muted-foreground">
+                ההקדשה שתודפס: <span className="text-foreground">"{order.gift_note}"</span>
+              </p>
+            )}
           </div>
         )}
+        {/* Reconcile the total: סכום פריטים + משלוח = סך הכל — the same breakdown
+            shown in the checkout summary, so the paid confirmation no longer
+            reads as a bare total the line items can't add up to. */}
+        <div className="space-y-2 border-t border-glass-line pt-3">
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">סכום פריטים</span>
+            <span className="whitespace-nowrap">{formatILS(Number(order.subtotal))}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">משלוח (תעריף אחיד לכל הזמנה)</span>
+            <span className="whitespace-nowrap">{formatILS(Number(order.shipping))}</span>
+          </div>
+        </div>
         <div className="gold-rule my-4" aria-hidden="true" />
         <div className="flex justify-between text-lg">
           <span className="font-bold">סך הכל</span>
           <span className="font-bold text-accent">{formatILS(Number(order.total))}</span>
         </div>
       </div>
+      {isPaid && (
+        /* What happens next — the paid buyer's orientation panel: the email
+           they'll get, the delivery window (same copy as cart/TrustBadges so it
+           can't drift), how to track, and a WhatsApp path for questions. */
+        <div className="glass mt-6 p-6">
+          <h2 className="font-display text-xl font-bold mb-4">מה קורה עכשיו?</h2>
+          <ul className="space-y-3 text-sm text-muted-foreground">
+            <li className="flex items-start gap-2.5">
+              <Mail className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
+              <span>אישור הזמנה מפורט נשלח לכתובת הדוא"ל שלך.</span>
+            </li>
+            <li className="flex items-start gap-2.5">
+              <Truck className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
+              <span>נארוז את ההזמנה ונשלח אותה עד הבית · אספקה משוערת 3–14 ימי עסקים.</span>
+            </li>
+            <li className="flex items-start gap-2.5">
+              <Package className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
+              <span>אפשר לעקוב אחר מצב ההזמנה בכל עת עם מספר ההזמנה וכתובת הדוא"ל שאיתה בוצעה.</span>
+            </li>
+          </ul>
+          <div className="mt-5 flex flex-wrap gap-3">
+            <Link to="/track">
+              <Button variant="outline" className="press">מעקב הזמנה</Button>
+            </Link>
+            <a href={waHref} target="_blank" rel="noopener noreferrer">
+              <Button variant="ghost" className="press gap-1.5">
+                <MessageCircle className="h-4 w-4" aria-hidden="true" />
+                שאלה בוואטסאפ
+              </Button>
+            </a>
+          </div>
+        </div>
+      )}
       <div className="mt-6 text-center">
         <Link to="/shop"><Button variant="outline" className="press">המשך לקנות</Button></Link>
       </div>

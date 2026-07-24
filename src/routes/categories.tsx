@@ -1,6 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { PageHeader } from "@/components/PageHeader";
+import { OCCASION_COLLECTIONS } from "@/lib/collections";
 
 // /categories is the only hub that links all 105 categories. Fetching it in a
 // route loader (rather than only in useQuery) is what puts those links into the
@@ -59,7 +61,47 @@ function CategoriesPage() {
 
   return (
     <div className="container mx-auto px-4 py-10">
-      <h1 className="font-display text-3xl md:text-4xl font-bold mb-6">קטגוריות</h1>
+      <PageHeader
+        eyebrow="קטגוריות"
+        title="כל תשמישי הקדושה והיודאיקה, לפי קטגוריה"
+        sub="טליתות ותפילין, מזוזות, גביעי קידוש, חנוכיות, פמוטים, מארזים לחתנים, סטי חלאקה ותכשיטי זהב — בחרו עולם תוכן והתחילו לקנות."
+      />
+
+      {/* Shop-by-occasion — Judaica is calendar- and lifecycle-driven, so surface
+          the curated occasion/holiday hubs (/collection/<slug>) right under the
+          header. Tasteful glass pills, gold reserved for text/accents only, RTL.
+          The links are the discovery path into the config-driven collections. */}
+      <section className="mb-10 md:mb-12">
+        <div className="mb-4 flex items-center justify-center gap-3">
+          <span aria-hidden="true" className="gold-rule block w-8" />
+          <h2 className="font-display text-lg md:text-xl text-foreground">קונים לפי אירוע</h2>
+          <span aria-hidden="true" className="gold-rule block w-8" />
+        </div>
+        <div className="flex flex-wrap justify-center gap-2.5">
+          {OCCASION_COLLECTIONS.map((c) => (
+            // New /collection/$slug route — `to` is cast like the shared
+            // Breadcrumb does, so the link does not depend on the router's
+            // literal path union being regenerated before type-check.
+            <Link
+              key={c.slug}
+              to={"/collection/$slug" as any}
+              params={{ slug: c.slug } as any}
+              className="press inline-flex min-h-[44px] items-center rounded-full bg-card/70 px-4 text-sm text-foreground hairline transition-[background-color,color,transform] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
+            >
+              {c.title}
+            </Link>
+          ))}
+          {/* The proven bespoke hub — the store's real differentiator. */}
+          <Link
+            to="/collection/personalized"
+            className="press inline-flex min-h-[44px] items-center gap-2 rounded-full bg-card/70 px-4 text-sm text-accent hairline transition-[background-color,transform] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary"
+          >
+            <span aria-hidden="true">✦</span>
+            רקמה וחריטה אישית
+          </Link>
+        </div>
+      </section>
+
       {/* Deliberately NOT .stagger here. Its keyframe ends on `transform: none`
           with `both` fill, and a filled animation applies at the animation
           origin — which outranks author declarations — so every card would be
@@ -89,13 +131,17 @@ function CategoriesPage() {
               </Link>
               {c.description && <div className="text-xs text-muted-foreground mt-1 line-clamp-2">{c.description}</div>}
               {kids.length > 0 && (
-                <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1">
+                <div className="mt-3 flex flex-wrap gap-1.5">
                   {kids.map((k) => (
+                    // Each child is a real tap target now: min-h-[44px] + px-3
+                    // clears the 44px floor, and the hover pill (accent tint +
+                    // accent text, pointer-gated) gives clear affordance. Only
+                    // colour/background transition — never layout.
                     <Link
                       key={k.id}
                       to="/category/$slug"
                       params={{ slug: k.slug }}
-                      className="text-xs text-muted-foreground transition-[color] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
+                      className="inline-flex min-h-[44px] items-center rounded-full px-3 text-sm text-muted-foreground transition-[color,background-color] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-accent/10 [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
                     >
                       {k.name}
                     </Link>

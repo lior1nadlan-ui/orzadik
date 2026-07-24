@@ -33,6 +33,8 @@ import { Route as ArticlesIndexRouteImport } from './routes/articles/index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as ProductSlugRouteImport } from './routes/product.$slug'
 import { Route as OrderIdRouteImport } from './routes/order.$id'
+import { Route as CollectionPersonalizedRouteImport } from './routes/collection.personalized'
+import { Route as CollectionSlugRouteImport } from './routes/collection.$slug'
 import { Route as CategorySlugRouteImport } from './routes/category.$slug'
 import { Route as ArticlesSlugRouteImport } from './routes/articles/$slug'
 import { Route as AdminReviewsRouteImport } from './routes/admin.reviews'
@@ -168,6 +170,16 @@ const OrderIdRoute = OrderIdRouteImport.update({
   path: '/order/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CollectionPersonalizedRoute = CollectionPersonalizedRouteImport.update({
+  id: '/collection/personalized',
+  path: '/collection/personalized',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CollectionSlugRoute = CollectionSlugRouteImport.update({
+  id: '/collection/$slug',
+  path: '/collection/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CategorySlugRoute = CategorySlugRouteImport.update({
   id: '/category/$slug',
   path: '/category/$slug',
@@ -270,6 +282,8 @@ export interface FileRoutesByFullPath {
   '/admin/reviews': typeof AdminReviewsRoute
   '/articles/$slug': typeof ArticlesSlugRoute
   '/category/$slug': typeof CategorySlugRoute
+  '/collection/$slug': typeof CollectionSlugRoute
+  '/collection/personalized': typeof CollectionPersonalizedRoute
   '/order/$id': typeof OrderIdRoute
   '/product/$slug': typeof ProductSlugRoute
   '/admin/': typeof AdminIndexRoute
@@ -309,6 +323,8 @@ export interface FileRoutesByTo {
   '/admin/reviews': typeof AdminReviewsRoute
   '/articles/$slug': typeof ArticlesSlugRoute
   '/category/$slug': typeof CategorySlugRoute
+  '/collection/$slug': typeof CollectionSlugRoute
+  '/collection/personalized': typeof CollectionPersonalizedRoute
   '/order/$id': typeof OrderIdRoute
   '/product/$slug': typeof ProductSlugRoute
   '/admin': typeof AdminIndexRoute
@@ -350,6 +366,8 @@ export interface FileRoutesById {
   '/admin/reviews': typeof AdminReviewsRoute
   '/articles/$slug': typeof ArticlesSlugRoute
   '/category/$slug': typeof CategorySlugRoute
+  '/collection/$slug': typeof CollectionSlugRoute
+  '/collection/personalized': typeof CollectionPersonalizedRoute
   '/order/$id': typeof OrderIdRoute
   '/product/$slug': typeof ProductSlugRoute
   '/admin/': typeof AdminIndexRoute
@@ -392,6 +410,8 @@ export interface FileRouteTypes {
     | '/admin/reviews'
     | '/articles/$slug'
     | '/category/$slug'
+    | '/collection/$slug'
+    | '/collection/personalized'
     | '/order/$id'
     | '/product/$slug'
     | '/admin/'
@@ -431,6 +451,8 @@ export interface FileRouteTypes {
     | '/admin/reviews'
     | '/articles/$slug'
     | '/category/$slug'
+    | '/collection/$slug'
+    | '/collection/personalized'
     | '/order/$id'
     | '/product/$slug'
     | '/admin'
@@ -471,6 +493,8 @@ export interface FileRouteTypes {
     | '/admin/reviews'
     | '/articles/$slug'
     | '/category/$slug'
+    | '/collection/$slug'
+    | '/collection/personalized'
     | '/order/$id'
     | '/product/$slug'
     | '/admin/'
@@ -505,6 +529,8 @@ export interface RootRouteChildren {
   TrackRoute: typeof TrackRoute
   ArticlesSlugRoute: typeof ArticlesSlugRoute
   CategorySlugRoute: typeof CategorySlugRoute
+  CollectionSlugRoute: typeof CollectionSlugRoute
+  CollectionPersonalizedRoute: typeof CollectionPersonalizedRoute
   OrderIdRoute: typeof OrderIdRoute
   ProductSlugRoute: typeof ProductSlugRoute
   ArticlesIndexRoute: typeof ArticlesIndexRoute
@@ -685,6 +711,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OrderIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/collection/personalized': {
+      id: '/collection/personalized'
+      path: '/collection/personalized'
+      fullPath: '/collection/personalized'
+      preLoaderRoute: typeof CollectionPersonalizedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/collection/$slug': {
+      id: '/collection/$slug'
+      path: '/collection/$slug'
+      fullPath: '/collection/$slug'
+      preLoaderRoute: typeof CollectionSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/category/$slug': {
       id: '/category/$slug'
       path: '/category/$slug'
@@ -833,6 +873,8 @@ const rootRouteChildren: RootRouteChildren = {
   TrackRoute: TrackRoute,
   ArticlesSlugRoute: ArticlesSlugRoute,
   CategorySlugRoute: CategorySlugRoute,
+  CollectionSlugRoute: CollectionSlugRoute,
+  CollectionPersonalizedRoute: CollectionPersonalizedRoute,
   OrderIdRoute: OrderIdRoute,
   ProductSlugRoute: ProductSlugRoute,
   ArticlesIndexRoute: ArticlesIndexRoute,

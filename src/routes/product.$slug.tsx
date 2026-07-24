@@ -23,9 +23,18 @@ import { formatILS, useCart, getEffectivePrice, FREE_SHIPPING_THRESHOLD, SHIPPIN
 import { trackViewItem } from "@/lib/analytics";
 import { ProductCardData } from "@/components/ProductCard";
 import { ProductCarousel } from "@/components/product/ProductCarousel";
+import { PersonalizationPreview } from "@/components/product/PersonalizationPreview";
+import {
+  isPersonalizableProduct,
+  embroideryLabel as getEmbroideryLabel,
+  EMBROIDERY_ONLY_CATEGORY_SLUGS,
+  PRINT_INSTEAD_OF_EMBROIDERY_CATEGORY_SLUGS,
+} from "@/lib/personalization";
 import { ProductReviews } from "@/components/ProductReviews";
 import { Stars } from "@/components/Stars";
 import { ClubBadge } from "@/components/ClubBadge";
+import { Breadcrumb, type BreadcrumbItemData } from "@/components/Breadcrumb";
+import { CardSkeleton } from "@/components/Skeletons";
 import { CROSS_SELL_MAP, DEFAULT_CROSS_SELL_CATEGORY } from "@/lib/cross-sells";
 import { thumbUrl } from "@/lib/img";
 import { ShoppingCart, Minus, Plus, Check, Truck, RotateCcw, ZoomIn, Heart, Lock, ShieldCheck } from "lucide-react";
@@ -236,6 +245,7 @@ export const Route = createFileRoute("/product/$slug")({
         { property: "og:type", content: "product" },
         { property: "og:url", content: url },
         ...(images[0] ? [{ property: "og:image", content: images[0] }] : []),
+        ...(images[0] ? [{ property: "og:image:alt", content: p.name }] : []),
         ...(images[0] ? [{ name: "twitter:image", content: images[0] }] : []),
       ],
       links: [{ rel: "canonical", href: url }],
@@ -254,51 +264,11 @@ export const Route = createFileRoute("/product/$slug")({
   component: ProductPage,
 });
 
-// Slugs of categories where we offer personalization (embroidery / laser engraving).
-// Mirrors rikmat.com's personalized lineup.
-const PERSONALIZATION_CATEGORY_SLUGS = new Set<string>([
-  "talit-tefillin-covers",        // כיסויים לטלית ותפילין
-  "talit-tefillin-sets",          // סטים לטלית ותפילין
-  "tefillin-cases",               // תיקי תפילין
-  "pvc-bags",                     // תיקי PVC
-  "chalaka-set",                  // סט חלאקה
-  "atara",                        // עטרה
-  "challah-covers",               // כיסויי חלה
-  "bencher-stands",               // מעמדי בנצ'ר (חריטת לייזר)
-  "wedding",                      // חתונה
-  "%d7%a1%d7%99%d7%93%d7%95%d7%a8%d7%99%d7%9d",                                                                       // סידורים
-  "%d7%9e%d7%95%d7%a6%d7%a8%d7%99-%d7%97%d7%aa%d7%95%d7%a0%d7%94-%d7%95%d7%91%d7%a8-%d7%9e%d7%a6%d7%95%d7%95%d7%94",   // מארזים לחתנים ובר מצווה
-  "%d7%a1%d7%98-%d7%98%d7%9c%d7%99%d7%aa-%d7%aa%d7%a4%d7%99%d7%9c%d7%99%d7%9f",                                       // סט טלית תפילין (התיק)
-]);
-
-// Categories where personalization is offered as embroidery only
-// (no laser engraving option shown).
-const EMBROIDERY_ONLY_CATEGORY_SLUGS = new Set<string>([
-  "talit-tefillin-covers",
-  "talit-tefillin-sets",
-  "tefillin-cases",
-  "pvc-bags",
-  "%d7%a1%d7%98-%d7%98%d7%9c%d7%99%d7%aa-%d7%aa%d7%a4%d7%99%d7%9c%d7%99%d7%9f",
-]);
-
-// Categories where the "embroidery" option is presented as "הטבעה" (print/stamp)
-// instead of actual embroidery. Used for siddurim / tehillim where we offer
-// laser engraving or printing — not embroidery.
-const PRINT_INSTEAD_OF_EMBROIDERY_CATEGORY_SLUGS = new Set<string>([
-  "%d7%a1%d7%99%d7%93%d7%95%d7%a8%d7%99%d7%9d", // סידורים (כולל תהילים)
-]);
-
-
-// Specific product slugs where personalization is disabled even if their
-// category normally supports it.
-const NO_PERSONALIZATION_PRODUCT_SLUGS = new Set<string>([
-  "בד-דמוי-עור-pu-טלית-2336-סמ-עם-ידית-שחור-עם-או",
-  "artj-uk44978",
-  "artj-uk67109",
-  "artj-uk67722",
-  "artj-uk67721",
-  "artj-uk53706",
-]);
+// Personalization (embroidery / רקמה + laser engraving / חריטה) is the store's
+// one real differentiator. The category/product sets and the derivation helpers
+// now live in a single source of truth — @/lib/personalization — so the PDP and
+// every browse surface agree on "is this personalizable, and how?". Imported at
+// the top of this file; behaviour here is unchanged.
 
 function ProductPage() {
   const { slug } = Route.useParams();
@@ -443,12 +413,20 @@ function ProductPage() {
   const categorySlugs: string[] = (product?.product_categories ?? [])
     .map((pc: any) => pc?.categories?.slug ?? "")
     .filter(Boolean);
-  const showEmbroidery = !NO_PERSONALIZATION_PRODUCT_SLUGS.has(slug) && categorySlugs.some((s) =>
-    PERSONALIZATION_CATEGORY_SLUGS.has(s),
-  );
+  // Same gate as before, now from the shared module. isPersonalizableProduct is
+  // exactly `!NO_PERSONALIZATION_PRODUCT_SLUGS.has(slug) && isPersonalizable(...)`,
+  // and embroideryOnly / printInsteadOfEmbroidery / embroideryLabel are derived
+  // from the same sets — so the same products show the same UI as before.
+  const showEmbroidery = isPersonalizableProduct(slug, categorySlugs);
   const embroideryOnly = categorySlugs.some((s) => EMBROIDERY_ONLY_CATEGORY_SLUGS.has(s));
   const printInsteadOfEmbroidery = categorySlugs.some((s) => PRINT_INSTEAD_OF_EMBROIDERY_CATEGORY_SLUGS.has(s));
-  const embroideryLabel = printInsteadOfEmbroidery ? "הטבעה" : "רקמה";
+  const embroideryLabel = getEmbroideryLabel(categorySlugs);
+  // Short, category-accurate label for the above-the-fold personalization chip.
+  const personalizationChipLabel = printInsteadOfEmbroidery
+    ? "ניתן להוסיף הטבעה או חריטה אישית"
+    : embroideryOnly
+    ? "ניתן להוסיף רקמה אישית"
+    : "ניתן להוסיף רקמה או חריטה אישית";
 
 
   const { data: related = [] } = useQuery({
@@ -565,7 +543,36 @@ function ProductPage() {
     },
   });
 
-  if (isLoading) return <div className="container mx-auto px-4 py-20 text-center">טוען...</div>;
+  if (isLoading) {
+    // Gallery + buy-box skeleton in the real two-column PDP shape, so the page
+    // holds its layout instead of collapsing to a single "טוען..." line. Built
+    // from the shared CardSkeleton (min-h overridden per slot). aria-hidden on
+    // the visual scaffold; the status text stays for assistive tech.
+    return (
+      <div className="container mx-auto px-4 py-10">
+        <div className="grid md:grid-cols-2 gap-10" aria-hidden="true">
+          {/* Gallery: square hero + thumbnail strip */}
+          <div>
+            <CardSkeleton className="aspect-square min-h-0" />
+            <div className="mt-3 flex gap-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <CardSkeleton key={i} className="h-20 w-20 min-h-0 flex-shrink-0" />
+              ))}
+            </div>
+          </div>
+          {/* Buy box: title, price, stock chip, short copy, buy row */}
+          <div className="space-y-4">
+            <CardSkeleton className="h-9 w-3/4 min-h-0" />
+            <CardSkeleton className="h-7 w-32 min-h-0" />
+            <CardSkeleton className="h-6 w-44 min-h-0" />
+            <CardSkeleton className="h-20 w-full min-h-0" />
+            <CardSkeleton className="h-12 w-full min-h-0" />
+          </div>
+        </div>
+        <p role="status" className="sr-only">טוען…</p>
+      </div>
+    );
+  }
   if (!product) return <div className="container mx-auto px-4 py-20 text-center">המוצר לא נמצא</div>;
 
   // Dedupe (thumbnail_url often repeats inside product_images) and copy before
@@ -630,7 +637,18 @@ function ProductPage() {
   const CONTACT_TEL = "+972545818486";
   const CONTACT_WA = "972545818486";
   const QUOTE_WA_TEXT = `שלום, אשמח לפרטים והצעת מחיר על: ${product.name}`;
-  const PRESALE_WA_TEXT = `שלום, יש לי שאלה על המוצר "${product.name}".`;
+  // Pre-sale question — pre-fill what the shopper is actually looking at so the
+  // reply lands on the right SKU: the product name, the size they have selected
+  // (selectedVariant tracks the currently-shown size), and the personalization
+  // text if they have typed one. Details go on their own lines (%0A after
+  // encoding) so the message stays readable in WhatsApp.
+  const presaleDetails = [
+    selectedVariant?.label ? `מידה: ${selectedVariant.label}` : null,
+    customText.trim() ? `כיתוב מבוקש: ${customText.trim()}` : null,
+  ].filter(Boolean);
+  const PRESALE_WA_TEXT =
+    `שלום, יש לי שאלה על המוצר "${product.name}".` +
+    (presaleDetails.length ? `\n${presaleDetails.join("\n")}` : "");
   // No restock date, no "we'll email you" — only an invitation to ask.
   const RESTOCK_WA_TEXT = `שלום, המוצר "${product.name}" מופיע כאזל באתר. אשמח לבדוק אפשרות לחידוש מלאי או מוצר חלופי.`;
   const contactCtas = (waText: string, compact = false) => (
@@ -667,10 +685,21 @@ function ProductPage() {
   // slug navigations, so state can briefly carry the previous product's list.
   const recentToShow = recent.filter((r) => r.id !== product.id);
 
-  // Running breadcrumb positions — stay consecutive whether or not the
-  // parent-category li renders.
-  const categoryCrumbPos = parentCategory ? 4 : 3;
-  const productCrumbPos = firstCategory ? categoryCrumbPos + 1 : 3;
+  // Visible breadcrumb trail — the shared <Breadcrumb> primitive (structured
+  // data still comes from the BreadcrumbList JSON-LD in head(), so this carries
+  // no microdata). Mirrors that JSON-LD trail: Home → Shop → parent category →
+  // category → this product. The category levels appear only when known.
+  const breadcrumbItems: BreadcrumbItemData[] = [
+    { label: "בית", to: "/" },
+    { label: "מוצרים", to: "/shop" },
+    ...(parentCategory
+      ? [{ label: parentCategory.name, to: "/category/$slug", params: { slug: parentCategory.slug } }]
+      : []),
+    ...(firstCategory
+      ? [{ label: firstCategory.name, to: "/category/$slug", params: { slug: firstCategory.slug } }]
+      : []),
+    { label: product.name },
+  ];
 
   function addToCart() {
     if (!product) return;
@@ -725,71 +754,10 @@ function ProductPage() {
 
   return (
     <div className="container mx-auto px-4 py-10">
-      {/* Breadcrumb */}
-      <nav aria-label="ניווט מיקום באתר" className="mb-4">
-        <ol className="flex flex-wrap items-center gap-1.5 text-xs md:text-sm text-muted-foreground" itemScope itemType="https://schema.org/BreadcrumbList">
-          <li itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
-            <Link to="/" className="transition-colors duration-160 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent" itemProp="item">
-              <span itemProp="name">בית</span>
-            </Link>
-            <meta itemProp="position" content="1" />
-          </li>
-          <li aria-hidden="true" className="text-muted-foreground/40">/</li>
-          <li itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
-            <Link to="/shop" className="transition-colors duration-160 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent" itemProp="item">
-              <span itemProp="name">מוצרים</span>
-            </Link>
-            <meta itemProp="position" content="2" />
-          </li>
-          {parentCategory && (
-            <>
-              <li aria-hidden="true" className="text-muted-foreground/40">/</li>
-              <li itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
-                <Link
-                  to="/category/$slug"
-                  params={{ slug: parentCategory.slug }}
-                  className="transition-colors duration-160 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
-                  itemProp="item"
-                >
-                  <span itemProp="name">{parentCategory.name}</span>
-                </Link>
-                <meta itemProp="position" content="3" />
-              </li>
-            </>
-          )}
-          {firstCategory && (
-            <>
-              <li aria-hidden="true" className="text-muted-foreground/40">/</li>
-              <li itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
-                <Link
-                  to="/category/$slug"
-                  params={{ slug: firstCategory.slug }}
-                  className="transition-colors duration-160 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
-                  itemProp="item"
-                >
-                  <span itemProp="name">{firstCategory.name}</span>
-                </Link>
-                <meta itemProp="position" content={String(categoryCrumbPos)} />
-              </li>
-            </>
-          )}
-          {product?.name && (
-            <>
-              <li aria-hidden="true" className="text-muted-foreground/40">/</li>
-              <li
-                itemProp="itemListElement"
-                itemScope
-                itemType="https://schema.org/ListItem"
-                className="text-foreground font-medium truncate max-w-[200px]"
-                aria-current="page"
-              >
-                <span itemProp="name">{product.name}</span>
-                <meta itemProp="position" content={String(productCrumbPos)} />
-              </li>
-            </>
-          )}
-        </ol>
-      </nav>
+      {/* Breadcrumb — shared primitive (visible trail only; JSON-LD lives in head()) */}
+      <div className="mb-4">
+        <Breadcrumb items={breadcrumbItems} />
+      </div>
 
       {/* Club promo — visible to guests at the top of every product page */}
       <ClubBadge className="mb-6" />
@@ -806,22 +774,42 @@ function ProductPage() {
                 className="glass glass-gold w-full overflow-hidden"
               >
                 <CarouselContent>
-                  {gallery.map((url, i) => (
-                    <CarouselItem key={url}>
-                      <div className="aspect-square w-full">
-                        <img
-                          src={url}
-                          alt={`${product.name} — תמונה ${i + 1}`}
-                          // First slide is the page's LCP; the rest sit off-screen
-                          // in the strip until swiped to.
-                          loading={i === 0 ? "eager" : "lazy"}
-                          fetchPriority={i === 0 ? "high" : "auto"}
-                          decoding="async"
-                          className="h-full w-full object-contain p-4"
-                        />
-                      </div>
-                    </CarouselItem>
-                  ))}
+                  {gallery.map((url, i) => {
+                    // The main slide is the page LCP. When the image is a
+                    // Supabase object URL (thumbUrl rewrites it — the SAME guard
+                    // the thumbnail strip below relies on), offer a width-capped,
+                    // quality-80 srcSet plus the original as the largest
+                    // candidate, so phones get a right-sized hero while retina
+                    // desktops still pull a sharp one. quality stays at 80 — this
+                    // is the hero image, it must not soften. Non-Supabase URLs
+                    // fall through untouched on the original.
+                    const rendered = thumbUrl(url, 1200, 80);
+                    const canTransform = rendered != null && rendered !== url;
+                    const mainSrcSet = canTransform
+                      ? [
+                          ...[600, 900, 1200].map((w) => `${thumbUrl(url, w, 80)} ${w}w`),
+                          `${url} 1400w`,
+                        ].join(", ")
+                      : undefined;
+                    return (
+                      <CarouselItem key={url}>
+                        <div className="aspect-square w-full">
+                          <img
+                            src={url}
+                            srcSet={mainSrcSet}
+                            sizes={mainSrcSet ? "(max-width:768px) 100vw, 50vw" : undefined}
+                            alt={`${product.name} — תמונה ${i + 1}`}
+                            // First slide is the page's LCP; the rest sit off-screen
+                            // in the strip until swiped to.
+                            loading={i === 0 ? "eager" : "lazy"}
+                            fetchPriority={i === 0 ? "high" : "auto"}
+                            decoding="async"
+                            className="h-full w-full object-contain p-4"
+                          />
+                        </div>
+                      </CarouselItem>
+                    );
+                  })}
                 </CarouselContent>
                 <DialogTrigger asChild>
                   <button
@@ -864,7 +852,12 @@ function ProductPage() {
               </DialogContent>
             </Dialog>
           ) : (
-            <div className="glass glass-gold aspect-square w-full" />
+            // No image on file: the same branded "אין תמונה" placeholder
+            // ProductThumb renders (centered muted label), inside the gallery's
+            // glass-gold square — so it reads as "no photo yet", not a broken box.
+            <div className="glass glass-gold aspect-square w-full flex items-center justify-center text-muted-foreground text-sm">
+              אין תמונה
+            </div>
           )}
           {gallery.length > 1 && (
             <div className="mt-3 flex gap-2 overflow-x-auto" role="group" aria-label="תמונות נוספות של המוצר">
@@ -914,6 +907,19 @@ function ProductPage() {
             </div>
           )}
 
+          {/* Personalization differentiator — surfaced above the fold so the one
+              thing that sets this store apart is seen with the price, not only
+              once the buyer scrolls to the input. Anchor jumps down to the input
+              (pure href — SSR-safe, no JS). */}
+          {showEmbroidery && (
+            <a
+              href="#personalization"
+              className="press glass mb-4 inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-accent [--glass-radius:9999px] [--glass-shadow:0_1px_2px_rgba(22,24,29,0.05)] [@media(hover:hover)_and_(pointer:fine)]:hover:[--glass-bg:rgba(255,255,255,0.94)]"
+            >
+              ✦ {personalizationChipLabel}
+            </a>
+          )}
+
           {/* Stock */}
           <div className="mb-5 space-y-2">
             {canBuy ? (
@@ -952,7 +958,9 @@ function ProductPage() {
 
           {/* Personalization (embroidery / laser engraving) */}
           {showEmbroidery && (
-            <div className="glass mb-5 p-4">
+            // scroll-mt keeps the block clear of the sticky header when the
+            // above-the-fold chip's #personalization anchor jumps down to it.
+            <div id="personalization" className="glass mb-5 p-4 scroll-mt-24">
               <Label htmlFor="embroidery" className="text-sm font-semibold text-accent">
                 ✦ הוספת שם אישי על המוצר (אופציונלי)
               </Label>
@@ -998,6 +1006,16 @@ function ProductPage() {
                   </div>
                 </div>
               )}
+              {/* Live הדמיה — as the buyer types their name it appears on a
+                  material swatch (fabric for רקמה/הטבעה, wood for חריטה). The
+                  component labels itself clearly as a simulation and reflects the
+                  chosen method. It reads state only — the cart payload
+                  (customText / customMethod) is unchanged. */}
+              <PersonalizationPreview
+                text={customText}
+                method={customMethod}
+                embroideryLabel={embroideryLabel}
+              />
               <p className="text-xs text-muted-foreground mt-2">
                 {printInsteadOfEmbroidery
                   ? "ניתן להוסיף שם בהטבעה או בחריטת לייזר בעברית. ניצור איתכם קשר לאחר ההזמנה לתיאום פונט וגוון."
@@ -1150,6 +1168,45 @@ function ProductPage() {
             </div>
           )}
 
+          {/* At-the-decision reassurance — sits immediately under the buy row so
+              the three things that answer a first-time, zero-review buyer's doubt
+              are seen WITH the CTA, not scrolled past. Only on purchasable
+              products; call-only / out-of-stock surface their own contact CTAs. */}
+          {!isCallOnly && canBuy && (
+            <div className="mb-3 space-y-2.5">
+              {/* WhatsApp concierge — the honest substitute for reviews: a real
+                  person answers before you buy. Pre-filled with the exact product,
+                  size and personalization the shopper is looking at. */}
+              <a
+                href={`https://wa.me/${CONTACT_WA}?text=${encodeURIComponent(PRESALE_WA_TEXT)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="press glass flex items-center gap-2.5 px-3.5 py-2.5 text-sm font-medium text-[#075E54] [--glass-radius:0.75rem] [@media(hover:hover)_and_(pointer:fine)]:hover:[--glass-bg:rgba(255,255,255,0.94)]"
+              >
+                <span aria-hidden="true" className="text-base leading-none">💬</span>
+                <span>שאלה לפני שקונים? דברו איתנו בוואטסאפ — נענה אישית</span>
+              </a>
+
+              {/* 14-day statutory return, surfaced at peak first-purchase anxiety
+                  instead of buried in the returns accordion. When the shopper has
+                  entered personalization the copy flips to the accordion's caveat
+                  (personalized items are excluded) so the two never contradict. */}
+              <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <RotateCcw className="h-3.5 w-3.5 shrink-0 text-accent" />
+                {customText.trim()
+                  ? "פריט בהתאמה אישית אינו ניתן להחזרה לפי חוק הגנת הצרכן"
+                  : `החזרה תוך ${CONSUMER_POLICY.cancellationDays} יום לפי חוק הגנת הצרכן`}
+              </p>
+
+              {/* Gift-intent hint — Judaica skews gift, and the wrap + printed
+                  dedication genuinely exist at checkout (free). Informational
+                  only: no new gift state is threaded through the cart here. */}
+              <p className="text-xs text-muted-foreground">
+                🎁 מתנה? בקופה אפשר להוסיף עטיפה והקדשה אישית — ללא עלות
+              </p>
+            </div>
+          )}
+
           {/* Out of stock is not a dead end: both buy buttons above are
               disabled, so offer the same phone/WhatsApp pair the call-only
               products use. Deliberately promises nothing — no restock date, no
@@ -1194,20 +1251,6 @@ function ProductPage() {
               {sellerIdentityLine()}
             </div>
           </div>
-
-          {/* Pre-sale contact — a low-key WhatsApp path for a question BEFORE
-              buying (the buy row has no contact CTA). Only on purchasable
-              products; out-of-stock / call-only already surface their own CTAs. */}
-          {canBuy && (
-            <a
-              href={`https://wa.me/${CONTACT_WA}?text=${encodeURIComponent(PRESALE_WA_TEXT)}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-[#075E54] [@media(hover:hover)_and_(pointer:fine)]:hover:underline"
-            >
-              💬 שאלה על המוצר? דברו איתנו בוואטסאפ
-            </a>
-          )}
 
           {/* Accordion — one glass pane, hairline dividers between the rows,
               instead of three gold-ruled bands. */}
@@ -1291,11 +1334,15 @@ function ProductPage() {
         />
       )}
 
-      {/* Same-category recommendations. The 4-item floor keeps the strip from
-          looking thin on a normal page — but when the product is out of stock
-          this strip IS the way forward, so show whatever exists (the carousel
-          renders nothing on an empty list). */}
-      {(!canBuy || similar.length >= 4) && (
+      {/* Same-category recommendations. This is a near-twin of the cross-sell
+          rail above (both are "here's more to explore" strips), so on a buyable
+          page where the cross-sell rail already fills that slot we DROP this one
+          rather than stack two look-alike carousels. It still renders when:
+            • the product is out of stock — then this strip IS the way forward
+              (show whatever exists; the carousel no-ops on an empty list), or
+            • there is no cross-sell rail (related is empty) AND there are ≥4
+              same-category items, so the page keeps one healthy discovery strip. */}
+      {(!canBuy || (related.length === 0 && similar.length >= 4)) && (
         <ProductCarousel
           eyebrow="עוד מהקטגוריה"
           heading={canBuy ? "מוצרים דומים" : "מוצרים דומים שזמינים עכשיו"}

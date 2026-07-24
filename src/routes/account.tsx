@@ -22,6 +22,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { formatILS } from "@/lib/cart";
+import { orderStatusHe } from "@/lib/business";
+import { CardSkeleton } from "@/components/Skeletons";
 import { Sparkles, Package, LogOut, ShoppingBag, Mail, Trash2, Download, Pencil } from "lucide-react";
 import { toast } from "sonner";
 
@@ -240,7 +242,18 @@ function AccountPage() {
   });
 
   if (authLoading || !user) {
-    return <div className="container mx-auto px-4 py-20 text-center">טוען...</div>;
+    // Card-shaped placeholder that reserves the member banner + the three stat
+    // tiles below it, so the real panes drop in with no layout shift.
+    return (
+      <div className="container mx-auto px-4 py-10 max-w-4xl">
+        <CardSkeleton className="min-h-[8.5rem] rounded-[1.25rem]" />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+          <CardSkeleton className="min-h-[6.5rem]" />
+          <CardSkeleton className="min-h-[6.5rem]" />
+          <CardSkeleton className="min-h-[6.5rem]" />
+        </div>
+      </div>
+    );
   }
 
   const memberSince = profile?.member_since
@@ -414,8 +427,8 @@ function AccountPage() {
                     <div className="min-w-0">
                       <div className="font-medium text-sm">הזמנה #{o.order_number}</div>
                       <div className="text-xs text-muted-foreground">
-                        {new Date(o.created_at).toLocaleDateString("he-IL")} • {o.status}
-                        {o.payment_status === "paid" && <span className="text-emerald-600"> • שולם</span>}
+                        {new Date(o.created_at).toLocaleDateString("he-IL")} • {orderStatusHe(o.status)}
+                        {o.payment_status === "paid" && <span className="text-accent font-medium"> • שולם</span>}
                       </div>
                       <div className="text-xs mt-1">
                         <span className="text-muted-foreground">משלוח: </span>

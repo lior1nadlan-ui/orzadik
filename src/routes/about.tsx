@@ -56,7 +56,7 @@ function AboutPage() {
             אור זרוע לצדיק
           </p>
           <h1 className="font-display text-4xl md:text-5xl font-bold leading-tight mb-5 text-foreground">
-            אור זרוע לצדיק<br />תשמישי קדושה ויודאיקה שמלווים את החיים היהודיים
+            תשמישי קדושה ויודאיקה שמלווים את החיים היהודיים
           </h1>
           <p className="text-base md:text-lg text-muted-foreground leading-relaxed">
             מבריתות וחלאקות, דרך בר מצוות וחתונות, ועד לרגעי השבת והחג בבית —

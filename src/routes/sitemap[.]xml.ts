@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { OCCASION_COLLECTIONS } from "@/lib/collections";
 
 // Dynamic sitemap served at /sitemap.xml (referenced by public/robots.txt).
 // Uses the service-role client so it can read regardless of RLS/grant nuances.
@@ -12,12 +13,27 @@ const STATIC: Array<{ path: string; freq: string; pri: string }> = [
   { path: "/categories", freq: "weekly", pri: "0.8" },
   { path: "/articles", freq: "weekly", pri: "0.8" },
   { path: "/about", freq: "monthly", pri: "0.5" },
+  { path: "/contact", freq: "monthly", pri: "0.5" },
   // /track is deliberately absent: it is noindex and only ever renders a
   // specific customer's order.
   { path: "/club", freq: "monthly", pri: "0.6" },
   { path: "/privacy", freq: "yearly", pri: "0.3" },
   { path: "/terms", freq: "yearly", pri: "0.3" },
   { path: "/accessibility", freq: "yearly", pri: "0.3" },
+];
+
+// Curated landing pages under /collection: the bespoke personalization guide
+// plus every occasion/holiday hub (slugs sourced from OCCASION_COLLECTIONS so a
+// new hub is indexed the moment it is added there). These are rankable content
+// pages that curate real category products, hence a higher priority than a leaf
+// category and a monthly refresh cadence.
+const COLLECTIONS: Array<{ path: string; freq: string; pri: string }> = [
+  { path: "/collection/personalized", freq: "monthly", pri: "0.7" },
+  ...OCCASION_COLLECTIONS.map((c) => ({
+    path: `/collection/${c.slug}`,
+    freq: "monthly",
+    pri: "0.7",
+  })),
 ];
 
 const esc = (s: string) =>
@@ -98,6 +114,13 @@ export const Route = createFileRoute("/sitemap.xml")({
           for (const s of STATIC) {
             urls.push(
               `<url><loc>${loc(s.path)}</loc><lastmod>${freshest}</lastmod><changefreq>${s.freq}</changefreq><priority>${s.pri}</priority></url>`,
+            );
+          }
+          // Collection landing pages curate live catalog products, so the
+          // freshest content date is the honest lastmod for them too.
+          for (const s of COLLECTIONS) {
+            urls.push(
+              `<url><loc>${esc(loc(s.path))}</loc><lastmod>${freshest}</lastmod><changefreq>${s.freq}</changefreq><priority>${s.pri}</priority></url>`,
             );
           }
           for (const c of categories ?? []) {

@@ -219,6 +219,9 @@ export const placeOrder = createServerFn({ method: "POST" })
           name: data.customer_name,
           source: "checkout",
           userId: authedUserId,
+          // Explicit opt-in tied to a committed order = fresh first-party
+          // consent; honor it even if the address had previously unsubscribed.
+          allowResubscribe: true,
         });
       } catch (e) {
         console.error("[placeOrder] newsletter opt-in failed (non-fatal):", e);

@@ -48,6 +48,30 @@ function CheckoutPage() {
     city: "",
     notes: "",
   });
+  // Inline field errors (Hebrew) + a ref to the required-consent checkbox so a
+  // submit blocked on missing consent can bring it into view and focus it.
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const consentRef = useRef<HTMLButtonElement>(null);
+
+  // Update one field and clear its inline error as the shopper corrects it.
+  const setField = (key: keyof typeof form, value: string) => {
+    setForm((f) => ({ ...f, [key]: value }));
+    setErrors((prev) => (prev[key] ? { ...prev, [key]: "" } : prev));
+  };
+
+  // Lightweight validation for the required fields. Native `required` stays on
+  // each input for semantics/a11y, but the <form> is noValidate so THESE Hebrew
+  // messages — not the browser's default bubbles — are what the shopper sees.
+  const validate = () => {
+    const e: Record<string, string> = {};
+    if (!form.name.trim()) e.name = "יש להזין שם מלא";
+    const email = form.email.trim();
+    if (!email) e.email = 'יש להזין כתובת דוא"ל';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) e.email = 'כתובת הדוא"ל אינה תקינה';
+    if (!form.phone.trim()) e.phone = "יש להזין מספר טלפון";
+    if (!form.address.trim()) e.address = "יש להזין כתובת מלאה למשלוח";
+    return e;
+  };
 
   // On hard loads the session resolves after first render, so the initializer
   // above sees user=null. Pre-fill the email once auth resolves (if still empty).
@@ -151,8 +175,27 @@ function CheckoutPage() {
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // 1) Inline field validation — surface Hebrew errors and jump to the first.
+    const fieldErrors = validate();
+    setErrors(fieldErrors);
+    if (Object.keys(fieldErrors).length > 0) {
+      const firstKey = (["name", "email", "phone", "address"] as const).find(
+        (k) => fieldErrors[k],
+      );
+      if (firstKey) {
+        const el = document.getElementById(firstKey);
+        el?.scrollIntoView({ behavior: "smooth", block: "center" });
+        (el as HTMLElement | null)?.focus();
+      }
+      return;
+    }
+    // 2) Required operational consent. The pay button stays ENABLED so this path
+    // is reachable — fire the toast AND bring the checkbox into view + focus it,
+    // instead of leaving the button silently disabled far below the form.
     if (!contactConsent) {
       toast.error("יש לאשר יצירת קשר לצורך טיפול בהזמנה");
+      consentRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      consentRef.current?.focus();
       return;
     }
     // GA4 begin_checkout / Meta InitiateCheckout — the shopper committed to
@@ -212,23 +255,26 @@ function CheckoutPage() {
 
   return (
     <div className="container mx-auto px-4 py-10 grid lg:grid-cols-3 gap-8">
-      <form onSubmit={onSubmit} className="lg:col-span-2 space-y-4">
+      <form onSubmit={onSubmit} noValidate className="lg:col-span-2 space-y-4">
         <h1 className="font-display text-3xl font-bold mb-4">פרטי הזמנה</h1>
         <div className="grid md:grid-cols-2 gap-4">
           <div>
             <Label htmlFor="name">שם מלא *</Label>
-            <Input id="name" required autoComplete="name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+            <Input id="name" required autoComplete="name" aria-invalid={!!errors.name} aria-describedby={errors.name ? "name-error" : undefined} value={form.name} onChange={(e) => setField("name", e.target.value)} />
+            {errors.name && <p id="name-error" className="mt-1 text-xs text-destructive">{errors.name}</p>}
           </div>
           <div>
             <Label htmlFor="email">אימייל *</Label>
-            <Input id="email" type="email" required autoComplete="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+            <Input id="email" type="email" required autoComplete="email" aria-invalid={!!errors.email} aria-describedby={errors.email ? "email-error" : undefined} value={form.email} onChange={(e) => setField("email", e.target.value)} />
+            {errors.email && <p id="email-error" className="mt-1 text-xs text-destructive">{errors.email}</p>}
             <p className="text-[11px] text-muted-foreground mt-1">
               אם תזין דוא"ל ולא תשלים את ההזמנה, ייתכן שנשמור את הפרטים זמנית כדי לאפשר את השלמתה. ראו <Link to="/privacy" className="underline underline-offset-2 transition-[color] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent">מדיניות פרטיות</Link>.
             </p>
           </div>
           <div>
             <Label htmlFor="phone">טלפון *</Label>
-            <Input id="phone" type="tel" inputMode="tel" required autoComplete="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+            <Input id="phone" type="tel" inputMode="tel" required autoComplete="tel" aria-invalid={!!errors.phone} aria-describedby={errors.phone ? "phone-error" : undefined} value={form.phone} onChange={(e) => setField("phone", e.target.value)} />
+            {errors.phone && <p id="phone-error" className="mt-1 text-xs text-destructive">{errors.phone}</p>}
           </div>
           <div>
             <Label htmlFor="city">עיר</Label>
@@ -236,7 +282,8 @@ function CheckoutPage() {
           </div>
           <div className="md:col-span-2">
             <Label htmlFor="address">כתובת מלאה *</Label>
-            <Input id="address" required autoComplete="street-address" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
+            <Input id="address" required autoComplete="street-address" aria-invalid={!!errors.address} aria-describedby={errors.address ? "address-error" : undefined} value={form.address} onChange={(e) => setField("address", e.target.value)} />
+            {errors.address && <p id="address-error" className="mt-1 text-xs text-destructive">{errors.address}</p>}
           </div>
           <div className="md:col-span-2">
             <Label htmlFor="notes">הערות להזמנה</Label>
@@ -269,6 +316,14 @@ function CheckoutPage() {
                 <p className="mt-1 text-[11px] text-muted-foreground">
                   {giftNote.length}/300
                 </p>
+                {/* Read-back: show the dedication exactly as it will be printed,
+                    so the buyer can double-check spelling before paying. */}
+                {giftNote.trim() && (
+                  <div className="mt-2 rounded-lg hairline-gold bg-secondary/60 px-3 py-2">
+                    <p className="text-[11px] text-muted-foreground">כך תודפס ההקדשה שתצורף למתנה:</p>
+                    <p className="mt-1 whitespace-pre-wrap break-words text-sm text-foreground">"{giftNote}"</p>
+                  </div>
+                )}
               </div>
               <label className="flex items-center gap-2 cursor-pointer">
                 <Checkbox checked={giftWrap} onCheckedChange={(v) => setGiftWrap(v === true)} />
@@ -285,6 +340,7 @@ function CheckoutPage() {
             surface changed (gilded parchment → glass + gold hairline). */}
         <label className="flex items-start gap-2 glass glass-gold p-4 [--glass-radius:0.75rem] cursor-pointer">
           <Checkbox
+            ref={consentRef}
             checked={contactConsent}
             onCheckedChange={(v) => setContactConsent(v === true)}
             className="mt-0.5"
@@ -310,7 +366,7 @@ function CheckoutPage() {
         </label>
         <PrivacyNotice context="checkout" />
         {(
-          <Button type="submit" size="lg" disabled={submitting || !contactConsent} className="press w-full">
+          <Button type="submit" size="lg" disabled={submitting} className="press w-full">
             {submitting ? "טוען..." : `המשך לתשלום · ${formatILS(finalTotal)}`}
           </Button>
         )}
@@ -367,7 +423,7 @@ function CheckoutPage() {
             </div>
           )}
           <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">משלוח</span>
+            <span className="text-muted-foreground">משלוח (תעריף אחיד לכל הזמנה)</span>
             <span className="whitespace-nowrap">{formatILS(shipping)}</span>
           </div>
         </div>
