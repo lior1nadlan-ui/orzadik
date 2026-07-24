@@ -50,6 +50,16 @@ function apply(s: A11ySettings) {
   if (root) root.classList.toggle("a11y-grayscale", s.grayscale);
 }
 
+// Restore the visitor's persisted accessibility preferences to the document.
+// The widget UI is deferred to browser-idle for performance (see __root.tsx),
+// but a returning user's saved settings must be re-applied right away rather
+// than after that deferred mount — so root calls this eagerly on load. It stays
+// idempotent with the widget's own on-mount apply(load()) (same values), and is
+// SSR-safe: load() and apply() both no-op when window/document are unavailable.
+export function applySavedA11ySettings() {
+  apply(load());
+}
+
 export function AccessibilityWidget() {
   const [open, setOpen] = useState(false);
   const [settings, setSettings] = useState<A11ySettings>(DEFAULTS);

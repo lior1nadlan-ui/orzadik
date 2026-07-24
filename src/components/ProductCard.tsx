@@ -18,7 +18,7 @@ export type ProductCardData = {
   model_count?: number | null;
 };
 
-export function ProductCard({ p, priority = false }: { p: ProductCardData; priority?: boolean }) {
+export function ProductCard({ p, priority = false, eager, highPriority }: { p: ProductCardData; priority?: boolean; eager?: boolean; highPriority?: boolean }) {
   const { add } = useCart();
   const { has, toggle } = useFavorites();
   const navigate = useNavigate();
@@ -106,6 +106,8 @@ export function ProductCard({ p, priority = false }: { p: ProductCardData; prior
           alt={p.name}
           width={400}
           priority={priority}
+          eager={eager}
+          highPriority={highPriority}
           // 700ms was well over the 300ms UI ceiling. v4 emits scale-* to the
           // standalone `scale` property, so it is named in the transition list.
           className="h-full w-full object-cover transition-[transform,scale] duration-300 ease-out motion-safe:[@media(hover:hover)_and_(pointer:fine)]:group-hover:scale-105"

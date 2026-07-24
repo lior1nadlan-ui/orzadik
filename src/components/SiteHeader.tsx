@@ -97,6 +97,14 @@ export function SiteHeader() {
 
   const { data: categories = [] } = useQuery({
     queryKey: ["header-categories"],
+    // The top-level category list is effectively static across a session — it
+    // changes only when the owner edits the catalog. A generous staleTime (10m)
+    // plus a long gcTime keeps the nav out of the refetch path so navigating
+    // between pages doesn't trigger a fresh Supabase round-trip. (The global
+    // default is only 60s with refetchOnWindowFocus off; this is the nav's own,
+    // longer budget.) What the nav renders is unchanged.
+    staleTime: 10 * 60 * 1000,
+    gcTime: 60 * 60 * 1000,
     queryFn: async () => {
       // Top level only. With the full supplier catalog loaded there are 72
       // categories, and listing every subcategory turns the drawer into a

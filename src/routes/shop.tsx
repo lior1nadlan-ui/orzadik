@@ -393,7 +393,7 @@ function ShopPage() {
         <>
           <div className={`grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 transition-opacity duration-200 ease-out ${isFetching ? "opacity-60" : ""}`}>
             {products.map((p, i) => (
-              <ProductCard key={p.id} p={p} priority={i < 8} />
+              <ProductCard key={p.id} p={p} eager={i < 4} highPriority={i < 2} />
             ))}
           </div>
           {hasNextPage && (

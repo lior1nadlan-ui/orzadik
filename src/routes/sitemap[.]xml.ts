@@ -12,6 +12,7 @@ const STATIC: Array<{ path: string; freq: string; pri: string }> = [
   { path: "/categories", freq: "weekly", pri: "0.8" },
   { path: "/articles", freq: "weekly", pri: "0.8" },
   { path: "/about", freq: "monthly", pri: "0.5" },
+  { path: "/contact", freq: "monthly", pri: "0.5" },
   // /track is deliberately absent: it is noindex and only ever renders a
   // specific customer's order.
   { path: "/club", freq: "monthly", pri: "0.6" },

@@ -236,6 +236,7 @@ export const Route = createFileRoute("/product/$slug")({
         { property: "og:type", content: "product" },
         { property: "og:url", content: url },
         ...(images[0] ? [{ property: "og:image", content: images[0] }] : []),
+        ...(images[0] ? [{ property: "og:image:alt", content: p.name }] : []),
         ...(images[0] ? [{ name: "twitter:image", content: images[0] }] : []),
       ],
       links: [{ rel: "canonical", href: url }],
@@ -806,22 +807,42 @@ function ProductPage() {
                 className="glass glass-gold w-full overflow-hidden"
               >
                 <CarouselContent>
-                  {gallery.map((url, i) => (
-                    <CarouselItem key={url}>
-                      <div className="aspect-square w-full">
-                        <img
-                          src={url}
-                          alt={`${product.name} — תמונה ${i + 1}`}
-                          // First slide is the page's LCP; the rest sit off-screen
-                          // in the strip until swiped to.
-                          loading={i === 0 ? "eager" : "lazy"}
-                          fetchPriority={i === 0 ? "high" : "auto"}
-                          decoding="async"
-                          className="h-full w-full object-contain p-4"
-                        />
-                      </div>
-                    </CarouselItem>
-                  ))}
+                  {gallery.map((url, i) => {
+                    // The main slide is the page LCP. When the image is a
+                    // Supabase object URL (thumbUrl rewrites it — the SAME guard
+                    // the thumbnail strip below relies on), offer a width-capped,
+                    // quality-80 srcSet plus the original as the largest
+                    // candidate, so phones get a right-sized hero while retina
+                    // desktops still pull a sharp one. quality stays at 80 — this
+                    // is the hero image, it must not soften. Non-Supabase URLs
+                    // fall through untouched on the original.
+                    const rendered = thumbUrl(url, 1200, 80);
+                    const canTransform = rendered != null && rendered !== url;
+                    const mainSrcSet = canTransform
+                      ? [
+                          ...[600, 900, 1200].map((w) => `${thumbUrl(url, w, 80)} ${w}w`),
+                          `${url} 1400w`,
+                        ].join(", ")
+                      : undefined;
+                    return (
+                      <CarouselItem key={url}>
+                        <div className="aspect-square w-full">
+                          <img
+                            src={url}
+                            srcSet={mainSrcSet}
+                            sizes={mainSrcSet ? "(max-width:768px) 100vw, 50vw" : undefined}
+                            alt={`${product.name} — תמונה ${i + 1}`}
+                            // First slide is the page's LCP; the rest sit off-screen
+                            // in the strip until swiped to.
+                            loading={i === 0 ? "eager" : "lazy"}
+                            fetchPriority={i === 0 ? "high" : "auto"}
+                            decoding="async"
+                            className="h-full w-full object-contain p-4"
+                          />
+                        </div>
+                      </CarouselItem>
+                    );
+                  })}
                 </CarouselContent>
                 <DialogTrigger asChild>
                   <button

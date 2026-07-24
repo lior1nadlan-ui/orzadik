@@ -14,7 +14,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { checkOrderRateLimitByIp } from "@/lib/rate-limit.server";
+import { checkNewsletterRateLimitByIp } from "@/lib/rate-limit.server";
 import {
   sendEmail,
   emailShell,
@@ -45,9 +45,30 @@ export async function recordNewsletterConsent(opts: {
   name?: string | null;
   source: "footer" | "checkout" | "account" | "article" | "home" | "category";
   userId?: string | null;
-}): Promise<void> {
+  /** First-party explicit consent (a checkout/account opt-in tied to a real
+   *  action) MAY revive a previously-suppressed address — the anonymous signup
+   *  form must not, or it becomes an email-bombing vector. Defaults to false. */
+  allowResubscribe?: boolean;
+}): Promise<{ suppressed: boolean }> {
   const email = opts.email.trim().toLowerCase();
   const now = new Date().toISOString();
+
+  // Anti-abuse (email-bombing): a signup form carries no proof that the
+  // submitter owns the address. If the address was previously suppressed
+  // (unsubscribed / bounced / complained), an anonymous form submit must NOT
+  // revive it — otherwise an attacker could re-subscribe someone who opted out
+  // and bomb them with mail. If a suppression row exists, do none of the writes
+  // below (no un-suppress, no consent flip) and signal the caller to skip the
+  // welcome mail. The address stays suppressed. Brand-new addresses (no row)
+  // are unaffected. Fail open on a query error to preserve the happy path.
+  const { data: suppressed, error: supCheckErr } = await supabaseAdmin
+    .from("email_suppressions")
+    .select("email")
+    .eq("email", email)
+    .maybeSingle();
+  if (!supCheckErr && suppressed && !opts.allowResubscribe) {
+    return { suppressed: true };
+  }
 
   // Upsert on the plain unique index. Re-subscribing revives a closed row.
   const { error: subErr } = await supabaseAdmin
@@ -81,6 +102,8 @@ export async function recordNewsletterConsent(opts: {
     ? await supabaseAdmin.from("profiles").update(profileUpdate).eq("id", opts.userId)
     : await supabaseAdmin.from("profiles").update(profileUpdate).ilike("email", email);
   if (profErr) console.error("[newsletter] profile consent sync failed:", profErr);
+
+  return { suppressed: false };
 }
 
 /** Best-effort welcome mail. Never throws — signup already succeeded. */
@@ -133,16 +156,22 @@ export const subscribeNewsletter = createServerFn({ method: "POST" })
       req?.headers.get("cf-connecting-ip") ??
       req?.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
       "unknown";
-    const { limited } = await checkOrderRateLimitByIp(ip);
+    const { limited } = await checkNewsletterRateLimitByIp(ip);
     if (limited) throw new Error("יותר מדי בקשות מהכתובת הזו. אנא נסו מאוחר יותר.");
 
     const email = data.email.trim().toLowerCase();
+    let suppressed = false;
     try {
-      await recordNewsletterConsent({ email, name: data.name, source: data.source });
+      ({ suppressed } = await recordNewsletterConsent({ email, name: data.name, source: data.source }));
     } catch (e) {
       console.error("[newsletter] subscribe failed:", e);
       throw new Error("לא הצלחנו לרשום את הכתובת כעת. אנא נסו שוב.");
     }
+
+    // A previously-suppressed (unsubscribed) address is left untouched and is
+    // not re-mailed. Return the same benign success so the form never reveals
+    // whether an address is on the suppression list.
+    if (suppressed) return { ok: true as const };
 
     await sendNewsletterWelcome(email, data.name);
     return { ok: true as const };

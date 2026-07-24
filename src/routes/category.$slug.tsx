@@ -171,6 +171,7 @@ export const Route = createFileRoute("/category/$slug")({
         { property: "og:type", content: "website" },
         { property: "og:url", content: url },
         { property: "og:image", content: cat.image_url || "https://orzadik.com/og-default.jpg" },
+        { property: "og:image:alt", content: cat.name },
         { name: "twitter:card", content: "summary_large_image" },
         { name: "twitter:title", content: `${cat.name} | אור זרוע לצדיק` },
         { name: "twitter:description", content: desc },
@@ -503,7 +504,7 @@ function CategoryPage() {
 
             {/* Grid */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {visible.map((p, i) => <ProductCard key={p.id} p={p} priority={i < 8} />)}
+              {visible.map((p, i) => <ProductCard key={p.id} p={p} eager={i < 4} highPriority={i < 2} />)}
             </div>
             {visible.length === 0 && (
               <p className="text-center py-10 text-muted-foreground">לא נמצאו מוצרים תואמים.</p>

@@ -76,8 +76,8 @@ const SECURITY_HEADERS: Record<string, string> = {
     "script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://www.googletagmanager.com https://connect.facebook.net",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
-    "img-src 'self' data: blob: https://*.supabase.co https://secure.cardcom.solutions https://*.google-analytics.com https://www.googletagmanager.com https://www.facebook.com",
-    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://secure.cardcom.solutions https://cloudflareinsights.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com https://connect.facebook.net https://www.facebook.com",
+    "img-src 'self' data: blob: https://whtjslgrrfzehivrknuv.supabase.co https://secure.cardcom.solutions https://*.google-analytics.com https://www.googletagmanager.com https://www.facebook.com",
+    "connect-src 'self' https://whtjslgrrfzehivrknuv.supabase.co wss://whtjslgrrfzehivrknuv.supabase.co https://secure.cardcom.solutions https://cloudflareinsights.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com https://connect.facebook.net https://www.facebook.com",
     "frame-src https://secure.cardcom.solutions",
     "frame-ancestors 'none'",
     "object-src 'none'",
@@ -89,6 +89,11 @@ const SECURITY_HEADERS: Record<string, string> = {
   "X-Frame-Options": "DENY",
   "Referrer-Policy": "strict-origin-when-cross-origin",
   "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+  // Isolate the browsing context without requiring COEP (which would break
+  // GA/Meta/Supabase/CardCom subresources). allow-popups keeps the CardCom
+  // payment popup/redirect flow working.
+  "Cross-Origin-Opener-Policy": "same-origin-allow-popups",
+  "Cross-Origin-Resource-Policy": "same-origin",
 };
 
 function applySecurityHeaders(response: Response): Response {
