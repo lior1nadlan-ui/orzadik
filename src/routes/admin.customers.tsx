@@ -9,6 +9,7 @@ import {
   exportCustomersCsv,
 } from "@/lib/admin-crm.functions";
 import { formatILS } from "@/lib/cart";
+import { waMessage } from "@/lib/wa-templates";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -30,6 +31,22 @@ function waLink(phone: string): string {
   const digits = String(phone ?? "").replace(/\D/g, "");
   const intl = digits.startsWith("0") ? "972" + digits.slice(1) : digits;
   return `https://wa.me/${intl}`;
+}
+
+const SHOP = "אור זרוע לצדיק";
+
+/** Warm, generic WhatsApp greeting for a customer — no order context, just a
+ * human hello that references them by name and opens the door to help. Built on
+ * waMessage() so phone normalization stays identical to waLink(); returns null
+ * when there is no usable phone, so callers fall back to the bare wa.me link. */
+function waGreeting(c: { name?: string; phone?: string } | null | undefined): string | null {
+  const name = String(c?.name ?? "").trim();
+  const greet = name ? `שלום ${name}` : "שלום";
+  const text =
+    `${greet}! 💛\n` +
+    `כאן מהחנות "${SHOP}". רצינו רק להגיד תודה שאתה חלק מהמשפחה שלנו — ` +
+    `ואם יש שאלה, בקשה מיוחדת או משהו שנוכל לעזור בו, אנחנו כאן בשבילך. 🙏`;
+  return waMessage(c?.phone, text);
 }
 
 function AdminCustomers() {
@@ -152,7 +169,7 @@ function AdminCustomers() {
                 <td className="p-3">
                   <div className="flex gap-1.5">
                     <a href={`tel:${c.phone}`} className="rounded-full border p-1.5 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted" title={c.phone}><Phone className="h-3.5 w-3.5" /></a>
-                    <a href={waLink(c.phone)} target="_blank" rel="noreferrer" className="rounded-full border p-1.5 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted text-emerald-700" title="WhatsApp"><MessageCircle className="h-3.5 w-3.5" /></a>
+                    <a href={waGreeting(c) ?? waLink(c.phone)} target="_blank" rel="noreferrer" className="rounded-full border p-1.5 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted text-emerald-700" title="WhatsApp — הודעת ברכה מוכנה"><MessageCircle className="h-3.5 w-3.5" /></a>
                     <a href={`mailto:${c.email}`} className="rounded-full border p-1.5 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted" title={c.email}><Mail className="h-3.5 w-3.5" /></a>
                   </div>
                 </td>
@@ -182,7 +199,7 @@ function AdminCustomers() {
               <div className="space-y-4 text-sm">
                 <div className="flex flex-wrap items-center gap-2">
                   <a href={`tel:${selected.phone}`} className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"><Phone className="h-3 w-3" /> {selected.phone}</a>
-                  <a href={waLink(selected.phone)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted text-emerald-700"><MessageCircle className="h-3 w-3" /> וואטסאפ</a>
+                  <a href={waGreeting(selected) ?? waLink(selected.phone)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted text-emerald-700" title="WhatsApp — הודעת ברכה מוכנה"><MessageCircle className="h-3 w-3" /> וואטסאפ</a>
                   <a href={`mailto:${selected.email}`} className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"><Mail className="h-3 w-3" /> {selected.email}</a>
                   {selected.contactConsent && <span className="text-[11px] rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5">אישר/ה יצירת קשר</span>}
                 </div>

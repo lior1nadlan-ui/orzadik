@@ -266,6 +266,211 @@ export const getDashboardStats = createServerFn({ method: "POST" }).handler(asyn
   };
 });
 
+// ---- Action queue ----------------------------------------------------------
+//
+// "מה לעשות היום" — a prioritized list of concrete, human actions the owner
+// should take on REAL orders and carts. Read-only: it derives entirely from
+// live order / abandoned-cart state and writes nothing. The per-row "handled"
+// state lives in the browser (localStorage), not here — so this fn always
+// returns the full candidate set and the client hides what's already dealt
+// with. Reuses the dashboard's own stuck-unpaid / ready-to-ship / abandoned
+// logic (thresholds kept in sync with getDashboardStats above).
+//
+// Each order maps to AT MOST ONE action, so it never appears twice: a paid
+// order is a "thank you" for its first day, then becomes "ready to ship"; an
+// unpaid one is "stuck"; a shipped one eventually becomes a review nudge.
+
+type ActionType =
+  | "thank_you"
+  | "ready_to_ship"
+  | "stuck_unpaid"
+  | "recover_cart"
+  | "review_request";
+
+// Priority ordering (higher = surfaces first): delight a fresh paying customer,
+// then chase money left on the table, then fulfilment, recovery, and reviews.
+const ACTION_PRIORITY: Record<ActionType, number> = {
+  thank_you: 100,
+  stuck_unpaid: 90,
+  ready_to_ship: 80,
+  recover_cart: 60,
+  review_request: 40,
+};
+
+// Sanity cap — at ~1 order the queue is tiny, but never flood the UI.
+const QUEUE_CAP = 40;
+
+type ActionRow = {
+  id: string;
+  type: ActionType;
+  priority: number;
+  orderNumber?: string;
+  customerName: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  context: string;
+  createdAt: string;
+};
+
+export const getActionQueue = createServerFn({ method: "POST" }).handler(async () => {
+  await requireAdmin();
+
+  const orders = await fetchAllOrders(
+    "id, order_number, customer_name, customer_email, customer_phone, status, payment_status, created_at, paid_at, shipped_at, review_request_sent_at",
+  );
+
+  const now = Date.now();
+  const HOUR = 60 * 60 * 1000;
+  const DAY = 24 * HOUR;
+  // Date component of the stable, per-day row id: dismissing an action clears it
+  // for today; a still-open action resurfaces tomorrow — right for a daily queue.
+  const today = new Date().toISOString().slice(0, 10);
+
+  const rows: ActionRow[] = [];
+  const paidAt = (o: any) => new Date(o.paid_at ?? o.created_at).getTime();
+  const daysSince = (iso: string) => Math.floor((now - new Date(iso).getTime()) / DAY);
+
+  for (const o of orders) {
+    // Never nudge on a cancelled/refunded order.
+    if (["cancelled", "refunded"].includes(o.status)) continue;
+
+    const base = {
+      priority: 0,
+      orderNumber: o.order_number || undefined,
+      customerName: o.customer_name || "לקוח",
+      customerEmail: o.customer_email || undefined,
+      customerPhone: o.customer_phone || undefined,
+    };
+    const rowFor = (type: ActionType, createdAt: string, context: string): ActionRow => ({
+      ...base,
+      id: `${type}:${o.id}:${today}`,
+      type,
+      priority: ACTION_PRIORITY[type],
+      createdAt,
+      context,
+    });
+
+    // Paid, not yet shipped → greet for the first 24h, then it's a packing job.
+    if (
+      o.payment_status === "paid" &&
+      !o.shipped_at &&
+      ["pending", "processing"].includes(o.status)
+    ) {
+      const since = paidAt(o);
+      const sinceIso = new Date(since).toISOString();
+      if (now - since <= DAY) {
+        rows.push(
+          rowFor("thank_you", sinceIso, "הזמנה חדשה ששולמה — שלחו תודה אישית ואשרו שקיבלתם 🙏"),
+        );
+      } else {
+        const d = Math.floor((now - since) / DAY);
+        rows.push(
+          rowFor("ready_to_ship", sinceIso, `שולם ומחכה לאריזה ומשלוח — כבר ${d} ימים 📦`),
+        );
+      }
+      continue;
+    }
+
+    // Unpaid / failed for over an hour (younger ones may still be mid-checkout;
+    // 'failed' = a declined card the owner most wants to catch) → warm follow-up.
+    if (
+      ["unpaid", "failed"].includes(o.payment_status) &&
+      now - new Date(o.created_at).getTime() > HOUR
+    ) {
+      rows.push(
+        rowFor("stuck_unpaid", o.created_at, "התחילה הזמנה אך התשלום לא הושלם — שווה פנייה חמה 💬"),
+      );
+      continue;
+    }
+
+    // Shipped ~5+ days ago and never nudged for feedback → personal review ask.
+    // "no review" is approximated by review_request_sent_at IS NULL — the only
+    // per-order signal available without a schema change.
+    if (
+      o.payment_status === "paid" &&
+      ["shipped", "completed"].includes(o.status) &&
+      o.shipped_at &&
+      !o.review_request_sent_at &&
+      now - new Date(o.shipped_at).getTime() >= 5 * DAY
+    ) {
+      rows.push(
+        rowFor(
+          "review_request",
+          o.shipped_at,
+          `נשלחה לפני ${daysSince(o.shipped_at)} ימים — שאלו איך היה ובקשו חוות דעת ⭐`,
+        ),
+      );
+      continue;
+    }
+  }
+
+  // Recoverable abandoned carts — open, not opted out, with real value, aged
+  // past the mid-checkout window but still fresh enough for a personal nudge.
+  // Isolated in try/catch so a carts failure never fails the whole queue.
+  try {
+    const { data: carts, error: cErr } = await supabaseAdmin
+      .from("abandoned_carts")
+      .select("id, email, name, subtotal, created_at")
+      .is("converted_order_id", null)
+      .eq("unsubscribed", false)
+      .gt("subtotal", 0)
+      .gte("created_at", new Date(now - 14 * DAY).toISOString())
+      .lte("created_at", new Date(now - HOUR).toISOString())
+      .order("created_at", { ascending: false })
+      .limit(20);
+    if (cErr) {
+      console.error("[getActionQueue] abandoned carts:", cErr);
+    } else if (carts && carts.length > 0) {
+      // abandoned_carts stores no phone — borrow the freshest one from orders
+      // (one query for the whole batch), mirroring listAbandonedCarts.
+      const emails = [
+        ...new Set(carts.map((c) => String(c.email ?? "").trim().toLowerCase()).filter(Boolean)),
+      ];
+      const phoneByEmail = new Map<string, string>();
+      if (emails.length > 0) {
+        const { data: orderRows, error: pErr } = await supabaseAdmin
+          .from("orders")
+          .select("customer_email, customer_phone")
+          .in("customer_email", emails)
+          .order("created_at", { ascending: false });
+        if (pErr) {
+          console.error("[getActionQueue] cart phones:", pErr);
+        } else {
+          for (const r of orderRows ?? []) {
+            const key = String(r.customer_email ?? "").trim().toLowerCase();
+            if (key && r.customer_phone && !phoneByEmail.has(key)) {
+              phoneByEmail.set(key, r.customer_phone);
+            }
+          }
+        }
+      }
+      for (const c of carts) {
+        const key = String(c.email ?? "").trim().toLowerCase();
+        rows.push({
+          id: `recover_cart:${c.id}:${today}`,
+          type: "recover_cart",
+          priority: ACTION_PRIORITY.recover_cart,
+          customerName: c.name || "לקוח",
+          customerEmail: c.email || undefined,
+          customerPhone: phoneByEmail.get(key) || undefined,
+          context: "עגלה נטושה עם פריטים — הזמנה בהמתנה, שווה תזכורת עדינה 🛒",
+          createdAt: c.created_at,
+        });
+      }
+    }
+  } catch (e) {
+    console.error("[getActionQueue] abandoned carts failed:", e);
+  }
+
+  // Order by priority; within a tier the longest-waiting action floats up.
+  rows.sort(
+    (a, b) =>
+      b.priority - a.priority ||
+      new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+  );
+  return rows.slice(0, QUEUE_CAP);
+});
+
 // ---- Orders: paged list + CSV export --------------------------------------
 
 const OrdersFilterSchema = z.object({

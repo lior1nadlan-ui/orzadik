@@ -5,6 +5,7 @@ import { getDashboardStats } from "@/lib/admin-crm.functions";
 import { formatILS } from "@/lib/cart";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from "recharts";
 import { TrendingUp, TrendingDown } from "lucide-react";
+import { ActionCockpit } from "@/components/admin/ActionCockpit";
 
 export const Route = createFileRoute("/admin/")({
   component: AdminHome,
@@ -55,8 +56,11 @@ function AdminHome() {
 
   if (isLoading || !s) {
     return (
-      <div>
-        <h1 className="font-display text-2xl font-bold mb-6">סקירה כללית</h1>
+      <div className="space-y-6">
+        <h1 className="font-display text-2xl font-bold">סקירה כללית</h1>
+        {/* The action queue owns its own fetch, so it shows immediately —
+            before the revenue stats finish loading. */}
+        <ActionCockpit />
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="h-24 animate-pulse rounded-lg bg-muted" />
@@ -89,6 +93,10 @@ function AdminHome() {
   return (
     <div className="space-y-6">
       <h1 className="font-display text-2xl font-bold">סקירה כללית</h1>
+
+      {/* Action queue first — "מה לעשות היום" is what the owner should act on
+          before scanning any analytics below. */}
+      <ActionCockpit />
 
       {/* KPI row — each card deep-links to the orders page pre-filtered */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
