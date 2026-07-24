@@ -175,6 +175,7 @@
   --duration-modal: 260ms;          /* 200–500 */
   --duration-drawer: 380ms;         /* 200–500 */
   --duration-reveal: 420ms;         /* one-shot page reveal — rare, may delight */
+  --duration-settle: 260ms;         /* scroll-reveal + stagger settle — calm entrance, under the 300ms UI ceiling */
   --stagger-step: 55ms;             /* 30–80 */
 
   /* ---- GRADIENTS (all three re-pointed from the dark/gilded era) ---------- */
@@ -396,9 +397,11 @@
     animation: orz-reveal var(--duration-reveal) var(--ease-out) both;
     animation-delay: var(--reveal-delay, 0ms);
   }
-  /* Put .stagger on the PARENT; children inherit an increasing delay.
-     55ms step, capped at 8 children so a long grid never crawls. */
-  .stagger > * { animation: orz-reveal var(--duration-reveal) var(--ease-out) both; }
+  /* Put .stagger on the PARENT; children inherit an increasing delay. Each child
+     rides orz-stagger-in — the fade+rise plus a faint scale-settle (0.985→1) —
+     over the calm settle band (<300ms). 55ms step, capped at 8 children so a long
+     grid never crawls. */
+  .stagger > * { animation: orz-stagger-in var(--duration-settle) var(--ease-out) both; }
   .stagger > *:nth-child(1) { animation-delay: 0ms; }
   .stagger > *:nth-child(2) { animation-delay: calc(var(--stagger-step) * 1); }
   .stagger > *:nth-child(3) { animation-delay: calc(var(--stagger-step) * 2); }
@@ -407,10 +410,36 @@
   .stagger > *:nth-child(6) { animation-delay: calc(var(--stagger-step) * 5); }
   .stagger > *:nth-child(7) { animation-delay: calc(var(--stagger-step) * 6); }
   .stagger > *:nth-child(n + 8) { animation-delay: calc(var(--stagger-step) * 7); }
+
+  /* ---- SCROLL REVEAL (JS-driven, for <Reveal>) ---------------------------
+     Unlike .reveal/.stagger (self-playing keyframes that fill to visible with no
+     JS), this fades+rises on a class toggle. The Reveal component adds .reveal-in
+     at MOUNT (client only) and .is-in once the element scrolls into view; the
+     transition then plays once. transform+opacity only, settle band (<300ms),
+     --ease-out.
+     CRITICAL: server HTML must NOT ship .reveal-in. It sets opacity:0, so if it
+     were in the SSR output the section would render blank and stay blank when JS
+     never runs. SSR ships the element visible; the client opts it into the reveal. */
+  .reveal-in {
+    opacity: 0;
+    transform: translateY(10px);
+    transition:
+      opacity var(--duration-settle) var(--ease-out),
+      transform var(--duration-settle) var(--ease-out);
+  }
+  .reveal-in.is-in { opacity: 1; transform: none; }
 }
 
 @keyframes orz-reveal {
   from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+/* Stagger children add a faint scale-settle to the same fade+rise — transform +
+   opacity only, resolving to the natural box (transform:none) so nothing shifts
+   layout. Reduced motion swaps the NAME to orz-reveal-static below, dropping both
+   the rise and the scale while keeping the opacity fade. */
+@keyframes orz-stagger-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.985); }
   to   { opacity: 1; transform: none; }
 }
 /* Reduced motion: KEEP the opacity fade, DROP the movement. */
@@ -533,6 +562,10 @@ html:has(#app-root.a11y-grayscale) body::before { filter: grayscale(100%); }
   * { scroll-behavior: auto !important; }
   .reveal,
   .stagger > * { animation-name: orz-reveal-static; }
+  /* Scroll reveal is a JS-transition, not a self-playing keyframe: show it and
+     drop the rise. This unlayered rule outranks the layered .reveal-in/.is-in, so
+     content can never be trapped invisible under reduced motion. */
+  .reveal-in { opacity: 1; transform: none; }
   .press:active { transform: none; }
   .glass-lift { transition-property: box-shadow; }
   .glass-lift:hover { transform: none; }
