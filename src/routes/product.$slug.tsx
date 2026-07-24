@@ -23,6 +23,13 @@ import { formatILS, useCart, getEffectivePrice, FREE_SHIPPING_THRESHOLD, SHIPPIN
 import { trackViewItem } from "@/lib/analytics";
 import { ProductCardData } from "@/components/ProductCard";
 import { ProductCarousel } from "@/components/product/ProductCarousel";
+import { PersonalizationPreview } from "@/components/product/PersonalizationPreview";
+import {
+  isPersonalizableProduct,
+  embroideryLabel as getEmbroideryLabel,
+  EMBROIDERY_ONLY_CATEGORY_SLUGS,
+  PRINT_INSTEAD_OF_EMBROIDERY_CATEGORY_SLUGS,
+} from "@/lib/personalization";
 import { ProductReviews } from "@/components/ProductReviews";
 import { Stars } from "@/components/Stars";
 import { ClubBadge } from "@/components/ClubBadge";
@@ -257,51 +264,11 @@ export const Route = createFileRoute("/product/$slug")({
   component: ProductPage,
 });
 
-// Slugs of categories where we offer personalization (embroidery / laser engraving).
-// Mirrors rikmat.com's personalized lineup.
-const PERSONALIZATION_CATEGORY_SLUGS = new Set<string>([
-  "talit-tefillin-covers",        // כיסויים לטלית ותפילין
-  "talit-tefillin-sets",          // סטים לטלית ותפילין
-  "tefillin-cases",               // תיקי תפילין
-  "pvc-bags",                     // תיקי PVC
-  "chalaka-set",                  // סט חלאקה
-  "atara",                        // עטרה
-  "challah-covers",               // כיסויי חלה
-  "bencher-stands",               // מעמדי בנצ'ר (חריטת לייזר)
-  "wedding",                      // חתונה
-  "%d7%a1%d7%99%d7%93%d7%95%d7%a8%d7%99%d7%9d",                                                                       // סידורים
-  "%d7%9e%d7%95%d7%a6%d7%a8%d7%99-%d7%97%d7%aa%d7%95%d7%a0%d7%94-%d7%95%d7%91%d7%a8-%d7%9e%d7%a6%d7%95%d7%95%d7%94",   // מארזים לחתנים ובר מצווה
-  "%d7%a1%d7%98-%d7%98%d7%9c%d7%99%d7%aa-%d7%aa%d7%a4%d7%99%d7%9c%d7%99%d7%9f",                                       // סט טלית תפילין (התיק)
-]);
-
-// Categories where personalization is offered as embroidery only
-// (no laser engraving option shown).
-const EMBROIDERY_ONLY_CATEGORY_SLUGS = new Set<string>([
-  "talit-tefillin-covers",
-  "talit-tefillin-sets",
-  "tefillin-cases",
-  "pvc-bags",
-  "%d7%a1%d7%98-%d7%98%d7%9c%d7%99%d7%aa-%d7%aa%d7%a4%d7%99%d7%9c%d7%99%d7%9f",
-]);
-
-// Categories where the "embroidery" option is presented as "הטבעה" (print/stamp)
-// instead of actual embroidery. Used for siddurim / tehillim where we offer
-// laser engraving or printing — not embroidery.
-const PRINT_INSTEAD_OF_EMBROIDERY_CATEGORY_SLUGS = new Set<string>([
-  "%d7%a1%d7%99%d7%93%d7%95%d7%a8%d7%99%d7%9d", // סידורים (כולל תהילים)
-]);
-
-
-// Specific product slugs where personalization is disabled even if their
-// category normally supports it.
-const NO_PERSONALIZATION_PRODUCT_SLUGS = new Set<string>([
-  "בד-דמוי-עור-pu-טלית-2336-סמ-עם-ידית-שחור-עם-או",
-  "artj-uk44978",
-  "artj-uk67109",
-  "artj-uk67722",
-  "artj-uk67721",
-  "artj-uk53706",
-]);
+// Personalization (embroidery / רקמה + laser engraving / חריטה) is the store's
+// one real differentiator. The category/product sets and the derivation helpers
+// now live in a single source of truth — @/lib/personalization — so the PDP and
+// every browse surface agree on "is this personalizable, and how?". Imported at
+// the top of this file; behaviour here is unchanged.
 
 function ProductPage() {
   const { slug } = Route.useParams();
@@ -446,12 +413,20 @@ function ProductPage() {
   const categorySlugs: string[] = (product?.product_categories ?? [])
     .map((pc: any) => pc?.categories?.slug ?? "")
     .filter(Boolean);
-  const showEmbroidery = !NO_PERSONALIZATION_PRODUCT_SLUGS.has(slug) && categorySlugs.some((s) =>
-    PERSONALIZATION_CATEGORY_SLUGS.has(s),
-  );
+  // Same gate as before, now from the shared module. isPersonalizableProduct is
+  // exactly `!NO_PERSONALIZATION_PRODUCT_SLUGS.has(slug) && isPersonalizable(...)`,
+  // and embroideryOnly / printInsteadOfEmbroidery / embroideryLabel are derived
+  // from the same sets — so the same products show the same UI as before.
+  const showEmbroidery = isPersonalizableProduct(slug, categorySlugs);
   const embroideryOnly = categorySlugs.some((s) => EMBROIDERY_ONLY_CATEGORY_SLUGS.has(s));
   const printInsteadOfEmbroidery = categorySlugs.some((s) => PRINT_INSTEAD_OF_EMBROIDERY_CATEGORY_SLUGS.has(s));
-  const embroideryLabel = printInsteadOfEmbroidery ? "הטבעה" : "רקמה";
+  const embroideryLabel = getEmbroideryLabel(categorySlugs);
+  // Short, category-accurate label for the above-the-fold personalization chip.
+  const personalizationChipLabel = printInsteadOfEmbroidery
+    ? "ניתן להוסיף הטבעה או חריטה אישית"
+    : embroideryOnly
+    ? "ניתן להוסיף רקמה אישית"
+    : "ניתן להוסיף רקמה או חריטה אישית";
 
 
   const { data: related = [] } = useQuery({
@@ -921,6 +896,19 @@ function ProductPage() {
             </div>
           )}
 
+          {/* Personalization differentiator — surfaced above the fold so the one
+              thing that sets this store apart is seen with the price, not only
+              once the buyer scrolls to the input. Anchor jumps down to the input
+              (pure href — SSR-safe, no JS). */}
+          {showEmbroidery && (
+            <a
+              href="#personalization"
+              className="press glass mb-4 inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-accent [--glass-radius:9999px] [--glass-shadow:0_1px_2px_rgba(22,24,29,0.05)] [@media(hover:hover)_and_(pointer:fine)]:hover:[--glass-bg:rgba(255,255,255,0.94)]"
+            >
+              ✦ {personalizationChipLabel}
+            </a>
+          )}
+
           {/* Stock */}
           <div className="mb-5 space-y-2">
             {canBuy ? (
@@ -959,7 +947,9 @@ function ProductPage() {
 
           {/* Personalization (embroidery / laser engraving) */}
           {showEmbroidery && (
-            <div className="glass mb-5 p-4">
+            // scroll-mt keeps the block clear of the sticky header when the
+            // above-the-fold chip's #personalization anchor jumps down to it.
+            <div id="personalization" className="glass mb-5 p-4 scroll-mt-24">
               <Label htmlFor="embroidery" className="text-sm font-semibold text-accent">
                 ✦ הוספת שם אישי על המוצר (אופציונלי)
               </Label>
@@ -1005,6 +995,16 @@ function ProductPage() {
                   </div>
                 </div>
               )}
+              {/* Live הדמיה — as the buyer types their name it appears on a
+                  material swatch (fabric for רקמה/הטבעה, wood for חריטה). The
+                  component labels itself clearly as a simulation and reflects the
+                  chosen method. It reads state only — the cart payload
+                  (customText / customMethod) is unchanged. */}
+              <PersonalizationPreview
+                text={customText}
+                method={customMethod}
+                embroideryLabel={embroideryLabel}
+              />
               <p className="text-xs text-muted-foreground mt-2">
                 {printInsteadOfEmbroidery
                   ? "ניתן להוסיף שם בהטבעה או בחריטת לייזר בעברית. ניצור איתכם קשר לאחר ההזמנה לתיאום פונט וגוון."

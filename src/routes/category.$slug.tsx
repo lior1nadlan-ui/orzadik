@@ -1,6 +1,7 @@
-import { createFileRoute, notFound } from "@tanstack/react-router";
+import { createFileRoute, notFound, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { isPersonalizable } from "@/lib/personalization";
 import { ProductCard, ProductCardData } from "@/components/ProductCard";
 import { SubcategoryChips, type CategoryChipRow } from "@/components/catalog/SubcategoryChips";
 import { NewsletterSignup } from "@/components/NewsletterSignup";
@@ -420,6 +421,22 @@ function CategoryPage() {
       </header>
 
       <div className="container mx-auto px-4 pt-8">
+        {/* When the category itself is personalizable (its slug is in the shared
+            PERSONALIZABLE_CATEGORY_SLUGS source of truth), a single tasteful line
+            surfaces the store's real differentiator and links to the dedicated
+            story page. One row, above the chips — it never touches the grid. */}
+        {isPersonalizable([slug]) && (
+          <div className="mb-6 flex justify-center">
+            <Link
+              to="/collection/personalized"
+              className="press inline-flex items-center gap-2 rounded-full bg-card/70 px-4 py-2 text-sm text-accent hairline transition-[background-color,transform] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary"
+            >
+              <span aria-hidden="true">✦</span>
+              פריטי הקטגוריה ניתנים להוספת רקמה/חריטה אישית
+            </Link>
+          </div>
+        )}
+
         {/* Subcategory / sibling chips — restyled from here (gold hairline,
             argaman active) via scoped descendant overrides: SubcategoryChips is a
             shared component other pages use, so its own classes stay untouched.
