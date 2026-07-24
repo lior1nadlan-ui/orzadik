@@ -1,7 +1,6 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { getDiscountPct } from "@/lib/cart";
 import { ProductCard, ProductCardData } from "@/components/ProductCard";
 import { SubcategoryChips, type CategoryChipRow } from "@/components/catalog/SubcategoryChips";
 import { NewsletterSignup } from "@/components/NewsletterSignup";
@@ -188,11 +187,11 @@ export const Route = createFileRoute("/category/$slug")({
   component: CategoryPage,
 });
 
-type SortMode = "recommended" | "price-asc" | "price-desc" | "newest" | "oldest" | "discount" | "name";
+type SortMode = "recommended" | "price-asc" | "price-desc" | "newest" | "oldest" | "name";
 
 function isSortMode(v: unknown): v is SortMode {
   return v === "recommended" || v === "price-asc" || v === "price-desc" || v === "newest"
-    || v === "oldest" || v === "discount" || v === "name";
+    || v === "oldest" || v === "name";
 }
 
 type Row = ProductCardData & { is_active: boolean; stock_status: string; created_at: string };
@@ -309,9 +308,6 @@ function CategoryPage() {
         break;
       case "oldest":
         list.sort((a, b) => +new Date(a.created_at) - +new Date(b.created_at));
-        break;
-      case "discount":
-        list.sort((a, b) => getDiscountPct(b.price, b.sale_price) - getDiscountPct(a.price, a.sale_price));
         break;
       case "name":
         list.sort((a, b) => a.name.localeCompare(b.name, "he"));
@@ -494,7 +490,6 @@ function CategoryPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="recommended">מומלצים</SelectItem>
-                      <SelectItem value="discount">מבצעים</SelectItem>
                       <SelectItem value="price-asc">מחיר: מהנמוך לגבוה</SelectItem>
                       <SelectItem value="price-desc">מחיר: מהגבוה לנמוך</SelectItem>
                       <SelectItem value="newest">תאריך: מהחדש לישן</SelectItem>

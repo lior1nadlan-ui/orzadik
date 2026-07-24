@@ -602,17 +602,28 @@ export const markOrderShipped = createServerFn({ method: "POST" })
     await requireAdmin();
     const { data: order, error } = await supabaseAdmin
       .from("orders")
-      .select("id, order_number, shipping_notified_at")
+      .select("id, order_number, shipped_at")
       .eq("id", data.order_id)
       .maybeSingle();
     if (error || !order) throw new Error("הזמנה לא נמצאה.");
+
+    // The shipped_at null→now() transition is the idempotency latch for the
+    // customer email. shipping_notified_at CANNOT gate it: notifyShippingCompany
+    // stamps that column on EVERY paid order at payment time (from the CardCom
+    // webhook), so it is already set here and the old guard never fired — the
+    // customer never got the shipped+tracking email. Read shipped_at BEFORE the
+    // update, then send exactly once, on the first mark-shipped.
+    const wasAlreadyShipped = !!order.shipped_at;
 
     const { error: uErr } = await supabaseAdmin
       .from("orders")
       .update({
         status: "shipped",
         shipping_status: "shipped",
-        shipped_at: new Date().toISOString(),
+        // Set shipped_at only on the FIRST mark-shipped: re-marking (e.g. to add
+        // a tracking number later) must not drift the original ship date, which
+        // the admin screen shows to the owner.
+        ...(wasAlreadyShipped ? {} : { shipped_at: new Date().toISOString() }),
         tracking_number: data.tracking_number || null,
         shipping_carrier: data.carrier || null,
       })
@@ -622,20 +633,162 @@ export const markOrderShipped = createServerFn({ method: "POST" })
       throw new Error("שגיאה בעדכון ההזמנה.");
     }
 
-    // Email once per order: guarded by shipping_notified_at.
+    // Send the shipped + tracking email only on the first transition to shipped.
+    // Wrapped so an email failure never fails the mark-shipped action.
     let emailSent = false;
-    if (!order.shipping_notified_at) {
+    if (!wasAlreadyShipped) {
       try {
         emailSent = await sendOrderShippedEmail(order.id);
-        if (emailSent) {
-          await supabaseAdmin
-            .from("orders")
-            .update({ shipping_notified_at: new Date().toISOString() })
-            .eq("id", order.id);
-        }
       } catch (e) {
         console.error("[markOrderShipped] email failed (order still marked shipped):", e);
       }
     }
     return { ok: true, emailSent };
+  });
+
+// ---- Stock restore on refund / cancel -------------------------------------
+
+// Terminal order states that release reserved inventory back to stock.
+const TERMINAL_STATUSES = ["cancelled", "refunded"] as const;
+
+/**
+ * Return stock to inventory — the reverse of the decrement_order_stock RPC.
+ * Called from BOTH the refund path (refundCardcomOrder) and the manual cancel
+ * path (updateOrderStatus). Additive and self-idempotent, so it is safe to call
+ * from any terminal-transition path.
+ *
+ * `orders.stock_decremented_at` is BOTH the correctness guard and the latch:
+ *   • It is non-null only for orders whose stock was actually decremented (the
+ *     decrement RPC stamps it on paid orders). Clearing it here means we never
+ *     inflate stock for an order that never decremented — e.g. an unpaid order
+ *     that gets cancelled.
+ *   • Flipping it (non-null → NULL) atomically and checking the affected rows
+ *     means exactly one caller wins: a replay, or a second terminal transition,
+ *     restores nothing. This mirrors the decrement RPC's own claim-first latch,
+ *     in reverse — no new column or DB function required.
+ *
+ * Mirrors decrement_order_stock's selection: one row per product (sum quantity
+ * across lines), track_stock=true only, untracked SKUs (stock_qty null) left
+ * untouched. Best-effort: every failure is logged with the order id only (no
+ * customer PII in Worker logs — CWE-532) and never rethrown past this function.
+ */
+export async function restoreOrderStock(orderId: string): Promise<void> {
+  // Atomically claim the restore. Only orders that were decremented and not yet
+  // restored have a non-null stamp; clearing it is the idempotency latch.
+  const { data: claimed, error: claimErr } = await supabaseAdmin
+    .from("orders")
+    .update({ stock_decremented_at: null })
+    .eq("id", orderId)
+    .not("stock_decremented_at", "is", null)
+    .select("id");
+  if (claimErr) {
+    console.error("[restoreOrderStock] claim failed for order:", orderId, claimErr);
+    return;
+  }
+  // Nothing to restore: stock was never decremented, or another caller already
+  // restored it. Never restore twice.
+  if (!claimed || claimed.length === 0) return;
+
+  const { data: items, error: itemsErr } = await supabaseAdmin
+    .from("order_items")
+    .select("product_id, quantity")
+    .eq("order_id", orderId);
+  if (itemsErr) {
+    console.error("[restoreOrderStock] load items failed for order:", orderId, itemsErr);
+    return;
+  }
+
+  // One row per product even when it appears on several lines — mirrors the
+  // decrement RPC's GROUP BY product_id.
+  const qtyByProduct = new Map<string, number>();
+  for (const it of items ?? []) {
+    if (!it.product_id) continue;
+    qtyByProduct.set(it.product_id, (qtyByProduct.get(it.product_id) ?? 0) + Number(it.quantity));
+  }
+  if (qtyByProduct.size === 0) return;
+
+  const { data: products, error: prodErr } = await supabaseAdmin
+    .from("products")
+    .select("id, track_stock, stock_qty, stock_status")
+    .in("id", [...qtyByProduct.keys()]);
+  if (prodErr) {
+    console.error("[restoreOrderStock] load products failed for order:", orderId, prodErr);
+    return;
+  }
+
+  for (const p of products ?? []) {
+    // Only products that opted into tracking with a real quantity — untracked
+    // supplier SKUs (stock_qty null) are left untouched, same as the decrement.
+    if (p.track_stock !== true || p.stock_qty == null) continue;
+    const restored = Number(p.stock_qty) + (qtyByProduct.get(p.id) ?? 0);
+    const patch: { stock_qty: number; stock_status?: string } = { stock_qty: restored };
+    // Coming back from zero flips the badge back to in-stock; a still-zero (or
+    // negative, clamped historically) product stays out-of-stock.
+    if (restored > 0) patch.stock_status = "instock";
+    const { error: upErr } = await supabaseAdmin.from("products").update(patch).eq("id", p.id);
+    if (upErr) console.error("[restoreOrderStock] update product failed for order:", orderId, upErr);
+  }
+}
+
+/**
+ * Admin order-status change. Replaces the browser-client update the orders
+ * screen used to run inline: routing through the service role lets us restore
+ * reserved stock server-side when an order first enters a terminal state.
+ */
+export const updateOrderStatus = createServerFn({ method: "POST" })
+  .inputValidator((i: unknown) =>
+    z
+      .object({
+        order_id: z.string().uuid(),
+        status: z.enum([
+          "pending",
+          "processing",
+          "shipped",
+          "completed",
+          "cancelled",
+          "refunded",
+        ]),
+      })
+      .parse(i),
+  )
+  .handler(async ({ data }) => {
+    await requireAdmin();
+
+    // Read the pre-update status so we can distinguish a FIRST transition into a
+    // terminal (cancelled/refunded) state from a no-op or terminal→terminal move.
+    const { data: order, error } = await supabaseAdmin
+      .from("orders")
+      .select("id, status")
+      .eq("id", data.order_id)
+      .maybeSingle();
+    if (error || !order) throw new Error("הזמנה לא נמצאה.");
+
+    const wasTerminal = (TERMINAL_STATUSES as readonly string[]).includes(order.status);
+
+    const { error: uErr } = await supabaseAdmin
+      .from("orders")
+      .update({ status: data.status })
+      .eq("id", data.order_id);
+    if (uErr) {
+      console.error("[updateOrderStatus]:", uErr);
+      throw new Error("שגיאה בעדכון הסטטוס.");
+    }
+
+    // Data-integrity: return reserved stock the first time an order enters a
+    // terminal state. Additive and wrapped — a restore failure must never fail
+    // the status update. restoreOrderStock is itself idempotent, so this is
+    // belt-and-braces against ever restoring twice.
+    if (!wasTerminal && (TERMINAL_STATUSES as readonly string[]).includes(data.status)) {
+      try {
+        await restoreOrderStock(data.order_id);
+      } catch (e) {
+        console.error(
+          "[updateOrderStatus] stock restore failed (status still updated) for order:",
+          data.order_id,
+          e,
+        );
+      }
+    }
+
+    return { ok: true };
   });

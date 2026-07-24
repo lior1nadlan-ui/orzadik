@@ -9,6 +9,7 @@ import {
   CarouselPrevious,
 } from "@/components/ui/carousel";
 import { Stars } from "@/components/Stars";
+import { SectionHeader } from "@/components/home/SectionHeader";
 import { getRecentApprovedReviews } from "@/lib/reviews.functions";
 
 export type HomeReview = Awaited<ReturnType<typeof getRecentApprovedReviews>>[number];
@@ -73,18 +74,7 @@ export function HomeReviews({
     // No opaque section fill — the page's own white glass mesh is the ground.
     <section className={reserveSpace ? RESERVED_HEIGHT.trim() : undefined}>
       <div className="container mx-auto px-4 py-14 md:py-20">
-        <div className="text-center mb-10 md:mb-14">
-          <div className="flex items-center justify-center gap-3 mb-3" aria-hidden="true">
-            <span className="gold-rule w-10 shrink-0" />
-            <span className="text-[10px] md:text-xs tracking-[0.35em] text-accent uppercase">
-              לקוחות ממליצים
-            </span>
-            <span className="gold-rule w-10 shrink-0" />
-          </div>
-          <h2 className="font-display text-2xl md:text-4xl tracking-wide text-foreground">
-            מה הלקוחות שלנו מספרים
-          </h2>
-        </div>
+        <SectionHeader eyebrow="לקוחות ממליצים" title="מה הלקוחות שלנו מספרים" />
 
         <Carousel dir="rtl" opts={{ align: "start", direction: "rtl" }} className="max-w-6xl mx-auto">
           <CarouselContent>

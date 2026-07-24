@@ -93,7 +93,7 @@ export async function sendOrderConfirmationEmails(orderId: string) {
       <div style="margin-top:8px;">
         <strong>זכות ביטול:</strong> ניתן לבטל את העסקה בכתב תוך ${CONSUMER_POLICY.cancellationDays} ימים
         ממועד קבלת המוצר, בהתאם לחוק הגנת הצרכן. ניתן להודיע על ביטול בדוא"ל
-        ${esc(BUSINESS.email)} או דרך עמוד יצירת הקשר באתר. בביטול שאינו עקב פגם ייתכן ניכוי דמי
+        ${esc(BUSINESS.email)} או דרך <a href="https://orzadik.com/contact" style="color:#A8862A;">עמוד יצירת הקשר</a> באתר. בביטול שאינו עקב פגם ייתכן ניכוי דמי
         ביטול בשיעור שלא יעלה על ${CONSUMER_POLICY.cancellationFeePct}% ממחיר העסקה או
         ${CONSUMER_POLICY.cancellationFeeCapIls} ₪ — הנמוך מביניהם. החזר כספי יבוצע תוך
         ${CONSUMER_POLICY.refundDays} ימים מקבלת הודעת הביטול. מוצרים שהותאמו אישית (רקמה/חריטה)
@@ -187,7 +187,8 @@ export async function sendOrderCreatedOwnerAlert(orderId: string) {
 
 /**
  * Customer "your order shipped" email, with tracking when available.
- * Caller (markOrderShipped) guards on shipping_notified_at so it sends once.
+ * Caller (markOrderShipped) guards on shipped_at so it sends once, on the first
+ * mark-shipped (shipping_notified_at is stamped at payment and cannot gate it).
  */
 export async function sendOrderShippedEmail(orderId: string) {
   if (!isEmailConfigured()) return false;

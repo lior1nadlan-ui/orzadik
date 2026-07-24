@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ProductCard, ProductCardData } from "@/components/ProductCard";
+import { SectionHeader } from "@/components/home/SectionHeader";
 import {
   Carousel,
   CarouselContent,
@@ -98,23 +99,12 @@ export function FeaturedProductsCarousel({
   return (
     <section className={sectionClass}>
       <div className="container mx-auto px-4">
-        {/* Same block as SectionHeader in src/routes/index.tsx — this component is
-            standalone (it also renders on /about), so the markup is duplicated on
-            purpose. Keep the two identical: eyebrow → title → .gold-rule. */}
-        <div className="text-center mb-10 md:mb-14">
-          <p className="text-[10px] md:text-xs tracking-[0.35em] text-accent uppercase mb-3">
-            פריטים נבחרים
-          </p>
-          <h2 className="font-display text-3xl md:text-4xl tracking-wide text-foreground">
-            מומלצים באתר
-          </h2>
-          <span aria-hidden="true" className="gold-rule block w-24 mx-auto mt-4" />
-        </div>
+        <SectionHeader eyebrow="פריטים נבחרים" title="מומלצים באתר" />
 
         <Carousel dir="rtl" opts={{ direction: "rtl", align: "start" }} className="px-2">
           <CarouselContent>
             {products.map((p) => (
-              <CarouselItem key={p.id} className="basis-1/2 md:basis-1/3 lg:basis-1/4">
+              <CarouselItem key={p.id} className="basis-[44%] md:basis-1/3 lg:basis-1/4">
                 <ProductCard p={p} />
               </CarouselItem>
             ))}

@@ -164,8 +164,11 @@ export function ProductCard({ p, priority = false }: { p: ProductCardData; prior
           <button
             onClick={(e) => {
               e.preventDefault();
+              // add() opens the mini-cart drawer as the persistent confirmation
+              // (running subtotal + a direct path to checkout), so the old
+              // transient toast is gone. The button keeps its brief "נוסף ✓"
+              // state, which also debounces a rapid double-add.
               add({ productId: p.id, slug: p.slug, name: p.name, price: p.price, salePrice: p.sale_price, thumbnail: p.thumbnail_url });
-              toast.success("נוסף לעגלה", { action: { label: "לצפייה בעגלה", onClick: () => navigate({ to: "/cart" }) } });
               setAdded(true);
               window.setTimeout(() => setAdded(false), 1500);
             }}

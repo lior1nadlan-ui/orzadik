@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/accessibility")({
   component: AccessibilityPage,
@@ -165,7 +165,7 @@ function AccessibilityPage() {
         <ul>
           <li><strong>שם הרכז:</strong> רכז הנגישות, אור זרוע לצדיק</li>
           <li><strong>דוא"ל:</strong> <a href="mailto:accessibility@orzadik.com" className="text-accent underline-offset-4 [@media(hover:hover)_and_(pointer:fine)]:hover:underline">accessibility@orzadik.com</a></li>
-          <li><strong>טלפון:</strong> ניתן להשאיר פנייה דרך עמוד צור קשר ונחזור אליך בהקדם.</li>
+          <li><strong>טלפון:</strong> ניתן להשאיר פנייה דרך <Link to="/contact">עמוד צור קשר</Link> ונחזור אליך בהקדם.</li>
           <li><strong>שעות מענה:</strong> ימים א'-ה', 09:00-17:00 (למעט ערבי חג וחגים).</li>
         </ul>
         <p>

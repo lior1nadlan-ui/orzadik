@@ -1,7 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { supabase } from "@/integrations/supabase/client";
 import { formatILS } from "@/lib/cart";
 import { refundCardcomOrder } from "@/lib/cardcom.functions";
 import {
@@ -10,6 +9,7 @@ import {
   markOrderShipped,
   listCustomerNotes,
   addCustomerNote,
+  updateOrderStatus,
 } from "@/lib/admin-crm.functions";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -67,6 +67,7 @@ function AdminOrders() {
   const listOrders = useServerFn(listOrdersPaged);
   const exportCsv = useServerFn(exportOrdersCsv);
   const shipOrder = useServerFn(markOrderShipped);
+  const setOrderStatus = useServerFn(updateOrderStatus);
   const custNotesFn = useServerFn(listCustomerNotes);
   const addNoteFn = useServerFn(addCustomerNote);
 
@@ -139,10 +140,15 @@ function AdminOrders() {
   const refresh = () => qc.invalidateQueries({ queryKey: ["admin-orders"] });
 
   const updateStatus = async (id: string, st: string) => {
-    const { error } = await supabase.from("orders").update({ status: st }).eq("id", id);
-    if (error) return toast.error(error.message);
-    toast.success("עודכן");
-    refresh();
+    // Routed through the server fn (not a direct client update) so that setting a
+    // terminal status — cancelled/refunded — restores reserved stock server-side.
+    try {
+      await setOrderStatus({ data: { order_id: id, status: st } });
+      toast.success("עודכן");
+      refresh();
+    } catch (e: any) {
+      toast.error(e?.message ?? "שגיאה בעדכון הסטטוס");
+    }
   };
 
   const doRefund = async (orderId: string) => {
@@ -370,16 +376,16 @@ function AdminOrders() {
                 {/* Shipping */}
                 <div className="border-t pt-3 space-y-2">
                   <div className="font-semibold">משלוח</div>
-                  {selected.shipping_notified_at && (
+                  {selected.shipped_at && (
                     <div className="text-xs text-emerald-700">
-                      ✓ מייל משלוח נשלח ללקוח ב-{new Date(selected.shipping_notified_at).toLocaleDateString("he-IL")}
+                      ✓ סומנה כנשלחה ללקוח ב-{new Date(selected.shipped_at).toLocaleDateString("he-IL")}
                     </div>
                   )}
                   <div className="flex flex-wrap gap-2">
                     <Input placeholder="מספר מעקב" value={tracking} onChange={(e) => setTracking(e.target.value)} className="max-w-[180px]" />
                     <Input placeholder="חברת שילוח" value={carrier} onChange={(e) => setCarrier(e.target.value)} className="max-w-[150px]" />
                     <Button size="sm" disabled={shipping} onClick={doShip}>
-                      {shipping ? "שולח..." : selected.shipping_notified_at ? "עדכן משלוח" : "סמן כנשלחה ושלח מייל ללקוח 📦"}
+                      {shipping ? "שולח..." : selected.shipped_at ? "עדכן משלוח" : "סמן כנשלחה ושלח מייל ללקוח 📦"}
                     </Button>
                   </div>
                 </div>

@@ -1,5 +1,4 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -10,6 +9,8 @@ import { MobileCarousel } from "@/components/MobileCarousel";
 import { NewsletterSignup } from "@/components/NewsletterSignup";
 import { LuxuryShowcase, fetchLuxuryShowcaseThumbs } from "@/components/home/LuxuryShowcase";
 import { HomeReviews, fetchHomeReviews } from "@/components/content/HomeReviews";
+import { SectionHeader } from "@/components/home/SectionHeader";
+import { Reveal } from "@/components/Reveal";
 import {
   Carousel,
   CarouselContent,
@@ -281,19 +282,40 @@ const GROOM_THUMBS: { img: string; slug: string; price: string }[] = [
   { img: "/groom-sets/groom-07.jpeg", slug: "groom-set-oren-realov", price: "‏2,000 ₪" },
 ];
 
-// Standard section header: eyebrow → display title → gold rule (→ optional sub).
-// FeaturedProductsCarousel and LuxuryShowcase hand-roll the same block (they are
-// separate components) — keep all three in step when this changes.
-function SectionHeader({ eyebrow, title, sub }: { eyebrow: string; title: string; sub?: string }) {
+// Line-icons shared by the differentiators strip and the trust band. Kept
+// size-agnostic (each caller passes its own `className` scale) so the same glyph
+// reads at two tiers without duplicating the path data. Decorative — every use
+// sits beside its own text label, so the SVGs stay unlabelled by design.
+function IconTruck({ className }: { className?: string }) {
   return (
-    <div className="text-center mb-10 md:mb-14">
-      <p className="text-[10px] md:text-xs tracking-[0.35em] text-accent uppercase mb-3">{eyebrow}</p>
-      <h2 className="font-display text-3xl md:text-4xl tracking-wide text-foreground">{title}</h2>
-      <span aria-hidden="true" className="gold-rule block w-24 mx-auto mt-4" />
-      {sub && <p className="mt-4 text-sm md:text-base text-muted-foreground max-w-xl mx-auto">{sub}</p>}
-    </div>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M3 7h11v10H3z"/><path d="M14 10h4l3 3v4h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/>
+    </svg>
   );
 }
+function IconGem({ className }: { className?: string }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M12 2l2.39 4.84L20 7.74l-4 3.9.94 5.5L12 14.77l-4.94 2.37L8 11.64 4 7.74l5.61-.9z"/>
+    </svg>
+  );
+}
+function IconShieldCheck({ className }: { className?: string }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M12 22s-8-4.5-8-11a5 5 0 0 1 9-3 5 5 0 0 1 9 3c0 6.5-8 11-8 11z"/><path d="M9 12l2 2 4-4"/>
+    </svg>
+  );
+}
+
+// Three house facts, each already asserted in FAQ_ITEMS: personal embroidery &
+// engraving (172), mehadrin kashrut with certificates (168), 3–14-day home
+// delivery (176). Nothing new is claimed here — the strip only restates truths.
+const DIFFERENTIATORS = [
+  { title: "רקמה וחריטה אישית", icon: <IconGem className="w-8 h-8 md:w-9 md:h-9" /> },
+  { title: "כשרות מהודרת עם תעודות", icon: <IconShieldCheck className="w-8 h-8 md:w-9 md:h-9" /> },
+  { title: "משלוח עד הבית 3–14 ימים", icon: <IconTruck className="w-8 h-8 md:w-9 md:h-9" /> },
+];
 
 // SSR-safe prefers-reduced-motion check — only ever called from effects/handlers.
 function prefersReducedMotion() {
@@ -301,29 +323,50 @@ function prefersReducedMotion() {
 }
 
 function HomePage() {
-  const featuredIds = FEATURED.map((f) => f.id);
   const heroVideoRef = useRef<HTMLVideoElement | null>(null);
-  const { otherCats: loadedOtherCats, featuredProducts, luxuryThumbs, reviews } =
-    Route.useLoaderData();
+  const { featuredProducts, luxuryThumbs, reviews } = Route.useLoaderData();
 
-  // Respect "reduce motion": stop the autoplaying hero loop after mount.
+  // Defer the hero video off the mobile critical path. The poster is the LCP
+  // paint; with the <source> children present at first render, autoPlay would
+  // override preload="metadata" and immediately stream the 7.2MB WebM / 20.5MB
+  // MP4, competing with hero-poster.webp on mobile. So the sources are withheld
+  // from the initial render (poster only) and attached after the browser goes
+  // idle — requestIdleCallback, with a ~1200ms setTimeout fallback. The whole
+  // attach is gated behind a reduced-motion check, so those users get the poster
+  // only and never download the video at all. Mirrors LazyReel's below-the-fold
+  // lazy pattern. SSR-safe: matchMedia/requestIdleCallback are touched only
+  // inside the effect, never at module top-level or during render.
+  const [heroSourcesReady, setHeroSourcesReady] = useState(false);
+
   useEffect(() => {
-    if (prefersReducedMotion()) heroVideoRef.current?.pause();
+    if (prefersReducedMotion()) return;
+    const w = window as Window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    let idleId: number | undefined;
+    let timerId: ReturnType<typeof setTimeout> | undefined;
+    const attach = () => setHeroSourcesReady(true);
+    if (typeof w.requestIdleCallback === "function") {
+      idleId = w.requestIdleCallback(attach, { timeout: 1200 });
+    } else {
+      timerId = setTimeout(attach, 1200);
+    }
+    return () => {
+      if (idleId !== undefined) w.cancelIdleCallback?.(idleId);
+      if (timerId !== undefined) clearTimeout(timerId);
+    };
   }, []);
 
-  const { data: otherCats = [] } = useQuery({
-    queryKey: ["home-other-categories-static", featuredIds],
-    // Seeded from the SSR loader so the strip is in the initial HTML; the
-    // query still refetches on its own schedule.
-    initialData: loadedOtherCats ?? undefined,
-    queryFn: fetchOtherCategories,
-  });
-
-  // Loader data is stable for the life of the page and identical on the server
-  // and during hydration. `null` means the loader fetch failed and the strip is
-  // coming from the client query instead — hold its space so it cannot shift
-  // the page when it lands.
-  const reserveOtherCats = loadedOtherCats === null;
+  // Once the <source> children are in the DOM, load() re-selects the resource so
+  // the just-attached sources are picked up; autoPlay + muted then starts the
+  // loop on its own.
+  useEffect(() => {
+    if (heroSourcesReady) {
+      heroVideoRef.current?.load();
+      heroVideoRef.current?.play()?.catch(() => {});
+    }
+  }, [heroSourcesReady]);
 
   // Static — rendered at SSR from the curated FEATURED list (slugs hardcoded), so
   // the tiles are in the initial HTML and the section never shifts after hydration.
@@ -342,46 +385,53 @@ function HomePage() {
           playsInline
           preload="metadata"
           aria-label="אור זרוע לצדיק — תשמישי קדושה ויודאיקה מהודרת"
-          className="block w-full h-[40vh] md:h-[60vh] object-cover bg-cream"
+          className="block w-full min-h-[520px] h-[62svh] md:min-h-0 md:h-[60vh] md:max-h-[720px] object-cover bg-cream"
         >
-          {/* WebM (VP9) first — ~66% smaller; browsers that can't play it fall back to the MP4. */}
-          <source src="/media/hero-video.webm" type="video/webm" />
-          <source src={heroVideo} type="video/mp4" />
+          {/* Sources are attached only after the browser is idle (see the effect
+              above) so they never compete with the LCP poster on first paint, and
+              are skipped entirely for reduced-motion users. WebM (VP9) first —
+              ~66% smaller; browsers that can't play it fall back to the MP4. */}
+          {heroSourcesReady && (
+            <>
+              <source src="/media/hero-video.webm" type="video/webm" />
+              <source src={heroVideo} type="video/mp4" />
+            </>
+          )}
         </video>
 
         {/* Light frost over the footage. Purely decorative: it softens the video
             into the white ground so the plaque reads as a pane of light. It is NOT
             load-bearing for contrast — every glyph below sits on .glass-strong. */}
-        <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-white/85 via-white/40 to-white/20 pointer-events-none" />
+        <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-white/55 via-white/25 to-white/10 pointer-events-none" />
 
         {/* Centered headline + CTAs over the video.
-            Heading stays an h2 — the SEO colophon at the page bottom owns the only h1.
+            The value-prop line is the page's only h1 (the colophon heading was demoted to h2).
             .glass-strong is the only glass that is contrast-safe over unknown
             backdrops: at 94% white the worst-case backing is #F0F0F0, where the
             foreground ink is 15.8:1, muted-foreground 5.75:1 and --accent 5.10:1 —
             all AA even over the video's darkest frames. */}
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6">
-          <div className="glass-strong reveal px-6 py-5 md:px-12 md:py-8 [--glass-radius:1.5rem]">
+          <div className="glass-strong stagger max-w-md md:max-w-2xl mx-auto px-6 py-5 md:px-12 md:py-8 [--glass-radius:1.5rem]">
             <p className="text-[10px] md:text-xs tracking-[0.35em] text-accent mb-3">
-              תשמישי קדושה בעבודת יד
-            </p>
-            <h2 className="font-display text-4xl md:text-6xl text-foreground">
               אור זרוע לצדיק
-            </h2>
+            </p>
+            <h1 className="font-display text-4xl md:text-6xl text-foreground">
+              תשמישי קדושה בעבודת יד
+            </h1>
             <span aria-hidden="true" className="gold-rule block w-24 mx-auto my-4" />
             <p className="text-muted-foreground text-sm md:text-lg">
-              כשרות מהודרת ומשלוח עד הבית
+              טליתות, תפילין, מזוזות ומארזי חתן — בעבודת יד, עם רקמה אישית
             </p>
-            <div className="mt-6 flex flex-wrap justify-center gap-3">
-              <Link to="/shop" className={BTN_SOLID}>
+            <div className="mt-6 flex flex-col sm:flex-row justify-center gap-3">
+              <Link to="/shop" className={`${BTN_SOLID} w-full sm:w-auto`}>
                 לחנות
               </Link>
               <Link
                 to="/category/$slug"
-                params={{ slug: FEATURED[0].slug }}
-                className={BTN_OUTLINE}
+                params={{ slug: "wedding" }}
+                className={`${BTN_OUTLINE} w-full sm:w-auto`}
               >
-                לקולקציית הטליתות
+                למארזי החתן
               </Link>
             </div>
           </div>
@@ -393,7 +443,7 @@ function HomePage() {
           relied on the argaman backing moved with it: cream → foreground/muted,
           gold-bright → --accent, gold-bright frames → .hairline-gold. */}
       <section className="min-h-[480px] flex items-center">
-        <div className="container mx-auto px-4 max-w-6xl py-16 md:py-20 w-full">
+        <div className="container mx-auto px-4 max-w-6xl py-14 md:py-20 w-full">
           {/* Section entrance, staged 120ms behind the hero plaque so the two
               read as one arrival rather than two competing fades. This is the
               last band that can still be on screen at first paint (the hero is
@@ -450,8 +500,9 @@ function HomePage() {
                 />
                 <span aria-hidden="true" className="hairline-gold absolute inset-3 rounded-lg pointer-events-none" />
               </div>
-              {/* 3-up linked thumb strip (md+) */}
-              <div className="hidden md:grid grid-cols-3 gap-2 mt-2">
+              {/* 3-up linked thumb strip — shown on mobile too so the flagship
+                  reads as a set on a phone, not just one hero image. */}
+              <div className="grid grid-cols-3 gap-2 mt-2">
                 {GROOM_THUMBS.map((t) => (
                   <Link
                     key={t.slug}
@@ -471,9 +522,11 @@ function HomePage() {
                     {/* The frame rides above the photo, so it is an overlay rather
                         than an inset ring on the tile itself. */}
                     <span aria-hidden="true" className="hairline-gold absolute inset-0 rounded-lg pointer-events-none" />
-                    {/* Price reveal — glass-strong because it sits on the photo.
-                        --accent over it is 5.10:1 worst case. */}
-                    <span className="glass-strong absolute inset-x-2 bottom-2 py-1.5 text-sm font-semibold text-accent text-center opacity-0 transition-opacity duration-200 ease-out [--glass-radius:0.75rem] [@media(hover:hover)_and_(pointer:fine)]:group-hover:opacity-100">
+                    {/* Price — glass-strong because it sits on the photo (--accent
+                        over it is 5.10:1 worst case). Visible by DEFAULT so touch
+                        devices (no hover) always see the price; only hover-capable
+                        pointers hide it and reveal it on group-hover. */}
+                    <span className="glass-strong absolute inset-x-2 bottom-2 py-1.5 text-sm font-semibold text-accent text-center opacity-100 transition-opacity duration-200 ease-out [--glass-radius:0.75rem] [@media(hover:hover)_and_(pointer:fine)]:opacity-0 [@media(hover:hover)_and_(pointer:fine)]:group-hover:opacity-100">
                       {t.price}
                     </span>
                   </Link>
@@ -484,11 +537,85 @@ function HomePage() {
         </div>
       </section>
 
-      {/* 3. Featured categories */}
+      {/* 3. Differentiators — three TRUE house facts on a glass-soft strip that
+          hugs the flagship and leads into the trust band. The only motion is the
+          shared hover-lift (.glass-lift); no new claim is made. */}
       <section>
-        <div className="container mx-auto px-4 py-14 md:py-20">
+        <Reveal className="container mx-auto px-4 pb-14 md:pb-20 max-w-6xl">
+          <div className="grid grid-cols-3 gap-3 md:gap-6">
+            {DIFFERENTIATORS.map((d) => (
+              <div
+                key={d.title}
+                className="glass-soft glass-lift flex flex-col items-center text-center gap-3 md:gap-4 px-3 py-6 md:px-6 md:py-8 [--glass-radius:1rem]"
+              >
+                <span className="text-accent">{d.icon}</span>
+                <span className="font-display text-xs md:text-lg text-foreground leading-tight">
+                  {d.title}
+                </span>
+              </div>
+            ))}
+          </div>
+        </Reveal>
+      </section>
+
+      {/* 4. Trust badges — moved up out of the proof footer to break the run of
+          browse-grids right after the flagship. No gold-rule bracket here: this
+          is not an act boundary, so the ground stays continuous white. */}
+      <section>
+        <Reveal className="container mx-auto px-4 py-14 md:py-20">
+          <SectionHeader eyebrow="ההבטחה שלנו" title="למה לקוחות בוחרים בנו" />
+
+          <div className="grid grid-cols-1 md:grid-cols-3 max-w-6xl mx-auto divide-y md:divide-y-0 md:divide-x md:divide-x-reverse divide-border">
+            {[
+              {
+                title: "משלוח מהיר עד הבית",
+                desc: "תוך 3–14 ימי עסקים לכל הארץ, באריזה מהודרת ומאובטחת — עם מעקב מלא בכל שלב.",
+                icon: <IconTruck className="w-10 h-10 md:w-12 md:h-12" />,
+              },
+              {
+                title: "איכות ללא פשרות",
+                desc: "כל מוצר נבחר בקפידה ונבדק ידנית — עבודת יד של אומנים מנוסים, חומרי גלם מהמעלה הראשונה.",
+                icon: <IconGem className="w-10 h-10 md:w-12 md:h-12" />,
+              },
+              {
+                title: "שירות ואחריות מלאה",
+                desc: "ליווי אישי לפני ואחרי הרכישה ואחריות מלאה על כל מוצר.",
+                icon: <IconShieldCheck className="w-10 h-10 md:w-12 md:h-12" />,
+              },
+            ].map((item) => (
+              <div
+                key={item.title}
+                className="group flex flex-col items-center text-center gap-4 md:gap-5 px-6 py-8 md:py-4"
+              >
+                <div className="text-accent transition-transform duration-200 ease-out motion-safe:[@media(hover:hover)_and_(pointer:fine)]:group-hover:-translate-y-1">
+                  {item.icon}
+                </div>
+                <div>
+                  <h3 className="font-display text-xl md:text-2xl mb-2 md:mb-3 tracking-wide">
+                    {item.title}
+                  </h3>
+                  <p className="text-sm md:text-[15px] text-muted-foreground leading-relaxed max-w-xs mx-auto">
+                    {item.desc}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Reveal>
+      </section>
+
+      {/* 5. Featured categories */}
+      <section>
+        <Reveal className="container mx-auto px-4 py-14 md:py-20">
           <SectionHeader eyebrow="הקולקציות שלנו" title="מה תרצו לגלות?" />
-          <MobileCarousel basis="basis-1/2" mdGrid="md:grid-cols-3" mdGap="md:gap-6" className="max-w-6xl mx-auto">
+          {/* basis-[43%] on mobile: a third tile peeks past the edge so the rail
+              reads as swipeable. md:/lg: layout is owned by MobileCarousel. */}
+          <MobileCarousel
+            basis="basis-[43%]"
+            mdGrid="md:grid-cols-3"
+            mdGap="md:gap-6"
+            className="max-w-6xl mx-auto"
+          >
             {cats.map((c) => (
               <Link
                 key={c.slug}
@@ -510,9 +637,11 @@ function HomePage() {
                       direction keeps — but re-pointed from warm #2A211A to the
                       cool ink --argaman-deep. */}
                   <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-argaman-deep/70 via-transparent to-transparent" />
-                  {/* Single label plaque — glass-strong, since it sits on a photo. */}
+                  {/* Single label plaque — glass-strong, since it sits on a photo.
+                      Lifts with the same hover gate as the img (transform-only,
+                      200ms, --ease-out) so photo + label move as one object. */}
                   <div className="absolute inset-x-0 bottom-4 flex justify-center px-3">
-                    <span className="glass-strong px-5 py-2 font-display text-base text-foreground text-center leading-tight [--glass-radius:9999px]">
+                    <span className="glass-strong px-5 py-2 font-display text-base text-foreground text-center leading-tight [--glass-radius:9999px] transition-transform duration-200 ease-out motion-safe:[@media(hover:hover)_and_(pointer:fine)]:group-hover:-translate-y-0.5">
                       {c.name}
                     </span>
                   </div>
@@ -520,46 +649,22 @@ function HomePage() {
               </Link>
             ))}
           </MobileCarousel>
-        </div>
+        </Reveal>
       </section>
 
-      {/* 4. מומלצים באתר — pool איכות מסובב יומית */}
+      {/* 6. מומלצים באתר — pool איכות מסובב יומית */}
       <FeaturedProductsCarousel
         initialProducts={featuredProducts ?? undefined}
         reserveSpace={featuredProducts === null}
       />
 
-      {/* 5. פריטי יוקרה — curated luxury showcase */}
+      {/* 7. פריטי יוקרה — curated luxury showcase */}
       <LuxuryShowcase initialThumbs={luxuryThumbs ?? undefined} />
 
-      {/* 6. קטגוריות נוספות */}
-      <OtherCategoriesSection cats={otherCats} reserveSpace={reserveOtherCats} />
-
-      {/* 6b. Newsletter capture — mid-page, where a browsing visitor has seen the
-          catalog breadth. Content/holiday value proposition, not deals. */}
-      <section className="py-14 md:py-20">
-        <div className="container mx-auto px-4">
-          <div className="glass glass-gold [--glass-radius:1.5rem] max-w-2xl mx-auto px-6 md:px-10 py-10 text-center">
-            <div className="text-xs tracking-[0.35em] text-accent uppercase mb-3">
-              הישארו מעודכנים
-            </div>
-            <h2 className="font-display text-2xl md:text-3xl text-foreground mb-2">
-              מדריכים ותוכן לקראת החגים
-            </h2>
-            <p className="text-sm text-muted-foreground mb-5">
-              ופריטים חדשים לפני כולם — בלי ספאם, אפשר להסיר בכל רגע.
-            </p>
-            <div className="mx-auto max-w-md">
-              <NewsletterSignup source="home" />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 7. חלאקה — promo band. The argaman half is now a glass panel beside the
+      {/* 8. חלאקה — promo band. The argaman half is now a glass panel beside the
           photo rather than a wine fill behind cream text. */}
       <section>
-        <div className="container mx-auto px-4 py-14 md:py-20 max-w-6xl">
+        <Reveal className="container mx-auto px-4 py-14 md:py-20 max-w-6xl">
           <div className="grid md:grid-cols-2 gap-6 md:gap-8 items-stretch">
             <img
               src={imgChalaka}
@@ -574,7 +679,7 @@ function HomePage() {
               <p className="text-[10px] md:text-xs tracking-[0.35em] text-accent mb-4">
                 מסורת של שמחה
               </p>
-              <h3 className="font-display text-3xl text-foreground mb-4">
+              <h3 className="font-display text-3xl md:text-5xl text-foreground mb-4">
                 חוגגים חלאקה?
               </h3>
               <div className="flex items-center gap-3 mb-4" aria-hidden="true">
@@ -592,67 +697,7 @@ function HomePage() {
               </div>
             </div>
           </div>
-        </div>
-      </section>
-
-      {/* 8. Trust badges — bounded by two 1px gold rules instead of the old
-          border-y fill, so the ground stays continuous white. */}
-      <section>
-        <span aria-hidden="true" className="gold-rule block w-full" />
-        <div className="container mx-auto px-4 py-14 md:py-20">
-          <SectionHeader eyebrow="ההבטחה שלנו" title="למה לקוחות בוחרים בנו" />
-
-          <div className="grid grid-cols-1 md:grid-cols-3 max-w-6xl mx-auto divide-y md:divide-y-0 md:divide-x md:divide-x-reverse divide-border">
-            {[
-              {
-                title: "משלוח מהיר עד הבית",
-                desc: "תוך 3–14 ימי עסקים לכל הארץ, באריזה מהודרת ומאובטחת — עם מעקב מלא בכל שלב.",
-                icon: (
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" className="w-10 h-10 md:w-12 md:h-12">
-                    <path d="M3 7h11v10H3z"/><path d="M14 10h4l3 3v4h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/>
-                  </svg>
-                ),
-              },
-              {
-                title: "איכות ללא פשרות",
-                desc: "כל מוצר נבחר בקפידה ונבדק ידנית — עבודת יד של אומנים מנוסים, חומרי גלם מהמעלה הראשונה.",
-                icon: (
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" className="w-10 h-10 md:w-12 md:h-12">
-                    <path d="M12 2l2.39 4.84L20 7.74l-4 3.9.94 5.5L12 14.77l-4.94 2.37L8 11.64 4 7.74l5.61-.9z"/>
-                  </svg>
-                ),
-              },
-              {
-                title: "שירות ואחריות מלאה",
-                desc: "ליווי אישי לפני ואחרי הרכישה, אחריות מלאה על כל מוצר — אלפי לקוחות מרוצים בכל הארץ.",
-                icon: (
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" className="w-10 h-10 md:w-12 md:h-12">
-                    <path d="M12 22s-8-4.5-8-11a5 5 0 0 1 9-3 5 5 0 0 1 9 3c0 6.5-8 11-8 11z"/>
-                    <path d="M9 12l2 2 4-4"/>
-                  </svg>
-                ),
-              },
-            ].map((item) => (
-              <div
-                key={item.title}
-                className="group flex flex-col items-center text-center gap-4 md:gap-5 px-6 py-8 md:py-4"
-              >
-                <div className="text-accent transition-transform duration-200 ease-out motion-safe:[@media(hover:hover)_and_(pointer:fine)]:group-hover:-translate-y-1">
-                  {item.icon}
-                </div>
-                <div>
-                  <h3 className="font-display text-xl md:text-2xl mb-2 md:mb-3 tracking-wide">
-                    {item.title}
-                  </h3>
-                  <p className="text-sm md:text-[15px] text-muted-foreground leading-relaxed max-w-xs mx-auto">
-                    {item.desc}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-        <span aria-hidden="true" className="gold-rule block w-full" />
+        </Reveal>
       </section>
 
       {/* 9. לקוחות ממליצים — real approved reviews */}
@@ -660,12 +705,12 @@ function HomePage() {
 
       {/* 10. Instagram — visual closer */}
       <section>
-        <div className="container mx-auto px-4 py-14 md:py-20">
+        <Reveal className="container mx-auto px-4 py-14 md:py-20">
           <div className="text-center mb-10 md:mb-14">
-            <p className="text-[10px] md:text-xs tracking-[0.4em] text-accent mb-4">
-              Instagram @
+            <p className="text-[10px] md:text-xs tracking-[0.35em] text-accent mb-3">
+              Instagram
             </p>
-            <h2 className="font-display italic text-4xl md:text-6xl tracking-wide mb-3 text-foreground">
+            <h2 className="font-display text-3xl md:text-4xl tracking-wide mb-3 text-foreground">
               עקבו אחרינו
             </h2>
             <div className="flex items-center justify-center gap-3 mb-4" aria-hidden="true">
@@ -684,19 +729,41 @@ function HomePage() {
           </div>
 
           <InstagramFeed />
-        </div>
+        </Reveal>
       </section>
 
-      {/* 11. SEO colophon + FAQ — demoted to the last content slot before the footer.
+      {/* 11. Newsletter capture — moved down to the last quiet ask before the
+          footer, once the visitor has seen the full catalog and the proof.
+          Content/holiday value proposition, not deals. */}
+      <section className="py-14 md:py-20">
+        <Reveal className="container mx-auto px-4">
+          <div className="glass glass-gold [--glass-radius:1.5rem] max-w-2xl mx-auto px-6 md:px-10 py-10 text-center">
+            <div className="text-xs tracking-[0.35em] text-accent mb-3">
+              הישארו מעודכנים
+            </div>
+            <h2 className="font-display text-2xl md:text-3xl text-foreground mb-2">
+              מדריכים ותוכן לקראת החגים
+            </h2>
+            <p className="text-sm text-muted-foreground mb-5">
+              ופריטים חדשים לפני כולם — בלי ספאם, אפשר להסיר בכל רגע.
+            </p>
+            <div className="mx-auto max-w-md">
+              <NewsletterSignup source="home" />
+            </div>
+          </div>
+        </Reveal>
+      </section>
+
+      {/* 12. SEO colophon + FAQ — demoted to the last content slot before the footer.
           The H1 and both paragraphs stay in the DOM for SEO; canonical address/phone
           live in the footer. */}
       <section>
         <span aria-hidden="true" className="gold-rule block w-full" />
         <div className="container mx-auto px-4 py-14 md:py-20 max-w-4xl">
-          {/* Visible H1 for SEO — the page's only h1 */}
-          <h1 className="font-display text-2xl md:text-3xl font-bold text-foreground text-center mb-4 tracking-wide">
+          {/* Colophon heading — demoted to h2; the hero value-prop line owns the page's only h1. */}
+          <h2 className="font-display text-2xl md:text-3xl font-bold text-foreground text-center mb-4 tracking-wide">
             אור זרוע לצדיק — חנות תשמישי קדושה ויודאיקה מהודרת
-          </h1>
+          </h2>
           <p className="text-center text-sm text-muted-foreground leading-relaxed mb-4 max-w-3xl mx-auto">
             <strong>אור זרוע לצדיק</strong> היא חנות אונליין ישראלית לתשמישי קדושה ויודאיקה מהודרת — טליתות, תפילין, מזוזות, גביעי קידוש, חנוכיות ומארזים לחתנים. השם נלקח מהפסוק בתהילים (צ״ז), "אוֹר זָרֻעַ לַצַּדִּיק", ומבטא את רוח החנות: הידור, כשרות ואיכות. אנו מציעים רקמה וחריטה אישית, ומשלוח עד הבית בכל הארץ.
           </p>
