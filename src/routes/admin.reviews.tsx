@@ -65,10 +65,16 @@ function AdminReviews() {
                   <div className="flex items-center gap-2">
                     <Stars value={r.rating} size={15} />
                     <span className="font-semibold text-sm">{r.author_name}</span>
+                    {/* Status pills routed through the design tokens so admin
+                        matches the white-glass + gold palette instead of raw
+                        amber/green. Approved (live/published) takes the gold
+                        --accent tint — bg-accent/10 + text-accent reads 5.06:1
+                        over the card; pending (awaiting action) is the quiet
+                        --muted surface. Moderation logic unchanged. */}
                     {r.is_approved ? (
-                      <span className="text-xs rounded-full bg-green-100 text-green-700 px-2 py-0.5">מאושר</span>
+                      <span className="text-xs font-medium rounded-full bg-accent/10 text-accent px-2 py-0.5">מאושר</span>
                     ) : (
-                      <span className="text-xs rounded-full bg-amber-100 text-amber-700 px-2 py-0.5">ממתין</span>
+                      <span className="text-xs font-medium rounded-full bg-muted text-muted-foreground px-2 py-0.5">ממתין</span>
                     )}
                   </div>
                   <div className="text-xs text-muted-foreground mt-1">

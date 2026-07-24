@@ -16,6 +16,8 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { useEffect, useMemo, useState } from "react";
 import { categoryFaq, faqJsonLd } from "@/lib/category-faq";
+import { getEffectivePrice } from "@/lib/pricing";
+import { cn } from "@/lib/utils";
 import { ChevronDown } from "lucide-react";
 
 async function fetchCategoryWithRetry(slug: string, maxRetries = 2) {
@@ -84,9 +86,12 @@ async function fetchCategoryWithRetry(slug: string, maxRetries = 2) {
 }
 
 export const Route = createFileRoute("/category/$slug")({
-  validateSearch: (s: Record<string, unknown>): { sort?: string; instock?: boolean } => ({
+  validateSearch: (s: Record<string, unknown>): { sort?: string; instock?: boolean; price?: string } => ({
     sort: typeof s.sort === "string" ? s.sort : undefined,
     instock: s.instock === true || s.instock === "true" ? true : undefined,
+    // Client-side price-range facet (see PRICE_BUCKETS). An unknown value narrows
+    // to no filter in the component, so a hand-edited ?price= never throws.
+    price: typeof s.price === "string" ? s.price : undefined,
   }),
   loader: async ({ params }) => {
     const result = await fetchCategoryWithRetry(params.slug);
@@ -197,16 +202,36 @@ function isSortMode(v: unknown): v is SortMode {
     || v === "oldest" || v === "name";
 }
 
+// Static price-range buckets for the client-side facet. Bounds are the price the
+// customer actually pays — getEffectivePrice(price) — so the labels match the
+// numbers shown on every card. Ranges are contiguous and non-overlapping:
+// עד ₪100 (≤100), ₪100–300 (100<x≤300), ₪300+ (>300). Pure filtering — the
+// buckets carry no sale/discount language, only the paid price.
+type PriceBucketId = "0-100" | "100-300" | "300-plus";
+
+const PRICE_BUCKETS: { id: PriceBucketId; label: string; test: (eff: number) => boolean }[] = [
+  { id: "0-100", label: "עד ₪100", test: (eff) => eff <= 100 },
+  { id: "100-300", label: "₪100–300", test: (eff) => eff > 100 && eff <= 300 },
+  { id: "300-plus", label: "₪300+", test: (eff) => eff > 300 },
+];
+
+function isPriceBucketId(v: unknown): v is PriceBucketId {
+  return v === "0-100" || v === "100-300" || v === "300-plus";
+}
+
 type Row = ProductCardData & { is_active: boolean; stock_status: string; created_at: string };
 
 function CategoryPage() {
   const { slug } = Route.useParams();
   const { cat: initialCat, products: initialProducts, parent, allCats } = Route.useLoaderData();
-  const { sort: sortFromUrl, instock: instockFromUrl } = Route.useSearch();
+  const { sort: sortFromUrl, instock: instockFromUrl, price: priceFromUrl } = Route.useSearch();
   const navigate = Route.useNavigate();
   // Seed from the URL so sorted/filtered views survive reload and sharing.
   const [sort, setSort] = useState<SortMode>(isSortMode(sortFromUrl) ? sortFromUrl : "recommended");
   const [inStockOnly, setInStockOnly] = useState(instockFromUrl ?? false);
+  const [priceBucket, setPriceBucket] = useState<PriceBucketId | null>(
+    isPriceBucketId(priceFromUrl) ? priceFromUrl : null,
+  );
 
   const changeSort = (v: SortMode) => {
     setSort(v);
@@ -221,6 +246,16 @@ function CategoryPage() {
     setInStockOnly(v);
     navigate({
       search: (prev) => ({ ...prev, instock: v ? true : undefined }),
+      replace: true,
+      resetScroll: false,
+    });
+  };
+
+  // Single-select facet: tapping the active bucket clears it (null → no ?price=).
+  const changePriceBucket = (v: PriceBucketId | null) => {
+    setPriceBucket(v);
+    navigate({
+      search: (prev) => ({ ...prev, price: v ?? undefined }),
       replace: true,
       resetScroll: false,
     });
@@ -299,6 +334,14 @@ function CategoryPage() {
 
     let list = collapsed;
     if (inStockOnly) list = list.filter((p) => p.stock_status !== "outofstock");
+    // Price-range facet — filter on the effective (paid) price so the buckets
+    // agree with the numbers on the cards. Applied to the collapsed
+    // representatives, so a group is kept/dropped by the price of the card that
+    // actually shows (the cheapest imaged/in-stock model chosen above).
+    if (priceBucket) {
+      const bucket = PRICE_BUCKETS.find((b) => b.id === priceBucket);
+      if (bucket) list = list.filter((p) => bucket.test(getEffectivePrice(p.price)));
+    }
     switch (sort) {
       case "price-asc":
         list.sort((a, b) => a.price - b.price);
@@ -325,7 +368,7 @@ function CategoryPage() {
     const inStock = list.filter((p) => p.stock_status !== "outofstock");
     const oos = list.filter((p) => p.stock_status === "outofstock");
     return [...inStock, ...oos];
-  }, [products, sort, inStockOnly]);
+  }, [products, sort, inStockOnly, priceBucket]);
 
   // Client-side windowing. This page loads its whole category into memory (the
   // largest is 742 rows) and sorts/filters it there, but mounting every card at
@@ -338,7 +381,7 @@ function CategoryPage() {
   // dropping ?page= on re-sort.
   useEffect(() => {
     setShown(PAGE_SIZE);
-  }, [sort, inStockOnly, slug]);
+  }, [sort, inStockOnly, priceBucket, slug]);
   const windowed = visible.slice(0, shown);
   const remaining = visible.length - windowed.length;
 
@@ -477,6 +520,49 @@ function CategoryPage() {
             <div className="glass flex flex-wrap items-center justify-between gap-4 mb-6 p-4 md:px-5 [--glass-radius:1.25rem]">
               <p className="text-sm text-muted-foreground">{visible.length} מוצרים</p>
               <div className="flex flex-wrap items-center gap-4">
+                {/* Price-range facet — single-select chips over the effective
+                    (paid) price. Pure filtering; no sale/discount language. The
+                    active chip takes the gold --accent fill (CTA colour); the
+                    rest are the same white-glass chips used elsewhere on the
+                    page. "הכל" clears the facet. */}
+                <div className="flex items-center gap-2" role="group" aria-label="סינון לפי טווח מחיר">
+                  <span className="text-sm text-muted-foreground">מחיר:</span>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => changePriceBucket(null)}
+                      aria-pressed={priceBucket === null}
+                      className={cn(
+                        "press rounded-full px-3 py-1.5 text-xs font-medium transition-[background-color,color,transform] duration-150 ease-out",
+                        priceBucket === null
+                          ? "bg-accent text-white"
+                          : "bg-card/70 text-foreground hairline [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary",
+                      )}
+                    >
+                      הכל
+                    </button>
+                    {PRICE_BUCKETS.map((b) => {
+                      const active = priceBucket === b.id;
+                      return (
+                        <button
+                          key={b.id}
+                          type="button"
+                          // Tap the active chip again to clear it back to "הכל".
+                          onClick={() => changePriceBucket(active ? null : b.id)}
+                          aria-pressed={active}
+                          className={cn(
+                            "press rounded-full px-3 py-1.5 text-xs font-medium transition-[background-color,color,transform] duration-150 ease-out",
+                            active
+                              ? "bg-accent text-white"
+                              : "bg-card/70 text-foreground hairline [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary",
+                          )}
+                        >
+                          {b.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
                 <label className="flex items-center gap-2 text-sm cursor-pointer">
                   <Checkbox
                     checked={inStockOnly}
@@ -518,13 +604,21 @@ function CategoryPage() {
                 </div>
                 <h2 className="font-display text-2xl md:text-3xl font-bold mb-3">לא נמצאו מוצרים</h2>
                 <p className="text-muted-foreground leading-relaxed">
-                  {inStockOnly
-                    ? "אין כרגע מוצרים במלאי בקטגוריה הזו."
+                  {inStockOnly || priceBucket
+                    ? "אין כרגע מוצרים שתואמים את הסינון בקטגוריה הזו."
                     : "אין כרגע מוצרים בקטגוריה הזו."}
                 </p>
-                {inStockOnly && (
+                {(inStockOnly || priceBucket) && (
                   <button
-                    onClick={() => changeInStockOnly(false)}
+                    onClick={() => {
+                      setInStockOnly(false);
+                      setPriceBucket(null);
+                      navigate({
+                        search: (prev) => ({ ...prev, instock: undefined, price: undefined }),
+                        replace: true,
+                        resetScroll: false,
+                      });
+                    }}
                     className="press mt-6 rounded-full bg-card/70 px-6 py-2.5 text-sm font-medium text-foreground hairline transition-[background-color,color,transform] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:text-background"
                   >
                     הצג את כל המוצרים

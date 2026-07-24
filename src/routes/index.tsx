@@ -11,6 +11,7 @@ import { LuxuryShowcase, fetchLuxuryShowcaseThumbs } from "@/components/home/Lux
 import { HomeReviews, fetchHomeReviews } from "@/components/content/HomeReviews";
 import { SectionHeader } from "@/components/home/SectionHeader";
 import { Reveal } from "@/components/Reveal";
+import { OCCASION_COLLECTIONS } from "@/lib/collections";
 import {
   Carousel,
   CarouselContent,
@@ -558,7 +559,40 @@ function HomePage() {
         </Reveal>
       </section>
 
-      {/* 4. Trust badges — moved up out of the proof footer to break the run of
+      {/* 4. Personalization teaser — the store's moat (רקמה/חריטה) as a compact
+          band, placed right after the differentiators strip that names it. Honest:
+          it only restates what the PDP and /collection/personalized already
+          promise — the personalization is coordinated with the customer AFTER the
+          order. --accent is the only gold; the ✦ gold-rule bracket is the reused
+          house motif; the CTA rides BTN_SOLID. SSR-safe: static markup, no
+          browser globals. */}
+      <section>
+        <Reveal className="container mx-auto px-4 pb-14 md:pb-20 max-w-6xl">
+          <div className="glass glass-gold [--glass-radius:1.5rem] px-6 py-7 md:px-10 md:py-8 flex flex-col items-center gap-6 text-center md:flex-row md:items-center md:justify-between md:gap-8 md:text-right">
+            <div>
+              <div
+                className="flex items-center justify-center gap-3 mb-3 md:justify-start"
+                aria-hidden="true"
+              >
+                <span className="gold-rule w-8 shrink-0" />
+                <span className="text-accent text-sm">✦</span>
+                <span className="gold-rule w-8 shrink-0" />
+              </div>
+              <h2 className="font-display text-2xl md:text-3xl text-foreground leading-tight">
+                רקמה וחריטה אישית — הוסיפו שם על המתנה
+              </h2>
+              <p className="mt-2 text-sm md:text-base text-muted-foreground max-w-xl mx-auto md:mx-0 leading-7">
+                על כיסויים לטלית ותפילין, תיקים וסידורים — את הגופן, הצבע והמיקום נתאם איתכם לאחר ההזמנה.
+              </p>
+            </div>
+            <Link to="/collection/personalized" className={`${BTN_SOLID} shrink-0`}>
+              לפריטים להתאמה אישית
+            </Link>
+          </div>
+        </Reveal>
+      </section>
+
+      {/* 5. Trust badges — moved up out of the proof footer to break the run of
           browse-grids right after the flagship. No gold-rule bracket here: this
           is not an act boundary, so the ground stays continuous white. */}
       <section>
@@ -604,7 +638,7 @@ function HomePage() {
         </Reveal>
       </section>
 
-      {/* 5. Featured categories */}
+      {/* 6. Featured categories */}
       <section>
         <Reveal className="container mx-auto px-4 py-14 md:py-20">
           <SectionHeader eyebrow="הקולקציות שלנו" title="מה תרצו לגלות?" />
@@ -652,16 +686,79 @@ function HomePage() {
         </Reveal>
       </section>
 
-      {/* 6. מומלצים באתר — pool איכות מסובב יומית */}
+      {/* 7. קונים לפי אירוע — the occasion/holiday hubs (/collection/<slug>) as
+          first-screen discovery, right after the featured categories. Judaica is
+          calendar- and lifecycle-driven, so shopping by occasion (בר מצווה, חתונה,
+          בית חדש) and by holiday (ראש השנה, חנוכה, פסח) is a primary path. Text-only
+          glass cards — no imagery to fetch — with the eyebrow in --accent (the only
+          gold) and the shared .glass-lift hover motion. Swipeable on a phone via
+          MobileCarousel, a grid from md up. SSR-safe: OCCASION_COLLECTIONS is pure
+          data imported at module scope, so the rail is in the server HTML. */}
+      <section>
+        <Reveal className="container mx-auto px-4 py-14 md:py-20">
+          <SectionHeader eyebrow="מתנה לכל שמחה" title="קונים לפי אירוע" />
+          {/* basis-[68%] on mobile: one card fills the rail and the next peeks past
+              the edge so it reads as swipeable. md:/lg: layout is owned by MobileCarousel. */}
+          <MobileCarousel
+            basis="basis-[68%]"
+            mdGrid="md:grid-cols-3 lg:grid-cols-4"
+            mdGap="md:gap-5"
+            className="max-w-6xl mx-auto"
+          >
+            {OCCASION_COLLECTIONS.map((c) => (
+              // /collection/$slug — `to`/`params` cast as categories.tsx does, so the
+              // link does not depend on the router's path union being regenerated.
+              <Link
+                key={c.slug}
+                to={"/collection/$slug" as any}
+                params={{ slug: c.slug } as any}
+                className="group block h-full"
+              >
+                <div className="glass-soft glass-lift flex h-full flex-col justify-between gap-6 p-6 md:p-7 [--glass-radius:1rem]">
+                  <div>
+                    <p className="mb-2 text-[10px] md:text-xs tracking-[0.22em] text-accent">
+                      {c.eyebrow}
+                    </p>
+                    <h3 className="font-display text-lg md:text-xl text-foreground leading-tight">
+                      {c.title}
+                    </h3>
+                  </div>
+                  <span className="inline-flex items-center gap-1.5 text-sm text-accent">
+                    לצפייה
+                    {/* RTL "forward" arrow — points to the reading start, and slides
+                        further on hover (motion-safe + hover-gated). Decorative. */}
+                    <svg
+                      aria-hidden="true"
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="w-4 h-4 transition-transform duration-200 ease-out motion-safe:[@media(hover:hover)_and_(pointer:fine)]:group-hover:-translate-x-1"
+                    >
+                      <path d="M19 12H5" />
+                      <path d="M12 19l-7-7 7-7" />
+                    </svg>
+                  </span>
+                </div>
+              </Link>
+            ))}
+          </MobileCarousel>
+        </Reveal>
+      </section>
+
+      {/* 8. מומלצים באתר — pool איכות מסובב יומית */}
       <FeaturedProductsCarousel
         initialProducts={featuredProducts ?? undefined}
         reserveSpace={featuredProducts === null}
       />
 
-      {/* 7. פריטי יוקרה — curated luxury showcase */}
+      {/* 9. פריטי יוקרה — curated luxury showcase */}
       <LuxuryShowcase initialThumbs={luxuryThumbs ?? undefined} />
 
-      {/* 8. חלאקה — promo band. The argaman half is now a glass panel beside the
+      {/* 10. חלאקה — promo band. The argaman half is now a glass panel beside the
           photo rather than a wine fill behind cream text. */}
       <section>
         <Reveal className="container mx-auto px-4 py-14 md:py-20 max-w-6xl">
@@ -700,10 +797,10 @@ function HomePage() {
         </Reveal>
       </section>
 
-      {/* 9. לקוחות ממליצים — real approved reviews */}
+      {/* 11. לקוחות ממליצים — real approved reviews */}
       <HomeReviews initialReviews={reviews ?? undefined} reserveSpace={reviews === null} />
 
-      {/* 10. Instagram — visual closer */}
+      {/* 12. Instagram — visual closer */}
       <section>
         <Reveal className="container mx-auto px-4 py-14 md:py-20">
           <div className="text-center mb-10 md:mb-14">
@@ -732,7 +829,7 @@ function HomePage() {
         </Reveal>
       </section>
 
-      {/* 11. Newsletter capture — moved down to the last quiet ask before the
+      {/* 13. Newsletter capture — moved down to the last quiet ask before the
           footer, once the visitor has seen the full catalog and the proof.
           Content/holiday value proposition, not deals. */}
       <section className="py-14 md:py-20">
@@ -754,7 +851,7 @@ function HomePage() {
         </Reveal>
       </section>
 
-      {/* 12. SEO colophon + FAQ — demoted to the last content slot before the footer.
+      {/* 14. SEO colophon + FAQ — demoted to the last content slot before the footer.
           The H1 and both paragraphs stay in the DOM for SEO; canonical address/phone
           live in the footer. */}
       <section>

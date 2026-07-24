@@ -260,6 +260,11 @@ export function SiteHeader() {
                   <Link to="/" onClick={() => setDrawerOpen(false)} className={`py-3 border-b border-border/40 ${LINK_HOVER_CLS}`}>בית</Link>
                   <Link to="/shop" onClick={() => setDrawerOpen(false)} className={`py-3 border-b border-border/40 ${LINK_HOVER_CLS}`}>כל המוצרים</Link>
                   <Link to="/categories" onClick={() => setDrawerOpen(false)} className={`py-3 border-b border-border/40 ${LINK_HOVER_CLS}`}>קטגוריות</Link>
+                  {/* Occasion/holiday gift hubs are indexed by the "קונים לפי
+                      אירוע" section at the top of /categories; this dedicated
+                      entry surfaces that shop-by-occasion path in the one nav
+                      visible at every breakpoint. */}
+                  <Link to="/categories" onClick={() => setDrawerOpen(false)} className={`py-3 border-b border-border/40 ${LINK_HOVER_CLS}`}>מתנות לפי אירוע</Link>
                   {/* /articles had no entry point anywhere in the shell; the drawer
                       is the one nav that is visible at every breakpoint, so the
                       guides live here as well as in the footer. */}
@@ -406,10 +411,15 @@ export function SiteHeader() {
           </Link>
         ))}
         <Link to="/categories" className={NAV_LINK_CLS}>כל הקטגוריות</Link>
-        {/* Secondary group — informational destinations that only lived in the
-            drawer/footer before. A hairline divider sets them off from the
-            shopping links so the row reads as two clusters. */}
+        {/* Secondary group — a discovery entry plus the informational
+            destinations that only lived in the drawer/footer before. A hairline
+            divider sets them off from the curated shopping links so the row
+            reads as two clusters. "מתנות לפי אירוע" points at /categories, whose
+            top section ("קונים לפי אירוע") indexes every occasion/holiday hub
+            (/collection/<slug>) — the discovery path into those rankable pages,
+            surfaced here without adding another item to the shopping cluster. */}
         <span aria-hidden="true" className="h-4 w-px bg-border" />
+        <Link to="/categories" className={NAV_LINK_CLS}>מתנות לפי אירוע</Link>
         <Link to="/articles" className={NAV_LINK_CLS}>מדריכים</Link>
         <Link to="/about" className={NAV_LINK_CLS}>אודות</Link>
       </nav>
