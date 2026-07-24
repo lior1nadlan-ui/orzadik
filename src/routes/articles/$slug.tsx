@@ -7,9 +7,10 @@ import { NewsletterSignup } from "@/components/NewsletterSignup";
 import { ProductCardData } from "@/components/ProductCard";
 import { supabase } from "@/integrations/supabase/client";
 import { Link } from "@tanstack/react-router";
-import { ArrowRight, Share2, Calendar, Clock, User } from "lucide-react";
+import { ArrowRight, Share2, Calendar, Clock, User, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import DOMPurify from "isomorphic-dompurify";
+import { guideFaq, faqJsonLd } from "@/lib/guide-faq";
 
 /** In-stock, imaged products from an article's category — a live rail so a
  *  guide sends real link equity to the shop AND never points at a hidden SKU
@@ -59,6 +60,10 @@ export const Route = createFileRoute("/articles/$slug")({
     }
 
     const plainDesc = (a.description || "").replace(/<[^>]*>/g, "").trim();
+    // Curated, honest Q&A for this guide (undefined for non-guide slugs). The
+    // SAME source renders the visible accordion in the component, so the
+    // FAQPage schema and the on-page text are guaranteed to match.
+    const faq = guideFaq(params.slug);
 
     return {
       meta: [
@@ -87,6 +92,7 @@ export const Route = createFileRoute("/articles/$slug")({
             headline: a.title_he,
             description: plainDesc,
             image: a.featured_image || undefined,
+            inLanguage: "he-IL",
             datePublished: a.published_at,
             dateModified: a.updated_at || a.published_at,
             author: { "@type": "Organization", name: a.author || "אור זרוע לצדיק" },
@@ -122,6 +128,17 @@ export const Route = createFileRoute("/articles/$slug")({
             ],
           }),
         },
+        // FAQPage — only when this guide has curated Q&A. The visible accordion
+        // in the component renders from the same `guideFaq(slug)` source, so the
+        // structured data and the on-page text are identical (Google's policy).
+        ...(faq
+          ? [
+              {
+                type: "application/ld+json",
+                children: JSON.stringify(faqJsonLd(faq)),
+              },
+            ]
+          : []),
       ],
     };
   },
@@ -185,6 +202,10 @@ function ArticleDetailPage() {
   // Related articles are pulled by category_id, which also matches the article
   // being read — drop it so a reader is never offered the page they are on.
   const related = (relatedArticles ?? []).filter((ra: any) => ra.id !== a.id).slice(0, 2);
+
+  // Curated, honest FAQ for this guide (undefined for non-guide slugs). Same
+  // source as the FAQPage JSON-LD in the route head, so schema ↔ DOM match.
+  const faq = guideFaq(a.slug);
 
   return (
     <article className="pb-12">
@@ -278,6 +299,35 @@ function ArticleDetailPage() {
             [&_hr]:my-10 [&_hr]:border-0 [&_hr]:h-px [&_hr]:bg-glass-line"
           dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(a.body_html) }}
         />
+
+        {/* FAQ — AEO surface (voice, "People also ask", AI answer engines).
+            Mirrors the FAQPage JSON-LD emitted in the route head, so per
+            Google's policy every answer must be present in the server HTML and
+            identical to the schema. Native <details>/<summary> keeps each answer
+            in the markup while collapsing it visually — no JS, no hydration
+            cost, and nothing a crawler can't read. Rendered only for guides that
+            have curated, honest Q&A. */}
+        {faq && faq.length > 0 && (
+          <section className="mb-12 not-prose" aria-labelledby="faq-heading">
+            <h2 id="faq-heading" className="font-display text-2xl font-bold mb-5 text-foreground">
+              שאלות נפוצות
+            </h2>
+            <div className="w-full border-t border-glass-line">
+              {faq.map((item, i) => (
+                <details key={i} className="group border-b border-glass-line">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-3 py-4 text-right font-display text-base font-medium transition-[color] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent [&::-webkit-details-marker]:hidden">
+                    <span>{item.q}</span>
+                    <ChevronDown
+                      aria-hidden="true"
+                      className="h-4 w-4 shrink-0 text-accent transition-[transform,rotate] duration-200 ease-out group-open:rotate-180"
+                    />
+                  </summary>
+                  <p className="pb-4 text-[15px] leading-[1.9] text-muted-foreground">{item.a}</p>
+                </details>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Live product rail from the guide's category — the reader's direct
             path from "what to look for" to buyable items. Always current: only

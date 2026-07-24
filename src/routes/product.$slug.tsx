@@ -637,7 +637,18 @@ function ProductPage() {
   const CONTACT_TEL = "+972545818486";
   const CONTACT_WA = "972545818486";
   const QUOTE_WA_TEXT = `שלום, אשמח לפרטים והצעת מחיר על: ${product.name}`;
-  const PRESALE_WA_TEXT = `שלום, יש לי שאלה על המוצר "${product.name}".`;
+  // Pre-sale question — pre-fill what the shopper is actually looking at so the
+  // reply lands on the right SKU: the product name, the size they have selected
+  // (selectedVariant tracks the currently-shown size), and the personalization
+  // text if they have typed one. Details go on their own lines (%0A after
+  // encoding) so the message stays readable in WhatsApp.
+  const presaleDetails = [
+    selectedVariant?.label ? `מידה: ${selectedVariant.label}` : null,
+    customText.trim() ? `כיתוב מבוקש: ${customText.trim()}` : null,
+  ].filter(Boolean);
+  const PRESALE_WA_TEXT =
+    `שלום, יש לי שאלה על המוצר "${product.name}".` +
+    (presaleDetails.length ? `\n${presaleDetails.join("\n")}` : "");
   // No restock date, no "we'll email you" — only an invitation to ask.
   const RESTOCK_WA_TEXT = `שלום, המוצר "${product.name}" מופיע כאזל באתר. אשמח לבדוק אפשרות לחידוש מלאי או מוצר חלופי.`;
   const contactCtas = (waText: string, compact = false) => (
@@ -1157,6 +1168,45 @@ function ProductPage() {
             </div>
           )}
 
+          {/* At-the-decision reassurance — sits immediately under the buy row so
+              the three things that answer a first-time, zero-review buyer's doubt
+              are seen WITH the CTA, not scrolled past. Only on purchasable
+              products; call-only / out-of-stock surface their own contact CTAs. */}
+          {!isCallOnly && canBuy && (
+            <div className="mb-3 space-y-2.5">
+              {/* WhatsApp concierge — the honest substitute for reviews: a real
+                  person answers before you buy. Pre-filled with the exact product,
+                  size and personalization the shopper is looking at. */}
+              <a
+                href={`https://wa.me/${CONTACT_WA}?text=${encodeURIComponent(PRESALE_WA_TEXT)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="press glass flex items-center gap-2.5 px-3.5 py-2.5 text-sm font-medium text-[#075E54] [--glass-radius:0.75rem] [@media(hover:hover)_and_(pointer:fine)]:hover:[--glass-bg:rgba(255,255,255,0.94)]"
+              >
+                <span aria-hidden="true" className="text-base leading-none">💬</span>
+                <span>שאלה לפני שקונים? דברו איתנו בוואטסאפ — נענה אישית</span>
+              </a>
+
+              {/* 14-day statutory return, surfaced at peak first-purchase anxiety
+                  instead of buried in the returns accordion. When the shopper has
+                  entered personalization the copy flips to the accordion's caveat
+                  (personalized items are excluded) so the two never contradict. */}
+              <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <RotateCcw className="h-3.5 w-3.5 shrink-0 text-accent" />
+                {customText.trim()
+                  ? "פריט בהתאמה אישית אינו ניתן להחזרה לפי חוק הגנת הצרכן"
+                  : `החזרה תוך ${CONSUMER_POLICY.cancellationDays} יום לפי חוק הגנת הצרכן`}
+              </p>
+
+              {/* Gift-intent hint — Judaica skews gift, and the wrap + printed
+                  dedication genuinely exist at checkout (free). Informational
+                  only: no new gift state is threaded through the cart here. */}
+              <p className="text-xs text-muted-foreground">
+                🎁 מתנה? בקופה אפשר להוסיף עטיפה והקדשה אישית — ללא עלות
+              </p>
+            </div>
+          )}
+
           {/* Out of stock is not a dead end: both buy buttons above are
               disabled, so offer the same phone/WhatsApp pair the call-only
               products use. Deliberately promises nothing — no restock date, no
@@ -1201,20 +1251,6 @@ function ProductPage() {
               {sellerIdentityLine()}
             </div>
           </div>
-
-          {/* Pre-sale contact — a low-key WhatsApp path for a question BEFORE
-              buying (the buy row has no contact CTA). Only on purchasable
-              products; out-of-stock / call-only already surface their own CTAs. */}
-          {canBuy && (
-            <a
-              href={`https://wa.me/${CONTACT_WA}?text=${encodeURIComponent(PRESALE_WA_TEXT)}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-[#075E54] [@media(hover:hover)_and_(pointer:fine)]:hover:underline"
-            >
-              💬 שאלה על המוצר? דברו איתנו בוואטסאפ
-            </a>
-          )}
 
           {/* Accordion — one glass pane, hairline dividers between the rows,
               instead of three gold-ruled bands. */}
