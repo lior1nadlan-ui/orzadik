@@ -1,13 +1,14 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { useState } from "react";
 import { fetchArticleWithRetry, fetchArticlesByCategoryWithRetry } from "@/lib/articles.server";
-import { ArticleCard } from "@/components/ArticleCard";
+import { ArticleCard, ARTICLE_FALLBACK_BG } from "@/components/ArticleCard";
 import { ProductCarousel } from "@/components/product/ProductCarousel";
 import { NewsletterSignup } from "@/components/NewsletterSignup";
 import { ProductCardData } from "@/components/ProductCard";
 import { supabase } from "@/integrations/supabase/client";
 import { Link } from "@tanstack/react-router";
 import { ArrowRight, Share2, Calendar, Clock, User } from "lucide-react";
+import { toast } from "sonner";
 import DOMPurify from "isomorphic-dompurify";
 
 /** In-stock, imaged products from an article's category — a live rail so a
@@ -161,16 +162,38 @@ function ArticleDetailPage() {
 
   const a = article as any;
 
+  // Share: native share sheet where the browser exposes one, otherwise copy the
+  // URL to the clipboard with a confirmation toast. Every browser global is
+  // touched ONLY inside this click handler (never at module/render scope), so
+  // the component stays SSR-safe. A dismissed share sheet rejects with
+  // AbortError — swallowed, since a cancel is not a failure.
+  const handleShare = async () => {
+    if (typeof window === "undefined" || typeof navigator === "undefined") return;
+    const url = window.location.href;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: a.title_he, url });
+      } else if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+        toast.success("הקישור הועתק");
+      }
+    } catch {
+      /* share dismissed or clipboard blocked — no user-facing error needed */
+    }
+  };
+
   // Related articles are pulled by category_id, which also matches the article
   // being read — drop it so a reader is never offered the page they are on.
   const related = (relatedArticles ?? []).filter((ra: any) => ra.id !== a.id).slice(0, 2);
 
   return (
     <article className="pb-12">
-      {/* Hero section with featured image — skipped entirely while
-          `featured_image` is null (true for every seeded article today) and
-          removed again if the URL fails to load. */}
-      {a.featured_image && !heroFailed && (
+      {/* Hero. With a usable `featured_image` it is the photo band; with none —
+          the case for every seeded article, and again if the URL 404s — it falls
+          back to the same branded mesh + ✦ masthead the cards use, at a calmer
+          height so it anchors the page without a half-screen of empty space
+          above the headline. */}
+      {a.featured_image && !heroFailed ? (
         <div className="relative w-full h-[400px] md:h-[500px] bg-muted overflow-hidden border-b border-glass-line">
           <img
             src={a.featured_image}
@@ -180,6 +203,18 @@ function ArticleDetailPage() {
             className="w-full h-full object-cover"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+        </div>
+      ) : (
+        <div
+          className="relative flex w-full h-52 md:h-64 items-center justify-center overflow-hidden border-b border-glass-line"
+          style={{ backgroundImage: ARTICLE_FALLBACK_BG }}
+          aria-hidden="true"
+        >
+          <span className="flex items-center gap-4">
+            <span className="gold-rule w-16 md:w-24" />
+            <span className="text-gold text-3xl md:text-4xl tracking-[0.4em]">✦</span>
+            <span className="gold-rule w-16 md:w-24" />
+          </span>
         </div>
       )}
 
@@ -215,7 +250,8 @@ function ArticleDetailPage() {
             </div>
             <button
               type="button"
-              className="press flex items-center gap-1 rounded-full transition-colors duration-200 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
+              onClick={handleShare}
+              className="press flex items-center gap-1 rounded-full transition-[color] duration-200 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
             >
               <Share2 className="w-4 h-4" aria-hidden="true" />
               שתף

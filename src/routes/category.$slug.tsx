@@ -1,9 +1,10 @@
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { createFileRoute, notFound } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ProductCard, ProductCardData } from "@/components/ProductCard";
 import { SubcategoryChips, type CategoryChipRow } from "@/components/catalog/SubcategoryChips";
 import { NewsletterSignup } from "@/components/NewsletterSignup";
+import { Breadcrumb } from "@/components/Breadcrumb";
 import {
   Select,
   SelectContent,
@@ -12,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { categoryFaq, faqJsonLd } from "@/lib/category-faq";
 import { ChevronDown } from "lucide-react";
 
@@ -325,52 +326,36 @@ function CategoryPage() {
     return [...inStock, ...oos];
   }, [products, sort, inStockOnly]);
 
+  // Client-side windowing. This page loads its whole category into memory (the
+  // largest is 742 rows) and sorts/filters it there, but mounting every card at
+  // once is wasteful; slice the fully sorted+filtered list to a growing window
+  // and reveal +24 per click, mirroring /shop's "load more".
+  const PAGE_SIZE = 24;
+  const [shown, setShown] = useState(PAGE_SIZE);
+  // A new sort / stock filter / category is a fresh "page 1" — reset the window
+  // so the user starts from the top of the reordered list, matching /shop
+  // dropping ?page= on re-sort.
+  useEffect(() => {
+    setShown(PAGE_SIZE);
+  }, [sort, inStockOnly, slug]);
+  const windowed = visible.slice(0, shown);
+  const remaining = visible.length - windowed.length;
+
   return (
     <div className="pb-12">
-      {/* Visible breadcrumb nav */}
-      <nav aria-label="ניווט מיקום באתר" className="container mx-auto px-4 py-3">
-        <ol className="flex items-center gap-1.5 text-xs md:text-sm text-muted-foreground" itemScope itemType="https://schema.org/BreadcrumbList">
-          <li itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
-            <Link to="/" className="transition-[color] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent" itemProp="item">
-              <span itemProp="name">בית</span>
-            </Link>
-            <meta itemProp="position" content="1" />
-          </li>
-          <li aria-hidden="true" className="text-muted-foreground/40">/</li>
-          <li itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
-            <Link to="/shop" className="transition-[color] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent" itemProp="item">
-              <span itemProp="name">מוצרים</span>
-            </Link>
-            <meta itemProp="position" content="2" />
-          </li>
-          {parent && (
-            <>
-              <li aria-hidden="true" className="text-muted-foreground/40">/</li>
-              <li itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
-                <Link to="/category/$slug" params={{ slug: parent.slug }} className="transition-[color] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent" itemProp="item">
-                  <span itemProp="name">{parent.name}</span>
-                </Link>
-                <meta itemProp="position" content="3" />
-              </li>
-            </>
-          )}
-          {cat?.name && (
-            <>
-              <li aria-hidden="true" className="text-muted-foreground/40">/</li>
-              <li
-                itemProp="itemListElement"
-                itemScope
-                itemType="https://schema.org/ListItem"
-                className="text-foreground font-medium truncate max-w-[200px]"
-                aria-current="page"
-              >
-                <span itemProp="name">{cat.name}</span>
-                <meta itemProp="position" content={parent ? "4" : "3"} />
-              </li>
-            </>
-          )}
-        </ol>
-      </nav>
+      {/* Location trail — the shared, RTL-correct primitive. The route still
+          emits its own BreadcrumbList JSON-LD from head(), so this visible trail
+          carries no microdata; the old hand-rolled <ol> duplicated that graph. */}
+      <div className="container mx-auto px-4 py-3">
+        <Breadcrumb
+          items={[
+            { label: "בית", to: "/" },
+            { label: "מוצרים", to: "/shop" },
+            ...(parent ? [{ label: parent.name, to: "/category/$slug", params: { slug: parent.slug } }] : []),
+            { label: cat?.name ?? slug },
+          ]}
+        />
+      </div>
 
       {/* Hero banner */}
       <header className="relative w-full overflow-hidden border-b bg-muted/40">
@@ -502,12 +487,46 @@ function CategoryPage() {
               </div>
             </div>
 
-            {/* Grid */}
+            {/* Grid — sliced to the current window (see `shown` above) */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {visible.map((p, i) => <ProductCard key={p.id} p={p} eager={i < 4} highPriority={i < 2} />)}
+              {windowed.map((p, i) => <ProductCard key={p.id} p={p} eager={i < 4} highPriority={i < 2} />)}
             </div>
             {visible.length === 0 && (
-              <p className="text-center py-10 text-muted-foreground">לא נמצאו מוצרים תואמים.</p>
+              // Same designed glass empty state as /shop (gold-free), so the two
+              // discovery pages read consistently. When the in-stock filter is
+              // what emptied the grid, offer a one-tap way back to the full list.
+              <div className="glass max-w-2xl mx-auto my-12 text-center p-10 md:p-14 [--glass-radius:1.5rem]">
+                <div className="mx-auto mb-5 w-14 h-14 rounded-full bg-secondary hairline flex items-center justify-center">
+                  <span className="text-3xl">🔍</span>
+                </div>
+                <h2 className="font-display text-2xl md:text-3xl font-bold mb-3">לא נמצאו מוצרים</h2>
+                <p className="text-muted-foreground leading-relaxed">
+                  {inStockOnly
+                    ? "אין כרגע מוצרים במלאי בקטגוריה הזו."
+                    : "אין כרגע מוצרים בקטגוריה הזו."}
+                </p>
+                {inStockOnly && (
+                  <button
+                    onClick={() => changeInStockOnly(false)}
+                    className="press mt-6 rounded-full bg-card/70 px-6 py-2.5 text-sm font-medium text-foreground hairline transition-[background-color,color,transform] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:text-background"
+                  >
+                    הצג את כל המוצרים
+                  </button>
+                )}
+              </div>
+            )}
+            {/* Load more — same ink-on-white chip and label as /shop. No async
+                state: the whole list is already in memory, so revealing more is
+                instant. */}
+            {remaining > 0 && (
+              <div className="mt-10 text-center">
+                <button
+                  onClick={() => setShown((c) => c + PAGE_SIZE)}
+                  className="press rounded-full bg-card/70 px-8 py-3 text-sm font-medium text-foreground hairline transition-[background-color,color,transform] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:text-background"
+                >
+                  טען עוד מוצרים ({remaining})
+                </button>
+              </div>
             )}
           </>
         )}

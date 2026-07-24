@@ -1,10 +1,5 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { toast } from "sonner";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useEffect } from "react";
 
 export const Route = createFileRoute("/forgot-password")({
   component: ForgotPasswordPage,
@@ -12,65 +7,32 @@ export const Route = createFileRoute("/forgot-password")({
 });
 
 function ForgotPasswordPage() {
-  const [email, setEmail] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [sent, setSent] = useState(false);
+  const navigate = useNavigate();
 
-  const onSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
-    });
-    setLoading(false);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    setSent(true);
-    toast.success("נשלח קישור לשחזור סיסמה לאימייל שלך");
-  };
+  // The store is passwordless — sign-in is a magic link or Google, so there is
+  // no password to reset and this route is an orphaned dead-end. Send anyone who
+  // lands here to /auth. navigate() runs only inside the effect (client-only),
+  // so SSR renders the fallback card below with no redirect; `replace` keeps the
+  // dead-end out of the browser history.
+  useEffect(() => {
+    navigate({ to: "/auth", replace: true });
+  }, [navigate]);
 
   return (
-    <div className="container mx-auto px-4 py-14 max-w-md">
-      <h1 className="font-display text-3xl font-bold text-center mb-3">שחזור סיסמה</h1>
-      <p className="text-center text-sm text-muted-foreground mb-6">
-        הזינו את כתובת האימייל שלכם ונשלח קישור לאיפוס הסיסמה
-      </p>
-
-      {sent ? (
-        <div className="glass p-6 text-center space-y-3">
-          <p className="text-sm">
-            ✦ נשלח קישור לאיפוס סיסמה אל <strong>{email}</strong>.
-            <br />
-            בדקו את תיבת הדואר (וגם את תיקיית הספאם).
-          </p>
-          <Link to="/auth" className="text-sm underline text-accent">
-            חזרה לדף הכניסה
-          </Link>
-        </div>
-      ) : (
-        <form onSubmit={onSubmit} className="space-y-4 glass p-6">
-          <div>
-            <Label htmlFor="email">אימייל</Label>
-            <Input
-              id="email"
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </div>
-          <Button type="submit" className="w-full press" disabled={loading}>
-            {loading ? "..." : "שלחו לי קישור"}
-          </Button>
-          <div className="text-center">
-            <Link to="/auth" className="text-xs underline text-muted-foreground">
-              חזרה לכניסה
-            </Link>
-          </div>
-        </form>
-      )}
+    <div className="container mx-auto px-4 py-14 max-w-md text-center">
+      {/* Same auth-card standard as /auth: translucent white pane with the gold
+          hairline (glass-gold), not the hairline-gold class — that would replace
+          the whole box-shadow and drop the pane's depth shadow. */}
+      <div className="glass glass-gold p-8">
+        <h1 className="font-display text-2xl font-bold mb-3">כניסה לחשבון</h1>
+        <p className="text-sm text-muted-foreground leading-relaxed mb-5">
+          הכניסה לאתר היא ללא סיסמה — בקישור חד-פעמי למייל או עם חשבון Google.
+          מעבירים אתכם לדף הכניסה…
+        </p>
+        <Link to="/auth" className="text-sm underline text-accent">
+          לדף הכניסה
+        </Link>
+      </div>
     </div>
   );
 }

@@ -144,12 +144,13 @@ export function CartDrawer() {
             </div>
 
             {/* Summary + CTAs — pinned below the scroll area. Reconciles as
-                סכום ביניים + משלוח = סך הכל, using the same flat ₪37 shipping the
-                cart page and checkout charge. */}
+                סכום פריטים + משלוח = סך הכל, using the same flat ₪37 shipping the
+                cart page and checkout charge. The label matches the cart and
+                checkout summaries so the wording can't drift between surfaces. */}
             <div className="border-t border-glass-line px-5 py-4">
               <div className="space-y-1.5">
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">סכום ביניים</span>
+                  <span className="text-muted-foreground">סכום פריטים</span>
                   <span className="whitespace-nowrap">{formatILS(subtotal)}</span>
                 </div>
                 <div className="flex justify-between text-sm">

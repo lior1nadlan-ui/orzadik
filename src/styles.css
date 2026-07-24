@@ -244,6 +244,20 @@
       radial-gradient(70rem 44rem at 50% 108%, rgba(160, 170, 195, 0.08), transparent 65%);
   }
   h1, h2, h3, .font-display { font-family: var(--font-display); }
+
+  /* Global keyboard-focus ring — branded, everywhere. A sane DEFAULT only:
+     it lives in @layer base, so any component that sets its own :focus-visible
+     ring via Tailwind utilities (@layer utilities always outranks @layer base)
+     wins — every shadcn primitive pairs `focus-visible:outline-none` with its
+     own `ring-ring`, so this never doubles up on them. It only shows on plain
+     focusables (links, native buttons, custom elements) that have no ring of
+     their own. `var(--ring)` is #7E611E (5.81:1 on white). No border-radius
+     override: modern browsers already curve the outline to the element's own
+     radius, so the ring hugs each control without restyling its corners. */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
 }
 
 /* =============================================================================

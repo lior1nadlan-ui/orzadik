@@ -219,11 +219,13 @@ function AuthPage() {
             </div>
 
             <Button type="submit" className="w-full press" disabled={loading}>
-              {loading ? "שולח..." : "הצטרפו למועדון אור זרוע לצדיק בחינם"}
+              {loading ? "שולח..." : "הצטרפות חינם למועדון"}
             </Button>
 
             <div className="text-center">
-              <p className="text-[11px] text-muted-foreground leading-relaxed mb-1">נשלח אליך קישור הפעלה למייל.</p>
+              <p className="text-[11px] text-muted-foreground leading-relaxed mb-1">
+                הצטרפות חינם למועדון אור זרוע לצדיק. נשלח אליך קישור הפעלה למייל.
+              </p>
               <PrivacyNotice context="signup" className="text-center" />
             </div>
           </form>

@@ -35,6 +35,17 @@ type SearchSuggestion = {
 // ---------------------------------------------------------------------------
 const TALITOT_SLUG = "%d7%98%d7%9c%d7%99%d7%aa%d7%95%d7%aa-%d7%95%d7%a6%d7%99%d7%a6%d7%99%d7%95%d7%aa";
 
+// The curated category shortcuts, shared by the desktop nav row AND the drawer's
+// category section so the two surfaces can never drift. Every slug is a real
+// category verified in the DB (see note above). Owner: edit here to retarget a
+// shortcut in both places at once.
+const CURATED_CATEGORIES: { slug: string; label: string }[] = [
+  { slug: "wedding", label: "מארזים לחתן" },
+  { slug: "chatan-kala", label: "חתן וכלה" },
+  { slug: "chalaka-set", label: "סטי חלאקה" },
+  { slug: TALITOT_SLUG, label: "טליתות" },
+];
+
 // ---------------------------------------------------------------------------
 // Shared class idioms for the chrome.
 //
@@ -257,7 +268,25 @@ export function SiteHeader() {
                 </nav>
 
                 <div className="px-6 pt-4 pb-2">
-                  <div className="text-[11px] tracking-[0.2em] uppercase text-muted-foreground mb-2">קטגוריות</div>
+                  {/* Curated shortcuts — the same picks surfaced in the desktop
+                      nav row, mirrored here as quick-access chips (the gold-hairline
+                      chip idiom the search suggestions already use). The full
+                      category list follows below, unchanged. */}
+                  <div className="text-[11px] tracking-[0.2em] uppercase text-muted-foreground mb-2">קטגוריות מובחרות</div>
+                  <div className="flex flex-wrap gap-2 mb-5">
+                    {CURATED_CATEGORIES.map((c) => (
+                      <Link
+                        key={c.slug}
+                        to="/category/$slug"
+                        params={{ slug: c.slug }}
+                        onClick={() => setDrawerOpen(false)}
+                        className="rounded-full border border-gold/40 px-3 py-1.5 text-xs text-foreground/85 press [@media(hover:hover)_and_(pointer:fine)]:hover:border-accent [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
+                      >
+                        {c.label}
+                      </Link>
+                    ))}
+                  </div>
+                  <div className="text-[11px] tracking-[0.2em] uppercase text-muted-foreground mb-2">כל הקטגוריות</div>
                   <div className="flex flex-col">
                     {categories.map((c) => (
                       <Link
@@ -371,11 +400,18 @@ export function SiteHeader() {
           labels/slugs here; every slug is a real category verified in the DB. */}
       <nav aria-label="ניווט ראשי" className="hidden lg:flex h-11 items-center justify-center gap-8 text-[15px]">
         <Link to="/shop" className={NAV_LINK_CLS}>חנות</Link>
-        <Link to="/category/$slug" params={{ slug: "wedding" }} className={NAV_LINK_CLS}>מארזים לחתן</Link>
-        <Link to="/category/$slug" params={{ slug: "chatan-kala" }} className={NAV_LINK_CLS}>חתן וכלה</Link>
-        <Link to="/category/$slug" params={{ slug: "chalaka-set" }} className={NAV_LINK_CLS}>סטי חלאקה</Link>
-        <Link to="/category/$slug" params={{ slug: TALITOT_SLUG }} className={NAV_LINK_CLS}>טליתות</Link>
+        {CURATED_CATEGORIES.map((c) => (
+          <Link key={c.slug} to="/category/$slug" params={{ slug: c.slug }} className={NAV_LINK_CLS}>
+            {c.label}
+          </Link>
+        ))}
         <Link to="/categories" className={NAV_LINK_CLS}>כל הקטגוריות</Link>
+        {/* Secondary group — informational destinations that only lived in the
+            drawer/footer before. A hairline divider sets them off from the
+            shopping links so the row reads as two clusters. */}
+        <span aria-hidden="true" className="h-4 w-px bg-border" />
+        <Link to="/articles" className={NAV_LINK_CLS}>מדריכים</Link>
+        <Link to="/about" className={NAV_LINK_CLS}>אודות</Link>
       </nav>
 
       {/* Bottom edge: full-width gold hairline */}

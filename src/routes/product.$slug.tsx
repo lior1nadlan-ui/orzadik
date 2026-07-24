@@ -26,6 +26,8 @@ import { ProductCarousel } from "@/components/product/ProductCarousel";
 import { ProductReviews } from "@/components/ProductReviews";
 import { Stars } from "@/components/Stars";
 import { ClubBadge } from "@/components/ClubBadge";
+import { Breadcrumb, type BreadcrumbItemData } from "@/components/Breadcrumb";
+import { CardSkeleton } from "@/components/Skeletons";
 import { CROSS_SELL_MAP, DEFAULT_CROSS_SELL_CATEGORY } from "@/lib/cross-sells";
 import { thumbUrl } from "@/lib/img";
 import { ShoppingCart, Minus, Plus, Check, Truck, RotateCcw, ZoomIn, Heart, Lock, ShieldCheck } from "lucide-react";
@@ -566,7 +568,36 @@ function ProductPage() {
     },
   });
 
-  if (isLoading) return <div className="container mx-auto px-4 py-20 text-center">טוען...</div>;
+  if (isLoading) {
+    // Gallery + buy-box skeleton in the real two-column PDP shape, so the page
+    // holds its layout instead of collapsing to a single "טוען..." line. Built
+    // from the shared CardSkeleton (min-h overridden per slot). aria-hidden on
+    // the visual scaffold; the status text stays for assistive tech.
+    return (
+      <div className="container mx-auto px-4 py-10">
+        <div className="grid md:grid-cols-2 gap-10" aria-hidden="true">
+          {/* Gallery: square hero + thumbnail strip */}
+          <div>
+            <CardSkeleton className="aspect-square min-h-0" />
+            <div className="mt-3 flex gap-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <CardSkeleton key={i} className="h-20 w-20 min-h-0 flex-shrink-0" />
+              ))}
+            </div>
+          </div>
+          {/* Buy box: title, price, stock chip, short copy, buy row */}
+          <div className="space-y-4">
+            <CardSkeleton className="h-9 w-3/4 min-h-0" />
+            <CardSkeleton className="h-7 w-32 min-h-0" />
+            <CardSkeleton className="h-6 w-44 min-h-0" />
+            <CardSkeleton className="h-20 w-full min-h-0" />
+            <CardSkeleton className="h-12 w-full min-h-0" />
+          </div>
+        </div>
+        <p role="status" className="sr-only">טוען…</p>
+      </div>
+    );
+  }
   if (!product) return <div className="container mx-auto px-4 py-20 text-center">המוצר לא נמצא</div>;
 
   // Dedupe (thumbnail_url often repeats inside product_images) and copy before
@@ -668,10 +699,21 @@ function ProductPage() {
   // slug navigations, so state can briefly carry the previous product's list.
   const recentToShow = recent.filter((r) => r.id !== product.id);
 
-  // Running breadcrumb positions — stay consecutive whether or not the
-  // parent-category li renders.
-  const categoryCrumbPos = parentCategory ? 4 : 3;
-  const productCrumbPos = firstCategory ? categoryCrumbPos + 1 : 3;
+  // Visible breadcrumb trail — the shared <Breadcrumb> primitive (structured
+  // data still comes from the BreadcrumbList JSON-LD in head(), so this carries
+  // no microdata). Mirrors that JSON-LD trail: Home → Shop → parent category →
+  // category → this product. The category levels appear only when known.
+  const breadcrumbItems: BreadcrumbItemData[] = [
+    { label: "בית", to: "/" },
+    { label: "מוצרים", to: "/shop" },
+    ...(parentCategory
+      ? [{ label: parentCategory.name, to: "/category/$slug", params: { slug: parentCategory.slug } }]
+      : []),
+    ...(firstCategory
+      ? [{ label: firstCategory.name, to: "/category/$slug", params: { slug: firstCategory.slug } }]
+      : []),
+    { label: product.name },
+  ];
 
   function addToCart() {
     if (!product) return;
@@ -726,71 +768,10 @@ function ProductPage() {
 
   return (
     <div className="container mx-auto px-4 py-10">
-      {/* Breadcrumb */}
-      <nav aria-label="ניווט מיקום באתר" className="mb-4">
-        <ol className="flex flex-wrap items-center gap-1.5 text-xs md:text-sm text-muted-foreground" itemScope itemType="https://schema.org/BreadcrumbList">
-          <li itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
-            <Link to="/" className="transition-colors duration-160 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent" itemProp="item">
-              <span itemProp="name">בית</span>
-            </Link>
-            <meta itemProp="position" content="1" />
-          </li>
-          <li aria-hidden="true" className="text-muted-foreground/40">/</li>
-          <li itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
-            <Link to="/shop" className="transition-colors duration-160 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent" itemProp="item">
-              <span itemProp="name">מוצרים</span>
-            </Link>
-            <meta itemProp="position" content="2" />
-          </li>
-          {parentCategory && (
-            <>
-              <li aria-hidden="true" className="text-muted-foreground/40">/</li>
-              <li itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
-                <Link
-                  to="/category/$slug"
-                  params={{ slug: parentCategory.slug }}
-                  className="transition-colors duration-160 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
-                  itemProp="item"
-                >
-                  <span itemProp="name">{parentCategory.name}</span>
-                </Link>
-                <meta itemProp="position" content="3" />
-              </li>
-            </>
-          )}
-          {firstCategory && (
-            <>
-              <li aria-hidden="true" className="text-muted-foreground/40">/</li>
-              <li itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
-                <Link
-                  to="/category/$slug"
-                  params={{ slug: firstCategory.slug }}
-                  className="transition-colors duration-160 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
-                  itemProp="item"
-                >
-                  <span itemProp="name">{firstCategory.name}</span>
-                </Link>
-                <meta itemProp="position" content={String(categoryCrumbPos)} />
-              </li>
-            </>
-          )}
-          {product?.name && (
-            <>
-              <li aria-hidden="true" className="text-muted-foreground/40">/</li>
-              <li
-                itemProp="itemListElement"
-                itemScope
-                itemType="https://schema.org/ListItem"
-                className="text-foreground font-medium truncate max-w-[200px]"
-                aria-current="page"
-              >
-                <span itemProp="name">{product.name}</span>
-                <meta itemProp="position" content={String(productCrumbPos)} />
-              </li>
-            </>
-          )}
-        </ol>
-      </nav>
+      {/* Breadcrumb — shared primitive (visible trail only; JSON-LD lives in head()) */}
+      <div className="mb-4">
+        <Breadcrumb items={breadcrumbItems} />
+      </div>
 
       {/* Club promo — visible to guests at the top of every product page */}
       <ClubBadge className="mb-6" />
@@ -885,7 +866,12 @@ function ProductPage() {
               </DialogContent>
             </Dialog>
           ) : (
-            <div className="glass glass-gold aspect-square w-full" />
+            // No image on file: the same branded "אין תמונה" placeholder
+            // ProductThumb renders (centered muted label), inside the gallery's
+            // glass-gold square — so it reads as "no photo yet", not a broken box.
+            <div className="glass glass-gold aspect-square w-full flex items-center justify-center text-muted-foreground text-sm">
+              אין תמונה
+            </div>
           )}
           {gallery.length > 1 && (
             <div className="mt-3 flex gap-2 overflow-x-auto" role="group" aria-label="תמונות נוספות של המוצר">
@@ -1312,11 +1298,15 @@ function ProductPage() {
         />
       )}
 
-      {/* Same-category recommendations. The 4-item floor keeps the strip from
-          looking thin on a normal page — but when the product is out of stock
-          this strip IS the way forward, so show whatever exists (the carousel
-          renders nothing on an empty list). */}
-      {(!canBuy || similar.length >= 4) && (
+      {/* Same-category recommendations. This is a near-twin of the cross-sell
+          rail above (both are "here's more to explore" strips), so on a buyable
+          page where the cross-sell rail already fills that slot we DROP this one
+          rather than stack two look-alike carousels. It still renders when:
+            • the product is out of stock — then this strip IS the way forward
+              (show whatever exists; the carousel no-ops on an empty list), or
+            • there is no cross-sell rail (related is empty) AND there are ≥4
+              same-category items, so the page keeps one healthy discovery strip. */}
+      {(!canBuy || (related.length === 0 && similar.length >= 4)) && (
         <ProductCarousel
           eyebrow="עוד מהקטגוריה"
           heading={canBuy ? "מוצרים דומים" : "מוצרים דומים שזמינים עכשיו"}

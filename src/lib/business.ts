@@ -60,6 +60,35 @@ export const BUSINESS = {
   googleAdsPurchaseLabel: "pjKcCKOC19AcEJ3Z0J9E",
 } as const;
 
+/**
+ * Human-readable Hebrew labels for the order-status enum. The tokens mirror the
+ * real status values driven from /admin (admin.orders.tsx `STATUSES`) and shown
+ * raw on /account — pending/processing/shipped/completed/cancelled/refunded —
+ * plus `paid` (the payment milestone surfaced on the account/order screens) so a
+ * single map covers every status a page may render. Reuse via `orderStatusHe()`.
+ */
+export const ORDER_STATUS_LABELS_HE: Record<string, string> = {
+  pending: "ממתינה",
+  processing: "בטיפול",
+  paid: "שולם",
+  shipped: "נשלחה",
+  completed: "הושלמה",
+  cancelled: "בוטלה",
+  refunded: "זוכתה",
+};
+
+/** Hebrew label for an order status, falling back to the raw token if unknown. */
+export function orderStatusHe(s: string): string {
+  return ORDER_STATUS_LABELS_HE[s] ?? s;
+}
+
+/**
+ * Single source of truth for the "last updated" date shown on the three legal
+ * pages (terms / privacy / accessibility). Currently hardcoded in each as
+ * "עודכן לאחרונה: 26.6.2026" — point all three at this constant instead.
+ */
+export const LEGAL_LAST_UPDATED = "26.6.2026";
+
 /** Consumer-law policy constants (Consumer Protection Law §14ג–§14ה). */
 export const CONSUMER_POLICY = {
   /** Cancellation window for distance-selling of goods: 14 days from receipt. */

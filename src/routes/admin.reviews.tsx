@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { listPendingReviews, setReviewApproval, deleteReview } from "@/lib/reviews.functions";
 import { Stars } from "@/components/Stars";
+import { CardSkeleton } from "@/components/Skeletons";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/admin/reviews")({
@@ -48,7 +49,11 @@ function AdminReviews() {
     <div>
       <h1 className="font-display text-2xl font-bold mb-6">חוות דעת</h1>
       {isLoading ? (
-        <div className="text-center py-10 text-muted-foreground">טוען...</div>
+        <div className="space-y-3">
+          <CardSkeleton className="min-h-[7rem]" />
+          <CardSkeleton className="min-h-[7rem]" />
+          <CardSkeleton className="min-h-[7rem]" />
+        </div>
       ) : reviews.length === 0 ? (
         <div className="text-center py-10 text-muted-foreground">אין חוות דעת.</div>
       ) : (
