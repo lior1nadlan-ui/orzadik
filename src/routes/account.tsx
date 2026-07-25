@@ -346,18 +346,44 @@ function AccountPage() {
             <p className="text-xs text-muted-foreground mt-1">עדכון הפרטים שלך, ועיון/הורדה של כל המידע שאנו מחזיקים עליך.</p>
           </div>
         </div>
+        {/* autoComplete tokens match the ones the checkout form already uses, so
+            the browser/password-manager profile a customer fills in at checkout
+            is offered here too — and, just as importantly, an AT user gets the
+            field's purpose from the platform (WCAG 1.3.5) and not only from the
+            visible label. */}
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
             <Label htmlFor="acc-name">שם מלא</Label>
-            <Input id="acc-name" value={name} onChange={(e) => setName(e.target.value)} />
+            <Input
+              id="acc-name"
+              autoComplete="name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
           </div>
           <div>
             <Label htmlFor="acc-phone">טלפון</Label>
-            <Input id="acc-phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
+            <Input
+              id="acc-phone"
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+            />
           </div>
           <div className="sm:col-span-2">
-            <Label className="text-muted-foreground">דוא"ל</Label>
-            <Input value={profile?.email ?? user.email ?? ""} disabled readOnly />
+            {/* This label had no htmlFor and the field had no id, so the two were
+                only visually adjacent — nothing tied them together. */}
+            <Label htmlFor="acc-email" className="text-muted-foreground">דוא"ל</Label>
+            <Input
+              id="acc-email"
+              type="email"
+              autoComplete="email"
+              value={profile?.email ?? user.email ?? ""}
+              disabled
+              readOnly
+            />
           </div>
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
@@ -377,14 +403,29 @@ function AccountPage() {
           <div className="flex items-start gap-3">
             <Mail className="h-5 w-5 text-accent mt-0.5" />
             <div>
-              <div className="text-sm font-semibold">דיוור שיווקי</div>
-              <p className="text-xs text-muted-foreground mt-1 leading-relaxed max-w-md">
+              <div className="text-sm font-semibold" id="marketing-consent-label">
+                דיוור שיווקי
+              </div>
+              <p
+                id="marketing-consent-desc"
+                className="text-xs text-muted-foreground mt-1 leading-relaxed max-w-md"
+              >
                 מדריכים ותוכן לקראת החגים, מוצרים חדשים ועדכונים לחברי מועדון
                 באימייל וב-SMS. ניתן להסיר את ההסכמה בכל עת.
               </p>
             </div>
           </div>
+          {/* The heading and the paragraph sat beside this control but were not
+              attached to it, so it announced as a bare "switch" with no purpose.
+              aria-labelledby/-describedby rather than a <Label htmlFor>: Radix
+              renders the switch as a <button>, which IS a labelable element, so a
+              real label would forward clicks to it — and a stray click on the
+              explanatory text would then silently flip a consent flag. Naming it
+              must not make it easier to toggle by accident. */}
           <Switch
+            id="marketing-consent"
+            aria-labelledby="marketing-consent-label"
+            aria-describedby="marketing-consent-desc"
             checked={!!profile?.marketing_consent}
             disabled={savingConsent}
             onCheckedChange={toggleConsent}

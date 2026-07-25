@@ -123,6 +123,22 @@ export const Route = createFileRoute("/collection/personalized")({
   head: ({ loaderData }) => {
     const products = (loaderData?.products ?? []) as PersonalizedRow[];
 
+    // Social / preview image. This hub has no banner of its own, so the most
+    // honest card image is a photo of a product it ACTUALLY lists: the loader
+    // already keeps only active, imaged products, so the first tile's thumbnail
+    // is a real image of a real personalizable item rendered on this page. It is
+    // the raw absolute Supabase Storage URL — the same thing product.$slug feeds
+    // to og:image — not a thumbUrl() transform, since scrapers want the
+    // full-size original. Falls back to the site's brand card when empty.
+    const ogProduct = products.find((p) => !!p.thumbnail_url);
+    const ogProductImage = ogProduct?.thumbnail_url ?? null;
+    const ogImage = ogProductImage || `${SITE}/og-default.jpg`;
+    // Alt describes the image we actually chose: the product's own name when it
+    // is a product photo, the site-wide brand alt when it is the default card.
+    // (The root route declares og:image:alt, so this override replaces it rather
+    // than leaving the brand alt glued to a product photo.)
+    const ogImageAlt = ogProduct?.name || "אור זרוע לצדיק — תשמישי קדושה ויודאיקה מהודרת";
+
     const collectionLd = {
       "@context": "https://schema.org",
       "@type": "CollectionPage",
@@ -132,8 +148,16 @@ export const Route = createFileRoute("/collection/personalized")({
       description: DESCRIPTION,
       inLanguage: "he-IL",
       isPartOf: { "@id": "https://orzadik.com/#website" },
+      // Same representative photo as og:image — a real image of an item listed
+      // below. Omitted entirely when nothing is listed, rather than pointing the
+      // node at the generic brand banner.
+      ...(ogProductImage ? { image: ogProductImage } : {}),
       mainEntity: {
         "@type": "ItemList",
+        // Honest by construction: the loader caps the list at CAP, so `products`
+        // is BOTH everything this page renders and everything itemListElement
+        // below enumerates — numberOfItems can never claim items the markup does
+        // not contain.
         numberOfItems: products.length,
         itemListElement: products.map((p, i) => ({
           "@type": "ListItem",
@@ -162,10 +186,12 @@ export const Route = createFileRoute("/collection/personalized")({
         { property: "og:description", content: DESCRIPTION },
         { property: "og:type", content: "website" },
         { property: "og:url", content: CANONICAL },
-        { property: "og:image", content: `${SITE}/og-default.jpg` },
+        { property: "og:image", content: ogImage },
+        { property: "og:image:alt", content: ogImageAlt },
         { name: "twitter:card", content: "summary_large_image" },
         { name: "twitter:title", content: TITLE },
         { name: "twitter:description", content: DESCRIPTION },
+        { name: "twitter:image", content: ogImage },
       ],
       links: [{ rel: "canonical", href: CANONICAL }],
       scripts: [
