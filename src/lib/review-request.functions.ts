@@ -19,6 +19,7 @@ import {
   isEmailConfigured,
   unsubscribeToken,
   unsubscribeUrl,
+  listUnsubscribeHeaders,
 } from "@/lib/email.server";
 import { sellerIdentityLine, BUSINESS } from "@/lib/business";
 
@@ -145,25 +146,27 @@ export async function runReviewRequests(): Promise<{ sent: number; scanned: numb
 
     const html = emailShell(`
       <h1 style="font-size:20px;margin:0 0 8px;">${esc(order.customer_name)}, איך היה?</h1>
-      <p style="font-size:14px;color:#555;margin:0 0 16px;">
+      <p class="oz-muted" style="font-size:14px;color:#555;margin:0 0 16px;">
         ההזמנה <strong>${esc(order.order_number)}</strong> הגיעה אליך — נשמח לשמוע איך היה!
         חוות הדעת שלך עוזרת לנו ולקונים הבאים.
       </p>
       <table style="width:100%;border-collapse:collapse;">${rowsHtml}</table>
-      <div style="font-size:11px;color:#aaa;margin-top:20px;padding-top:12px;border-top:1px solid #eee;line-height:1.7;text-align:center;">
+      <div class="oz-muted" style="font-size:11px;color:#aaa;margin-top:20px;padding-top:12px;border-top:1px solid #eee;line-height:1.7;text-align:center;">
         <div>${esc(sellerIdentityLine())}${BUSINESS.email ? " · " + esc(BUSINESS.email) : ""}</div>
         <div style="margin-top:6px;">
           קיבלת הודעה זו בעקבות הזמנה שביצעת באתר.
-          <a href="${esc(unsub)}" style="color:#A8862A;">להסרה מרשימת התפוצה לחצו כאן</a>.
+          <a class="oz-gold" href="${esc(unsub)}" style="color:#A8862A;">להסרה מרשימת התפוצה לחצו כאן</a>.
         </div>
       </div>
-    `);
+    `, `${order.customer_name}, נשמח לשמוע איך היו המוצרים מהזמנה ${order.order_number}.`);
 
     const ok = await sendEmail({
       to: order.customer_email,
       subject: "איך היו המוצרים? נשמח לחוות דעת — אור זרוע לצדיק",
       html,
       replyTo: process.env.SHOP_OWNER_EMAIL,
+      // RFC 8058 one-click opt-out header — same signed unsub URL as the footer.
+      headers: listUnsubscribeHeaders(unsub),
     });
 
     // Stamp regardless of send outcome — a failed send is logged inside

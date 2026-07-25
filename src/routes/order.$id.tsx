@@ -1,16 +1,19 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { getOrderConfirmation } from "@/lib/order.functions";
 import { formatILS, useCart } from "@/lib/cart";
 import { BUSINESS } from "@/lib/business";
 import { Button } from "@/components/ui/button";
 import { CardSkeleton } from "@/components/Skeletons";
-import { CheckCircle2, Clock, Mail, Truck, Package, MessageCircle } from "lucide-react";
+import { CheckCircle2, Clock, Mail, Truck, Package, MessageCircle, Loader2 } from "lucide-react";
 
 export const Route = createFileRoute("/order/$id")({
   component: OrderConfirmationPage,
+  // CardCom redirects to /order/{id}?paid=1 (success) or ?paid=0 (failure).
+  validateSearch: (s: Record<string, unknown>): { paid?: "0" | "1" } =>
+    s.paid === "1" ? { paid: "1" } : s.paid === "0" ? { paid: "0" } : {},
   head: () => ({
     meta: [
       { title: "אישור הזמנה — אור זרוע לצדיק" },
@@ -21,15 +24,39 @@ export const Route = createFileRoute("/order/$id")({
 
 function OrderConfirmationPage() {
   const { id } = Route.useParams();
+  const search = Route.useSearch();
   const loadOrder = useServerFn(getOrderConfirmation);
   const { clear } = useCart();
-  const { data: order, isLoading, isError } = useQuery({
+
+  // The webhook that flips payment_status to 'paid' races the browser redirect
+  // back here. When we just came from a successful charge (?paid=1) but the
+  // order isn't paid yet, poll briefly so the buyer sees "מאמתים את התשלום…"
+  // instead of a false "payment not received" that invites a double charge.
+  // The window closes after ~15s, after which the honest pending copy shows.
+  const justPaid = search.paid === "1";
+  const [pollWindowOpen, setPollWindowOpen] = useState(justPaid);
+  useEffect(() => {
+    if (!justPaid) return;
+    const t = setTimeout(() => setPollWindowOpen(false), 15000);
+    return () => clearTimeout(t);
+  }, [justPaid]);
+
+  const { data: order, isLoading, isError, refetch } = useQuery({
     queryKey: ["order", id],
     queryFn: () => loadOrder({ data: { order_id: id } }),
-    retry: false,
+    // Was retry:false — the strictest setting in the app, on its most important
+    // page, so one transient blip showed a false "order not found". Allow a few.
+    retry: 2,
+    refetchInterval: (q) => {
+      const o = q.state.data as { payment_status?: string } | undefined;
+      if (o?.payment_status === "paid") return false;
+      return justPaid && pollWindowOpen ? 1500 : false;
+    },
   });
 
   const isPaid = order?.payment_status === "paid";
+  // Just paid, webhook not caught up yet, still inside the poll window.
+  const verifying = justPaid && !isPaid && pollWindowOpen;
 
   // Clear the cart only once payment is confirmed — never before.
   useEffect(() => {
@@ -113,11 +140,21 @@ function OrderConfirmationPage() {
     );
   }
   if (isError || !order) {
+    // A null order is a true not-found / no-permission (a retry won't help); an
+    // actual query error is transient, so offer a retry instead of a dead end.
+    const notFound = !isError && !order;
     return (
       <div className="container mx-auto px-4 py-20">
         <div className="glass mx-auto max-w-lg space-y-4 px-6 py-12 text-center">
-          <p className="text-muted-foreground">ההזמנה לא נמצאה או שאין לך הרשאה לצפות בה.</p>
-          <Link to="/shop"><Button variant="outline" className="press">חזרה לחנות</Button></Link>
+          <p className="text-muted-foreground">
+            {notFound
+              ? "ההזמנה לא נמצאה או שאין לך הרשאה לצפות בה."
+              : "לא הצלחנו לטעון את ההזמנה כרגע. נסו שוב בעוד רגע."}
+          </p>
+          <div className="flex flex-wrap justify-center gap-3">
+            {!notFound && <Button className="press" onClick={() => refetch()}>נסה שוב</Button>}
+            <Link to="/shop"><Button variant="outline" className="press">חזרה לחנות</Button></Link>
+          </div>
         </div>
       </div>
     );
@@ -143,6 +180,15 @@ function OrderConfirmationPage() {
             <h1 className="font-display text-3xl font-bold">תודה על ההזמנה!</h1>
             <p className="text-muted-foreground mt-2">מספר הזמנה: <span className="font-mono font-bold">{order.order_number}</span></p>
             <p className="text-sm text-muted-foreground mt-1">קיבלנו את התשלום. אישור הזמנה יישלח לדוא"ל שלך, וניצור עמך קשר לתיאום המשלוח.</p>
+          </>
+        ) : verifying ? (
+          <>
+            <div className="glass glass-gold [--glass-radius:9999px] mx-auto mb-5 flex h-24 w-24 items-center justify-center">
+              <Loader2 className="h-12 w-12 text-accent animate-spin" aria-hidden="true" />
+            </div>
+            <h1 className="font-display text-3xl font-bold">מאמתים את התשלום…</h1>
+            <p className="text-muted-foreground mt-2">מספר הזמנה: <span className="font-mono font-bold">{order.order_number}</span></p>
+            <p className="text-sm text-muted-foreground mt-1">רק רגע — אנחנו מאשרים את קליטת התשלום מול חברת הסליקה. העמוד יתעדכן אוטומטית; אין צורך לרענן או לשלם שוב.</p>
           </>
         ) : (
           <>

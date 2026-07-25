@@ -5,6 +5,10 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
+  CatchBoundary,
+  isNotFound,
+  isRedirect,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
@@ -87,6 +91,72 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
         </div>
       </div>
     </div>
+  );
+}
+
+// Branded error card for a CHILD-ROUTE throw, rendered INSIDE the persistent
+// chrome (SiteHeader/SiteFooter stay mounted — see RouteErrorBoundary). Unlike
+// the root `ErrorComponent` above (a bare full-screen shell for true shell
+// failures), this keeps the shopper's navigation and offers both retry and a
+// path home. min-h, not min-h-screen: it sits within <main>, between the header
+// and footer, so it fills the content area without pushing the footer offscreen.
+function LayoutErrorComponent({ reset }: { error: Error; reset: () => void }) {
+  const router = useRouter();
+  return (
+    <div className="flex min-h-[60vh] items-center justify-center px-4 py-16">
+      <div className="glass w-full max-w-md p-8 text-center [--glass-radius:1.5rem]">
+        <h1 className="text-xl font-semibold">משהו השתבש</h1>
+        <div className="gold-rule mx-auto mt-4 w-16" aria-hidden="true" />
+        <p className="mt-4 text-sm text-muted-foreground">
+          אירעה שגיאה בטעינת העמוד. אפשר לנסות שוב או לחזור לעמוד הבית.
+        </p>
+        <div className="mt-6 flex justify-center gap-2">
+          <button
+            onClick={() => { router.invalidate(); reset(); }}
+            className="press rounded-full bg-accent px-5 py-2.5 text-sm font-medium text-accent-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:bg-accent-strong"
+          >
+            נסה שוב
+          </button>
+          {/* Client-side Link (not a hard <a> reload): the chrome is intact, so a
+              SPA hop home is the right recovery. Navigating changes the pathname,
+              which is the boundary's reset key, so the error clears on its own;
+              onClick={reset} also covers a retry of the home route itself. Neutral
+              --input surface mirrors the shell ErrorComponent's contrast note. */}
+          <Link
+            to="/"
+            onClick={reset}
+            className="press rounded-full border border-input px-5 py-2.5 text-sm text-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary"
+          >
+            בית
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// The child-route error boundary. Placed INSIDE RootComponent's <main> (around
+// <Outlet/>) so a throw in any page component is caught HERE — a nearer ancestor
+// than the root route's own CatchBoundary — leaving SiteHeader/SiteFooter mounted
+// instead of blanking the whole site. Isolated into its own component so the
+// location subscription (for the reset key) re-renders only this node, not the
+// providers above. Keyed on pathname → a later navigation auto-clears the error.
+// notFound/redirect signals are re-thrown so their dedicated boundaries still
+// handle them (mirrors TanStack's own Match onCatch). SSR-safe: CatchBoundary is
+// a class error boundary, valid during server render.
+function RouteErrorBoundary() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  return (
+    <CatchBoundary
+      getResetKey={() => pathname}
+      errorComponent={LayoutErrorComponent}
+      onCatch={(err) => {
+        if (isNotFound(err) || isRedirect(err)) throw err;
+        console.error("[layout-boundary]", err);
+      }}
+    >
+      <Outlet />
+    </CatchBoundary>
   );
 }
 
@@ -418,7 +488,7 @@ function RootComponent() {
                 directly in the full-height app root. */}
             <SiteHeader />
             <main id="main-content" tabIndex={-1} className="flex-1 scroll-mt-24 lg:scroll-mt-32">
-              <Outlet />
+              <RouteErrorBoundary />
             </main>
             <SiteFooter />
           </div>

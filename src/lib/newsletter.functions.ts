@@ -18,6 +18,7 @@ import { checkNewsletterRateLimitByIp } from "@/lib/rate-limit.server";
 import {
   sendEmail,
   emailShell,
+  emailButton,
   esc,
   isEmailConfigured,
   unsubscribeToken,
@@ -117,24 +118,20 @@ export async function sendNewsletterWelcome(email: string, name?: string | null)
       to: email,
       subject: "פרסומת: נרשמת לעדכונים של אור זרוע לצדיק ✨",
       html: emailShell(`
-        <p style="font-size:11px;color:#999;margin:0 0 8px;">פרסומת</p>
+        <p class="oz-muted" style="font-size:11px;color:#999;margin:0 0 8px;">פרסומת</p>
         <h1 style="font-size:20px;margin:0 0 8px;">${name ? esc(name) + ", ב" : "ב"}רוכים הבאים! ✨</h1>
-        <p style="font-size:14px;color:#555;margin:0 0 16px;">
+        <p class="oz-muted" style="font-size:14px;color:#555;margin:0 0 16px;">
           נרשמת לרשימת התפוצה של אור זרוע לצדיק. נשלח מדי פעם מדריכים ותוכן לקראת
           החגים, פריטים חדשים ועדכונים — בלי ספאם, ואפשר להסיר בכל רגע.
         </p>
-        <div style="text-align:center;margin-top:20px;">
-          <a href="https://orzadik.com/shop" style="display:inline-block;background:#D4AF37;color:#fff;text-decoration:none;padding:12px 28px;border-radius:9999px;font-weight:bold;">
-            לחנות
-          </a>
-        </div>
-        <div style="font-size:11px;color:#aaa;margin-top:20px;padding-top:12px;border-top:1px solid #eee;line-height:1.7;text-align:center;">
+        ${emailButton("https://orzadik.com/shop", "לחנות")}
+        <div class="oz-muted" style="font-size:11px;color:#aaa;margin-top:20px;padding-top:12px;border-top:1px solid #eee;line-height:1.7;text-align:center;">
           <div>${esc(sellerIdentityLine())}${BUSINESS.email ? " · " + esc(BUSINESS.email) : ""}</div>
           <div style="margin-top:6px;">
-            <a href="${esc(unsub)}" style="color:#A8862A;">להסרה מרשימת התפוצה לחצו כאן</a>.
+            <a class="oz-gold" href="${esc(unsub)}" style="color:#A8862A;">להסרה מרשימת התפוצה לחצו כאן</a>.
           </div>
         </div>
-      `),
+      `, name ? `${name}, נרשמת לעדכונים — מדריכים ותוכן לחגים, ואפשר להסיר בכל רגע.` : "נרשמת לעדכונים — מדריכים ותוכן לחגים, ואפשר להסיר בכל רגע."),
       replyTo: process.env.SHOP_OWNER_EMAIL,
       // Same opt-out as the footer link, exposed to the mailbox provider so the
       // native "unsubscribe" button works without opening the mail.

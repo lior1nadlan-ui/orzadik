@@ -1,3 +1,4 @@
+import { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ShoppingBag, Minus, Plus, Trash2 } from "lucide-react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -32,6 +33,40 @@ export function CartDrawer() {
   // Deduped so a product added in two variants doesn't skew the suggestion set.
   const productIds = Array.from(new Set(items.map((i) => i.productId)));
 
+  // A11y: a single polite live region (rendered below, near the summary) that
+  // announces cart edits to screen-reader users. A quantity change and a removal
+  // both alter `count`, so the intent is captured synchronously in the click
+  // handlers and consumed by the effect once the NEW totals have committed —
+  // that way the announced total is always the fresh one the drawer displays
+  // (no separate math to drift). SSR-safe: state/ref/effect only.
+  const [announcement, setAnnouncement] = useState("");
+  const pendingAnnounce = useRef<"update" | "remove" | null>(null);
+
+  useEffect(() => {
+    const action = pendingAnnounce.current;
+    if (!action) return;
+    pendingAnnounce.current = null;
+    // Removal text carries the fresh remaining count so two consecutive removals
+    // never produce the SAME string — a live region that repeats identical text is
+    // dropped by most screen readers, silently swallowing the second removal.
+    setAnnouncement(
+      action === "remove"
+        ? count > 0
+          ? `הוסר מהעגלה — נותרו ${count} פריטים, סך הכל ${formatILS(grandTotal)}`
+          : "העגלה רוקנה"
+        : `העגלה עודכנה — ${count} פריטים, סך הכל ${formatILS(grandTotal)}`,
+    );
+  }, [count, grandTotal]);
+
+  const handleSetQty = (k: string, qty: number) => {
+    pendingAnnounce.current = "update";
+    setQty(k, qty);
+  };
+  const handleRemove = (k: string) => {
+    pendingAnnounce.current = "remove";
+    remove(k);
+  };
+
   const goToCheckout = () => {
     closeCart();
     navigate({ to: "/checkout" });
@@ -46,6 +81,17 @@ export function CartDrawer() {
         side="left"
         className="flex w-[88vw] flex-col gap-0 p-0 sm:w-96 sm:max-w-none"
       >
+        {/* A11y live region — the ONE polite status node for the mini-cart. Kept
+            here, OUTSIDE the empty/non-empty branch below, so it stays mounted
+            even as the last item is removed (a node unmounted in the same commit
+            would never announce). Driven purely by cart values via the effect
+            above: a quantity change reads "העגלה עודכנה — N פריטים, סך הכל ₪X",
+            a removal reads "הוסר מהעגלה". Empty until the first edit, so nothing
+            is announced on open. */}
+        <div className="sr-only" role="status" aria-live="polite">
+          {announcement}
+        </div>
+
         {/* Header — ps-11 clears the built-in close button in the top corner. */}
         <div className="flex items-center gap-2 border-b border-glass-line ps-11 pe-5 py-5">
           <ShoppingBag className="h-5 w-5 text-accent" aria-hidden="true" />
@@ -105,7 +151,7 @@ export function CartDrawer() {
                           {item.name}
                         </Link>
                         <button
-                          onClick={() => remove(k)}
+                          onClick={() => handleRemove(k)}
                           className="press shrink-0 rounded-full p-1 text-muted-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:text-destructive"
                           aria-label={`הסר ${item.name}`}
                         >
@@ -125,7 +171,7 @@ export function CartDrawer() {
                       <div className="mt-auto flex items-center justify-between gap-2 pt-2">
                         <div className="inline-flex items-center overflow-hidden rounded-full hairline">
                           <button
-                            onClick={() => setQty(k, item.quantity - 1)}
+                            onClick={() => handleSetQty(k, item.quantity - 1)}
                             className="press px-2.5 py-1.5 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary"
                             aria-label="הפחת"
                           >
@@ -133,7 +179,7 @@ export function CartDrawer() {
                           </button>
                           <span className="px-3 text-sm font-medium tabular-nums">{item.quantity}</span>
                           <button
-                            onClick={() => setQty(k, item.quantity + 1)}
+                            onClick={() => handleSetQty(k, item.quantity + 1)}
                             className="press px-2.5 py-1.5 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary"
                             aria-label="הוסף"
                           >

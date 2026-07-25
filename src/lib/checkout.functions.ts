@@ -3,7 +3,7 @@ import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getOptionalUserId } from "@/integrations/supabase/optional-auth";
-import { checkOrderRateLimit, checkOrderRateLimitByIp } from "@/lib/rate-limit.server";
+import { checkOrderRateLimit, checkOrderRateLimitByIp, getClientIp } from "@/lib/rate-limit.server";
 import { sendOrderCreatedOwnerAlert } from "@/lib/order-emails.server";
 import { recordNewsletterConsent } from "@/lib/newsletter.functions";
 import {
@@ -11,15 +11,6 @@ import {
   getEffectivePrice as effectivePrice,
   applyMemberDiscount as applyMember,
 } from "@/lib/pricing";
-
-function getClientIp(request: Request): string {
-  return (
-    request.headers.get("cf-connecting-ip") ??
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-    "unknown"
-  );
-}
-
 
 // Price math (SITE_DISCOUNT / MEMBER_DISCOUNT / SHIPPING_FLAT / effectivePrice /
 // applyMember) now comes from the shared src/lib/pricing.ts — no more duplicated

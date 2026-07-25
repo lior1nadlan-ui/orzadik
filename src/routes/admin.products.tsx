@@ -58,6 +58,23 @@ type Product = {
 
 const PAGE_SIZE = 25;
 
+/**
+ * Hand-rolled slug maker (no dependency): lowercase, niqqud/diacritics stripped,
+ * any run outside [a-z0-9] collapsed to a single "-", edges trimmed. A
+ * Hebrew-only name has no Latin form and yields "", so the owner still types
+ * those by hand; a name carrying Latin/numerals (brand names, model numbers,
+ * sizes) gets a usable slug for free — sparing a non-technical owner the typing.
+ */
+function slugify(name: string): string {
+  return (name ?? "")
+    .normalize("NFKD")
+    .replace(/[֑-ׇ]/g, "") // Hebrew niqqud / te'amim
+    .replace(/[̀-ͯ]/g, "") // Latin combining diacritics
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 type BulkKind = "price_pct" | "price_set" | "category" | "active" | "stock_status" | "restock";
 
 function AdminProducts() {
@@ -501,6 +518,9 @@ function ProductDialog({ product, onSave }: { product: Product | null; onSave: (
   const [form, setForm] = useState<Partial<Product>>(
     product ?? { name: "", slug: "", price: 0, stock_status: "instock", is_active: true, track_stock: false }
   );
+  // An existing product keeps the slug the owner chose — never rewrite it. A new
+  // product auto-derives its slug from the name until the owner edits slug itself.
+  const [slugTouched, setSlugTouched] = useState(!!product);
   return (
     <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
       <DialogHeader>
@@ -508,8 +528,24 @@ function ProductDialog({ product, onSave }: { product: Product | null; onSave: (
       </DialogHeader>
       <div className="space-y-3">
         <div className="grid md:grid-cols-2 gap-3">
-          <div><Label>שם *</Label><Input value={form.name ?? ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
-          <div><Label>Slug *</Label><Input value={form.slug ?? ""} onChange={(e) => setForm({ ...form, slug: e.target.value })} /></div>
+          <div>
+            <Label>שם *</Label>
+            <Input
+              value={form.name ?? ""}
+              onChange={(e) => {
+                const name = e.target.value;
+                setForm((prev) => ({ ...prev, name, slug: slugTouched ? prev.slug : slugify(name) }));
+              }}
+            />
+          </div>
+          <div>
+            <Label>Slug *</Label>
+            <Input
+              dir="ltr"
+              value={form.slug ?? ""}
+              onChange={(e) => { setSlugTouched(true); setForm((prev) => ({ ...prev, slug: e.target.value })); }}
+            />
+          </div>
           <div><Label>מחיר</Label><Input type="number" step="0.01" value={form.price ?? 0} onChange={(e) => setForm({ ...form, price: Number(e.target.value) })} /></div>
           <div><Label>מחיר מבצע</Label><Input type="number" step="0.01" value={form.sale_price ?? ""} onChange={(e) => setForm({ ...form, sale_price: e.target.value ? Number(e.target.value) : null })} /></div>
           <div><Label>מק״ט</Label><Input value={form.sku ?? ""} onChange={(e) => setForm({ ...form, sku: e.target.value })} /></div>

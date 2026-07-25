@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { getProductReviews, submitReview } from "@/lib/reviews.functions";
+import type { PublicReview } from "@/lib/reviews.functions";
 import { Stars, StarInput } from "@/components/Stars";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,9 +13,11 @@ import { Textarea } from "@/components/ui/textarea";
 export function ProductReviews({
   productId,
   initialSummary,
+  initialReviews,
 }: {
   productId: string;
   initialSummary?: { average: number; count: number };
+  initialReviews?: PublicReview[];
 }) {
   const qc = useQueryClient();
   const load = useServerFn(getProductReviews);
@@ -23,6 +26,14 @@ export function ProductReviews({
   const { data } = useQuery({
     queryKey: ["reviews", productId],
     queryFn: () => load({ data: { product_id: productId } }),
+    // Seed from the SSR loader so the approved list is in the server HTML
+    // (crawlable, no post-load reflow) and hydrates identically. React Query
+    // still revalidates per its staleness rules. Only present when the loader
+    // supplied a list; otherwise the query fetches client-side as before.
+    initialData:
+      initialReviews !== undefined
+        ? { summary: initialSummary ?? { average: 0, count: 0 }, reviews: initialReviews }
+        : undefined,
   });
 
   const summary = data?.summary ?? initialSummary ?? { average: 0, count: 0 };

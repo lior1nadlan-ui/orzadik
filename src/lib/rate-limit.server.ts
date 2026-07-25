@@ -1,6 +1,26 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 /**
+ * Client IP for SECURITY decisions (rate limiting + IP allowlists).
+ *
+ * Reads ONLY `cf-connecting-ip` — the single header Cloudflare sets from the
+ * real TCP peer and overwrites at the edge, so a client cannot forge it. The
+ * spoofable `x-forwarded-for` is deliberately NOT consulted here: it is
+ * attacker-controlled and must never feed a trusted-IP decision (an attacker
+ * could otherwise set it to a rate-limit-dodging value, or to a CardCom source
+ * IP to slip past the webhook allowlist).
+ *
+ * Absence is treated as untrusted → `"unknown"`. The IP rate limiters skip on
+ * `"unknown"` (fail-open, so a missing header never blocks a legitimate order);
+ * the CardCom allowlist treats it as non-matching (an unknown IP is not on the
+ * list). On Cloudflare Workers this header is always present for external
+ * requests, so production behaviour is unchanged.
+ */
+export function getClientIp(req: Request | null | undefined): string {
+  return req?.headers.get("cf-connecting-ip")?.trim() || "unknown";
+}
+
+/**
  * Email-based rate limiter for order placement.
  * Counts orders created in the last `windowMs` ms.
  * Does NOT require an extra table — reuses the orders table.

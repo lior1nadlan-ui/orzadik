@@ -130,3 +130,34 @@ export function trackBeginCheckout(products: AnalyticsProduct[]) {
     value,
   });
 }
+
+/**
+ * Site search. GA4 `search` + `view_search_results` ↔ Meta `Search`.
+ *
+ * Fired at two moments (see SiteHeader overlay submit + /shop query settle):
+ * when the visitor submits a term, and once per settled results query. The
+ * `count` is the number of results the query returned and is ALWAYS reported —
+ * including `count === 0`. A zero-result term is the highest-signal input the
+ * catalog can get (an unmet demand or a naming gap), so it must not be dropped.
+ *
+ * No-ops on the server and when neither gtag nor fbq is present, like every
+ * other tracker here. An empty term is ignored (nothing was actually searched).
+ */
+export function trackSearch(term: string, count: number) {
+  const { gtag, fbq } = tags();
+  if (!gtag && !fbq) return;
+  const search_term = term.trim();
+  if (!search_term) return;
+  // 0 is a legitimate, meaningful count — only a non-finite value is dropped.
+  const results = Number.isFinite(count) ? count : undefined;
+
+  gtag?.("event", "search", { search_term });
+  gtag?.("event", "view_search_results", {
+    search_term,
+    ...(results !== undefined ? { results_count: results } : {}),
+  });
+  fbq?.("track", "Search", {
+    search_string: search_term,
+    ...(results !== undefined ? { results_count: results } : {}),
+  });
+}

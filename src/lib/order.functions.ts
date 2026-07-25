@@ -3,7 +3,7 @@ import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getOptionalUserId } from "@/integrations/supabase/optional-auth";
-import { checkTrackRateLimitByIp } from "@/lib/rate-limit.server";
+import { checkTrackRateLimitByIp, getClientIp } from "@/lib/rate-limit.server";
 
 const InputSchema = z.object({ order_id: z.string().uuid() });
 
@@ -81,11 +81,7 @@ const TrackSchema = z.object({
 export const trackOrder = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => TrackSchema.parse(input))
   .handler(async ({ data }) => {
-    const req = getRequest();
-    const ip =
-      req?.headers.get("cf-connecting-ip") ??
-      req?.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-      "unknown";
+    const ip = getClientIp(getRequest());
     const { limited } = await checkTrackRateLimitByIp(ip);
     if (limited) {
       throw new Error("יותר מדי בקשות מהכתובת הזו. אנא נסו שוב בעוד כמה דקות.");

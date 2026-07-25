@@ -43,6 +43,43 @@ type CartItem = {
   slug: string;
 };
 
+const SHOP = "אור זרוע לצדיק";
+/** The public catalog — a real, crawlable page (see public/llms.txt). */
+const SHOP_URL = "https://orzadik.com/shop";
+
+/**
+ * Honest recovery note the owner can send in one tap: greet by name, list the
+ * items the customer actually left in the cart (itemNames is computed per row),
+ * offer help, and link back to the shop. Deliberately NO discount and NO
+ * urgency/scarcity/availability claims — just a warm, human nudge. Shared by the
+ * WhatsApp and email actions so the wording stays identical.
+ */
+function cartRecoveryMessage(name: string, itemNames: string): string {
+  const hi = name ? `שלום ${name}` : "שלום";
+  const itemsLine = itemNames ? `\nהפריטים שהיו בעגלה: ${itemNames}.` : "";
+  return (
+    `${hi}! 🛒\n` +
+    `שמנו לב שהתחלת הזמנה באתר "${SHOP}" ולא הספקת להשלים אותה.` +
+    `${itemsLine}\n` +
+    `אם נשאר משהו לא ברור או שנוכל לעזור בכל דרך — נשמח לעמוד לרשותך.\n` +
+    `לצפייה בכל המוצרים ולהמשך ההזמנה: ${SHOP_URL} 💛`
+  );
+}
+
+/** wa.me deep-link with the recovery note pre-filled. Reuses waLink() for the
+ *  0XXXXXXXXX -> 972 normalization; mirrors waForOrder in admin.orders.tsx. */
+function waForCart(c: any, itemNames: string): string {
+  return `${waLink(c?.phone)}?text=${encodeURIComponent(cartRecoveryMessage(c?.name ?? "", itemNames))}`;
+}
+
+/** mailto: with a neutral subject and the same recovery note as the body, so the
+ *  compose window opens ready to send instead of blank. */
+function mailtoForCart(c: any, itemNames: string): string {
+  const subject = `בנוגע לעגלת הקנייה שלך ב"${SHOP}"`;
+  const body = cartRecoveryMessage(c?.name ?? "", itemNames);
+  return `mailto:${c?.email ?? ""}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
 function AdminAbandoned() {
   const qc = useQueryClient();
   const list = useServerFn(listAbandonedCarts);
@@ -206,20 +243,20 @@ function AdminAbandoned() {
                     {!c.unsubscribed && (
                       <div className="flex gap-1.5">
                         <a
-                          href={`mailto:${c.email}`}
-                          aria-label="שליחת מייל"
-                          title={c.email}
+                          href={mailtoForCart(c, itemNames)}
+                          aria-label="שליחת מייל עם טיוטה מוכנה"
+                          title={`מייל ללקוח (${c.email}) — טיוטה מוכנה`}
                           className="rounded-full border p-1.5 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"
                         >
                           <Mail className="h-3.5 w-3.5" />
                         </a>
                         {c.phone && (
                           <a
-                            href={waLink(c.phone)}
+                            href={waForCart(c, itemNames)}
                             target="_blank"
                             rel="noreferrer"
-                            aria-label="WhatsApp"
-                            title="WhatsApp"
+                            aria-label="WhatsApp עם הודעה מוכנה"
+                            title="WhatsApp — הודעת שחזור מוכנה לשליחה"
                             className="rounded-full border p-1.5 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted text-emerald-700"
                           >
                             <MessageCircle className="h-3.5 w-3.5" />

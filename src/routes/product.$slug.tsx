@@ -31,6 +31,7 @@ import {
   PRINT_INSTEAD_OF_EMBROIDERY_CATEGORY_SLUGS,
 } from "@/lib/personalization";
 import { ProductReviews } from "@/components/ProductReviews";
+import type { PublicReview } from "@/lib/reviews.functions";
 import { Stars } from "@/components/Stars";
 import { ClubBadge } from "@/components/ClubBadge";
 import { Breadcrumb, type BreadcrumbItemData } from "@/components/Breadcrumb";
@@ -41,7 +42,7 @@ import { ShoppingCart, Minus, Plus, Check, Truck, RotateCcw, ZoomIn, Heart, Lock
 import { sellerIdentityLine, CONSUMER_POLICY } from "@/lib/business";
 import { useFavorites } from "@/components/engagement/favorites";
 import { readRecent, recordRecent } from "@/components/engagement/recently-viewed";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import DOMPurify from "isomorphic-dompurify";
 
@@ -86,13 +87,38 @@ async function fetchReviewSummary(productId: string): Promise<{ average: number;
   }
 }
 
+// Approved reviews for SSR. Mirrors fetchReviewSummary (same isomorphic client,
+// same public read path) and matches getProductReviews' select/filter/order/
+// limit exactly, so the SSR-seeded list is identical to the one the client
+// query later revalidates to. Moderation gate preserved: only is_approved rows.
+async function fetchReviews(productId: string): Promise<PublicReview[]> {
+  try {
+    const { data } = await supabase
+      .from("reviews")
+      .select("id, author_name, rating, title, body, created_at")
+      .eq("product_id", productId)
+      .eq("is_approved", true)
+      .order("created_at", { ascending: false })
+      .limit(50);
+    return (data ?? []) as PublicReview[];
+  } catch {
+    return [];
+  }
+}
+
 export const Route = createFileRoute("/product/$slug")({
   loader: async ({ params }) => {
     const product = await fetchProductWithRetry(params.slug);
     if (!product) throw notFound(); // real HTTP 404 for non-existent slugs, not a soft-404
-    const reviewSummary = product.id
-      ? await fetchReviewSummary(product.id as string)
-      : { average: 0, count: 0 };
+    // Summary (accurate full-count, for head()/JSON-LD/star-link) and the
+    // approved-review list (SSR-seed for ProductReviews) are independent public
+    // reads — run them together.
+    const [reviewSummary, initialReviews] = product.id
+      ? await Promise.all([
+          fetchReviewSummary(product.id as string),
+          fetchReviews(product.id as string),
+        ])
+      : [{ average: 0, count: 0 }, [] as PublicReview[]];
     // When the first category is a subcategory, resolve its parent so the
     // breadcrumb trail (JSON-LD in head + visible nav) includes the full path.
     const loaderCats = ((product as any).product_categories ?? [])
@@ -112,7 +138,7 @@ export const Route = createFileRoute("/product/$slug")({
         parentCat = null;
       }
     }
-    return { product, reviewSummary, parentCat };
+    return { product, reviewSummary, initialReviews, parentCat };
   },
   head: ({ loaderData, params }) => {
     const url = `https://orzadik.com/product/${params.slug}`;
@@ -270,13 +296,152 @@ export const Route = createFileRoute("/product/$slug")({
 // every browse surface agree on "is this personalizable, and how?". Imported at
 // the top of this file; behaviour here is unchanged.
 
+const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(v, max));
+
+// Which zoom modality the current device gets. Lens (hover-magnify) is reserved
+// for fine-pointer desktops that have NOT asked to reduce motion — a
+// cursor-tracked lens is direct manipulation but still motion, so reduced-motion
+// users fall back to the static pan-scroll view. Client-only: SSR renders
+// lensMode=false (the pan-scroll default that needs no JS), then the effect
+// upgrades real desktops after hydration, so there is no hydration mismatch.
+function useZoomMode(): boolean {
+  const [lensMode, setLensMode] = useState(false);
+  useEffect(() => {
+    const fine = window.matchMedia("(hover: hover) and (pointer: fine)");
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setLensMode(fine.matches && !reduced.matches);
+    update();
+    fine.addEventListener("change", update);
+    reduced.addEventListener("change", update);
+    return () => {
+      fine.removeEventListener("change", update);
+      reduced.removeEventListener("change", update);
+    };
+  }, []);
+  return lensMode;
+}
+
+// Real zoom for the gallery dialog. Two modalities, one component:
+//  • lensMode (desktop, fine pointer, motion allowed): a circular hover lens
+//    that magnifies the region under the cursor ~2.3× from the full-res source,
+//    so embroidery / filigree / engraving / kashrut marks can be inspected.
+//  • otherwise (touch / coarse pointer / reduced-motion): the source scaled
+//    ~2.3× inside an overflow-auto, touch-pannable container, centred on open.
+// The lens math uses the IMAGE's on-screen rect (getBoundingClientRect), so it
+// is correct regardless of the carousel's transform; all DOM reads happen in
+// pointer handlers / effects, never at render — SSR-safe.
+function ZoomableImage({
+  src,
+  alt,
+  lensMode,
+}: {
+  src: string;
+  alt: string;
+  lensMode: boolean;
+}) {
+  const imgRef = useRef<HTMLImageElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [lens, setLens] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const ZOOM = 2.3;
+  const LENS = 176;
+
+  // Start the pan-scroll view centred on the image instead of at a corner.
+  useEffect(() => {
+    if (lensMode) return;
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollLeft = (el.scrollWidth - el.clientWidth) / 2;
+    el.scrollTop = (el.scrollHeight - el.clientHeight) / 2;
+  }, [src, lensMode]);
+
+  const onMove = (e: React.PointerEvent) => {
+    const img = imgRef.current;
+    if (!img) return;
+    const rect = img.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+    setLens({
+      x: clamp(e.clientX - rect.left, 0, rect.width),
+      y: clamp(e.clientY - rect.top, 0, rect.height),
+      w: rect.width,
+      h: rect.height,
+    });
+  };
+
+  if (lensMode) {
+    let overlay: React.ReactNode = null;
+    if (lens) {
+      const bgW = lens.w * ZOOM;
+      const bgH = lens.h * ZOOM;
+      const bgX = clamp((lens.x / lens.w) * bgW - LENS / 2, 0, Math.max(0, bgW - LENS));
+      const bgY = clamp((lens.y / lens.h) * bgH - LENS / 2, 0, Math.max(0, bgH - LENS));
+      const left = clamp(lens.x - LENS / 2, 0, Math.max(0, lens.w - LENS));
+      const top = clamp(lens.y - LENS / 2, 0, Math.max(0, lens.h - LENS));
+      overlay = (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute rounded-full ring-2 ring-accent shadow-xl"
+          style={{
+            width: LENS,
+            height: LENS,
+            left,
+            top,
+            backgroundColor: "#fff",
+            backgroundImage: `url("${src}")`,
+            backgroundRepeat: "no-repeat",
+            backgroundSize: `${bgW}px ${bgH}px`,
+            backgroundPosition: `-${bgX}px -${bgY}px`,
+          }}
+        />
+      );
+    }
+    return (
+      <div className="flex justify-center">
+        <div
+          className="relative inline-block leading-none"
+          onPointerEnter={onMove}
+          onPointerMove={onMove}
+          onPointerLeave={() => setLens(null)}
+        >
+          <img
+            ref={imgRef}
+            src={src}
+            alt={alt}
+            draggable={false}
+            className="block max-h-[80vh] w-auto max-w-full rounded cursor-zoom-in select-none"
+          />
+          {overlay}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      ref={scrollRef}
+      className="max-h-[80vh] overflow-auto rounded"
+      style={{ touchAction: "pan-x pan-y" }}
+    >
+      <img
+        src={src}
+        alt={alt}
+        draggable={false}
+        className="max-w-none rounded select-none"
+        style={{ width: `${ZOOM * 100}%` }}
+      />
+    </div>
+  );
+}
+
 function ProductPage() {
   const { slug } = Route.useParams();
   // parentCat is resolved once in the loader (server-side) and reused for both
   // the JSON-LD trail in head() and the visible breadcrumb — no client query.
-  const { product: initialProduct, reviewSummary, parentCat: parentCategory } =
+  const { product: initialProduct, reviewSummary, initialReviews, parentCat: parentCategory } =
     Route.useLoaderData();
   const navigate = useNavigate();
+  // Desktop fine-pointer (motion allowed) gets the hover lens; everyone else the
+  // touch-pannable scaled view. Resolved once, shared by every zoom slide.
+  const lensMode = useZoomMode();
   const { add, closeCart } = useCart();
   const { has: hasFav, toggle: toggleFav } = useFavorites();
   const [qty, setQty] = useState(1);
@@ -833,21 +998,27 @@ function ProductPage() {
               <DialogContent className="glass-strong border-0 max-w-4xl p-2 [--glass-radius:1.25rem]">
                 <DialogTitle className="sr-only">{product.name}</DialogTitle>
                 {/* Mounted only while the dialog is open, so startIndex opens on
-                    the slide the user was viewing. */}
-                <Carousel dir="rtl" opts={{ direction: "rtl", loop: true, startIndex: selectedIndex }}>
+                    the slide the user was viewing. watchDrag is off: pointer
+                    drag/touch pan belongs to the zoom (lens tracking on desktop,
+                    scroll-pan on touch), so slide changes go through the arrows. */}
+                <Carousel dir="rtl" opts={{ direction: "rtl", loop: true, startIndex: selectedIndex, watchDrag: false }}>
                   <CarouselContent>
                     {gallery.map((url, i) => (
                       <CarouselItem key={url}>
-                        <img
+                        <ZoomableImage
                           src={url}
                           alt={`${product.name} — תמונה ${i + 1}`}
-                          className="h-auto w-full object-contain rounded"
+                          lensMode={lensMode}
                         />
                       </CarouselItem>
                     ))}
                   </CarouselContent>
-                  <CarouselPrevious className="right-2 top-1/2" />
-                  <CarouselNext className="left-2 top-1/2" />
+                  {gallery.length > 1 && (
+                    <>
+                      <CarouselPrevious className="right-2 top-1/2" />
+                      <CarouselNext className="left-2 top-1/2" />
+                    </>
+                  )}
                 </Carousel>
               </DialogContent>
             </Dialog>
@@ -1356,7 +1527,7 @@ function ProductPage() {
       )}
 
       {/* Customer reviews + star ratings */}
-      <ProductReviews productId={product.id} initialSummary={reviewSummary} />
+      <ProductReviews productId={product.id} initialSummary={reviewSummary} initialReviews={initialReviews} />
 
       {/* Mobile buy bar. `sticky` (not `fixed`) on purpose: it pins to the
           bottom of the viewport while the page body is in view and then

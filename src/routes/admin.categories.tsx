@@ -32,6 +32,37 @@ const orNull = (v: string | null | undefined) => {
   return t ? t : null;
 };
 
+/** A field counts as "missing" when it is null or blank after trimming — old
+ *  WP-imported rows can carry "" where the form now writes NULL. */
+const isMissing = (v: string | null | undefined) => !(v ?? "").trim();
+
+/**
+ * Turn a (possibly Hebrew) category name into a URL-safe slug: lowercase, niqqud
+ * and diacritics stripped, every run of anything outside [a-z0-9] collapsed to a
+ * single "-", edges trimmed. Hand-rolled, no dependency. Hebrew letters have no
+ * Latin form here, so a purely-Hebrew name yields "" and the owner types the slug
+ * as before — but a name carrying Latin/numerals (e.g. "Tallit 40") gets a
+ * sensible slug for free, sparing a non-technical owner the hand-typing.
+ */
+function slugify(name: string): string {
+  return (name ?? "")
+    .normalize("NFKD")
+    .replace(/[֑-ׇ]/g, "") // Hebrew niqqud / te'amim
+    .replace(/[̀-ͯ]/g, "") // Latin combining diacritics
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+/** Which empty-field gap the owner is hunting for. Filters the loaded rows only. */
+type GapFilter = "all" | "no-desc" | "no-seo" | "no-image";
+const GAP_FILTERS: { value: GapFilter; label: string }[] = [
+  { value: "all", label: "הכל" },
+  { value: "no-desc", label: "חסר תיאור" },
+  { value: "no-seo", label: "חסר טקסט SEO" },
+  { value: "no-image", label: "חסר תמונה" },
+];
+
 function AdminCategories() {
   const qc = useQueryClient();
   const [editing, setEditing] = useState<Cat | null>(null);
@@ -49,10 +80,30 @@ function AdminCategories() {
     },
   });
 
+  const [search, setSearch] = useState("");
+  const [gap, setGap] = useState<GapFilter>("all");
+
+  // Both filters run over the rows already in memory — no refetch, no query
+  // change. This is how the owner pinpoints, among ~105 rows, the categories
+  // still missing intro copy / SEO text / a banner.
+  const term = search.trim().toLowerCase();
+  const filtered = cats.filter((c) => {
+    if (term && !`${c.name} ${c.slug}`.toLowerCase().includes(term)) return false;
+    if (gap === "no-desc" && !isMissing(c.description)) return false;
+    if (gap === "no-seo" && !isMissing(c.long_description)) return false;
+    if (gap === "no-image" && !isMissing(c.image_url)) return false;
+    return true;
+  });
+
   const onSave = async (f: Partial<Cat>) => {
     const name = (f.name ?? "").trim();
     const slug = (f.slug ?? "").trim();
     if (!name || !slug) return toast.error("שם ו-Slug הם שדות חובה");
+    // Friendly Hebrew pre-check against the rows already in memory, instead of
+    // letting the raw DB unique-constraint error surface.
+    if (cats.some((c) => c.slug === slug && c.id !== editing?.id)) {
+      return toast.error(`ה-Slug "${slug}" כבר בשימוש בקטגוריה אחרת`);
+    }
     // Explicit payload: never write back columns the form doesn't edit
     // (parent_slug, wp_id, timestamps) just because they rode along on the row.
     const payload = {
@@ -85,7 +136,10 @@ function AdminCategories() {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h1 className="font-display text-2xl font-bold">קטגוריות ({cats.length})</h1>
+        <h1 className="font-display text-2xl font-bold">
+          קטגוריות ({filtered.length}
+          {filtered.length !== cats.length ? ` מתוך ${cats.length}` : ""})
+        </h1>
         <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setEditing(null); }}>
           <DialogTrigger asChild>
             <Button onClick={() => { setEditing(null); setOpen(true); }} className="gap-2"><Plus className="h-4 w-4" /> חדש</Button>
@@ -93,6 +147,33 @@ function AdminCategories() {
           <CatDialog key={editing?.id ?? "new"} cat={editing} onSave={onSave} />
         </Dialog>
       </div>
+
+      {/* Client-side search + gap toggles over the loaded rows — the owner's way
+          to find the categories still missing intro copy / SEO text / a banner. */}
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="w-full sm:max-w-xs">
+          <Label htmlFor="cat-search" className="sr-only">חיפוש קטגוריה</Label>
+          <Input
+            id="cat-search"
+            placeholder="חיפוש לפי שם או Slug..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <div className="flex flex-wrap gap-2" role="group" aria-label="סינון לפי שדות חסרים">
+          {GAP_FILTERS.map((f) => (
+            <Button
+              key={f.value}
+              size="sm"
+              variant={gap === f.value ? "default" : "outline"}
+              onClick={() => setGap(f.value)}
+            >
+              {f.label}
+            </Button>
+          ))}
+        </div>
+      </div>
+
       <div className="rounded-lg border bg-card overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-muted/50"><tr className="text-right">
@@ -100,7 +181,14 @@ function AdminCategories() {
             <th className="p-3">תוכן לעמוד הקטגוריה</th><th></th>
           </tr></thead>
           <tbody>
-            {cats.map((c) => (
+            {filtered.length === 0 && (
+              <tr>
+                <td colSpan={5} className="p-8 text-center text-muted-foreground">
+                  {cats.length === 0 ? "אין קטגוריות עדיין." : "לא נמצאו קטגוריות תואמות."}
+                </td>
+              </tr>
+            )}
+            {filtered.map((c) => (
               <tr key={c.id} className="border-t">
                 <td className="p-3">{c.name}</td>
                 <td className="p-3 font-mono text-xs">{c.slug}</td>
@@ -138,13 +226,36 @@ function Filled({ on, label }: { on: boolean; label: string }) {
 
 function CatDialog({ cat, onSave }: { cat: Cat | null; onSave: (f: Partial<Cat>) => void }) {
   const [form, setForm] = useState<Partial<Cat>>(cat ?? { name: "", slug: "", sort_order: 0 });
+  // An existing category already has the slug the owner chose — never rewrite it.
+  // A brand-new one auto-derives its slug from the name, but only until the owner
+  // types in the slug field themselves.
+  const [slugTouched, setSlugTouched] = useState(!!cat);
   const descLen = (form.description ?? "").trim().length;
   return (
     <DialogContent className="max-h-[85vh] overflow-y-auto">
       <DialogHeader><DialogTitle>{cat ? "עריכת קטגוריה" : "קטגוריה חדשה"}</DialogTitle></DialogHeader>
       <div className="space-y-4">
-        <div><Label>שם</Label><Input value={form.name ?? ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
-        <div><Label>Slug</Label><Input value={form.slug ?? ""} onChange={(e) => setForm({ ...form, slug: e.target.value })} /></div>
+        <div>
+          <Label>שם</Label>
+          <Input
+            value={form.name ?? ""}
+            onChange={(e) => {
+              const name = e.target.value;
+              setForm((prev) => ({ ...prev, name, slug: slugTouched ? prev.slug : slugify(name) }));
+            }}
+          />
+        </div>
+        <div>
+          <Label>Slug</Label>
+          <Input
+            dir="ltr"
+            value={form.slug ?? ""}
+            onChange={(e) => { setSlugTouched(true); setForm((prev) => ({ ...prev, slug: e.target.value })); }}
+          />
+          <p className="mt-1 text-xs text-muted-foreground">
+            כתובת העמוד באנגלית (אותיות קטנות ומקפים). מתמלאת אוטומטית משם הקטגוריה — וניתן לערוך ידנית.
+          </p>
+        </div>
         <div>
           <Label>תיאור קצר</Label>
           <Textarea
