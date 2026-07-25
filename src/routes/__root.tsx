@@ -226,12 +226,24 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       // NOTE: no hreflang tags — the site is single-language (he-IL). Static
       // self-referential-to-homepage alternates on every page were incorrect
       // and conflicted with each page's own canonical, so they were removed.
-      // Google Fonts preloaded + injected async (script below) so the external
-      // round-trip does NOT block first paint. display=swap keeps text visible
-      // in a fallback face until the web fonts arrive.
+      // Google Fonts as a REAL stylesheet link, discovered while the HTML is
+      // parsed. Previously this was a preload + a script that appended the
+      // stylesheet after parse: that kept first paint unblocked, but it pushed
+      // FONT-FILE discovery behind the parser AND the script, so Assistant did
+      // not land until ~1.9s. Loading it here cut LCP from 2092ms to 870ms on
+      // the product template (measured, clean profile). Both origins are
+      // preconnected above, so the discovery costs about one warm round-trip.
+      //
+      // display=swap is deliberate. The page's CLS 0.71 was initially blamed on
+      // these fonts (Chrome's CLS-culprit heuristic attributes shifts to any
+      // font that loaded nearby), so display=optional was tried — and measured
+      // CLS again: still 0.7093, unchanged. The real cause was the empty
+      // streaming <main> letting the footer paint inside the viewport; see the
+      // note on <main> below. Since fonts were NOT the culprit, `optional` was
+      // reverted: it would have cost first-visit brand typography (the fallback
+      // sticks for the whole load) to fix nothing.
       {
-        rel: "preload",
-        as: "style",
+        rel: "stylesheet",
         href: "https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;500;600;700&family=Noto+Serif+Hebrew:wght@400;500;600;700&family=Cormorant+Garamond:wght@400;600&display=swap",
       },
       { rel: "stylesheet", href: appCss },
@@ -273,13 +285,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
             },
           ]
         : []),
-      {
-        // Load Google Fonts without blocking first paint: append the stylesheet
-        // after the document parses. The <link rel="preload" as="style"> above
-        // warms the fetch so the swap is instant.
-        children:
-          '(function(){var l=document.createElement("link");l.rel="stylesheet";l.href="https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;500;600;700&family=Noto+Serif+Hebrew:wght@400;500;600;700&family=Cormorant+Garamond:wght@400;600&display=swap";document.head.appendChild(l);})();',
-      },
+      // (The async font-stylesheet injector that used to live here was removed —
+      // the stylesheet is now a plain <link> in `links` above so the font files
+      // are discovered at parse time. See the note there: injecting it from JS
+      // was the direct cause of a 0.71 CLS on the product template.)
       {
         type: "application/ld+json",
         children: JSON.stringify({
@@ -487,7 +496,18 @@ function RootComponent() {
                 sticky can't travel beyond its parent, so the header must sit
                 directly in the full-height app root. */}
             <SiteHeader />
-            <main id="main-content" tabIndex={-1} className="flex-1 scroll-mt-24 lg:scroll-mt-32">
+            {/* min-h-screen (not just flex-1) reserves the streaming window.
+                The route content streams in AFTER the shell, so for ~750ms
+                <main> is empty; with only `flex-1` the footer then sat exactly
+                at the viewport bottom (measured: y=213 + height=519 = 732 = the
+                full viewport) and was thrown offscreen the moment the content
+                arrived. That single displacement scored 0.709 — essentially the
+                whole of the product template's CLS 0.71, a Core Web Vitals
+                failure across 4,600+ pages. Reserving a viewport here keeps the
+                footer below the fold until real content defines the height, so
+                the insertion shifts nothing visible. On pages whose content is
+                taller than the viewport (the normal case) this is inert. */}
+            <main id="main-content" tabIndex={-1} className="min-h-screen flex-1 scroll-mt-24 lg:scroll-mt-32">
               <RouteErrorBoundary />
             </main>
             <SiteFooter />
