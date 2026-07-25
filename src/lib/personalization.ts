@@ -18,8 +18,7 @@
  * Mirrors rikmat.com's personalized lineup.
  */
 const BASE_PERSONALIZATION_CATEGORY_SLUGS = new Set<string>([
-  "talit-tefillin-covers",        // כיסויים לטלית ותפילין
-  "talit-tefillin-sets",          // סטים לטלית ותפילין
+  "talit-tefillin-sets",          // כיסויים/סטים לטלית ותפילין (covers merged in, 2026-07 dedupe)
   "tefillin-cases",               // תיקי תפילין
   "pvc-bags",                     // תיקי PVC
   "chalaka-set",                  // סט חלאקה
@@ -37,7 +36,6 @@ const BASE_PERSONALIZATION_CATEGORY_SLUGS = new Set<string>([
  * (no laser engraving option shown). Moved verbatim from product.$slug.tsx.
  */
 export const EMBROIDERY_ONLY_CATEGORY_SLUGS = new Set<string>([
-  "talit-tefillin-covers",
   "talit-tefillin-sets",
   "tefillin-cases",
   "pvc-bags",
