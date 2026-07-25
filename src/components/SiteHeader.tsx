@@ -14,7 +14,13 @@ import { NewsletterSignup } from "@/components/NewsletterSignup";
 import { thumbUrl } from "@/lib/img";
 import { openCookieSettings } from "@/components/CookieConsent";
 import { BUSINESS } from "@/lib/business";
+import { trackSearch } from "@/lib/analytics";
 import logoUrl from "@/assets/logo.webp";
+
+// Persisted recent search terms (last few submitted, most-recent first). Read
+// in an effect so it is SSR-safe; capped so the empty-state chip row stays short.
+const RECENT_SEARCHES_KEY = "ozl-recent-search-v1";
+const RECENT_SEARCHES_MAX = 5;
 
 type Cat = { id: string; slug: string; name: string };
 
@@ -93,7 +99,15 @@ export function SiteHeader() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [q, setQ] = useState("");
   const [debounced, setDebounced] = useState("");
-  const suggestionsRef = useRef<HTMLDivElement>(null);
+  // Combobox active-option index (aria-activedescendant model): -1 = no
+  // selection, focus stays in the input while ArrowUp/Down move this pointer.
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const [recentTerms, setRecentTerms] = useState<string[]>([]);
+  // Search-overlay dialog focus management: capture the trigger to return focus
+  // to on close, the panel to trap Tab within, and the input to seed focus into.
+  const searchTriggerRef = useRef<HTMLButtonElement>(null);
+  const searchPanelRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
   // Visual-only: the sticky bar rests on its gold hairline; the soft shadow
@@ -132,11 +146,72 @@ export function SiteHeader() {
     },
   });
 
+  // Restore the visitor's recent search terms once on mount (SSR-safe: no
+  // localStorage access on the server).
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(RECENT_SEARCHES_KEY);
+      if (!raw) return;
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) {
+        setRecentTerms(
+          arr.filter((x): x is string => typeof x === "string" && x.trim().length > 0)
+            .slice(0, RECENT_SEARCHES_MAX),
+        );
+      }
+    } catch {
+      /* ignore malformed storage */
+    }
+  }, []);
+
+  // A fresh term (or reopening the panel) clears the combobox selection so the
+  // highlight never points at a row from a previous query.
+  useEffect(() => {
+    setActiveIndex(-1);
+  }, [debounced, searchOpen]);
+
+  // Accessible modal dialog focus management for the search overlay, mirroring
+  // AccessibilityWidget: seed focus into the panel, trap Tab/Shift+Tab within
+  // it, Escape closes, and focus returns to the trigger on close.
   useEffect(() => {
     if (!searchOpen) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setSearchOpen(false);
+    const panel = searchPanelRef.current;
+    const focusables = () =>
+      Array.from(
+        panel?.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+        ) ?? [],
+      ).filter((el) => !el.hasAttribute("disabled"));
+    // Move focus into the search field (autoFocus covers the same target; this
+    // makes the intent explicit and survives re-renders).
+    searchInputRef.current?.focus();
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setSearchOpen(false);
+        return;
+      }
+      if (e.key === "Tab") {
+        const items = focusables();
+        if (items.length === 0) return;
+        const first = items[0];
+        const last = items[items.length - 1];
+        const active = document.activeElement as HTMLElement | null;
+        if (e.shiftKey && active === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && active === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
     document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      // Return focus to the button that opened the dialog.
+      searchTriggerRef.current?.focus();
+    };
   }, [searchOpen]);
 
   // Debounce keystrokes so we hit the DB at most a few times per search.
@@ -153,11 +228,15 @@ export function SiteHeader() {
     enabled: suggestionsEnabled,
     staleTime: 60_000,
     queryFn: async () => {
-      // Same hybrid RPC the /shop results page uses, so the suggestions can
-      // never disagree with the page they lead to. Falls back to the old ILIKE
-      // lookup if the function is unavailable.
-      const { data: rpcRows, error: rpcErr } = await supabase.rpc("search_products", {
+      // Suggestions call the SAME RPC /shop uses (list_products_collapsed), so a
+      // preview row maps 1:1 to a tile on the results page: one collapsed row per
+      // name group with its own count, instead of six near-identical rows and a
+      // "(43)" total that opened a single tile. p_category_id is NULL — search is
+      // catalog-wide, exactly like /shop. Falls back to the old ILIKE lookup if
+      // the function is unavailable.
+      const { data: rpcRows, error: rpcErr } = await supabase.rpc("list_products_collapsed", {
         p_term: debounced.trim().slice(0, 100),
+        p_category_id: null as unknown as string | undefined,
         p_limit: 6,
         p_offset: 0,
         p_sort: "relevance",
@@ -166,7 +245,7 @@ export function SiteHeader() {
         const rows = (rpcRows ?? []) as Array<SearchSuggestion & { total_count: number }>;
         return { rows: rows as SearchSuggestion[], total: Number(rows[0]?.total_count ?? 0) };
       }
-      console.warn("[header] search_products RPC unavailable, using ILIKE fallback:", rpcErr);
+      console.warn("[header] list_products_collapsed RPC unavailable, using ILIKE fallback:", rpcErr);
 
       const like = `%${term}%`;
       const { data, error, count } = await supabase
@@ -185,27 +264,91 @@ export function SiteHeader() {
     ? categories.filter((c) => c.name.includes(term)).slice(0, 2)
     : [];
 
-  const goToAllResults = () => {
-    const t = q.trim();
+  // Record a submitted term at the front of the recent list (deduped, capped).
+  const pushRecentTerm = (raw: string) => {
+    const t = raw.trim();
     if (!t) return;
+    setRecentTerms((prev) => {
+      const next = [t, ...prev.filter((x) => x !== t)].slice(0, RECENT_SEARCHES_MAX);
+      try {
+        localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(next));
+      } catch {
+        /* ignore quota/availability errors */
+      }
+      return next;
+    });
+  };
+
+  // Navigate to the full /shop results for a term. Used by the form submit, the
+  // "all results" button, and the recent-term / empty-state chips. Records the
+  // term and reports the search to analytics (count from the live suggestion
+  // total when known — the /shop page fires the authoritative count on settle).
+  const runSearch = (raw: string, count?: number) => {
+    const t = raw.trim();
+    if (!t) return;
+    pushRecentTerm(t);
+    if (typeof count === "number") trackSearch(t, count);
     setSearchOpen(false);
     navigate({ to: "/shop", search: { q: t } as any });
   };
+
+  const goToAllResults = () => runSearch(q, suggestions?.total ?? 0);
 
   const submitSearch = (e: React.FormEvent) => {
     e.preventDefault();
     goToAllResults();
   };
 
-  // ArrowDown/ArrowUp move focus across the suggestion rows (they are links,
-  // so Tab order already works — this just adds the expected arrow behavior).
-  const focusSuggestion = (delta: number) => {
-    const items = suggestionsRef.current?.querySelectorAll<HTMLElement>("[data-suggestion]");
-    if (!items || items.length === 0) return;
-    const idx = Array.from(items).indexOf(document.activeElement as HTMLElement);
-    const next = idx === -1 ? (delta > 0 ? 0 : items.length - 1) : Math.min(Math.max(idx + delta, 0), items.length - 1);
-    items[next]?.focus();
+  // Combobox model. A flat, ordered list of the listbox options — category
+  // chips, then product rows, then the "all results" action — so ArrowUp/Down
+  // can move an aria-activedescendant pointer while focus stays in the input,
+  // and Enter runs the highlighted option. Recomputed each render; the input's
+  // key handler and the rows both read from it, keeping index ↔ id in step.
+  const productRows = suggestions?.rows ?? [];
+  const totalSuggestions = suggestions?.total ?? 0;
+  const catCount = catSuggestions.length;
+  const comboItems: { id: string; run: () => void }[] = [
+    ...catSuggestions.map((c) => ({
+      id: `sopt-cat-${c.id}`,
+      run: () => {
+        setSearchOpen(false);
+        navigate({ to: "/category/$slug", params: { slug: c.slug } });
+      },
+    })),
+    ...productRows.map((p) => ({
+      id: `sopt-prod-${p.id}`,
+      run: () => {
+        setSearchOpen(false);
+        navigate({ to: "/product/$slug", params: { slug: p.slug } });
+      },
+    })),
+    ...(totalSuggestions > 0 ? [{ id: "sopt-all", run: goToAllResults }] : []),
+  ];
+  const activeOptionId =
+    activeIndex >= 0 && activeIndex < comboItems.length ? comboItems[activeIndex].id : undefined;
+
+  const onSearchInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (comboItems.length === 0) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIndex((i) => (i + 1) % comboItems.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIndex((i) => (i <= 0 ? comboItems.length - 1 : i - 1));
+    } else if (e.key === "Enter") {
+      // A highlighted option wins over the plain submit; with none highlighted
+      // the form's onSubmit falls through to "all results".
+      if (activeIndex >= 0 && activeIndex < comboItems.length) {
+        e.preventDefault();
+        comboItems[activeIndex].run();
+      }
+    }
   };
+
+  // Announced by the overlay's aria-live region and used by the zero-results
+  // fallback copy/links. Mirrors the visible "לא נמצאו" state exactly.
+  const noResults = suggestionsEnabled && suggestionsReady && productRows.length === 0;
+  const headerTerm = debounced.trim();
 
   return (
     <>
@@ -341,7 +484,14 @@ export function SiteHeader() {
               </div>
             </SheetContent>
           </Sheet>
-          <button onClick={() => setSearchOpen(true)} className={ICON_BTN_CLS} aria-label="חיפוש">
+          <button
+            ref={searchTriggerRef}
+            onClick={() => setSearchOpen(true)}
+            className={ICON_BTN_CLS}
+            aria-label="חיפוש"
+            aria-haspopup="dialog"
+            aria-expanded={searchOpen}
+          >
             <Search className="h-5 w-5" />
           </button>
         </div>
@@ -441,26 +591,41 @@ export function SiteHeader() {
               hairline replaces border-gold/40 and its own shadow replaces
               shadow-soft (both would lose to .glass-strong anyway). */}
           <div
+            ref={searchPanelRef}
             role="dialog"
             aria-modal="true"
             aria-label="חיפוש באתר"
             className="mx-auto max-w-2xl overflow-hidden glass-strong"
             onClick={(e) => e.stopPropagation()}
           >
+            {/* Visually-hidden live region — announces the result count (or the
+                no-match message) to assistive tech as the suggestions settle. */}
+            <div className="sr-only" role="status" aria-live="polite">
+              {suggestionsEnabled && suggestionsReady
+                ? noResults
+                  ? "לא נמצאו מוצרים מתאימים"
+                  : `נמצאו ${totalSuggestions} תוצאות`
+                : ""}
+            </div>
+
             <form onSubmit={submitSearch} className="flex items-center gap-3 px-4 py-4">
               <Search className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
               <label htmlFor="site-search" className="sr-only">חיפוש מוצרים וקטגוריות</label>
               <input
                 id="site-search"
+                ref={searchInputRef}
                 autoFocus
+                type="search"
+                inputMode="search"
+                enterKeyHint="search"
+                role="combobox"
+                aria-expanded={suggestionsEnabled}
+                aria-controls={suggestionsEnabled ? "search-listbox" : undefined}
+                aria-autocomplete="list"
+                aria-activedescendant={activeOptionId}
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "ArrowDown") {
-                    e.preventDefault();
-                    focusSuggestion(1);
-                  }
-                }}
+                onKeyDown={onSearchInputKeyDown}
                 placeholder="חיפוש מוצרים, קטגוריות…"
                 className="flex-1 bg-transparent outline-none text-base placeholder:text-muted-foreground"
               />
@@ -474,50 +639,49 @@ export function SiteHeader() {
               </button>
             </form>
 
-            {/* Live suggestions. The gold hairline between the field and the
-                results is the direction's signature rule — decorative, never
-                text. */}
-            {suggestionsEnabled && (
+            {/* Live suggestions (listbox) once the term is long enough; otherwise
+                the pre-typing state (recent terms + curated categories). The gold
+                hairline between the field and the panel is decorative, never text. */}
+            {suggestionsEnabled ? (
               <div className="border-t border-gold/25">
-                <div
-                  ref={suggestionsRef}
-                  onKeyDown={(e) => {
-                    if (e.key === "ArrowDown") {
-                      e.preventDefault();
-                      focusSuggestion(1);
-                    } else if (e.key === "ArrowUp") {
-                      e.preventDefault();
-                      focusSuggestion(-1);
-                    }
-                  }}
-                >
+                <div id="search-listbox" role="listbox" aria-label="הצעות חיפוש">
                   {catSuggestions.length > 0 && (
                     <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 border-b border-border/40">
                       <span className="text-xs text-muted-foreground">קטגוריות</span>
-                      {catSuggestions.map((c) => (
-                        <Link
-                          key={c.id}
-                          to="/category/$slug"
-                          params={{ slug: c.slug }}
-                          data-suggestion
-                          onClick={() => setSearchOpen(false)}
-                          className="rounded-full border border-gold/40 px-3 py-1 text-xs press [@media(hover:hover)_and_(pointer:fine)]:hover:border-accent [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
-                        >
-                          {c.name}
-                        </Link>
-                      ))}
+                      {catSuggestions.map((c, ci) => {
+                        const active = activeIndex === ci;
+                        return (
+                          <Link
+                            key={c.id}
+                            id={`sopt-cat-${c.id}`}
+                            role="option"
+                            aria-selected={active}
+                            tabIndex={-1}
+                            to="/category/$slug"
+                            params={{ slug: c.slug }}
+                            onClick={() => setSearchOpen(false)}
+                            className={`rounded-full border px-3 py-1 text-xs press ${active ? "border-accent text-accent" : "border-gold/40"} [@media(hover:hover)_and_(pointer:fine)]:hover:border-accent [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent`}
+                          >
+                            {c.name}
+                          </Link>
+                        );
+                      })}
                     </div>
                   )}
-                  {(suggestions?.rows ?? []).map((p) => {
+                  {productRows.map((p, pi) => {
                     const effective = getEffectivePrice(p.price);
+                    const active = activeIndex === catCount + pi;
                     return (
                       <Link
                         key={p.id}
+                        id={`sopt-prod-${p.id}`}
+                        role="option"
+                        aria-selected={active}
+                        tabIndex={-1}
                         to="/product/$slug"
                         params={{ slug: p.slug }}
-                        data-suggestion
                         onClick={() => setSearchOpen(false)}
-                        className="flex items-center gap-3 px-4 py-2.5 transition-[background-color] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"
+                        className={`flex items-center gap-3 px-4 py-2.5 transition-[background-color] duration-150 ease-out ${active ? "bg-muted" : ""} [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted`}
                       >
                         {p.thumbnail_url && (
                           <img
@@ -546,21 +710,89 @@ export function SiteHeader() {
                       </Link>
                     );
                   })}
-                  {suggestionsReady && (suggestions?.rows.length ?? 0) === 0 && (
-                    <div className="px-4 py-2.5 text-sm text-muted-foreground">לא נמצאו מוצרים מתאימים</div>
+                  {noResults && (
+                    <div className="px-4 py-4 space-y-3">
+                      <p className="text-sm text-muted-foreground">
+                        לא נמצאו מוצרים מתאימים{headerTerm ? ` עבור "${headerTerm}"` : ""}.
+                      </p>
+                      {/* Zero results is a dead end without an exit — offer the
+                          full catalog and a direct line to the store. */}
+                      <div className="flex flex-wrap gap-2">
+                        <Link
+                          to="/shop"
+                          onClick={() => setSearchOpen(false)}
+                          className="rounded-full border border-accent px-4 py-1.5 text-xs font-medium text-accent press [@media(hover:hover)_and_(pointer:fine)]:hover:bg-accent [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-foreground"
+                        >
+                          עיון בכל המוצרים
+                        </Link>
+                        <a
+                          href={`https://wa.me/${BUSINESS.whatsapp}?text=${encodeURIComponent(
+                            headerTerm
+                              ? `שלום, חיפשתי "${headerTerm}" באתר ולא מצאתי מוצר מתאים. אשמח לעזרה.`
+                              : "שלום, אשמח לעזרה במציאת מוצר באתר.",
+                          )}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="rounded-full border border-gold/40 px-4 py-1.5 text-xs press [@media(hover:hover)_and_(pointer:fine)]:hover:border-accent [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
+                        >
+                          שליחת הודעה בוואטסאפ
+                        </a>
+                      </div>
+                    </div>
                   )}
-                  {(suggestions?.total ?? 0) > 0 && (
+                  {totalSuggestions > 0 && (
                     <div className="px-4 py-3">
                       <button
                         type="button"
-                        data-suggestion
+                        id="sopt-all"
+                        role="option"
+                        aria-selected={activeOptionId === "sopt-all"}
+                        tabIndex={-1}
                         onClick={goToAllResults}
-                        className="w-full rounded-full border border-accent px-6 py-2 text-sm font-medium text-accent press [@media(hover:hover)_and_(pointer:fine)]:hover:bg-accent [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-foreground"
+                        className={`w-full rounded-full border border-accent px-6 py-2 text-sm font-medium text-accent press ${activeOptionId === "sopt-all" ? "bg-accent text-accent-foreground" : ""} [@media(hover:hover)_and_(pointer:fine)]:hover:bg-accent [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-foreground`}
                       >
-                        כל התוצאות ({suggestions!.total})
+                        כל התוצאות ({totalSuggestions})
                       </button>
                     </div>
                   )}
+                </div>
+              </div>
+            ) : (
+              // Pre-typing state: the visitor's recent terms (persisted) plus the
+              // curated category chips, so an empty field is still a launch pad.
+              <div className="border-t border-gold/25 px-4 py-4 space-y-4">
+                {recentTerms.length > 0 && (
+                  <div>
+                    <div className="text-xs text-muted-foreground mb-2">חיפושים אחרונים</div>
+                    <div className="flex flex-wrap gap-2">
+                      {recentTerms.map((t) => (
+                        <button
+                          key={t}
+                          type="button"
+                          onClick={() => runSearch(t)}
+                          className="rounded-full border border-gold/40 px-3 py-1 text-xs press [@media(hover:hover)_and_(pointer:fine)]:hover:border-accent [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
+                        >
+                          {t}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div>
+                  <div className="text-xs text-muted-foreground mb-2">קטגוריות מובחרות</div>
+                  <div className="flex flex-wrap gap-2">
+                    {CURATED_CATEGORIES.map((c) => (
+                      <Link
+                        key={c.slug}
+                        to="/category/$slug"
+                        params={{ slug: c.slug }}
+                        onClick={() => setSearchOpen(false)}
+                        className="rounded-full border border-gold/40 px-3 py-1.5 text-xs text-foreground/85 press [@media(hover:hover)_and_(pointer:fine)]:hover:border-accent [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
+                      >
+                        {c.label}
+                      </Link>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}

@@ -7,11 +7,13 @@ import { checkOrderRateLimitByIp } from "@/lib/rate-limit.server";
 import {
   sendEmail,
   emailShell,
+  emailButton,
   esc,
   ils,
   isEmailConfigured,
   unsubscribeToken,
   unsubscribeUrl,
+  listUnsubscribeHeaders,
 } from "@/lib/email.server";
 import { sellerIdentityLine, BUSINESS } from "@/lib/business";
 import { requireAdmin } from "@/lib/admin-authz.server";
@@ -327,6 +329,9 @@ export async function runAbandonedCartReminders(): Promise<AbandonedCartRunResul
         subject,
         html,
         replyTo: process.env.SHOP_OWNER_EMAIL,
+        // RFC 8058 one-click opt-out — required by Gmail/Yahoo bulk-sender rules.
+        // Same signed unsub URL already rendered in the footer link.
+        headers: listUnsubscribeHeaders(unsub),
       });
 
       if (ok) {
@@ -382,25 +387,21 @@ export async function runAbandonedCartReminders(): Promise<AbandonedCartRunResul
         )
         .join("");
       return emailShell(`
-      <p style="font-size:11px;color:#999;margin:0 0 8px;">פרסומת</p>
+      <p class="oz-muted" style="font-size:11px;color:#999;margin:0 0 8px;">פרסומת</p>
       <h1 style="font-size:20px;margin:0 0 8px;">שכחתם משהו בעגלה? 🛍️</h1>
-      <p style="font-size:14px;color:#555;margin:0 0 16px;">
+      <p class="oz-muted" style="font-size:14px;color:#555;margin:0 0 16px;">
         ${cart.name ? esc(cart.name) + ", " : ""}העגלה שלכם עדיין ממתינה — המוצרים שבחרתם שמורים לכם.
       </p>
       <table style="width:100%;border-collapse:collapse;font-size:14px;">${rows}</table>
-      <div style="text-align:center;margin-top:20px;">
-        <a href="https://orzadik.com/cart" style="display:inline-block;background:#D4AF37;color:#fff;text-decoration:none;padding:12px 28px;border-radius:9999px;font-weight:bold;">
-          חזרה לעגלה
-        </a>
-      </div>
-      <div style="font-size:11px;color:#aaa;margin-top:20px;padding-top:12px;border-top:1px solid #eee;line-height:1.7;text-align:center;">
+      ${emailButton("https://orzadik.com/cart", "חזרה לעגלה")}
+      <div class="oz-muted" style="font-size:11px;color:#aaa;margin-top:20px;padding-top:12px;border-top:1px solid #eee;line-height:1.7;text-align:center;">
         <div>${esc(sellerIdentityLine())}${BUSINESS.email ? " · " + esc(BUSINESS.email) : ""}</div>
         <div style="margin-top:6px;">
           קיבלתם הודעה זו כי התחלתם הזמנה באתר.
-          <a href="${esc(unsub)}" style="color:#A8862A;">להסרה מרשימת התפוצה לחצו כאן</a>.
+          <a class="oz-gold" href="${esc(unsub)}" style="color:#A8862A;">להסרה מרשימת התפוצה לחצו כאן</a>.
         </div>
       </div>
-    `);
+    `, `${cart.name ? cart.name + ", " : ""}המוצרים שבחרתם שמורים בעגלה שלכם.`);
     },
   );
 
@@ -414,24 +415,20 @@ export async function runAbandonedCartReminders(): Promise<AbandonedCartRunResul
       "פרסומת: עדיין חושבים על זה? — אור זרוע לצדיק",
       (cart, unsub) =>
         emailShell(`
-      <p style="font-size:11px;color:#999;margin:0 0 8px;">פרסומת</p>
+      <p class="oz-muted" style="font-size:11px;color:#999;margin:0 0 8px;">פרסומת</p>
       <h1 style="font-size:20px;margin:0 0 8px;">עדיין חושבים על זה?</h1>
-      <p style="font-size:14px;color:#555;margin:0 0 16px;">
+      <p class="oz-muted" style="font-size:14px;color:#555;margin:0 0 16px;">
         ${cart.name ? esc(cart.name) + ", " : ""}רצינו רק להזכיר שהעגלה שלכם עדיין שמורה אצלנו. אם תרצו להשלים את ההזמנה — אנחנו כאן בשבילכם.
       </p>
-      <div style="text-align:center;margin-top:20px;">
-        <a href="https://orzadik.com/cart" style="display:inline-block;background:#7E611E;color:#fff;text-decoration:none;padding:12px 28px;border-radius:9999px;font-weight:bold;">
-          חזרה לעגלה
-        </a>
-      </div>
-      <div style="font-size:11px;color:#aaa;margin-top:20px;padding-top:12px;border-top:1px solid #eee;line-height:1.7;text-align:center;">
+      ${emailButton("https://orzadik.com/cart", "חזרה לעגלה")}
+      <div class="oz-muted" style="font-size:11px;color:#aaa;margin-top:20px;padding-top:12px;border-top:1px solid #eee;line-height:1.7;text-align:center;">
         <div>${esc(sellerIdentityLine())}${BUSINESS.email ? " · " + esc(BUSINESS.email) : ""}</div>
         <div style="margin-top:6px;">
           קיבלתם הודעה זו כי התחלתם הזמנה באתר.
-          <a href="${esc(unsub)}" style="color:#A8862A;">להסרה מרשימת התפוצה לחצו כאן</a>.
+          <a class="oz-gold" href="${esc(unsub)}" style="color:#A8862A;">להסרה מרשימת התפוצה לחצו כאן</a>.
         </div>
       </div>
-    `),
+    `, `${cart.name ? cart.name + ", " : ""}העגלה שלכם עדיין שמורה אצלנו.`),
     );
   }
 

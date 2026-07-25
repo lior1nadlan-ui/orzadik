@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { notifyShippingCompany } from "@/lib/shipping.server";
 import { sendOrderConfirmationEmails } from "@/lib/order-emails.server";
-import { checkWebhookRateLimit } from "@/lib/rate-limit.server";
+import { checkWebhookRateLimit, getClientIp } from "@/lib/rate-limit.server";
 
 // CardCom sends webhooks from a set of source IPs / CIDR ranges.
 // Set CARDCOM_ALLOWED_IPS to a comma-separated list of exact IPs and/or CIDR
@@ -43,14 +43,6 @@ function ipInAllowlist(ip: string, list: string[]): boolean {
     }
   }
   return false;
-}
-
-function getClientIp(request: Request): string {
-  return (
-    request.headers.get("cf-connecting-ip") ??
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-    "unknown"
-  );
 }
 
 /**
@@ -238,26 +230,79 @@ export const Route = createFileRoute("/api/public/cardcom-webhook")({
             return new Response("ok", { status: 200 });
           }
 
-          // Amount integrity check: the LowProfile amount was set from order.total
-          // server-side (never from the client), so a mismatch means either a
+          // Amount + currency integrity check. The LowProfile amount and currency
+          // were set server-side from order.total (with ISOCoinId: 1 / ILS — see
+          // cardcom.functions.ts), never from the client, so a mismatch means a
           // replay with a wrong transaction or an integrity violation — both unsafe.
-          // We only block when GetLpResult returns a finite amount field; if CardCom
-          // doesn't return one (NaN), the check is skipped (fail-open for field gaps).
           const ti = lp?.TranzactionInfo ?? {};
-          const chargedAmount = Number(ti?.Amount ?? ti?.ApprovedAmount ?? ti?.SumPaid);
-          if (
-            Number.isFinite(chargedAmount) &&
-            Math.round(chargedAmount) !== Math.round(Number(order.total))
-          ) {
+
+          // Currency: assert ILS whenever GetLpResult exposes a *reliable* signal.
+          // CardCom denominates currency with a small coin id (1 = ILS/NIS,
+          // mirroring the ISOCoinId:1 we send; 2 = USD, 3 = EUR, …). That numeric
+          // coin id is the authoritative, locale-independent signal, so it is
+          // trusted FIRST and decides on its own: a plausible CardCom coin id of 1
+          // means the charge was in ILS regardless of any display string. Only when
+          // no coin id is present do we fall back to an ISO *code* string
+          // (Currency/CurrencyIso). We deliberately do NOT read CurrencyName — a
+          // localized display name ("שקל חדש", "₪", "Shekel") is not an ISO code
+          // and, if AND-compared against ISO codes, would veto a correct coin id and
+          // wrongly fail a genuinely-paid order. An implausible coin encoding, a
+          // non-ISO string, or absent fields → fail open (skip; the amount check
+          // below is the real backstop).
+          const coinRaw = ti?.CoinId ?? ti?.ISOCoinId ?? lp?.ISOCoinId ?? null;
+          const coinNum = Number(coinRaw);
+          const coinExposed =
+            coinRaw !== null && coinRaw !== undefined && coinRaw !== "" &&
+            Number.isInteger(coinNum) && coinNum > 0 && coinNum < 200;
+          // ISO code fields only (never CurrencyName). Judge a string only when it
+          // is actually a 3-letter ISO-4217 code; a symbol/name/empty is "no signal".
+          const currencyStr = String(ti?.Currency ?? ti?.CurrencyIso ?? "")
+            .trim()
+            .toUpperCase();
+          const isoCodeExposed = /^[A-Z]{3}$/.test(currencyStr);
+          let currencyIsIls = true; // default: no reliable signal → fail open
+          if (coinExposed) {
+            currencyIsIls = coinNum === 1; // coin id is authoritative when present
+          } else if (isoCodeExposed) {
+            currencyIsIls = currencyStr === "ILS" || currencyStr === "NIS";
+          }
+          if (!currencyIsIls) {
             console.error(
-              `[cardcom-webhook] CRITICAL: amount mismatch for order ${order.id} — charged=${chargedAmount} expected=${order.total}. Blocking.`,
+              `[cardcom-webhook] CRITICAL: currency mismatch for order ${order.id} — coin=${coinRaw} currency=${currencyStr || "?"} expected ILS. Blocking.`,
             );
             // Mark payment failed so the customer can retry; never mark as paid.
             await supabaseAdmin
               .from("orders")
-              .update({ payment_status: "failed", notes: (order.notes ? order.notes + "\n" : "") + "[BLOCKED: amount mismatch]" })
+              .update({ payment_status: "failed", notes: (order.notes ? order.notes + "\n" : "") + "[BLOCKED: currency mismatch]" })
               .eq("id", order.id);
-            return new Response("amount mismatch", { status: 200 });
+            return new Response("currency mismatch", { status: 200 });
+          }
+
+          // Amount: compare against a small epsilon (one agora) rather than
+          // rounding both sides to whole shekels — the old Math.round silently
+          // accepted a sub-₪0.50 discrepancy. Blocks only when GetLpResult returns
+          // a usable amount; if CardCom returns none (NaN), the check is skipped
+          // (fail-open for field gaps) but now logged at high severity.
+          const chargedAmount = Number(ti?.Amount ?? ti?.ApprovedAmount ?? ti?.SumPaid);
+          const AMOUNT_EPSILON = 0.01; // one agora — far below any real mismatch
+          if (Number.isFinite(chargedAmount)) {
+            if (Math.abs(chargedAmount - Number(order.total)) > AMOUNT_EPSILON) {
+              console.error(
+                `[cardcom-webhook] CRITICAL: amount mismatch for order ${order.id} — charged=${chargedAmount} expected=${order.total}. Blocking.`,
+              );
+              // Mark payment failed so the customer can retry; never mark as paid.
+              await supabaseAdmin
+                .from("orders")
+                .update({ payment_status: "failed", notes: (order.notes ? order.notes + "\n" : "") + "[BLOCKED: amount mismatch]" })
+                .eq("id", order.id);
+              return new Response("amount mismatch", { status: 200 });
+            }
+          } else {
+            // Field-absent fail-open: proceed as before, but no longer silently —
+            // an unverifiable amount is a real integrity gap worth surfacing.
+            console.error(
+              `[cardcom-webhook] HIGH: GetLpResult returned no usable amount for order ${order.id} (Amount/ApprovedAmount/SumPaid absent) — proceeding WITHOUT amount verification.`,
+            );
           }
 
           // ChargeOnly success → paid

@@ -518,7 +518,7 @@ function CategoryPage() {
           <>
             {/* Toolbar — one glass pane, matching /shop */}
             <div className="glass flex flex-wrap items-center justify-between gap-4 mb-6 p-4 md:px-5 [--glass-radius:1.25rem]">
-              <p className="text-sm text-muted-foreground">{visible.length} מוצרים</p>
+              <p className="text-sm text-muted-foreground" role="status" aria-live="polite">{visible.length} מוצרים</p>
               <div className="flex flex-wrap items-center gap-4">
                 {/* Price-range facet — single-select chips over the effective
                     (paid) price. Pure filtering; no sale/discount language. The

@@ -2,7 +2,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { keepPreviousData, useInfiniteQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ProductCard, ProductCardData } from "@/components/ProductCard";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { trackSearch } from "@/lib/analytics";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -176,13 +177,15 @@ export const Route = createFileRoute("/shop")({
         page: deps.page,
         offset,
         filtered,
+        // Echoed for head() so the doc title can reflect an active search term.
+        q: deps.q,
         first: await fetchShopPage({ rawQ: deps.q, sort: deps.sort, offset }),
       };
     } catch (err) {
       // Degrade to the client-side query + its existing retry UI rather than
       // blowing the whole route into the error boundary on a transient DB blip.
       console.warn("[shop] loader failed, falling back to client fetch:", err);
-      return { page: deps.page, offset, filtered, first: null as ShopPageData | null };
+      return { page: deps.page, offset, filtered, q: deps.q, first: null as ShopPageData | null };
     }
   },
   head: ({ loaderData }) => {
@@ -194,7 +197,15 @@ export const Route = createFileRoute("/shop")({
     const lastPage = Math.max(1, Math.ceil(total / PAGE));
     const paged = !filtered;
 
-    const title = page > 1 ? `כל המוצרים — עמוד ${page} | אור זרוע לצדיק` : "כל המוצרים | אור זרוע לצדיק";
+    // A ?q= search is a facet of /shop, so its title reflects the term. The
+    // canonical still points at the bare /shop below (paged is false when
+    // filtered), so this affects the SERP/tab title only, not indexing.
+    const searchTerm = (loaderData?.q ?? "").trim();
+    const title = searchTerm
+      ? `תוצאות עבור "${searchTerm}" | אור זרוע לצדיק`
+      : page > 1
+        ? `כל המוצרים — עמוד ${page} | אור זרוע לצדיק`
+        : "כל המוצרים | אור זרוע לצדיק";
     // Page 1 keeps the bare /shop canonical; deeper pages are canonical to
     // themselves so their products are indexable in their own right.
     const canonical = paged && page > 1 ? `${SITE}/shop?page=${page}` : `${SITE}/shop`;
@@ -353,6 +364,24 @@ function ShopPage() {
   // injected % wildcards that should never be shown.
   const rawTerm = debouncedQ.trim();
 
+  // Report the search to analytics once the results for a term have SETTLED —
+  // including a zero-result term (the highest-signal input: unmet demand or a
+  // naming gap). activeQ already tracks the debounced box, so this is debounced;
+  // the ref keys on term::total so it fires once per settled result set and not
+  // on unrelated re-renders (e.g. the in-stock view toggle).
+  const lastTrackedSearchRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!activeQ) {
+      lastTrackedSearchRef.current = null;
+      return;
+    }
+    if (isLoading || isFetching) return; // wait for the query to settle
+    const key = `${activeQ}::${total}`;
+    if (lastTrackedSearchRef.current === key) return;
+    lastTrackedSearchRef.current = key;
+    trackSearch(activeQ, total);
+  }, [activeQ, total, isLoading, isFetching]);
+
   const lastPage = Math.max(1, Math.ceil(total / PAGE));
   // "Next" skips past everything already rendered, so a visitor who pressed
   // "load more" twice does not get a link back to products they can see.
@@ -382,9 +411,17 @@ function ShopPage() {
           retired in favour of this single one. */}
       <Breadcrumb items={[{ label: "בית", to: "/" }, { label: "מוצרים" }]} />
       <div className="mt-4 mb-8 text-center">
-        <h1 className="font-display text-3xl md:text-4xl tracking-wide text-foreground">כל המוצרים</h1>
+        {/* Query-aware heading: an active ?q= search reads as a results page,
+            matching the doc title in head(); the bare /shop keeps its catalog
+            heading. Uses the URL term (urlQ), so the H1 agrees with the SSR
+            head/canonical on first paint. */}
+        <h1 className="font-display text-3xl md:text-4xl tracking-wide text-foreground">
+          {urlQ ? <>תוצאות עבור "{urlQ}"</> : "כל המוצרים"}
+        </h1>
         <p className="mt-3 text-sm md:text-base text-muted-foreground max-w-xl mx-auto">
-          כל תשמישי הקדושה והיודאיקה של אור זרוע לצדיק במקום אחד.
+          {urlQ
+            ? "המוצרים התואמים את החיפוש שלכם."
+            : "כל תשמישי הקדושה והיודאיקה של אור זרוע לצדיק במקום אחד."}
         </p>
       </div>
 
@@ -394,7 +431,7 @@ function ShopPage() {
           background or radius utilities, which it outranks. Controls mirror
           /category: result count, then search + 'במלאי בלבד' + sort. */}
       <div className="glass mb-8 flex flex-wrap items-center justify-between gap-4 p-5 md:p-6 [--glass-radius:1.25rem]">
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-muted-foreground" role="status" aria-live="polite">
           {term ? `${total} תוצאות עבור "${rawTerm}"` : `${total} מוצרים`}
         </p>
         <div className="flex flex-wrap items-center gap-4">

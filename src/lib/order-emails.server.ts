@@ -3,7 +3,7 @@
 // isn't configured yet, so the checkout flow never breaks.
 
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { sendEmail, emailShell, esc, ils, isEmailConfigured } from "@/lib/email.server";
+import { sendEmail, emailShell, emailButton, esc, ils, isEmailConfigured } from "@/lib/email.server";
 import { BUSINESS, CONSUMER_POLICY, sellerIdentityLine } from "@/lib/business";
 
 function itemsRows(items: any[]): string {
@@ -39,7 +39,7 @@ function giftBlock(order: any, prominent = false): string {
     );
   }
   if (lines.length === 0) lines.push("סומנה כמתנה (ללא הקדשה או עטיפה)");
-  return `<div style="margin:${prominent ? "0 0 16px" : "16px 0 0"};padding:12px 14px;background:#FAF6E9;border:1px solid #D4AF37;border-radius:8px;font-size:14px;">
+  return `<div style="margin:${prominent ? "0 0 16px" : "16px 0 0"};padding:12px 14px;background:#FAF6E9;border:1px solid #D4AF37;border-radius:8px;font-size:14px;color:#2b2b2b;">
       <div style="font-weight:bold;color:#A8862A;margin-bottom:6px;">🎁 הזמנה זו היא מתנה</div>
       ${lines.map((l) => `<div style="margin-top:4px;">${l}</div>`).join("")}
     </div>`;
@@ -68,39 +68,40 @@ export async function sendOrderConfirmationEmails(orderId: string) {
   const rows = itemsRows(items);
   const totalsBlock = `
     <table style="width:100%;font-size:14px;margin-top:12px;">
-      <tr><td style="color:#666;">סכום ביניים</td><td style="text-align:left;">${ils(order.subtotal)}</td></tr>
-      <tr><td style="color:#666;">משלוח</td><td style="text-align:left;">${Number(order.shipping) === 0 ? "חינם" : ils(order.shipping)}</td></tr>
+      <tr><td class="oz-muted" style="color:#666;">סכום ביניים</td><td style="text-align:left;">${ils(order.subtotal)}</td></tr>
+      <tr><td class="oz-muted" style="color:#666;">משלוח</td><td style="text-align:left;">${Number(order.shipping) === 0 ? "חינם" : ils(order.shipping)}</td></tr>
       <tr><td style="font-weight:bold;font-size:16px;padding-top:8px;">סך הכל</td><td style="font-weight:bold;font-size:16px;text-align:left;padding-top:8px;color:#A8862A;">${ils(order.total)}</td></tr>
     </table>`;
 
   // 1) Customer receipt
   const customerHtml = emailShell(`
     <h1 style="font-size:20px;margin:0 0 8px;">תודה על הזמנתך, ${esc(order.customer_name)}! 🎉</h1>
-    <p style="font-size:14px;color:#555;margin:0 0 16px;">
+    <p class="oz-muted" style="font-size:14px;color:#555;margin:0 0 16px;">
       קיבלנו את התשלום עבור הזמנה <strong>${esc(order.order_number)}</strong>. נעדכן אותך בהמשך על מצב המשלוח.
     </p>
     <table style="width:100%;border-collapse:collapse;font-size:14px;">${rows}</table>
     ${giftBlock(order)}
     ${totalsBlock}
-    <p style="font-size:13px;color:#666;margin-top:16px;">
+    ${emailButton("https://orzadik.com/track", "מעקב אחר ההזמנה")}
+    <p class="oz-muted" style="font-size:13px;color:#666;margin-top:16px;">
       כתובת למשלוח: ${esc(order.customer_address)}${order.customer_city ? ", " + esc(order.customer_city) : ""}
     </p>
-    <p style="font-size:12px;color:#888;margin-top:4px;">כל המחירים בשקלים (₪) וכוללים מע"מ.</p>
+    <p class="oz-muted" style="font-size:12px;color:#888;margin-top:4px;">כל המחירים בשקלים (₪) וכוללים מע"מ.</p>
 
     <!-- §14ג(ב) written confirmation: seller identity + cancellation rights -->
-    <div style="margin-top:20px;padding-top:16px;border-top:1px solid #eee;font-size:12px;color:#777;line-height:1.7;">
+    <div class="oz-muted" style="margin-top:20px;padding-top:16px;border-top:1px solid #eee;font-size:12px;color:#777;line-height:1.7;">
       <div><strong>פרטי העוסק:</strong> ${esc(sellerIdentityLine())}${BUSINESS.email ? " · " + esc(BUSINESS.email) : ""}</div>
       <div style="margin-top:8px;">
         <strong>זכות ביטול:</strong> ניתן לבטל את העסקה בכתב תוך ${CONSUMER_POLICY.cancellationDays} ימים
         ממועד קבלת המוצר, בהתאם לחוק הגנת הצרכן. ניתן להודיע על ביטול בדוא"ל
-        ${esc(BUSINESS.email)} או דרך <a href="https://orzadik.com/contact" style="color:#A8862A;">עמוד יצירת הקשר</a> באתר. בביטול שאינו עקב פגם ייתכן ניכוי דמי
+        ${esc(BUSINESS.email)} או דרך <a class="oz-gold" href="https://orzadik.com/contact" style="color:#A8862A;">עמוד יצירת הקשר</a> באתר. בביטול שאינו עקב פגם ייתכן ניכוי דמי
         ביטול בשיעור שלא יעלה על ${CONSUMER_POLICY.cancellationFeePct}% ממחיר העסקה או
         ${CONSUMER_POLICY.cancellationFeeCapIls} ₪ — הנמוך מביניהם. החזר כספי יבוצע תוך
         ${CONSUMER_POLICY.refundDays} ימים מקבלת הודעת הביטול. מוצרים שהותאמו אישית (רקמה/חריטה)
         מוגבלים לביטול לפי החוק.
       </div>
     </div>
-  `);
+  `, `אישור הזמנה ${order.order_number} — פירוט הפריטים והסכום ששולם.`);
   await sendEmail({
     to: order.customer_email,
     subject: `אישור הזמנה ${order.order_number} — אור זרוע לצדיק`,
@@ -122,7 +123,7 @@ export async function sendOrderConfirmationEmails(orderId: string) {
       </table>
       <table style="width:100%;border-collapse:collapse;font-size:14px;">${rows}</table>
       ${totalsBlock}
-    `);
+    `, `הזמנה ${order.order_number} מ${order.customer_name} — שולם ${ils(order.total)}.`);
     await sendEmail({
       to: ownerEmail,
       subject: `הזמנה חדשה ${order.order_number} — ${order.customer_name}`,
@@ -173,8 +174,8 @@ export async function sendOrderCreatedOwnerAlert(orderId: string) {
     </table>
     <table style="width:100%;border-collapse:collapse;font-size:14px;">${rows}</table>
     <table style="width:100%;font-size:14px;margin-top:12px;">
-      <tr><td style="font-weight:bold;">סך הכל</td><td style="font-weight:bold;text-align:left;color:#A8862A;">${ils(order.total)}</td></tr>
-    </table>`);
+      <tr><td style="font-weight:bold;">סך הכל</td><td class="oz-gold" style="font-weight:bold;text-align:left;color:#A8862A;">${ils(order.total)}</td></tr>
+    </table>`, `הזמנה ${order.order_number} מ${order.customer_name} — ממתינה לתשלום.`);
 
   await sendEmail({
     to: ownerEmail,
@@ -204,7 +205,7 @@ export async function sendOrderShippedEmail(orderId: string) {
 
   const rows = itemsRows((order.order_items as any[]) ?? []);
   const trackingBlock = order.tracking_number
-    ? `<div style="background:#FAF6E9;border:1px solid #EADFBE;border-radius:8px;padding:12px;margin:16px 0;font-size:14px;">
+    ? `<div style="background:#FAF6E9;border:1px solid #EADFBE;border-radius:8px;padding:12px;margin:16px 0;font-size:14px;color:#2b2b2b;">
          <strong>מספר מעקב:</strong> ${esc(order.tracking_number)}
          ${order.shipping_carrier ? `<div style="color:#666;font-size:13px;margin-top:4px;">חברת שילוח: ${esc(order.shipping_carrier)}</div>` : ""}
        </div>`
@@ -212,17 +213,19 @@ export async function sendOrderShippedEmail(orderId: string) {
 
   const html = emailShell(`
     <h1 style="font-size:20px;margin:0 0 8px;">ההזמנה שלך בדרך! 📦</h1>
-    <p style="font-size:14px;color:#555;margin:0 0 16px;">
+    <p class="oz-muted" style="font-size:14px;color:#555;margin:0 0 16px;">
       שלום ${esc(order.customer_name)}, הזמנה <strong>${esc(order.order_number)}</strong> נמסרה למשלוח
       לכתובת ${esc(order.customer_address)}${order.customer_city ? ", " + esc(order.customer_city) : ""}.
     </p>
     ${trackingBlock}
     <table style="width:100%;border-collapse:collapse;font-size:14px;">${rows}</table>
     ${giftBlock(order)}
-    <p style="font-size:13px;color:#666;margin-top:16px;">
+    ${emailButton("https://orzadik.com/track", "מעקב אחר ההזמנה")}
+    <p class="oz-muted" style="font-size:13px;color:#666;margin-top:16px;text-align:center;">
       לשאלות על המשלוח אפשר להשיב למייל הזה ונשמח לעזור.
-      ניתן לעקוב אחר ההזמנה בכל רגע בכתובת <a href="https://orzadik.com/track" style="color:#A8862A;">orzadik.com/track</a>.
-    </p>`);
+    </p>`, order.tracking_number
+      ? `הזמנה ${order.order_number} נשלחה — מספר מעקב ${order.tracking_number}.`
+      : `הזמנה ${order.order_number} נמסרה למשלוח.`);
 
   await sendEmail({
     to: order.customer_email,
