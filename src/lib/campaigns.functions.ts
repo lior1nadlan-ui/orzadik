@@ -26,6 +26,7 @@ import { requireAdmin } from "@/lib/admin-authz.server";
 import {
   sendEmail,
   emailShell,
+  emailButton,
   esc,
   ils,
   isEmailConfigured,
@@ -71,15 +72,18 @@ function productCards(products: SnapshotProduct[]): string {
     const priceHtml = isCallOnly
       ? `<div style="font-size:13px;color:#A8862A;">לפי שער הזהב</div>`
       : `<div style="font-size:13px;"><strong style="color:#A8862A;">${ils(effective)}</strong></div>`;
+    // The image + name are one link; the CTA is the shared emailButton() — a
+    // bulletproof table+VML pill on the brand accent (white on #7E611E, ~6.5:1)
+    // that renders in Outlook and stays legible in dark mode, unlike the old
+    // pale-gold-on-white span. The link is closed BEFORE the button so the
+    // button's own <a> is never nested inside another anchor.
     return `<td width="50%" valign="top" style="padding:8px;">
       <a href="${esc(url)}" style="text-decoration:none;color:inherit;">
         ${p.thumbnail_url ? `<img src="${esc(p.thumbnail_url)}" width="240" alt="" style="width:100%;max-width:240px;border-radius:8px;display:block;">` : ""}
         <div style="font-size:14px;margin-top:8px;line-height:1.4;">${esc(p.name)}</div>
         ${priceHtml}
-        <div style="margin-top:8px;">
-          <span style="display:inline-block;background:#D4AF37;color:#fff;padding:8px 18px;border-radius:9999px;font-size:13px;">לצפייה במוצר</span>
-        </div>
       </a>
+      ${emailButton(url, "לצפייה במוצר")}
     </td>`;
   });
 
@@ -88,6 +92,27 @@ function productCards(products: SnapshotProduct[]): string {
     rows.push(`<tr>${cells[i]}${cells[i + 1] ?? '<td width="50%"></td>'}</tr>`);
   }
   return `<table style="width:100%;border-collapse:collapse;margin-top:16px;">${rows.join("")}</table>`;
+}
+
+/**
+ * Honest, tailored inbox-preview line for the campaign.
+ *
+ * With no preheader the mailbox client scrapes the first visible text as the
+ * snippet — here the bare "פרסומת" marker — which tells the reader nothing. We
+ * prefer the admin-written intro (already plain text), fall back to the names of
+ * the featured items, and finally to a neutral store line. Every branch is
+ * literally true of the message that follows, and the פרסומת marking stays where
+ * the law needs it (the subject and the body), not in the preview snippet.
+ */
+function campaignPreheader(campaign: { intro_html: string; content: any }): string {
+  const intro = stripHtml(campaign.intro_html ?? "").replace(/\s+/g, " ").trim();
+  if (intro) return intro.slice(0, 160);
+  const products: SnapshotProduct[] = campaign.content?.products ?? [];
+  const names = products.map((p) => p.name).filter(Boolean);
+  if (names.length > 0) {
+    return `פריטים נבחרים מאור זרוע לצדיק: ${names.slice(0, 3).join(" · ")}`;
+  }
+  return "עדכון מאת אור זרוע לצדיק — תשמישי קדושה.";
 }
 
 /**
@@ -115,7 +140,7 @@ function renderCampaign(
         ${unsub ? `<a href="${esc(unsub)}" style="color:#A8862A;">להסרה מרשימת התפוצה לחצו כאן</a>.` : ""}
       </div>
     </div>
-  `);
+  `, campaignPreheader(campaign));
 }
 
 /** Subject line as actually sent — always carries the פרסומת marking. */

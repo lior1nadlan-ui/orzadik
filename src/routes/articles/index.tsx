@@ -12,38 +12,69 @@ export const Route = createFileRoute("/articles/")({
     const articles = await fetchArticlesWithRetry();
     return { articles };
   },
-  head: () => ({
-    meta: [
-      { title: "מאמרים וטיפים | אור זרוע לצדיק" },
-      {
-        name: "description",
-        content: "מאמרים חינוכיים על תשמישי קדושה, טליתות, תפילין, מזוזות, גביעי קידוש וחנוכיות. למדו על הלכות, בחירה וטיפול.",
-      },
-      { property: "og:title", content: "מאמרים וטיפים | אור זרוע לצדיק" },
-      {
-        property: "og:description",
-        content: "מאמרים חינוכיים על תשמישי קדושה ויודאיקה.",
-      },
-      { property: "og:type", content: "website" },
-      { property: "og:url", content: "https://orzadik.com/articles" },
-    ],
-    links: [{ rel: "canonical", href: "https://orzadik.com/articles" }],
-    scripts: [
-      {
-        type: "application/ld+json",
-        children: JSON.stringify({
-          "@context": "https://schema.org",
-          "@type": "CollectionPage",
-          "@id": "https://orzadik.com/articles",
-          url: "https://orzadik.com/articles",
-          name: "מאמרים וטיפים",
-          description: "מאמרים חינוכיים על תשמישי קדושה.",
-          inLanguage: "he-IL",
-          isPartOf: { "@id": "https://orzadik.com/#website" },
-        }),
-      },
-    ],
-  }),
+  head: ({ loaderData }) => {
+    // Real, published articles from the loader (SSR order: published_at desc).
+    // The ItemList below is built from these, so it never claims a link that
+    // isn't on the page. Client-side search filtering doesn't touch this — the
+    // schema honestly describes the full published collection.
+    const articles = (loaderData as { articles?: Article[] } | undefined)?.articles ?? [];
+    return {
+      meta: [
+        { title: "מאמרים וטיפים | אור זרוע לצדיק" },
+        {
+          name: "description",
+          content: "מאמרים חינוכיים על תשמישי קדושה, טליתות, תפילין, מזוזות, גביעי קידוש וחנוכיות. למדו על הלכות, בחירה וטיפול.",
+        },
+        { property: "og:title", content: "מאמרים וטיפים | אור זרוע לצדיק" },
+        {
+          property: "og:description",
+          content: "מאמרים חינוכיים על תשמישי קדושה ויודאיקה.",
+        },
+        { property: "og:type", content: "website" },
+        { property: "og:url", content: "https://orzadik.com/articles" },
+      ],
+      links: [{ rel: "canonical", href: "https://orzadik.com/articles" }],
+      scripts: [
+        {
+          type: "application/ld+json",
+          children: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "CollectionPage",
+            "@id": "https://orzadik.com/articles",
+            url: "https://orzadik.com/articles",
+            name: "מאמרים וטיפים",
+            description: "מאמרים חינוכיים על תשמישי קדושה.",
+            inLanguage: "he-IL",
+            isPartOf: { "@id": "https://orzadik.com/#website" },
+          }),
+        },
+        // ItemList of the actual article links — helps search engines discover
+        // every guide from the hub. `numberOfItems` is the true count and each
+        // entry is a real /articles/<slug> page; positions follow the on-page
+        // (newest-first) order. Omitted entirely when there are no articles.
+        ...(articles.length > 0
+          ? [
+              {
+                type: "application/ld+json",
+                children: JSON.stringify({
+                  "@context": "https://schema.org",
+                  "@type": "ItemList",
+                  "@id": "https://orzadik.com/articles#list",
+                  name: "מאמרים וטיפים",
+                  numberOfItems: articles.length,
+                  itemListElement: articles.map((a, i) => ({
+                    "@type": "ListItem",
+                    position: i + 1,
+                    url: `https://orzadik.com/articles/${a.slug}`,
+                    name: a.title_he,
+                  })),
+                }),
+              },
+            ]
+          : []),
+      ],
+    };
+  },
   component: ArticlesListPage,
 });
 
@@ -90,8 +121,16 @@ function ArticlesListPage() {
           </div>
         </div>
 
-        {/* Results count */}
-        <p className="text-sm text-muted-foreground text-center mb-8">
+        {/* Results count — role="status" + aria-live so a screen-reader user
+            hears the new tally after each keystroke narrows the search, and
+            aria-atomic so the whole phrase (count + noun) is re-read, not just
+            the changed number. */}
+        <p
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          className="text-sm text-muted-foreground text-center mb-8"
+        >
           {filtered.length} {filtered.length === 1 ? "מאמר" : "מאמרים"}
         </p>
 

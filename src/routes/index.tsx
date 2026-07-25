@@ -6,6 +6,8 @@ import {
   fetchHomeFeaturedProducts,
 } from "@/components/home/FeaturedProductsCarousel";
 import { MobileCarousel } from "@/components/MobileCarousel";
+import { ProductCard, type ProductCardData } from "@/components/ProductCard";
+import { readRecent } from "@/components/engagement/recently-viewed";
 import { NewsletterSignup } from "@/components/NewsletterSignup";
 import { LuxuryShowcase, fetchLuxuryShowcaseThumbs } from "@/components/home/LuxuryShowcase";
 import { HomeReviews, fetchHomeReviews } from "@/components/content/HomeReviews";
@@ -325,7 +327,7 @@ function prefersReducedMotion() {
 
 function HomePage() {
   const heroVideoRef = useRef<HTMLVideoElement | null>(null);
-  const { featuredProducts, luxuryThumbs, reviews } = Route.useLoaderData();
+  const { otherCats, featuredProducts, luxuryThumbs, reviews } = Route.useLoaderData();
 
   // Defer the hero video off the mobile critical path. The poster is the LCP
   // paint; with the <source> children present at first render, autoPlay would
@@ -749,6 +751,13 @@ function HomePage() {
         </Reveal>
       </section>
 
+      {/* 7.5. שאר הקטגוריות — the remaining categories that have artwork, grouped
+          with the two browse rails above it. A crawlable strip of internal
+          /category/$slug links plus a browse-everything path to /categories.
+          Server-rendered from the loader (otherCats resolved at SSR); on the rare
+          loader failure it renders nothing rather than an empty box. */}
+      <OtherCategoriesSection cats={otherCats ?? []} reserveSpace={false} />
+
       {/* 8. מומלצים באתר — pool איכות מסובב יומית */}
       <FeaturedProductsCarousel
         initialProducts={featuredProducts ?? undefined}
@@ -799,6 +808,12 @@ function HomePage() {
 
       {/* 11. לקוחות ממליצים — real approved reviews */}
       <HomeReviews initialReviews={reviews ?? undefined} reserveSpace={reviews === null} />
+
+      {/* 11.5. נצפו לאחרונה — client-only, personalized. Renders nothing on the
+          server and for first-time visitors, so there is no reserved box and no
+          layout shift; it mounts in low on the page only for returning shoppers
+          whose recently-viewed store has items. */}
+      <RecentlyViewedRail />
 
       {/* 12. Instagram — visual closer */}
       <section>
@@ -893,6 +908,52 @@ function HomePage() {
 }
 
 /**
+ * "נצפו לאחרונה" — a client-only rail of the shopper's recently-viewed products,
+ * read from the localStorage-backed store (readRecent). SSR-safe: the store is
+ * touched only inside an effect, so the server and the first client render emit
+ * nothing — no reserved box, no layout shift. It mounts in only for returning
+ * shoppers who have items, placed low on the page so the post-hydration insert
+ * stays below the fold. Reuses ProductCard + the shared Carousel exactly like
+ * FeaturedProductsCarousel, so cards and arrows match the other product rails.
+ */
+function RecentlyViewedRail() {
+  const [recent, setRecent] = useState<ProductCardData[]>([]);
+  // localStorage is read only here, after mount — never during render or at
+  // module scope — so this stays SSR-safe.
+  useEffect(() => {
+    setRecent(readRecent());
+  }, []);
+
+  // Nothing for the server or first-time visitors. A lone card reads as broken,
+  // so this mirrors the product page's >=2 recently-viewed threshold.
+  if (recent.length < 2) return null;
+
+  return (
+    <section className="py-14 md:py-20">
+      <div className="container mx-auto px-4">
+        <SectionHeader eyebrow="במיוחד בשבילכם" title="נצפו לאחרונה" />
+        <Carousel
+          dir="rtl"
+          opts={{ direction: "rtl", align: "start", dragFree: true }}
+          className="px-2"
+          aria-label="נצפו לאחרונה"
+        >
+          <CarouselContent>
+            {recent.map((p) => (
+              <CarouselItem key={p.id} className="basis-[44%] md:basis-1/3 lg:basis-1/4">
+                <ProductCard p={p} />
+              </CarouselItem>
+            ))}
+          </CarouselContent>
+          <CarouselPrevious className="right-2 -translate-y-1/2 hidden md:inline-flex" />
+          <CarouselNext className="left-2 -translate-y-1/2 hidden md:inline-flex" />
+        </Carousel>
+      </div>
+    </section>
+  );
+}
+
+/**
  * Height of the populated "שאר הקטגוריות" section, measured in-browser at the
  * widths where the fluid container changes size (max per range, so it can only
  * ever over-reserve): <768px 528 · 768–1279px 536 · >=1280px 589.
@@ -926,7 +987,11 @@ function OtherCategoriesSection({
       <div className="container mx-auto px-4 py-14 md:py-20">
         <SectionHeader eyebrow="גלו עוד" title="שאר הקטגוריות" />
 
-        <Carousel dir="rtl" opts={{ direction: "rtl", loop: true, dragFree: true, align: "start" }}>
+        <Carousel
+          dir="rtl"
+          opts={{ direction: "rtl", loop: true, dragFree: true, align: "start" }}
+          aria-label="שאר הקטגוריות"
+        >
           <CarouselContent>
             {cats.map((c) => (
               <CarouselItem key={c.slug} className="basis-1/2 sm:basis-1/3 lg:basis-1/5">
@@ -962,6 +1027,17 @@ function OtherCategoriesSection({
           <CarouselPrevious className="right-0 -translate-y-1/2 hidden md:inline-flex" />
           <CarouselNext className="left-0 -translate-y-1/2 hidden md:inline-flex" />
         </Carousel>
+
+        {/* Browse-everything path — the crawlable link out to the full category
+            hub (/categories lists all 105 categories). */}
+        <div className="text-center">
+          <Link
+            to="/categories"
+            className="mt-6 inline-block text-sm text-accent underline underline-offset-4 transition-colors duration-200 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-strong"
+          >
+            לכל הקטגוריות ←
+          </Link>
+        </div>
       </div>
     </section>
   );
@@ -1026,7 +1102,12 @@ function LazyReel({ src }: { src: string }) {
 
 function InstagramFeed() {
   return (
-    <Carousel dir="rtl" opts={{ direction: "rtl", align: "start" }} className="max-w-6xl mx-auto">
+    <Carousel
+      dir="rtl"
+      opts={{ direction: "rtl", align: "start" }}
+      className="max-w-6xl mx-auto"
+      aria-label="גלריית אינסטגרם"
+    >
       <CarouselContent>
         {INSTAGRAM_MEDIA.map((m, i) => (
           <CarouselItem key={i} className="basis-2/3 sm:basis-1/3">

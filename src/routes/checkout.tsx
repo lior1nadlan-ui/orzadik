@@ -19,6 +19,14 @@ import { TrustBadges } from "@/components/cart/TrustBadges";
 import { Lock } from "lucide-react";
 import { toast } from "sonner";
 
+// Server/transport errors can carry an English message ("Failed to fetch"),
+// which is truthy and would otherwise slip past a `?? fallback`. Show the raw
+// message only when it is actually Hebrew — i.e. one of our own user-facing
+// thrown errors — and fall back to a Hebrew message the shopper can act on
+// for anything else.
+const hebrewOrFallback = (msg: unknown, fallback: string) =>
+  typeof msg === "string" && /[\u0590-\u05FF]/.test(msg) ? msg : fallback;
+
 export const Route = createFileRoute("/checkout")({
   component: CheckoutPage,
   head: () => ({ meta: [{ title: "תשלום" }, { name: "robots", content: "noindex, nofollow" }] }),
@@ -51,6 +59,9 @@ function CheckoutPage() {
   // Inline field errors (Hebrew) + a ref to the required-consent checkbox so a
   // submit blocked on missing consent can bring it into view and focus it.
   const [errors, setErrors] = useState<Record<string, string>>({});
+  // Persistent, screen-reader-announced failure banner shown above the submit
+  // CTA. Complements the transient toast, which a returning shopper can miss.
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const consentRef = useRef<HTMLButtonElement>(null);
 
   // Update one field and clear its inline error as the shopper corrects it.
@@ -69,6 +80,10 @@ function CheckoutPage() {
     if (!email) e.email = 'יש להזין כתובת דוא"ל';
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) e.email = 'כתובת הדוא"ל אינה תקינה';
     if (!form.phone.trim()) e.phone = "יש להזין מספר טלפון";
+    // Permissive sanity check: strip non-digits and reject only the obviously
+    // too-short. Real IL numbers carry >= 9 digits; do NOT tighten this into a
+    // strict format check that could reject a valid number.
+    else if (form.phone.replace(/\D/g, "").length < 9) e.phone = "מספר הטלפון אינו תקין";
     if (!form.address.trim()) e.address = "יש להזין כתובת מלאה למשלוח";
     return e;
   };
@@ -175,6 +190,13 @@ function CheckoutPage() {
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Re-entrancy guard: the disabled pay button blocks mouse clicks, but Enter
+    // in any input re-fires submit during the multi-second placeOrder→startPayment
+    // window. Bail before doing any work. (preventDefault stays first so a
+    // re-entrant Enter can never fall through to a native form navigation.)
+    if (submitting) return;
+    // A retry starts clean: drop any prior persistent failure banner.
+    setSubmitError(null);
     // 1) Inline field validation — surface Hebrew errors and jump to the first.
     const fieldErrors = validate();
     setErrors(fieldErrors);
@@ -243,11 +265,18 @@ function CheckoutPage() {
         window.location.href = pay.url;
         return;
       } catch (payErr: any) {
-        toast.error(payErr.message ?? "לא הצלחנו לפתוח את עמוד התשלום. ניצור איתך קשר.");
+        // The order WAS created — only the payment page failed to open — so the
+        // fallback must not claim the order failed. Route via the Hebrew check so
+        // an English transport message ("Failed to fetch") can't leak to the UI.
+        const msg = hebrewOrFallback(payErr?.message, "לא הצלחנו לפתוח את עמוד התשלום. ניצור איתך קשר.");
+        setSubmitError(msg);
+        toast.error(msg);
         navigate({ to: "/order/$id", params: { id: result.id } });
       }
     } catch (err: any) {
-      toast.error(err.message ?? "שגיאה בשליחת ההזמנה");
+      const msg = hebrewOrFallback(err?.message, "שגיאה בשליחת ההזמנה, נסו שוב או צרו קשר בוואטסאפ");
+      setSubmitError(msg);
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }
@@ -260,34 +289,34 @@ function CheckoutPage() {
         <div className="grid md:grid-cols-2 gap-4">
           <div>
             <Label htmlFor="name">שם מלא *</Label>
-            <Input id="name" required autoComplete="name" aria-invalid={!!errors.name} aria-describedby={errors.name ? "name-error" : undefined} value={form.name} onChange={(e) => setField("name", e.target.value)} />
-            {errors.name && <p id="name-error" className="mt-1 text-xs text-destructive">{errors.name}</p>}
+            <Input id="name" required maxLength={200} enterKeyHint="next" autoComplete="name" aria-invalid={!!errors.name} aria-describedby={errors.name ? "name-error" : undefined} value={form.name} onChange={(e) => setField("name", e.target.value)} />
+            {errors.name && <p id="name-error" role="alert" className="mt-1 text-xs text-destructive">{errors.name}</p>}
           </div>
           <div>
             <Label htmlFor="email">אימייל *</Label>
-            <Input id="email" type="email" required autoComplete="email" aria-invalid={!!errors.email} aria-describedby={errors.email ? "email-error" : undefined} value={form.email} onChange={(e) => setField("email", e.target.value)} />
-            {errors.email && <p id="email-error" className="mt-1 text-xs text-destructive">{errors.email}</p>}
+            <Input id="email" type="email" required maxLength={255} enterKeyHint="next" autoCapitalize="none" autoCorrect="off" autoComplete="email" aria-invalid={!!errors.email} aria-describedby={errors.email ? "email-error" : undefined} value={form.email} onChange={(e) => setField("email", e.target.value)} />
+            {errors.email && <p id="email-error" role="alert" className="mt-1 text-xs text-destructive">{errors.email}</p>}
             <p className="text-[11px] text-muted-foreground mt-1">
               אם תזין דוא"ל ולא תשלים את ההזמנה, ייתכן שנשמור את הפרטים זמנית כדי לאפשר את השלמתה. ראו <Link to="/privacy" className="underline underline-offset-2 transition-[color] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent">מדיניות פרטיות</Link>.
             </p>
           </div>
           <div>
             <Label htmlFor="phone">טלפון *</Label>
-            <Input id="phone" type="tel" inputMode="tel" required autoComplete="tel" aria-invalid={!!errors.phone} aria-describedby={errors.phone ? "phone-error" : undefined} value={form.phone} onChange={(e) => setField("phone", e.target.value)} />
-            {errors.phone && <p id="phone-error" className="mt-1 text-xs text-destructive">{errors.phone}</p>}
+            <Input id="phone" type="tel" inputMode="tel" required maxLength={50} enterKeyHint="next" autoComplete="tel" aria-invalid={!!errors.phone} aria-describedby={errors.phone ? "phone-error" : undefined} value={form.phone} onChange={(e) => setField("phone", e.target.value)} />
+            {errors.phone && <p id="phone-error" role="alert" className="mt-1 text-xs text-destructive">{errors.phone}</p>}
           </div>
           <div>
             <Label htmlFor="city">עיר</Label>
-            <Input id="city" autoComplete="address-level2" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
+            <Input id="city" maxLength={200} enterKeyHint="next" autoComplete="address-level2" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
           </div>
           <div className="md:col-span-2">
             <Label htmlFor="address">כתובת מלאה *</Label>
-            <Input id="address" required autoComplete="street-address" aria-invalid={!!errors.address} aria-describedby={errors.address ? "address-error" : undefined} value={form.address} onChange={(e) => setField("address", e.target.value)} />
-            {errors.address && <p id="address-error" className="mt-1 text-xs text-destructive">{errors.address}</p>}
+            <Input id="address" required maxLength={500} enterKeyHint="done" autoComplete="street-address" aria-invalid={!!errors.address} aria-describedby={errors.address ? "address-error" : undefined} value={form.address} onChange={(e) => setField("address", e.target.value)} />
+            {errors.address && <p id="address-error" role="alert" className="mt-1 text-xs text-destructive">{errors.address}</p>}
           </div>
           <div className="md:col-span-2">
             <Label htmlFor="notes">הערות להזמנה</Label>
-            <Textarea id="notes" autoComplete="off" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+            <Textarea id="notes" maxLength={2000} autoComplete="off" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
           </div>
         </div>
 
@@ -365,11 +394,25 @@ function CheckoutPage() {
           </span>
         </label>
         <PrivacyNotice context="checkout" />
-        {(
-          <Button type="submit" size="lg" disabled={submitting} className="press w-full">
-            {submitting ? "טוען..." : `המשך לתשלום · ${formatILS(finalTotal)}`}
-          </Button>
+        {/* Persistent failure banner directly above the CTA — the toast is
+            transient and easy to miss, this stays until the next submit. */}
+        {submitError && (
+          <p
+            role="alert"
+            aria-live="assertive"
+            className="rounded-xl hairline bg-destructive/10 px-4 py-3 text-sm text-destructive"
+          >
+            {submitError}
+          </p>
         )}
+        <Button type="submit" size="lg" disabled={submitting} aria-busy={submitting} className="press w-full">
+          {submitting ? "טוען..." : `המשך לתשלום · ${formatILS(finalTotal)}`}
+        </Button>
+        {/* Visually-hidden live region: the button-text swap alone isn't reliably
+            announced, so read the processing state to assistive tech. */}
+        <span className="sr-only" aria-live="polite">
+          {submitting ? "מעבד את ההזמנה" : ""}
+        </span>
         {/* Reassurance AT the submit button — checkout anxiety peaks here, but on
             mobile the full TrustBadges sit in the summary column far below the
             form, so this one line keeps the security promise adjacent to the

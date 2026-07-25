@@ -1,7 +1,13 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { useState } from "react";
-import { fetchArticleWithRetry, fetchArticlesByCategoryWithRetry } from "@/lib/articles.server";
+import {
+  fetchArticleWithRetry,
+  fetchArticlesByCategoryWithRetry,
+  fetchArticlesWithRetry,
+  type Article,
+} from "@/lib/articles.server";
 import { ArticleCard, ARTICLE_FALLBACK_BG } from "@/components/ArticleCard";
+import { Breadcrumb } from "@/components/Breadcrumb";
 import { ProductCarousel } from "@/components/product/ProductCarousel";
 import { NewsletterSignup } from "@/components/NewsletterSignup";
 import { ProductCardData } from "@/components/ProductCard";
@@ -40,16 +46,38 @@ export const Route = createFileRoute("/articles/$slug")({
   loader: async ({ params }) => {
     const article = await fetchArticleWithRetry(params.slug);
     if (!article) throw notFound(); // real HTTP 404 for non-existent articles
-    let relatedArticles: Awaited<ReturnType<typeof fetchArticlesByCategoryWithRetry>> = [];
+    let relatedArticles: Article[] = [];
     let categoryProducts: ProductCardData[] = [];
     if (article.category_id) {
       // Fetch 3, render 2: the category query also returns the article being
-      // read, which is filtered out in the component.
+      // read, which is filtered out below.
       [relatedArticles, categoryProducts] = await Promise.all([
         fetchArticlesByCategoryWithRetry(article.category_id, 2, 3),
         fetchArticleProducts(article.category_id),
       ]);
     }
+
+    // Fallback related articles — turns dead-ends into hubs. `category_id` is
+    // NULL for every seeded article, so the category query above returns nothing
+    // and the guide previously ended with no onward reading. When fewer than two
+    // usable links come back (no category, or a thin one), top up from the most
+    // recent OTHER published articles. Recency is an honest ordering — no
+    // fabricated "popular"/"related" claim — and every link is a real, published
+    // page, so a reader always has a next step to another guide.
+    const usable = relatedArticles.filter((ra) => ra.id !== article.id);
+    if (usable.length < 2) {
+      const recent = await fetchArticlesWithRetry();
+      const seen = new Set(usable.map((ra) => ra.id));
+      seen.add(article.id);
+      for (const ra of recent) {
+        if (seen.has(ra.id)) continue;
+        usable.push(ra);
+        seen.add(ra.id);
+        if (usable.length >= 2) break;
+      }
+      relatedArticles = usable;
+    }
+
     return { article, relatedArticles, categoryProducts };
   },
   head: ({ loaderData, params }) => {
@@ -60,6 +88,19 @@ export const Route = createFileRoute("/articles/$slug")({
     }
 
     const plainDesc = (a.description || "").replace(/<[^>]*>/g, "").trim();
+    // Tag-free article text. Tags are replaced with a SPACE (not "") so words on
+    // either side of a tag boundary — e.g. </p><p> — never fuse into one token;
+    // whitespace is then collapsed. Reused for BOTH `articleBody` and an honest
+    // `wordCount` (the old count split raw HTML, so every tag inflated the total).
+    const plainBody = (a.body_html || "")
+      .replace(/<[^>]*>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    // og:image / Article image fallback. `featured_image` is null for every
+    // seeded article; without a fallback the card had no image and the Article
+    // schema omitted `image` entirely. og-default.jpg is the real 1200×630 brand
+    // card used site-wide, so the fallback is truthful.
+    const ogImage = a.featured_image || "https://orzadik.com/og-default.jpg";
     // Curated, honest Q&A for this guide (undefined for non-guide slugs). The
     // SAME source renders the visible accordion in the component, so the
     // FAQPage schema and the on-page text are guaranteed to match.
@@ -73,12 +114,13 @@ export const Route = createFileRoute("/articles/$slug")({
         { property: "og:description", content: plainDesc },
         { property: "og:type", content: "article" },
         { property: "og:url", content: url },
-        ...(a.featured_image ? [{ property: "og:image", content: a.featured_image }] : []),
+        { property: "og:image", content: ogImage },
+        { property: "og:image:alt", content: a.title_he },
         { property: "article:published_time", content: a.published_at },
         { name: "twitter:card", content: "summary_large_image" },
         { name: "twitter:title", content: `${a.title_he} | אור זרוע לצדיק` },
         { name: "twitter:description", content: plainDesc },
-        ...(a.featured_image ? [{ name: "twitter:image", content: a.featured_image }] : []),
+        { name: "twitter:image", content: ogImage },
       ],
       links: [{ rel: "canonical", href: url }],
       scripts: [
@@ -91,7 +133,7 @@ export const Route = createFileRoute("/articles/$slug")({
             url,
             headline: a.title_he,
             description: plainDesc,
-            image: a.featured_image || undefined,
+            image: ogImage,
             inLanguage: "he-IL",
             datePublished: a.published_at,
             dateModified: a.updated_at || a.published_at,
@@ -106,8 +148,9 @@ export const Route = createFileRoute("/articles/$slug")({
               },
             },
             mainEntityOfPage: { "@type": "WebPage", "@id": url },
-            articleBody: a.body_html ? a.body_html.replace(/<[^>]*>/g, "") : "",
-            wordCount: a.body_html ? a.body_html.split(/\s+/).length : 0,
+            articleBody: plainBody,
+            // Count of the STRIPPED text, so tags no longer inflate the total.
+            wordCount: plainBody ? plainBody.split(" ").length : 0,
             isPartOf: { "@id": "https://orzadik.com/#website" },
             // Speakable: lets voice assistants read the headline.
             speakable: {
@@ -243,13 +286,20 @@ function ArticleDetailPage() {
       <div className="container mx-auto px-4 py-8 md:py-12 max-w-3xl">
         {/* Header */}
         <header className="mb-8">
-          <Link
-            to="/articles"
-            className="inline-flex items-center gap-2 text-sm text-accent underline-offset-4 [@media(hover:hover)_and_(pointer:fine)]:hover:underline mb-4"
-          >
-            <ArrowRight className="w-4 h-4 rotate-180" aria-hidden="true" />
-            חזרה למאמרים
-          </Link>
+          {/* Visible location trail — mirrors the BreadcrumbList JSON-LD emitted
+              in head() (בית / מאמרים / this article) and its "מאמרים" crumb is the
+              path back to the index, so it replaces the old standalone back-link.
+              The shared primitive carries no microdata, so the schema stays the
+              single source of truth for crawlers. */}
+          <div className="mb-4">
+            <Breadcrumb
+              items={[
+                { label: "בית", to: "/" },
+                { label: "מאמרים", to: "/articles" },
+                { label: a.title_he },
+              ]}
+            />
+          </div>
 
           <h1 className="font-display text-4xl md:text-5xl font-bold text-foreground mb-4">
             {a.title_he}
@@ -345,12 +395,15 @@ function ArticleDetailPage() {
           </div>
         )}
 
-        {/* Related articles — the loader only fills this when the article has a
-            category_id, so while that column is null the whole section is
-            omitted rather than rendering an empty heading. */}
+        {/* More articles — an onward internal-links block so a guide is never a
+            dead end. Filled from the article's category when it has one, and
+            otherwise topped up with the most recent other guides (see loader), so
+            this renders on every article that isn't the site's only one. Heading
+            stays "מאמרים נוספים" (additional) rather than "קשורים" (related)
+            because the recency fallback isn't necessarily topically related. */}
         {related.length > 0 && (
           <section className="pt-8 border-t border-glass-line">
-            <h2 className="font-display text-2xl font-bold mb-6 text-foreground">מאמרים קשורים</h2>
+            <h2 className="font-display text-2xl font-bold mb-6 text-foreground">מאמרים נוספים</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {related.map((ra: any) => (
                 <ArticleCard

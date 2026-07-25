@@ -154,6 +154,37 @@ export const Route = createFileRoute("/product/$slug")({
         .map((i: any) => i.url)
         .filter(Boolean)),
     ];
+    // LCP preload hint. The first gallery image is the product page's largest
+    // paint (this is the 4,600+-page organic template). Preload it mirroring
+    // EXACTLY what the gallery's first <img> renders — same thumbUrl helper,
+    // same widths/quality (600/900/1200 @ q80 + the original at 1400w) and the
+    // same `sizes` — so imagesrcset/imagesizes resolve to the identical
+    // candidate the element picks and the browser downloads it once. A mismatch
+    // would double-download. Non-Supabase URLs (thumbUrl returns them unchanged)
+    // get a plain href preload, matching the gallery's srcSet={undefined} path.
+    // Guarded: products with no image emit no preload.
+    const lcpImg: string | undefined = images[0];
+    const lcpRendered = lcpImg ? thumbUrl(lcpImg, 1200, 80) : null;
+    const lcpCanTransform = lcpRendered != null && lcpRendered !== lcpImg;
+    const lcpSrcSet = lcpImg && lcpCanTransform
+      ? [
+          ...[600, 900, 1200].map((w) => `${thumbUrl(lcpImg, w, 80)} ${w}w`),
+          `${lcpImg} 1400w`,
+        ].join(", ")
+      : undefined;
+    const lcpPreload = lcpImg
+      ? [
+          {
+            rel: "preload",
+            as: "image",
+            href: lcpImg,
+            ...(lcpSrcSet
+              ? { imagesrcset: lcpSrcSet, imagesizes: "(max-width:768px) 100vw, 50vw" }
+              : {}),
+            fetchpriority: "high",
+          },
+        ]
+      : [];
     const cats = (p.product_categories ?? []).map((pc: any) => pc?.categories).filter(Boolean);
     const firstCat = cats[0];
     const isCallOnly = cats.some((c: any) => c.slug === "esh-sheli-gold");
@@ -274,7 +305,7 @@ export const Route = createFileRoute("/product/$slug")({
         ...(images[0] ? [{ property: "og:image:alt", content: p.name }] : []),
         ...(images[0] ? [{ name: "twitter:image", content: images[0] }] : []),
       ],
-      links: [{ rel: "canonical", href: url }],
+      links: [{ rel: "canonical", href: url }, ...lcpPreload],
       scripts: [
         // Google requires a Product to carry at least one of offers/review/
         // aggregateRating. Call-only (gold) products have no offers, so only

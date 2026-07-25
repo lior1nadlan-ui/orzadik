@@ -98,9 +98,12 @@ export const CONSUMER_POLICY = {
   /** Cancellation fee cap: the LOWER of this percent of the order, or the flat cap. */
   cancellationFeePct: 5,
   cancellationFeeCapIls: 100,
-  /** Estimated delivery window shown pre-purchase (business days). */
+  /** Estimated delivery window shown pre-purchase (business days). Must match the
+   *  site-wide "3–14 ימי עסקים" claim (terms.tsx §6, llms.txt, product/cart/track,
+   *  category-faq, TrustBadges) so no surface can ever publish a window the store
+   *  does not honor. */
   deliveryMinDays: 3,
-  deliveryMaxDays: 7,
+  deliveryMaxDays: 14,
 } as const;
 
 /** Human-readable seller-identity line for disclosures/emails (§4ב). */

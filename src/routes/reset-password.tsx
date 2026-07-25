@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Lock, Loader2 } from "lucide-react";
+import { Lock, Loader2, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/reset-password")({
@@ -18,16 +18,35 @@ function ResetPasswordPage() {
   const [confirm, setConfirm] = useState("");
   const [loading, setLoading] = useState(false);
   const [ready, setReady] = useState(false);
+  const [expired, setExpired] = useState(false);
+  const [show, setShow] = useState(false);
 
   useEffect(() => {
     // Supabase handles the recovery hash automatically and emits PASSWORD_RECOVERY.
+    let settled = false;
     const { data: sub } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "PASSWORD_RECOVERY" || event === "SIGNED_IN") setReady(true);
+      if (event === "PASSWORD_RECOVERY" || event === "SIGNED_IN") {
+        settled = true;
+        setReady(true);
+      }
     });
     supabase.auth.getSession().then(({ data }) => {
-      if (data.session) setReady(true);
+      if (data.session) {
+        settled = true;
+        setReady(true);
+      }
     });
-    return () => sub.subscription.unsubscribe();
+    // A valid recovery link restores a session (or fires PASSWORD_RECOVERY)
+    // within a moment of mount. If neither happens the link was missing, already
+    // used, or expired — so stop the spinner and show a dead-end with a way back,
+    // instead of leaving the user staring at an endless "טוען…".
+    const timer = setTimeout(() => {
+      if (!settled) setExpired(true);
+    }, 6000);
+    return () => {
+      sub.subscription.unsubscribe();
+      clearTimeout(timer);
+    };
   }, []);
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -52,18 +71,7 @@ function ResetPasswordPage() {
   // a spinner on submit.
   return (
     <div className="container mx-auto px-4 py-14 max-w-md">
-      {!ready ? (
-        <div className="glass glass-gold p-8 text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-            <Lock className="h-5 w-5 text-accent" aria-hidden="true" />
-          </div>
-          <h1 className="font-display text-2xl font-bold mb-3">בחירת סיסמה חדשה</h1>
-          <p className="text-sm text-muted-foreground leading-relaxed">
-            טוען… אם הגעתם לכאן בלי קישור מהאימייל, חזרו לדף{" "}
-            <a href="/forgot-password" className="underline text-accent">שחזור סיסמה</a>.
-          </p>
-        </div>
-      ) : (
+      {ready ? (
         // Token-driven pane: mounts only once Supabase has emitted
         // PASSWORD_RECOVERY / SIGNED_IN.
         <form onSubmit={onSubmit} className="glass glass-gold p-8 space-y-4">
@@ -76,11 +84,37 @@ function ResetPasswordPage() {
           </div>
           <div>
             <Label htmlFor="pw">סיסמה חדשה (לפחות 8 תווים)</Label>
-            <Input id="pw" type="password" minLength={8} required value={password} onChange={(e) => setPassword(e.target.value)} />
+            {/* One reveal toggle drives both fields' visibility. It sits at the
+                trailing (left, in RTL) edge, hence pl-10 to reserve its box. */}
+            <div className="relative">
+              <Input
+                id="pw"
+                type={show ? "text" : "password"}
+                minLength={8}
+                required
+                autoComplete="new-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="pl-10"
+              />
+              {/* Centred with inset-y-0 + flex, NOT -translate-y-1/2: `.press`
+                  owns `transform` (active:scale(0.97)) and would clobber a
+                  translate mid-press. Flex centring needs no transform, so the
+                  scale gesture scales cleanly around the icon. */}
+              <button
+                type="button"
+                onClick={() => setShow((s) => !s)}
+                aria-label={show ? "הסתרת הסיסמה" : "הצגת הסיסמה"}
+                aria-pressed={show}
+                className="press absolute inset-y-0 left-2 flex items-center text-muted-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
+              >
+                {show ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
+              </button>
+            </div>
           </div>
           <div>
             <Label htmlFor="pw2">אימות סיסמה</Label>
-            <Input id="pw2" type="password" minLength={8} required value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+            <Input id="pw2" type={show ? "text" : "password"} minLength={8} required autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
           </div>
           <Button type="submit" className="w-full press" disabled={loading}>
             {loading ? (
@@ -93,6 +127,31 @@ function ResetPasswordPage() {
             )}
           </Button>
         </form>
+      ) : expired ? (
+        // The recovery event never arrived within the grace window — a stale or
+        // already-used link. Dead-end honestly and route back to a fresh request.
+        <div className="glass glass-gold p-8 text-center">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+            <Lock className="h-5 w-5 text-accent" aria-hidden="true" />
+          </div>
+          <h1 className="font-display text-2xl font-bold mb-3">הקישור פג תוקף</h1>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            קישור איפוס הסיסמה כבר אינו תקף או שכבר נעשה בו שימוש. בקשו קישור חדש
+            בדף{" "}
+            <a href="/forgot-password" className="underline text-accent">שחזור סיסמה</a>.
+          </p>
+        </div>
+      ) : (
+        <div className="glass glass-gold p-8 text-center">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+            <Lock className="h-5 w-5 text-accent" aria-hidden="true" />
+          </div>
+          <h1 className="font-display text-2xl font-bold mb-3">בחירת סיסמה חדשה</h1>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            טוען… אם הגעתם לכאן בלי קישור מהאימייל, חזרו לדף{" "}
+            <a href="/forgot-password" className="underline text-accent">שחזור סיסמה</a>.
+          </p>
+        </div>
       )}
     </div>
   );

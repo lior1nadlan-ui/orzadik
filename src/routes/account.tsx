@@ -227,7 +227,7 @@ function AccountPage() {
     }
   };
 
-  const { data: orders = [] } = useQuery({
+  const { data: orders = [], isLoading: ordersLoading } = useQuery({
     queryKey: ["my-orders", user?.id],
     enabled: !!user?.id,
     queryFn: async () => {
@@ -312,7 +312,7 @@ function AccountPage() {
       <section className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
         <div className="glass p-5">
           <Package className="h-5 w-5 text-accent mb-2" />
-          <div className="text-2xl font-bold">{orders.length}</div>
+          <div className="text-2xl font-bold">{ordersLoading ? "—" : orders.length}</div>
           <div className="text-xs text-muted-foreground">הזמנות בחשבון</div>
         </div>
         <Link
@@ -395,7 +395,24 @@ function AccountPage() {
       {/* Orders */}
       <section className="mt-10">
         <h2 className="font-display text-xl font-bold mb-4">ההזמנות שלי</h2>
-        {orders.length === 0 ? (
+        {ordersLoading ? (
+          // The query defaults to [], so gating the empty state on length alone
+          // flashed a false "אין עדיין הזמנות" to returning customers mid-load.
+          // Reserve the list footprint with skeleton rows until the fetch settles.
+          <div className="glass overflow-hidden" aria-hidden="true">
+            <div className="divide-y">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="flex items-center justify-between p-4 gap-3">
+                  <div className="min-w-0 space-y-2">
+                    <CardSkeleton className="h-4 w-32 min-h-0 rounded-md" />
+                    <CardSkeleton className="h-3 w-40 min-h-0 rounded-md" />
+                  </div>
+                  <CardSkeleton className="h-4 w-16 min-h-0 rounded-md" />
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : orders.length === 0 ? (
           <div className="rounded-xl border border-dashed border-glass-line p-8 text-center text-muted-foreground">
             <p className="text-sm mb-3">אין עדיין הזמנות בחשבון</p>
             <Link to="/shop">

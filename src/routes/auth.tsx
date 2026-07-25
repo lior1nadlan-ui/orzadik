@@ -32,11 +32,15 @@ function AuthPage() {
 
   const sendMagicLink = async (opts: { isSignup: boolean }) => {
     setLoading(true);
+    // Only the gated signup tab is allowed to provision a new user. On the login
+    // path shouldCreateUser is false, so typing an unknown address no longer
+    // silently creates an account with no name, no consent and no terms
+    // acceptance — Supabase rejects it and we nudge the user to the signup tab.
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
         emailRedirectTo: window.location.origin,
-        shouldCreateUser: true,
+        shouldCreateUser: opts.isSignup,
         data: opts.isSignup
           ? { full_name: fullName, phone, marketing_consent: marketingConsent }
           : undefined,
@@ -44,6 +48,14 @@ function AuthPage() {
     });
     setLoading(false);
     if (error) {
+      // shouldCreateUser:false on an unknown email comes back as
+      // "Signups not allowed for otp" (code otp_disabled). Surface a gentle
+      // Hebrew hint instead of the raw Supabase string.
+      const code = (error as { code?: string }).code;
+      if (!opts.isSignup && (code === "otp_disabled" || /signup/i.test(error.message))) {
+        toast.error("לא נמצא חשבון — עברו ללשונית הרשמה");
+        return;
+      }
       toast.error(error.message);
       return;
     }
@@ -167,7 +179,7 @@ function AuthPage() {
           <form method="post" action="#" onSubmit={signIn} className="space-y-4 glass p-6 mt-2">
             <div>
               <Label htmlFor="email1">אימייל</Label>
-              <Input id="email1" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
+              <Input id="email1" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
             </div>
             <Button type="submit" className="w-full press" disabled={loading}>
               {loading ? "שולח..." : "שלחו לי קישור כניסה"}
@@ -181,15 +193,15 @@ function AuthPage() {
           <form method="post" action="#" onSubmit={signUp} className="space-y-4 glass p-6 mt-2">
             <div>
               <Label htmlFor="name2">שם מלא</Label>
-              <Input id="name2" required value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="ישראל ישראלי" />
+              <Input id="name2" autoComplete="name" required value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="ישראל ישראלי" />
             </div>
             <div>
               <Label htmlFor="email2">אימייל</Label>
-              <Input id="email2" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+              <Input id="email2" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
             </div>
             <div>
               <Label htmlFor="phone2">טלפון <span className="text-muted-foreground text-xs">(לעדכוני הזמנות ו-SMS)</span></Label>
-              <Input id="phone2" type="tel" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="050-0000000" />
+              <Input id="phone2" type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="050-0000000" />
             </div>
 
             <div className="rounded-md hairline bg-muted/50 p-3 space-y-3">
