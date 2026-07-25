@@ -387,7 +387,13 @@ function HomePage() {
           loop
           playsInline
           preload="metadata"
-          aria-label="אור זרוע לצדיק — תשמישי קדושה ויודאיקה מהודרת"
+          // Decorative background footage: it carries no information the plaque
+          // below does not already state in text (brand line, h1, sub-line), it
+          // has no controls and is permanently muted, so it is hidden from the
+          // accessibility tree rather than given a name that a screen reader
+          // would read out as a second, duplicate brand announcement. This is
+          // what the accessibility statement (§4.5) declares — keep them in sync.
+          aria-hidden="true"
           className="block w-full min-h-[520px] h-[62svh] md:min-h-0 md:h-[60vh] md:max-h-[720px] object-cover bg-cream"
         >
           {/* Sources are attached only after the browser is idle (see the effect

@@ -515,11 +515,16 @@ export function SiteHeader() {
               confirmation with a running subtotal and a direct path to
               checkout). The full /cart page stays reachable from inside the
               drawer and from the mobile nav menu above. */}
+          {/* The count badge is VISIBLE text inside these two controls, so each
+              accessible name has to CONTAIN that number (WCAG 2.5.3 Label in
+              Name — a live Lighthouse run flagged the mismatch against the old
+              bare "עגלה"/"מועדפים" labels). Folding the count in also makes the
+              name genuinely more useful to a screen-reader user. */}
           <button
             type="button"
             onClick={openCart}
             className={`relative ${ICON_BTN_CLS}`}
-            aria-label="עגלה"
+            aria-label={count === 0 ? "עגלה" : count === 1 ? "עגלה — פריט אחד" : `עגלה — ${count} פריטים`}
             aria-haspopup="dialog"
             aria-expanded={isCartOpen}
           >
@@ -530,7 +535,11 @@ export function SiteHeader() {
               </span>
             )}
           </button>
-          <Link to="/favorites" className={`relative ${ICON_BTN_CLS}`} aria-label="מועדפים">
+          <Link
+            to="/favorites"
+            className={`relative ${ICON_BTN_CLS}`}
+            aria-label={favCount === 0 ? "מועדפים" : favCount === 1 ? "מועדפים — פריט אחד" : `מועדפים — ${favCount} פריטים`}
+          >
             <Heart className="h-5 w-5" />
             {favCount > 0 && (
               <span className="absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-argaman px-1 text-[11px] font-bold text-white">

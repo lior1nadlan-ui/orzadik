@@ -76,8 +76,16 @@ const SECURITY_HEADERS: Record<string, string> = {
     "script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://www.googletagmanager.com https://connect.facebook.net",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
-    "img-src 'self' data: blob: https://whtjslgrrfzehivrknuv.supabase.co https://secure.cardcom.solutions https://*.google-analytics.com https://www.googletagmanager.com https://www.facebook.com",
-    "connect-src 'self' https://whtjslgrrfzehivrknuv.supabase.co wss://whtjslgrrfzehivrknuv.supabase.co https://secure.cardcom.solutions https://cloudflareinsights.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com https://connect.facebook.net https://www.facebook.com",
+    "img-src 'self' data: blob: https://whtjslgrrfzehivrknuv.supabase.co https://secure.cardcom.solutions https://*.google-analytics.com https://www.googletagmanager.com https://www.facebook.com https://www.google.com https://googleads.g.doubleclick.net",
+    // NOTE on the google endpoints below: a CSP host wildcard matches SUBDOMAINS
+    // ONLY — "https://*.analytics.google.com" does NOT match the apex host
+    // "https://analytics.google.com", which is exactly where GA4 posts its
+    // /g/collect beacon. That gap silently blocked part of our own measurement
+    // (verified against the live console via a Lighthouse run), so the apex is
+    // listed explicitly alongside the wildcard. www.google.com and
+    // googleads.g.doubleclick.net carry the Google Ads conversion/remarketing
+    // pings fired by the GTM container; they were being blocked the same way.
+    "connect-src 'self' https://whtjslgrrfzehivrknuv.supabase.co wss://whtjslgrrfzehivrknuv.supabase.co https://secure.cardcom.solutions https://cloudflareinsights.com https://*.google-analytics.com https://analytics.google.com https://*.analytics.google.com https://www.googletagmanager.com https://www.google.com https://googleads.g.doubleclick.net https://connect.facebook.net https://www.facebook.com",
     "frame-src https://secure.cardcom.solutions",
     "frame-ancestors 'none'",
     "object-src 'none'",

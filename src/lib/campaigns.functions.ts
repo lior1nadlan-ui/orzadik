@@ -13,7 +13,15 @@
 //
 // Every message also ships RFC 8058 List-Unsubscribe headers pointing at the
 // same signed endpoint as the footer link, so the mailbox provider's native
-// unsubscribe button works without opening the mail.
+// unsubscribe button works without opening the mail, plus an explicit
+// text/plain part that writes the product links and the opt-out URL out in
+// full — the generic html→text fallback keeps link *text* and drops every
+// destination, which would leave a plaintext reader unable to opt out at all.
+//
+// The message itself (subject, HTML, text, headers) is assembled in exactly one
+// place — buildCampaignMessage() — so the "שלח בדיקה" proof copy is the real
+// message and the owner cannot approve something that renders differently for
+// subscribers.
 //
 // Sending is chunked and resumable: a 5-minute cron claims batches of 20 via
 // claim_campaign_recipients (FOR UPDATE SKIP LOCKED), so the cron and an admin
@@ -61,17 +69,32 @@ type SnapshotProduct = {
   sale_price: number | null;
 };
 
+/** The campaign row the templates render from. */
+type CampaignContent = { subject: string; intro_html: string; content: any };
+
 // ---- Template ---------------------------------------------------------------
+
+/** One product's public URL — shared by the HTML card and the plaintext part so
+ *  the two can never point somewhere different. */
+const productUrl = (slug: string) =>
+  `https://orzadik.com/product/${encodeURIComponent(slug)}`;
+
+/** Price line as shown to the reader: the effective (charged) price, or the
+ *  call-only note for items priced by the gold rate. */
+const productPriceText = (price: number) =>
+  Number(price) === 0 ? "לפי שער הזהב" : ils(getEffectivePrice(Number(price)));
 
 function productCards(products: SnapshotProduct[]): string {
   if (products.length === 0) return "";
   const cells = products.map((p) => {
-    const url = `https://orzadik.com/product/${encodeURIComponent(p.slug)}`;
-    const effective = getEffectivePrice(Number(p.price));
+    const url = productUrl(p.slug);
     const isCallOnly = Number(p.price) === 0;
+    // Wording and arithmetic come from the shared helper, so the HTML card and
+    // the plaintext part can never quote a different price for the same item.
+    const priceText = productPriceText(Number(p.price));
     const priceHtml = isCallOnly
-      ? `<div style="font-size:13px;color:#A8862A;">לפי שער הזהב</div>`
-      : `<div style="font-size:13px;"><strong style="color:#A8862A;">${ils(effective)}</strong></div>`;
+      ? `<div style="font-size:13px;color:#A8862A;">${priceText}</div>`
+      : `<div style="font-size:13px;"><strong style="color:#A8862A;">${priceText}</strong></div>`;
     // The image + name are one link; the CTA is the shared emailButton() — a
     // bulletproof table+VML pill on the brand accent (white on #7E611E, ~6.5:1)
     // that renders in Outlook and stays legible in dark mode, unlike the old
@@ -104,7 +127,7 @@ function productCards(products: SnapshotProduct[]): string {
  * literally true of the message that follows, and the פרסומת marking stays where
  * the law needs it (the subject and the body), not in the preview snippet.
  */
-function campaignPreheader(campaign: { intro_html: string; content: any }): string {
+function campaignPreheader(campaign: Omit<CampaignContent, "subject">): string {
   const intro = stripHtml(campaign.intro_html ?? "").replace(/\s+/g, " ").trim();
   if (intro) return intro.slice(0, 160);
   const products: SnapshotProduct[] = campaign.content?.products ?? [];
@@ -122,10 +145,7 @@ function campaignPreheader(campaign: { intro_html: string; content: any }): stri
  * decoration — they are what makes the message lawful to send (§30א), which is
  * why they live in the single template builder rather than in each caller.
  */
-function renderCampaign(
-  campaign: { subject: string; intro_html: string; content: any },
-  unsub: string | null,
-): string {
+function renderCampaign(campaign: CampaignContent, unsub: string | null): string {
   const products: SnapshotProduct[] = campaign.content?.products ?? [];
   const intro = esc(campaign.intro_html ?? "").replace(/\n/g, "<br>");
   return emailShell(`
@@ -143,9 +163,70 @@ function renderCampaign(
   `, campaignPreheader(campaign));
 }
 
-/** Subject line as actually sent — always carries the פרסומת marking. */
+/**
+ * Plaintext twin of renderCampaign() — the text/plain half of the message.
+ *
+ * Without this, sendEmail() derives the text part with htmlToText(), which is a
+ * deliverability fallback and not a renderer: it strips tags, so every anchor
+ * survives as its LABEL with the destination thrown away. A plaintext reader
+ * would see "להסרה מרשימת התפוצה לחצו כאן" with nothing to click — i.e. a
+ * marketing message with no working opt-out (§30א) — and "לצפייה במוצר" leading
+ * nowhere. Filters also treat a text part whose links are bare anchor text as a
+ * mismatch against the HTML part.
+ *
+ * Same content in the same order as the HTML: the פרסומת marking first, then
+ * subject, intro, the featured products (name · price · link), the seller
+ * identity line, the consent reminder and the opt-out URL. URLs sit alone on
+ * their own line so bidi reordering cannot glue Hebrew punctuation onto them.
+ * Nothing is escaped here — this part is plain text, not markup.
+ */
+function renderCampaignText(campaign: CampaignContent, unsub: string | null): string {
+  const products: SnapshotProduct[] = campaign.content?.products ?? [];
+  const blocks: string[] = ["פרסומת", campaign.subject];
+
+  const intro = stripHtml(campaign.intro_html ?? "");
+  if (intro) blocks.push(intro);
+
+  for (const p of products) {
+    blocks.push(
+      [p.name, productPriceText(Number(p.price)), "לצפייה במוצר:", productUrl(p.slug)].join(
+        "\n",
+      ),
+    );
+  }
+
+  blocks.push(`${sellerIdentityLine()}${BUSINESS.email ? " · " + BUSINESS.email : ""}`);
+  blocks.push(
+    "קיבלתם הודעה זו כי נרשמתם לרשימת התפוצה של אור זרוע לצדיק." +
+      (unsub ? `\nלהסרה מרשימת התפוצה:\n${unsub}` : ""),
+  );
+  blocks.push(BUSINESS.site);
+
+  return blocks.join("\n\n");
+}
+
+/** Subject line as actually sent — always carries the פרסומת marking, first. */
 function marketingSubject(subject: string): string {
   return `פרסומת: ${subject}`;
+}
+
+/**
+ * The complete message for one recipient — the ONLY place a campaign email is
+ * assembled.
+ *
+ * Both senders (the batch tick and the single-address proof copy) call this, so
+ * a test send is a faithful preview by construction: same פרסומת marking in the
+ * same position, same seller-identity line, same unsubscribe footer, same text
+ * part, same List-Unsubscribe headers. Anything a caller adds to distinguish a
+ * test must go *around* this, never inside it.
+ */
+function buildCampaignMessage(campaign: CampaignContent, unsub: string) {
+  return {
+    subject: marketingSubject(campaign.subject),
+    html: renderCampaign(campaign, unsub),
+    text: renderCampaignText(campaign, unsub),
+    headers: listUnsubscribeHeaders(unsub),
+  };
 }
 
 // ---- Admin: compose ---------------------------------------------------------
@@ -394,10 +475,15 @@ const TestSendSchema = z.object({
 /**
  * Send the campaign to exactly one owner-supplied address.
  *
- * Deliberately shares renderCampaign() / marketingSubject() / unsubscribeToken()
- * with the real sender, so what the owner proofreads is the real message. It
- * never touches campaign_recipients and never writes a counter — the audience
- * is not consulted at all on this path, so it cannot enqueue or leak a send.
+ * Deliberately built by the same buildCampaignMessage() as the batch sender, so
+ * what the owner proofreads IS the real message — same HTML, same plaintext
+ * part, same List-Unsubscribe headers, and the same פרסומת marking in the same
+ * position. The only difference is a "[בדיקה]" tag appended to the end of the
+ * subject: appended, not prefixed, because §30א wants the פרסומת marking at the
+ * head of the subject line, and a prefix would push it out of the position the
+ * owner is supposed to be proofreading. It never touches campaign_recipients and
+ * never writes a counter — the audience is not consulted at all on this path, so
+ * it cannot enqueue or leak a send.
  *
  * The body is a real פרסומת, so the opt-out checks are NOT optional here either:
  * the address is run through email_suppressions and profiles.marketing_consent =
@@ -444,14 +530,17 @@ export const sendCampaignTestEmail = createServerFn({ method: "POST" })
     if (error || !campaign) throw new Error("הקמפיין לא נמצא.");
 
     const unsub = unsubscribeUrl(email, token);
+    const message = buildCampaignMessage(campaign, unsub);
     const ok = await sendEmail({
       to: email,
-      // Only the subject carries the test marking; the body is byte-identical
-      // to a real send.
-      subject: `[בדיקה] ${marketingSubject(campaign.subject)}`,
-      html: renderCampaign(campaign, unsub),
+      // Only the subject carries the test marking, and only as a suffix — the
+      // פרסומת prefix stays first, exactly as subscribers will see it. Body,
+      // text part and headers are byte-identical to a real send.
+      subject: `${message.subject} [בדיקה]`,
+      html: message.html,
+      text: message.text,
       replyTo: process.env.SHOP_OWNER_EMAIL,
-      headers: listUnsubscribeHeaders(unsub),
+      headers: message.headers,
     });
     if (!ok) throw new Error("שליחת הבדיקה נכשלה. בדקו את הגדרות הדוא\"ל ונסו שוב.");
     return { ok: true as const, email };
@@ -680,14 +769,19 @@ export async function runCampaignTick(): Promise<CampaignTickResult> {
     }
 
     const unsub = unsubscribeUrl(email, token);
+    // Same builder the "שלח בדיקה" proof copy uses. The explicit text part
+    // matters here: the derived fallback would drop every href, so a plaintext
+    // reader would get an opt-out link with no URL behind it. One-click opt-out
+    // for the mailbox provider (RFC 8058) points at the same signed endpoint as
+    // the footer link and the plaintext line.
+    const message = buildCampaignMessage(campaign, unsub);
     const ok = await sendEmail({
       to: row.email,
-      subject: marketingSubject(campaign.subject),
-      html: renderCampaign(campaign, unsub),
+      subject: message.subject,
+      html: message.html,
+      text: message.text,
       replyTo: process.env.SHOP_OWNER_EMAIL,
-      // One-click opt-out for the mailbox provider (RFC 8058) — the same URL as
-      // the footer link, so both routes land on the same signed endpoint.
-      headers: listUnsubscribeHeaders(unsub),
+      headers: message.headers,
     });
 
     await supabaseAdmin

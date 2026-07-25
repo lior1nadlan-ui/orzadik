@@ -1,6 +1,24 @@
 import { createServerFn } from "@tanstack/react-start";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { Database } from "@/integrations/supabase/types";
+
+/**
+ * The abandoned-cart columns handed back by {@link exportMyData}, spelled out
+ * as a real row type instead of being left to inference.
+ *
+ * Why: the PostgREST builder does not narrow a partial `.select(...)` on this
+ * table to a concrete row, so the accumulator used to be `unknown[]` — and
+ * `createServerFn` type-checks its return value against a serializability
+ * constraint, which `unknown` can never satisfy. Naming the columns (all of
+ * them JSON-safe scalars, plus the `items` snapshot which is stored as `jsonb`)
+ * makes the payload provably serializable. The keys and values are exactly what
+ * the query already returned, so the exported data shape is unchanged.
+ */
+type ExportedAbandonedCart = Pick<
+  Database["public"]["Tables"]["abandoned_carts"]["Row"],
+  "email" | "name" | "items" | "subtotal" | "created_at" | "converted_order_id"
+>;
 
 /**
  * Delete the signed-in user's account and personal data (GDPR / Privacy
@@ -115,12 +133,13 @@ export const exportMyData = createServerFn({ method: "POST" })
       .eq("user_id", userId)
       .order("created_at", { ascending: false });
 
-    let carts: unknown[] = [];
+    let carts: ExportedAbandonedCart[] = [];
     if (email) {
       const { data: c } = await supabaseAdmin
         .from("abandoned_carts")
         .select("email, name, items, subtotal, created_at, converted_order_id")
-        .eq("email", email);
+        .eq("email", email)
+        .returns<ExportedAbandonedCart[]>();
       carts = c ?? [];
     }
 

@@ -188,6 +188,15 @@ export const Route = createFileRoute("/product/$slug")({
     const cats = (p.product_categories ?? []).map((pc: any) => pc?.categories).filter(Boolean);
     const firstCat = cats[0];
     const isCallOnly = cats.some((c: any) => c.slug === "esh-sheli-gold");
+    // The SAME personalization gate the page body uses for `showEmbroidery`:
+    // same helper, same inputs (product slug + its category slugs, both already
+    // in hand here). head() therefore knows exactly what the PDP knows about
+    // whether this product is made-to-order, so the markup below can never
+    // claim a return right the on-page return line denies.
+    const personalizable = isPersonalizableProduct(
+      params.slug,
+      cats.map((c: any) => c.slug).filter(Boolean),
+    );
     const plainDesc = (p.short_description || p.description || "")
       .replace(/<[^>]*>/g, "")
       .replace(/\s+/g, " ")
@@ -222,19 +231,14 @@ export const Route = createFileRoute("/product/$slug")({
             : "https://schema.org/InStock",
         itemCondition: "https://schema.org/NewCondition",
         seller: { "@id": "https://orzadik.com/#organization" },
-        // Merchant return + shipping details — required for Google's free
-        // Shopping listings / merchant rich results. Must mirror the binding
-        // copy the customer sees (14-day returns, flat shipping fee, 3–14
-        // business-day delivery per /terms and the on-page delivery note) —
-        // structured data must never promise faster than the visible text.
-        hasMerchantReturnPolicy: {
-          "@type": "MerchantReturnPolicy",
-          applicableCountry: "IL",
-          returnPolicyCategory: "https://schema.org/MerchantReturnFiniteReturnWindow",
-          merchantReturnDays: 14,
-          returnMethod: "https://schema.org/ReturnByMail",
-          returnFees: "https://schema.org/ReturnFeesCustomerResponsibleForReturnShipping",
-        },
+        // Shipping details — feeds the shipping row of Google's free product
+        // listings (the store already publishes a Merchant feed at /feed.xml).
+        // Every figure is READ from the constant the rest of the app uses and
+        // is never re-typed here: SHIPPING_FLAT (lib/pricing.ts) is the fee the
+        // checkout actually charges, and CONSUMER_POLICY.deliveryMin/MaxDays
+        // (lib/business.ts) is the same 3–14 business-day window published in
+        // /terms §6, in the delivery line on this page and in the cart. So the
+        // markup cannot drift from — or promise faster than — the visible text.
         shippingDetails: {
           "@type": "OfferShippingDetails",
           shippingRate: {
@@ -242,16 +246,85 @@ export const Route = createFileRoute("/product/$slug")({
             value: String(SHIPPING_FLAT),
             currency: "ILS",
           },
+          // Israel only, per /terms §6 ("האספקה מתבצעת בתחומי מדינת ישראל
+          // בלבד"). No `freeShippingThreshold` is emitted: FREE_SHIPPING_THRESHOLD
+          // is Infinity, i.e. the flat fee is charged on every order.
           shippingDestination: {
             "@type": "DefinedRegion",
             addressCountry: "IL",
           },
           deliveryTime: {
             "@type": "ShippingDeliveryTime",
-            handlingTime: { "@type": "QuantitativeValue", minValue: 0, maxValue: 1, unitCode: "DAY" },
-            transitTime: { "@type": "QuantitativeValue", minValue: 3, maxValue: 14, unitCode: "DAY" },
+            // Google derives the delivery estimate from handlingTime +
+            // transitTime. /terms §6 publishes ONE end-to-end window — 3 to 14
+            // business days from order confirmation to the door — and no
+            // separate packing window, so the whole window is carried by
+            // transitTime and handlingTime is pinned to 0. That makes the
+            // computed total exactly the window the store honors; inventing a
+            // packing figure would either be unverifiable or push the maximum
+            // past 14, and leaving handlingTime out would let Google assume one.
+            handlingTime: {
+              "@type": "QuantitativeValue",
+              minValue: 0,
+              maxValue: 0,
+              unitCode: "DAY",
+            },
+            transitTime: {
+              "@type": "QuantitativeValue",
+              minValue: CONSUMER_POLICY.deliveryMinDays,
+              maxValue: CONSUMER_POLICY.deliveryMaxDays,
+              unitCode: "DAY",
+            },
+            // The window is counted in BUSINESS days — /terms §6 excludes
+            // Friday, Saturday, holiday eves and holidays — so the shipping
+            // week is Sunday–Thursday. Without this, Google reads 3–14 as
+            // calendar days and would advertise delivery faster than promised.
+            // (This does not contradict the LocalBusiness node in __root.tsx,
+            // which omits opening hours on purpose: the store's counter hours
+            // are genuinely unrecorded, whereas the shipping week is stated in
+            // the terms. Holiday closures have no field in this schema.)
+            businessDays: {
+              "@type": "OpeningHoursSpecification",
+              dayOfWeek: [
+                "https://schema.org/Sunday",
+                "https://schema.org/Monday",
+                "https://schema.org/Tuesday",
+                "https://schema.org/Wednesday",
+                "https://schema.org/Thursday",
+              ],
+            },
           },
         },
+        // Merchant return policy — Google reads this as a merchant-listing
+        // property. It is emitted ONLY for products the claim is actually true
+        // for, never as a blanket statement:
+        //
+        //  • Non-personalizable products: /terms §7 grants the statutory
+        //    distance-selling cancellation right unconditionally — 14 days from
+        //    receipt (§7 ¶2), the buyer returns the item and bears the return
+        //    shipping cost (§7 ¶6, "עלות החזרת המוצר במקרה זה חלה על הלקוח").
+        //    The window is READ from CONSUMER_POLICY.cancellationDays
+        //    (lib/business.ts) — the very constant the on-page return line
+        //    renders — so the markup cannot drift from the visible copy.
+        //  • Personalizable ones: /terms §7 ¶7 — following Consumer Protection
+        //    Law §14ג(ד) — excludes made-to-order items (רקמה / חריטת לייזר /
+        //    הקדשה) from that right, so NO return-policy node is emitted at all
+        //    rather than a false one.
+        //
+        // The split uses `personalizable`, the page's own `showEmbroidery` gate,
+        // so the markup and the on-page line are decided by the same rule.
+        ...(personalizable
+          ? {}
+          : {
+              hasMerchantReturnPolicy: {
+                "@type": "MerchantReturnPolicy",
+                applicableCountry: "IL",
+                returnPolicyCategory: "https://schema.org/MerchantReturnFiniteReturnWindow",
+                merchantReturnDays: CONSUMER_POLICY.cancellationDays,
+                returnMethod: "https://schema.org/ReturnByMail",
+                returnFees: "https://schema.org/ReturnFeesCustomerResponsibleForReturnShipping",
+              },
+            }),
       };
     }
     // AggregateRating drives star ratings in Google results. Only emit it when
