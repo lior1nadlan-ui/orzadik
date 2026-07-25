@@ -90,7 +90,7 @@ const OTHER_CATS_IMAGES: Record<string, string> = {
   "wedding": oc_wedding,
   "%d7%98%d7%9c%d7%99%d7%aa%d7%95%d7%aa-%d7%95%d7%a6%d7%99%d7%a6%d7%99%d7%95%d7%aa": oc_tallitTzitzit,
   "challah-covers": oc_challahCover,
-  "%d7%9b%d7%99%d7%a4%d7%95%d7%aa": oc_kippot,
+  "kipot": oc_kippot,
   "%d7%9e%d7%95%d7%a6%d7%a8%d7%99-%d7%97%d7%92%d7%99%d7%9d": oc_holidays,
 
   "wine-dividers": oc_wineDividers,

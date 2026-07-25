@@ -1,4 +1,4 @@
-import { createFileRoute, notFound, Link } from "@tanstack/react-router";
+import { createFileRoute, notFound, redirect, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { isPersonalizable } from "@/lib/personalization";
@@ -19,6 +19,16 @@ import { categoryFaq, faqJsonLd } from "@/lib/category-faq";
 import { getEffectivePrice } from "@/lib/pricing";
 import { cn } from "@/lib/utils";
 import { ChevronDown } from "lucide-react";
+
+// Old category slugs that were merged into a canonical one (2026-07 dedupe).
+// `talit-tefillin-covers` was a full duplicate of `talit-tefillin-sets` (all 46
+// of its products already lived in sets). Its 46-product page had real crawl
+// presence, so it 301s rather than 404s. The kippot/talitot twins that were also
+// merged carried percent-encoded slugs with no meaningful inbound links, so they
+// are intentionally left to 404 rather than risk a double-encoded redirect target.
+const MERGED_CATEGORY_REDIRECTS: Record<string, string> = {
+  "talit-tefillin-covers": "talit-tefillin-sets",
+};
 
 // Page through product_categories → active products for one category. PostgREST
 // caps an unbounded select at 1000 rows, and the largest category is already at
@@ -101,6 +111,14 @@ export const Route = createFileRoute("/category/$slug")({
     price: typeof s.price === "string" ? s.price : undefined,
   }),
   loader: async ({ params }) => {
+    // Categories merged away in the 2026-07 dedupe: 301 old inbound links / index
+    // entries to their canonical so no SEO equity or bookmark 404s. Only clean
+    // ASCII slugs are mapped here (a percent-encoded target would be re-encoded by
+    // the router into a broken double-encoded path).
+    const merged = MERGED_CATEGORY_REDIRECTS[params.slug];
+    if (merged) {
+      throw redirect({ to: "/category/$slug", params: { slug: merged }, statusCode: 301 });
+    }
     const result = await fetchCategoryWithRetry(params.slug);
     if (!result.cat) throw notFound(); // real HTTP 404 for non-existent categories
     return result;
