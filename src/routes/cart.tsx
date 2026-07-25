@@ -63,7 +63,9 @@ function CartPage() {
         <div className="glass mx-auto max-w-lg px-6 py-14 text-center">
           <h1 className="font-display text-3xl font-bold mb-3">העגלה ריקה</h1>
           <p className="text-muted-foreground mb-6">לא הוספת עדיין מוצרים לעגלה.</p>
-          <Link to="/shop"><Button className="press">התחל לקנות</Button></Link>
+          <Button asChild className="press">
+            <Link to="/shop">התחל לקנות</Link>
+          </Button>
         </div>
         <EmptyCartSuggestions />
       </div>
@@ -113,7 +115,7 @@ function CartPage() {
                   <button
                     onClick={() => remove(k)}
                     className="press flex-shrink-0 rounded-full p-1 text-muted-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:text-destructive"
-                    aria-label="הסר"
+                    aria-label={`הסר ${item.name} מהעגלה`}
                   >
                     <Trash2 className="h-4 w-4 sm:h-5 sm:w-5" />
                   </button>
@@ -135,11 +137,11 @@ function CartPage() {
 
                 <div className="mt-auto pt-2 flex items-center justify-between gap-2">
                   <div className="inline-flex items-center overflow-hidden rounded-full hairline">
-                    <button onClick={() => setQty(k, item.quantity - 1)} className="press px-2.5 py-1.5 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary" aria-label="הפחת">
+                    <button onClick={() => setQty(k, item.quantity - 1)} className="press px-2.5 py-1.5 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary" aria-label={`הפחת כמות ${item.name}`}>
                       <Minus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                     </button>
                     <span className="px-3 text-sm font-medium tabular-nums">{item.quantity}</span>
-                    <button onClick={() => setQty(k, item.quantity + 1)} className="press px-2.5 py-1.5 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary" aria-label="הוסף">
+                    <button onClick={() => setQty(k, item.quantity + 1)} className="press px-2.5 py-1.5 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary" aria-label={`הוסף כמות ${item.name}`}>
                       <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                     </button>
                   </div>
@@ -184,7 +186,9 @@ function CartPage() {
           <span className="font-bold text-accent whitespace-nowrap">{formatILS(finalTotal)}</span>
         </div>
 
-        <Link to="/checkout"><Button className="press w-full" size="lg">מעבר לתשלום · {formatILS(finalTotal)}</Button></Link>
+        <Button asChild className="press w-full" size="lg">
+          <Link to="/checkout">מעבר לתשלום · {formatILS(finalTotal)}</Link>
+        </Button>
         <TrustBadges compact />
       </div>
       <div className="lg:col-span-2 min-w-0">

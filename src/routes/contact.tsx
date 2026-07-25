@@ -13,9 +13,66 @@ export const Route = createFileRoute("/contact")({
           "צרו קשר עם אור זרוע לצדיק — טלפון, וואטסאפ, דוא\"ל וכתובת. נשמח לעזור בבירורים, בהזמנות מיוחדות ובכל שאלה על תשמישי הקדושה שלנו.",
       },
       { property: "og:title", content: "צור קשר | אור זרוע לצדיק" },
+      {
+        property: "og:description",
+        content:
+          "דרכי יצירת קשר עם אור זרוע לצדיק — טלפון, וואטסאפ, דוא\"ל וכתובת בקרית ביאליק.",
+      },
       { property: "og:url", content: "https://orzadik.com/contact" },
+      { property: "og:type", content: "website" },
+      { name: "twitter:title", content: "צור קשר | אור זרוע לצדיק" },
+      {
+        name: "twitter:description",
+        content:
+          "דרכי יצירת קשר עם אור זרוע לצדיק — טלפון, וואטסאפ, דוא\"ל וכתובת בקרית ביאליק.",
+      },
     ],
     links: [{ rel: "canonical", href: "https://orzadik.com/contact" }],
+    // ContactPage node, merged by @id into the canonical Organization emitted
+    // site-wide from __root.tsx. Every value is real business data from
+    // src/lib/business.ts (name/site/phone/email) plus the Kiryat Bialik locale
+    // already published in the root node — nothing invented, no opening hours
+    // (none are recorded anywhere in the codebase).
+    scripts: [
+      {
+        type: "application/ld+json",
+        children: JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "ContactPage",
+          "@id": "https://orzadik.com/contact#contactpage",
+          name: "צור קשר | אור זרוע לצדיק",
+          url: "https://orzadik.com/contact",
+          inLanguage: "he-IL",
+          description:
+            "דרכי יצירת קשר עם אור זרוע לצדיק — טלפון, וואטסאפ, דוא\"ל וכתובת בקרית ביאליק, לבירורים, הזמנות מיוחדות והתאמות אישיות.",
+          isPartOf: { "@id": "https://orzadik.com/#website" },
+          about: { "@id": "https://orzadik.com/#organization" },
+          publisher: { "@id": "https://orzadik.com/#organization" },
+          mainEntity: {
+            "@type": "Organization",
+            "@id": "https://orzadik.com/#organization",
+            name: BUSINESS.name,
+            url: BUSINESS.site,
+            telephone: BUSINESS.phone,
+            email: BUSINESS.email,
+            address: {
+              "@type": "PostalAddress",
+              streetAddress: "דרך עכו 190",
+              addressLocality: "קרית ביאליק",
+              addressCountry: "IL",
+            },
+            contactPoint: {
+              "@type": "ContactPoint",
+              telephone: BUSINESS.phone,
+              email: BUSINESS.email,
+              contactType: "customer service",
+              areaServed: "IL",
+              availableLanguage: ["he"],
+            },
+          },
+        }),
+      },
+    ],
   }),
 });
 

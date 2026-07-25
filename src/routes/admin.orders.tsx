@@ -162,11 +162,24 @@ function AdminOrders() {
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["admin-orders"] });
 
-  const updateStatus = async (id: string, st: string) => {
+  const updateStatus = async (o: any, st: string) => {
+    // A terminal transition — cancelled/refunded — restores reserved stock and
+    // flips payment semantics server-side, so a single mis-tap on the inline
+    // select must never commit it silently. Gate ONLY those two transitions
+    // behind a Hebrew confirm that names the order and target status. Declining
+    // returns before the mutation runs; because the <select> is controlled by
+    // o.status (server truth), React snaps it back to its current value on its
+    // own — no manual revert needed. Non-destructive transitions are unchanged.
+    if ((st === "cancelled" || st === "refunded") && st !== o.status) {
+      const ok = window.confirm(
+        `לשנות את סטטוס הזמנה ${o.order_number} ל"${STATUS_HE[st] ?? st}"? פעולה זו עלולה להחזיר מלאי ולשנות את מצב התשלום.`,
+      );
+      if (!ok) return;
+    }
     // Routed through the server fn (not a direct client update) so that setting a
     // terminal status — cancelled/refunded — restores reserved stock server-side.
     try {
-      await setOrderStatus({ data: { order_id: id, status: st } });
+      await setOrderStatus({ data: { order_id: o.id, status: st } });
       toast.success("עודכן");
       refresh();
     } catch (e: any) {
@@ -282,7 +295,7 @@ function AdminOrders() {
                 <td className="p-3 font-bold">{formatILS(Number(o.total))}</td>
                 <td className="p-3"><PaymentBadge status={o.payment_status} /></td>
                 <td className="p-3">
-                  <select value={o.status} onChange={(e) => updateStatus(o.id, e.target.value)} className="rounded border bg-background px-2 py-1 text-xs">
+                  <select value={o.status} onChange={(e) => updateStatus(o, e.target.value)} className="rounded border bg-background px-2 py-1 text-xs">
                     {STATUSES.map((s) => <option key={s} value={s}>{STATUS_HE[s]}</option>)}
                   </select>
                 </td>

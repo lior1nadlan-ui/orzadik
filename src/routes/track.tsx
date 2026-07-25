@@ -3,11 +3,13 @@ import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { trackOrder } from "@/lib/order.functions";
+import { BUSINESS } from "@/lib/business";
+import { waMessage } from "@/lib/wa-templates";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PageHeader } from "@/components/PageHeader";
-import { Check, Package, CreditCard, ClipboardList, Home } from "lucide-react";
+import { Check, Package, CreditCard, ClipboardList, Home, MessageCircle } from "lucide-react";
 
 export const Route = createFileRoute("/track")({
   component: TrackPage,
@@ -45,6 +47,16 @@ function TrackPage() {
   const isPaid = order?.payment_status === "paid";
   const paymentStuck =
     !!order && !isPaid && ["unpaid", "failed"].includes(order.payment_status);
+
+  // Store's own WhatsApp, pre-filled with the order number so a payment
+  // question lands with context. Built via the shared wa-templates helper on
+  // BUSINESS.whatsapp — never a number from untrusted content.
+  const payWaHref = order
+    ? waMessage(
+        BUSINESS.whatsapp,
+        `שלום, יש לי שאלה לגבי התשלום על הזמנה ${order.order_number}`,
+      )
+    : null;
 
   // Four ordered milestones. `done` drives the gold ✓; the timeline renders
   // top-to-bottom with the connector on the RTL start (right) edge.
@@ -155,12 +167,34 @@ function TrackPage() {
               text-amber-900) is off the palette; the emphasis is carried by
               --accent, the only gold allowed for text. */}
           {paymentStuck && (
-            <div className="mt-4 flex items-start gap-2.5 rounded-lg hairline bg-muted/50 px-4 py-3 text-sm text-foreground">
-              <CreditCard className="h-4 w-4 shrink-0 mt-0.5 text-accent" aria-hidden="true" />
-              <p className="leading-relaxed">
-                <span className="font-semibold text-accent">ההזמנה ממתינה לתשלום.</span>{" "}
-                אם ביטלתם בטעות, ניתן לחזור לעגלה ולהשלים את התשלום או ליצור איתנו קשר.
-              </p>
+            <div className="mt-4 rounded-lg hairline bg-muted/50 px-4 py-3 text-sm text-foreground">
+              <div className="flex items-start gap-2.5">
+                <CreditCard className="h-4 w-4 shrink-0 mt-0.5 text-accent" aria-hidden="true" />
+                <p className="leading-relaxed">
+                  <span className="font-semibold text-accent">ההזמנה ממתינה לתשלום.</span>{" "}
+                  אם ביטלתם בטעות, אפשר לחזור לעגלה ולהשלים את התשלום, או לפנות אלינו
+                  בוואטסאפ ונשמח לעזור.
+                </p>
+              </div>
+              {/* Turn the notice into an action, not a dead end: resume payment
+                  via the cart (the app's only checkout path, same as the unpaid
+                  state on /order/$id) plus a pre-filled WhatsApp to the store. */}
+              {/* asChild so each control is a SINGLE focusable anchor carrying the
+                  button styling — no <button> nested inside <a> (invalid HTML +
+                  double focus stop), matching the cart.tsx remedy in this batch. */}
+              <div className="mt-3 flex flex-wrap gap-2.5 pr-[26px]">
+                <Button asChild size="sm" className="press">
+                  <Link to="/cart">חזרה לעגלה להשלמת התשלום</Link>
+                </Button>
+                {payWaHref && (
+                  <Button asChild size="sm" variant="outline" className="press gap-1.5">
+                    <a href={payWaHref} target="_blank" rel="noopener noreferrer">
+                      <MessageCircle className="h-4 w-4" aria-hidden="true" />
+                      פנייה בוואטסאפ
+                    </a>
+                  </Button>
+                )}
+              </div>
             </div>
           )}
 

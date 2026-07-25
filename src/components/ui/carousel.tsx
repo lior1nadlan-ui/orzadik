@@ -41,7 +41,26 @@ function useCarousel() {
 const Carousel = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement> & CarouselProps
->(({ orientation = "horizontal", opts, setApi, plugins, className, children, ...props }, ref) => {
+>(
+  (
+    {
+      orientation = "horizontal",
+      opts,
+      setApi,
+      plugins,
+      className,
+      children,
+      // A11y: name + role-description pass through to the region below. A
+      // `role="region"` with no accessible name is a bare, unnamed landmark, so
+      // callers pass an `aria-label` — it rides `...props` onto the region and
+      // names that carousel instance. `aria-roledescription` keeps its "carousel"
+      // default but can be overridden. Both are fully backward-compatible:
+      // omitting them reproduces the previous markup exactly.
+      "aria-roledescription": ariaRoledescription = "carousel",
+      ...props
+    },
+    ref,
+  ) => {
   const [carouselRef, api] = useEmblaCarousel(
     {
       ...opts,
@@ -126,7 +145,7 @@ const Carousel = React.forwardRef<
         onKeyDownCapture={handleKeyDown}
         className={cn("relative", className)}
         role="region"
-        aria-roledescription="carousel"
+        aria-roledescription={ariaRoledescription}
         {...props}
       >
         {children}

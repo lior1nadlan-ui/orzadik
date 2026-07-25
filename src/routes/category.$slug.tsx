@@ -20,6 +20,27 @@ import { getEffectivePrice } from "@/lib/pricing";
 import { cn } from "@/lib/utils";
 import { ChevronDown } from "lucide-react";
 
+// Page through product_categories → active products for one category. PostgREST
+// caps an unbounded select at 1000 rows, and the largest category is already at
+// 742 after the supplier import; left unbounded, a category that grows past 1000
+// would silently drop products with no error. Shared by BOTH the SSR loader and
+// the client useQuery so neither is capped and the two can never disagree.
+async function fetchCategoryProducts(categoryId: string) {
+  const PAGE = 1000;
+  const rows: any[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data: batch, error } = await supabase
+      .from("product_categories")
+      .select("products!inner(id, slug, name, price, sale_price, thumbnail_url, is_active, stock_status, created_at)")
+      .eq("category_id", categoryId)
+      .range(from, from + PAGE - 1);
+    if (error) throw error;
+    rows.push(...(batch ?? []));
+    if ((batch ?? []).length < PAGE) break;
+  }
+  return rows.map((r: any) => r.products).filter((p: any) => p?.is_active);
+}
+
 async function fetchCategoryWithRetry(slug: string, maxRetries = 2) {
   for (let i = 0; i <= maxRetries; i++) {
     try {
@@ -30,23 +51,9 @@ async function fetchCategoryWithRetry(slug: string, maxRetries = 2) {
         .maybeSingle();
       if (catErr) throw catErr;
       if (!cat) return { cat: null, parent: null, products: [], allCats: [] as CategoryChipRow[] };
-      // Page through explicitly: PostgREST caps an unbounded select at 1000
-      // rows, and the largest category is already at 742 after the supplier
-      // import. Left unbounded, a category that grows past 1000 would silently
-      // drop products from its page with no error.
-      const PAGE = 1000;
-      const rows: any[] = [];
-      for (let from = 0; ; from += PAGE) {
-        const { data: batch, error: rowErr } = await supabase
-          .from("product_categories")
-          .select("products!inner(id, slug, name, price, sale_price, thumbnail_url, is_active, stock_status, created_at)")
-          .eq("category_id", cat.id)
-          .range(from, from + PAGE - 1);
-        if (rowErr) throw rowErr;
-        rows.push(...(batch ?? []));
-        if ((batch ?? []).length < PAGE) break;
-      }
-      const products = rows.map((r: any) => r.products).filter((p: any) => p?.is_active);
+      // Paged read (see fetchCategoryProducts) so a >1000-row category never
+      // silently drops products; a thrown DB error still reaches the retry below.
+      const products = await fetchCategoryProducts(cat.id);
       // Subcategories surface their parent level in the breadcrumb trail
       // (visible nav + JSON-LD) — fetch it once here so crawlers get the full
       // trail in the initial SSR HTML.
@@ -132,6 +139,14 @@ export const Route = createFileRoute("/category/$slug")({
         ? full
         : `${full.slice(0, 160).replace(/\s+\S*$/, "").trim() || full.slice(0, 160).trim()}…`;
 
+    // Cap the inline ItemList to roughly the first rendered window (2 × the
+    // grid's 24-item page). numberOfItems stays the TRUE category total — it may
+    // exceed the listed items, which is honest — but we no longer inline a JSON
+    // node for every one of up to ~742 products. That trimmed tens-to-~100KB of
+    // markup off the heaviest organic landing pages, for items no crawler sees
+    // above the fold anyway.
+    const LD_ITEM_LIMIT = 48;
+    const ldProducts = products.slice(0, LD_ITEM_LIMIT);
     const collectionLd: any = {
       "@context": "https://schema.org",
       "@type": "CollectionPage",
@@ -145,7 +160,7 @@ export const Route = createFileRoute("/category/$slug")({
       mainEntity: {
         "@type": "ItemList",
         numberOfItems: products.length,
-        itemListElement: products.map((p: any, i: number) => ({
+        itemListElement: ldProducts.map((p: any, i: number) => ({
           "@type": "ListItem",
           position: i + 1,
           url: `https://orzadik.com/product/${p.slug}`,
@@ -169,6 +184,16 @@ export const Route = createFileRoute("/category/$slug")({
       itemListElement: crumbs.map((c, i) => ({ "@type": "ListItem", position: i + 1, ...c })),
     };
 
+    // LCP preload. On categories that have a hero banner it is the page's
+    // largest paint, so start it downloading from the initial HTML. The hero
+    // <img> renders the raw image_url with no srcSet, so a plain href preload
+    // matches exactly what it fetches — nothing to mirror via imagesrcset, and
+    // no double-download. Guarded: categories with no hero emit no preload, and
+    // the grid thumbnails drop their high fetchpriority so this hero wins.
+    const heroPreload = cat.image_url
+      ? [{ rel: "preload", as: "image", href: cat.image_url, fetchpriority: "high" }]
+      : [];
+
     return {
       meta: [
         { title: `${cat.name} | אור זרוע לצדיק` },
@@ -184,7 +209,7 @@ export const Route = createFileRoute("/category/$slug")({
         { name: "twitter:description", content: desc },
         { name: "twitter:image", content: cat.image_url || "https://orzadik.com/og-default.jpg" },
       ],
-      links: [{ rel: "canonical", href: url }],
+      links: [{ rel: "canonical", href: url }, ...heroPreload],
       scripts: [
         { type: "application/ld+json", children: JSON.stringify(collectionLd) },
         { type: "application/ld+json", children: JSON.stringify(breadcrumbLd) },
@@ -281,18 +306,10 @@ function CategoryPage() {
   const { data: products = [] } = useQuery({
     queryKey: ["cat-products", cat?.id],
     enabled: !!cat?.id,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("product_categories")
-        .select(
-          "products!inner(id, slug, name, price, sale_price, thumbnail_url, is_active, stock_status, created_at)",
-        )
-        .eq("category_id", cat!.id);
-      if (error) throw error;
-      return (data ?? [])
-        .map((r: any) => r.products)
-        .filter((p: any) => p?.is_active) as Row[];
-    },
+    // Page like the loader (shared fetchCategoryProducts) so this stays correct
+    // past PostgREST's 1000-row cap instead of silently dropping products from
+    // the biggest categories the way an unbounded single select would.
+    queryFn: async () => (await fetchCategoryProducts(cat!.id)) as Row[],
     // Seed the product grid from the loader so it renders server-side too.
     initialData: (initialProducts as Row[] | undefined)?.length ? (initialProducts as Row[]) : undefined,
   });
@@ -344,10 +361,21 @@ function CategoryPage() {
     }
     switch (sort) {
       case "price-asc":
-        list.sort((a, b) => a.price - b.price);
+        // "Call for price" items (price<=0) carry no number, so sink them to the
+        // end — otherwise their 0 would lead the cheapest-first list.
+        list.sort((a, b) => {
+          const aCall = a.price <= 0, bCall = b.price <= 0;
+          if (aCall !== bCall) return aCall ? 1 : -1;
+          return a.price - b.price;
+        });
         break;
       case "price-desc":
-        list.sort((a, b) => b.price - a.price);
+        // Same: keep call-only items at the end rather than mixed into the run.
+        list.sort((a, b) => {
+          const aCall = a.price <= 0, bCall = b.price <= 0;
+          if (aCall !== bCall) return aCall ? 1 : -1;
+          return b.price - a.price;
+        });
         break;
       case "newest":
         list.sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at));
@@ -590,9 +618,13 @@ function CategoryPage() {
               </div>
             </div>
 
-            {/* Grid — sliced to the current window (see `shown` above) */}
+            {/* Grid — sliced to the current window (see `shown` above). The first
+                row still loads eager, but high fetchPriority goes to a thumbnail
+                ONLY when there is no hero banner: with a hero, that image is the
+                LCP paint and is preloaded in head(), so no thumbnail may compete
+                for high priority or it would delay the hero. */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {windowed.map((p, i) => <ProductCard key={p.id} p={p} eager={i < 4} highPriority={i < 2} />)}
+              {windowed.map((p, i) => <ProductCard key={p.id} p={p} eager={i < 4} highPriority={!heroImage && i < 2} />)}
             </div>
             {visible.length === 0 && (
               // Same designed glass empty state as /shop (gold-free), so the two

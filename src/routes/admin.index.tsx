@@ -4,7 +4,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { getDashboardStats } from "@/lib/admin-crm.functions";
 import { formatILS } from "@/lib/cart";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from "recharts";
-import { TrendingUp, TrendingDown } from "lucide-react";
+import { TrendingUp, TrendingDown, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { ActionCockpit } from "@/components/admin/ActionCockpit";
 
 export const Route = createFileRoute("/admin/")({
@@ -48,10 +49,14 @@ function TrendDelta({ curr, prev }: { curr: number; prev: number }) {
 
 function AdminHome() {
   const load = useServerFn(getDashboardStats);
-  const { data: s, isLoading } = useQuery({
+  const { data: s, isLoading, isFetching, refetch } = useQuery({
     queryKey: ["admin-dashboard"],
     queryFn: () => load(),
-    refetchInterval: 60_000, // keep the dashboard live while it's open
+    // Every load runs full-table aggregate scans whose cost grows with order
+    // volume, so poll gently (5 min) and don't re-scan on every window focus.
+    // The manual "רענון" button keeps the numbers fresh on demand.
+    refetchInterval: 300_000,
+    refetchOnWindowFocus: false,
   });
 
   if (isLoading || !s) {
@@ -92,7 +97,13 @@ function AdminHome() {
 
   return (
     <div className="space-y-6">
-      <h1 className="font-display text-2xl font-bold">סקירה כללית</h1>
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="font-display text-2xl font-bold">סקירה כללית</h1>
+        <Button size="sm" variant="outline" onClick={() => refetch()} disabled={isFetching}>
+          <RefreshCw className={`h-4 w-4 ml-1 ${isFetching ? "animate-spin" : ""}`} />
+          {isFetching ? "מרענן..." : "רענון"}
+        </Button>
+      </div>
 
       {/* Action queue first — "מה לעשות היום" is what the owner should act on
           before scanning any analytics below. */}

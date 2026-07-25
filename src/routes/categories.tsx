@@ -27,19 +27,61 @@ type CategoryRow = Awaited<ReturnType<typeof fetchAllCategories>>[number];
 export const Route = createFileRoute("/categories")({
   component: CategoriesPage,
   loader: async () => ({ categories: await fetchAllCategories() }),
-  head: () => ({
-    meta: [
-      { title: "קטגוריות המוצרים | אור זרוע לצדיק" },
-      { name: "description", content: "כל קטגוריות תשמישי הקדושה והיודאיקה: טליתות ותפילין, מזוזות, גביעי קידוש, חנוכיות, פמוטים, מארזים לחתנים, סטי חלאקה ותכשיטי זהב. בחרו עולם תוכן והתחילו לקנות." },
-      { property: "og:title", content: "קטגוריות המוצרים | אור זרוע לצדיק" },
-      { property: "og:description", content: "טליתות, תפילין, מזוזות, גביעי קידוש, חנוכיות, מארזים לחתנים וסטי חלאקה — כל הקטגוריות במקום אחד." },
-      { property: "og:url", content: "https://orzadik.com/categories" },
-      { property: "og:type", content: "website" },
-      { name: "twitter:title", content: "קטגוריות המוצרים | אור זרוע לצדיק" },
-      { name: "twitter:description", content: "כל קטגוריות תשמישי הקדושה והיודאיקה במקום אחד — בחרו עולם תוכן והתחילו לקנות." },
-    ],
-    links: [{ rel: "canonical", href: "https://orzadik.com/categories" }],
-  }),
+  head: ({ loaderData }) => {
+    const url = "https://orzadik.com/categories";
+    const description =
+      "כל קטגוריות תשמישי הקדושה והיודאיקה: טליתות ותפילין, מזוזות, גביעי קידוש, חנוכיות, פמוטים, מארזים לחתנים, סטי חלאקה ותכשיטי זהב. בחרו עולם תוכן והתחילו לקנות.";
+    // Every row is a real /category/<slug> page rendered as a link on this hub,
+    // so an ItemList of them is truthful. numberOfItems is the genuine category
+    // count (no image nodes — categories carry no image here — so the markup
+    // stays lean). Same paged loader data that fills the visible grid.
+    const cats = (loaderData?.categories ?? []) as CategoryRow[];
+    const collectionLd = {
+      "@context": "https://schema.org",
+      "@type": "CollectionPage",
+      "@id": url,
+      url,
+      name: "קטגוריות המוצרים | אור זרוע לצדיק",
+      description,
+      inLanguage: "he-IL",
+      isPartOf: { "@id": "https://orzadik.com/#website" },
+      mainEntity: {
+        "@type": "ItemList",
+        numberOfItems: cats.length,
+        itemListElement: cats.map((c, i) => ({
+          "@type": "ListItem",
+          position: i + 1,
+          url: `https://orzadik.com/category/${c.slug}`,
+          name: c.name,
+        })),
+      },
+    };
+    const breadcrumbLd = {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        { "@type": "ListItem", position: 1, name: "בית", item: "https://orzadik.com/" },
+        { "@type": "ListItem", position: 2, name: "קטגוריות", item: url },
+      ],
+    };
+    return {
+      meta: [
+        { title: "קטגוריות המוצרים | אור זרוע לצדיק" },
+        { name: "description", content: description },
+        { property: "og:title", content: "קטגוריות המוצרים | אור זרוע לצדיק" },
+        { property: "og:description", content: "טליתות, תפילין, מזוזות, גביעי קידוש, חנוכיות, מארזים לחתנים וסטי חלאקה — כל הקטגוריות במקום אחד." },
+        { property: "og:url", content: url },
+        { property: "og:type", content: "website" },
+        { name: "twitter:title", content: "קטגוריות המוצרים | אור זרוע לצדיק" },
+        { name: "twitter:description", content: "כל קטגוריות תשמישי הקדושה והיודאיקה במקום אחד — בחרו עולם תוכן והתחילו לקנות." },
+      ],
+      links: [{ rel: "canonical", href: url }],
+      scripts: [
+        { type: "application/ld+json", children: JSON.stringify(collectionLd) },
+        { type: "application/ld+json", children: JSON.stringify(breadcrumbLd) },
+      ],
+    };
+  },
 });
 
 function CategoriesPage() {
