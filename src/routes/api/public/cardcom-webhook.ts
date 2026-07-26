@@ -348,8 +348,55 @@ export const Route = createFileRoute("/api/public/cardcom-webhook")({
           } catch (e) {
             console.error("[cardcom-webhook] shipping notify failed:", e);
           }
+
+          // Idempotent paid-confirmation email. Claim the send atomically BEFORE
+          // dispatching — the same claim-before-do latch as stock_decremented_at
+          // (see decrement_order_stock). The cardcom_tranzaction_id guard above
+          // stops sequential replays, but two near-simultaneous CardCom
+          // deliveries (a retry, or the delivery that races the browser redirect)
+          // can both read the order as unprocessed and both reach this line,
+          // mailing the customer twice. The conditional UPDATE flips
+          // confirmation_email_sent_at from NULL for exactly one caller; only
+          // that winner sends, the loser matches zero rows and skips. This runs
+          // solely on the genuine unpaid→paid transition — an already-paid replay
+          // returns at the cardcom_tranzaction_id guard and never reaches here.
           try {
-            await sendOrderConfirmationEmails(updated.id);
+            const { data: claimed, error: claimErr } = await supabaseAdmin
+              .from("orders")
+              .update({ confirmation_email_sent_at: new Date().toISOString() })
+              .eq("id", updated.id)
+              .is("confirmation_email_sent_at", null)
+              .select("id");
+            if (claimErr) {
+              // The claim query itself failed → do NOT send. Nothing was
+              // stamped, so this order can still be confirmed by a later attempt.
+              console.error("[cardcom-webhook] confirmation email claim failed:", claimErr);
+            } else if (claimed && claimed.length > 0) {
+              // We won the claim — send exactly once. If the send throws (a
+              // transient provider error), RELEASE the latch so a later webhook
+              // retry can re-claim and re-send; otherwise a one-off Resend blip
+              // would permanently suppress the confirmation. The concurrent
+              // double-send is still prevented — the loser matched zero rows
+              // above and already skipped. (A send that succeeds but then throws
+              // afterward is the only path that could re-send; a rare duplicate
+              // confirmation is far preferable to a silently missing one.)
+              try {
+                await sendOrderConfirmationEmails(updated.id);
+              } catch (sendErr) {
+                console.error(
+                  `[cardcom-webhook] confirmation send failed for order ${updated.id}, releasing latch for retry:`,
+                  sendErr,
+                );
+                await supabaseAdmin
+                  .from("orders")
+                  .update({ confirmation_email_sent_at: null })
+                  .eq("id", updated.id);
+              }
+            } else {
+              console.log(
+                `[cardcom-webhook] confirmation email already claimed for order ${updated.id}, skipping`,
+              );
+            }
           } catch (e) {
             console.error("[cardcom-webhook] confirmation email failed:", e);
           }

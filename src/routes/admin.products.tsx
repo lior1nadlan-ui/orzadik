@@ -8,6 +8,9 @@ import {
   listCategoriesForBulk,
   listProductVariants,
   saveProductVariants,
+  getProductCategoryIds,
+  setProductCategories,
+  uploadProductImage,
   type AdminVariantRow,
 } from "@/lib/admin-products.functions";
 import { Button } from "@/components/ui/button";
@@ -19,9 +22,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter,
 } from "@/components/ui/dialog";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ChangeEvent } from "react";
 import { toast } from "sonner";
-import { Pencil, Trash2, Plus, Layers } from "lucide-react";
+import { Pencil, Trash2, Plus, Layers, Upload, X } from "lucide-react";
 
 /** Catalog-health filters — the same two predicates the dashboard tile counts. */
 type HealthFilter = "no-image" | "out-of-stock";
@@ -75,6 +78,24 @@ function slugify(name: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
+/**
+ * Read a picked File into raw base64 (no data: prefix) for the upload server fn.
+ * Runs only from a change handler, so the browser-only APIs here are SSR-safe.
+ * Chunked to keep String.fromCharCode off the argument-count ceiling on big files.
+ */
+async function fileToBase64(file: File): Promise<string> {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let binary = "";
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(binary);
+}
+
+/** Client-side guard mirrored on the server: accepted image types + size cap. */
+const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+
 type BulkKind = "price_pct" | "price_set" | "category" | "active" | "stock_status" | "restock";
 
 function AdminProducts() {
@@ -94,6 +115,7 @@ function AdminProducts() {
 
   const runBulk = useServerFn(bulkUpdateProducts);
   const loadCategories = useServerFn(listCategoriesForBulk);
+  const saveCategories = useServerFn(setProductCategories);
 
   useEffect(() => { setSearch(qFromUrl ?? ""); }, [qFromUrl]);
   useEffect(() => {
@@ -164,25 +186,46 @@ function AdminProducts() {
     });
   };
 
-  const onSave = async (form: Partial<Product>) => {
+  const onSave = async (form: Partial<Product>, categoryIds: string[]) => {
+    // Product CRUD stays on the anon client (RLS admin-gated), exactly as before.
+    let productId = editing?.id;
     if (editing) {
       const { error } = await supabase.from("products").update(form).eq("id", editing.id);
       if (error) return toast.error(error.message);
-      toast.success("עודכן");
     } else {
-      const { error } = await supabase.from("products").insert({
-        slug: form.slug!, name: form.name!, price: form.price ?? 0, sale_price: form.sale_price ?? null,
-        sku: form.sku ?? null, description: form.description ?? null, short_description: form.short_description ?? null,
-        thumbnail_url: form.thumbnail_url ?? null, stock_status: form.stock_status ?? "instock",
-        is_active: form.is_active ?? true,
-        track_stock: form.track_stock ?? false,
-        stock_qty: form.stock_qty ?? null,
-      });
+      const { data: inserted, error } = await supabase
+        .from("products")
+        .insert({
+          slug: form.slug!, name: form.name!, price: form.price ?? 0, sale_price: form.sale_price ?? null,
+          sku: form.sku ?? null, description: form.description ?? null, short_description: form.short_description ?? null,
+          thumbnail_url: form.thumbnail_url ?? null, stock_status: form.stock_status ?? "instock",
+          is_active: form.is_active ?? true,
+          track_stock: form.track_stock ?? false,
+          stock_qty: form.stock_qty ?? null,
+        })
+        .select("id")
+        .single();
       if (error) return toast.error(error.message);
-      toast.success("נוסף");
+      productId = inserted?.id;
     }
+
+    // Category assignment goes through the admin server fn (service role). The
+    // product itself is already saved, so a category failure is a warning, not a
+    // rollback — the owner can re-open and re-save the categories.
+    let categoriesOk = true;
+    if (productId) {
+      try {
+        await saveCategories({ data: { productId, categoryIds } });
+      } catch (e: any) {
+        categoriesOk = false;
+        toast.error(e?.message ?? "המוצר נשמר אך שיוך הקטגוריות נכשל.");
+      }
+    }
+    if (categoriesOk) toast.success(editing ? "עודכן" : "נוסף");
+
     setOpen(false); setEditing(null);
     qc.invalidateQueries({ queryKey: ["admin-products"] });
+    if (productId) qc.invalidateQueries({ queryKey: ["admin-product-cats", productId] });
   };
 
   const onDelete = async (id: string) => {
@@ -514,13 +557,78 @@ function BulkDialog({
   );
 }
 
-function ProductDialog({ product, onSave }: { product: Product | null; onSave: (f: Partial<Product>) => void }) {
+function ProductDialog({
+  product,
+  onSave,
+}: {
+  product: Product | null;
+  onSave: (f: Partial<Product>, categoryIds: string[]) => void;
+}) {
   const [form, setForm] = useState<Partial<Product>>(
     product ?? { name: "", slug: "", price: 0, stock_status: "instock", is_active: true, track_stock: false }
   );
   // An existing product keeps the slug the owner chose — never rewrite it. A new
   // product auto-derives its slug from the name until the owner edits slug itself.
   const [slugTouched, setSlugTouched] = useState(!!product);
+
+  // --- Categories ---------------------------------------------------------
+  const loadAllCats = useServerFn(listCategoriesForBulk);
+  const loadProductCats = useServerFn(getProductCategoryIds);
+  const [categoryIds, setCategoryIds] = useState<Set<string>>(new Set());
+
+  const { data: allCategories = [], isLoading: catsLoading } = useQuery({
+    queryKey: ["admin-all-categories"],
+    queryFn: () => loadAllCats(),
+  });
+  // Seed the picker with the product's current categories when editing. The
+  // dialog is remounted per product (key=…), so this runs fresh each open.
+  const { data: currentCatIds } = useQuery({
+    queryKey: ["admin-product-cats", product?.id],
+    enabled: !!product,
+    queryFn: () => loadProductCats({ data: { productId: product!.id } }),
+  });
+  useEffect(() => {
+    if (currentCatIds) setCategoryIds(new Set(currentCatIds));
+  }, [currentCatIds]);
+
+  const toggleCategory = (id: string) =>
+    setCategoryIds((cur) => {
+      const next = new Set(cur);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+
+  // --- Image upload -------------------------------------------------------
+  const upload = useServerFn(uploadProductImage);
+  const [uploading, setUploading] = useState(false);
+
+  const onPickImage = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // let the owner re-pick the same file after a failure
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("יש לבחור קובץ תמונה.");
+      return;
+    }
+    if (file.size > MAX_UPLOAD_BYTES) {
+      toast.error("הקובץ גדול מדי. הגודל המרבי הוא 5MB.");
+      return;
+    }
+    setUploading(true);
+    try {
+      const dataBase64 = await fileToBase64(file);
+      const res: { url: string } = await upload({
+        data: { fileName: file.name, contentType: file.type, dataBase64 },
+      });
+      setForm((prev) => ({ ...prev, thumbnail_url: res.url }));
+      toast.success("התמונה הועלתה");
+    } catch (err: any) {
+      toast.error(err?.message ?? "שגיאה בהעלאת התמונה");
+    } finally {
+      setUploading(false);
+    }
+  };
+
   return (
     <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
       <DialogHeader>
@@ -555,10 +663,102 @@ function ProductDialog({ product, onSave }: { product: Product | null; onSave: (
               <option value="outofstock">אזל</option>
             </select>
           </div>
-          <div className="md:col-span-2"><Label>תמונה (URL)</Label><Input value={form.thumbnail_url ?? ""} onChange={(e) => setForm({ ...form, thumbnail_url: e.target.value })} /></div>
+          <div className="md:col-span-2 space-y-2">
+            <Label>תמונת המוצר</Label>
+            <div className="flex items-start gap-3">
+              {form.thumbnail_url ? (
+                <div className="relative">
+                  <img
+                    src={form.thumbnail_url}
+                    alt="תצוגה מקדימה של תמונת המוצר"
+                    className="h-24 w-24 rounded-md border object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setForm((prev) => ({ ...prev, thumbnail_url: null }))}
+                    aria-label="הסר תמונה"
+                    className="absolute -top-2 -left-2 grid h-6 w-6 place-content-center rounded-full border bg-card shadow-sm hover:bg-muted"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <div className="grid h-24 w-24 place-content-center rounded-md border border-dashed text-[11px] text-muted-foreground">
+                  אין תמונה
+                </div>
+              )}
+              <div className="flex-1 space-y-2">
+                <Label
+                  htmlFor="thumb-upload"
+                  className={`inline-flex h-10 cursor-pointer items-center gap-2 rounded-md border bg-background px-3 text-sm font-medium hover:bg-muted ${
+                    uploading ? "pointer-events-none opacity-60" : ""
+                  }`}
+                >
+                  <Upload className="h-4 w-4" />
+                  {uploading ? "מעלה..." : "העלאת תמונה מהמחשב"}
+                </Label>
+                <input
+                  id="thumb-upload"
+                  type="file"
+                  accept="image/*"
+                  className="sr-only"
+                  disabled={uploading}
+                  onChange={onPickImage}
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  PNG · JPG · WEBP · GIF · AVIF · עד 5MB. אפשר גם להדביק כתובת ידנית למטה.
+                </p>
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="thumb-url" className="text-xs text-muted-foreground">כתובת תמונה (URL)</Label>
+              <Input
+                id="thumb-url"
+                dir="ltr"
+                value={form.thumbnail_url ?? ""}
+                onChange={(e) => setForm({ ...form, thumbnail_url: e.target.value || null })}
+              />
+            </div>
+          </div>
         </div>
         <div><Label>תיאור קצר</Label><Textarea rows={3} value={form.short_description ?? ""} onChange={(e) => setForm({ ...form, short_description: e.target.value })} /></div>
         <div><Label>תיאור מלא</Label><Textarea rows={6} value={form.description ?? ""} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
+
+        {/* Categories. Assigning here writes product_categories on save, so a new
+            product no longer starts orphaned. Replace-set: the saved list is
+            exactly what is ticked below. */}
+        <fieldset className="rounded-md border p-3 space-y-2">
+          <legend className="px-1 text-sm font-semibold">קטגוריות</legend>
+          {catsLoading && <p className="text-xs text-muted-foreground">טוען קטגוריות…</p>}
+          {!catsLoading && allCategories.length === 0 && (
+            <p className="text-xs text-muted-foreground">לא הוגדרו קטגוריות עדיין.</p>
+          )}
+          {allCategories.length > 0 && (
+            <div className="max-h-48 space-y-1.5 overflow-y-auto pe-1">
+              {allCategories.map((c) => {
+                const cid = `cat-${c.id}`;
+                return (
+                  <div key={c.id} className="flex items-center gap-2">
+                    <Checkbox
+                      id={cid}
+                      checked={categoryIds.has(c.id)}
+                      onCheckedChange={() => toggleCategory(c.id)}
+                    />
+                    <Label htmlFor={cid} className="cursor-pointer text-sm font-normal">
+                      {c.name}
+                    </Label>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {allCategories.length > 0 && (
+            <p className="text-[11px] text-muted-foreground">
+              נבחרו {categoryIds.size} קטגוריות. השמירה מעדכנת את שיוך הקטגוריות של המוצר.
+            </p>
+          )}
+        </fieldset>
+
         <div className="flex items-center gap-2"><Switch checked={form.is_active ?? true} onCheckedChange={(v) => setForm({ ...form, is_active: v })} /><Label>פעיל</Label></div>
 
         {/* Inventory. Off by default: with tracking on, a paid order decrements
@@ -593,7 +793,24 @@ function ProductDialog({ product, onSave }: { product: Product | null; onSave: (
         {product && <VariantsPanel productId={product.id} parentPrice={Number(form.price ?? 0)} />}
       </div>
       <DialogFooter>
-        <Button onClick={() => onSave(form)}>שמור</Button>
+        {(() => {
+          // When editing, the category picker is seeded asynchronously from
+          // currentCatIds (see the useEffect above). Saving before that query
+          // resolves would pass an empty categoryIds to the replace-set server
+          // fn, silently wiping the product's existing category memberships.
+          // Gate the save on the load having completed. For a NEW product the
+          // query is disabled (currentCatIds stays undefined), so the !!product
+          // guard keeps save enabled there.
+          const categoriesLoading = !!product && currentCatIds === undefined;
+          return (
+            <Button
+              onClick={() => onSave(form, [...categoryIds])}
+              disabled={uploading || categoriesLoading}
+            >
+              {uploading ? "מעלה תמונה..." : categoriesLoading ? "טוען קטגוריות..." : "שמור"}
+            </Button>
+          );
+        })()}
       </DialogFooter>
     </DialogContent>
   );

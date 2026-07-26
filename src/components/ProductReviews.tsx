@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { getProductReviews, submitReview } from "@/lib/reviews.functions";
 import type { PublicReview } from "@/lib/reviews.functions";
 import { Stars, StarInput } from "@/components/Stars";
+import { BadgeCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -127,10 +128,20 @@ export function ProductReviews({
           <ul className="space-y-5">
             {reviews.map((r) => (
               <li key={r.id} className="border-b border-glass-line pb-5">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <Stars value={r.rating} size={15} />
                   <span className="sr-only">דירוג {r.rating} מתוך 5</span>
                   <span className="font-semibold text-sm">{r.author_name}</span>
+                  {/* Verified-buyer badge — shown ONLY when the review is tied to
+                      a real order (order_id present), so it is always truthful.
+                      The visible Hebrew label carries the meaning for assistive
+                      tech; the icon is decorative. */}
+                  {r.order_id && (
+                    <span className="inline-flex items-center gap-1 rounded-full hairline bg-secondary/60 px-2 py-0.5 text-[11px] font-medium text-accent">
+                      <BadgeCheck className="h-3 w-3" aria-hidden="true" />
+                      קונה מאומת
+                    </span>
+                  )}
                   <span className="text-xs text-muted-foreground">
                     {new Date(r.created_at).toLocaleDateString("he-IL")}
                   </span>

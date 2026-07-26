@@ -15,12 +15,14 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import {
   sendEmail,
   emailShell,
+  emailButton,
   esc,
   isEmailConfigured,
   unsubscribeToken,
   unsubscribeUrl,
   listUnsubscribeHeaders,
 } from "@/lib/email.server";
+import { reviewToken, reviewUrl } from "@/lib/reviews.functions";
 import { sellerIdentityLine, BUSINESS } from "@/lib/business";
 
 /** How long after shipping to ask — long enough that the parcel has arrived. */
@@ -126,23 +128,30 @@ export async function runReviewRequests(): Promise<{ sent: number; scanned: numb
     }
     const unsub = unsubscribeUrl(email, token);
 
+    // Signed, order-scoped verified-review link — same secret + HMAC helper as
+    // the unsub token, domain-separated (see reviews.functions). Reviews left
+    // through it are tied to the order and earn the "קונה מאומת" badge. If the
+    // secret is somehow unavailable it degrades to no CTA (the reminder still
+    // ships) rather than emitting a forgeable link.
+    const reviewSig = await reviewToken(order.id);
+    const reviewHref = reviewSig ? reviewUrl(order.id, reviewSig) : null;
+
     const rowsHtml = items
       .map((it) => {
-        const url = `https://orzadik.com/product/${encodeURIComponent(it.product!.slug)}#reviews`;
         const thumb = it.product!.thumbnail_url
           ? `<td width="60" style="padding:8px 0;"><img src="${esc(it.product!.thumbnail_url)}" width="48" height="48" alt="" style="border-radius:8px;object-fit:cover;"></td>`
           : `<td width="60"></td>`;
         return `<tr>
           ${thumb}
           <td style="padding:8px 0;font-size:14px;">${esc(it.product_name)}</td>
-          <td style="padding:8px 0;text-align:left;">
-            <a href="${esc(url)}" style="display:inline-block;background:#D4AF37;color:#fff;text-decoration:none;padding:8px 16px;border-radius:9999px;font-size:13px;white-space:nowrap;">
-              כתיבת חוות דעת ⭐
-            </a>
-          </td>
         </tr>`;
       })
       .join("");
+
+    const ctaHtml = reviewHref
+      ? emailButton(reviewHref, "לכתיבת חוות דעת") +
+        `<p class="oz-muted" style="font-size:12px;color:#888;text-align:center;margin:6px 0 0;">הקישור מותאם אישית להזמנה שלך.</p>`
+      : "";
 
     const html = emailShell(`
       <h1 style="font-size:20px;margin:0 0 8px;">${esc(order.customer_name)}, איך היה?</h1>
@@ -151,6 +160,7 @@ export async function runReviewRequests(): Promise<{ sent: number; scanned: numb
         חוות הדעת שלך עוזרת לנו ולקונים הבאים.
       </p>
       <table style="width:100%;border-collapse:collapse;">${rowsHtml}</table>
+      ${ctaHtml}
       <div class="oz-muted" style="font-size:11px;color:#aaa;margin-top:20px;padding-top:12px;border-top:1px solid #eee;line-height:1.7;text-align:center;">
         <div>${esc(sellerIdentityLine())}${BUSINESS.email ? " · " + esc(BUSINESS.email) : ""}</div>
         <div style="margin-top:6px;">
