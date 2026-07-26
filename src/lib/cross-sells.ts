@@ -2,15 +2,15 @@
 // suggest products from the listed related-category slugs.
 // Slugs match `categories.slug` in the database (Hebrew slugs are URL-encoded there).
 
-const SIDDURIM = "%d7%a1%d7%99%d7%93%d7%95%d7%a8%d7%99%d7%9d";
-const TALITOT = "%d7%98%d7%9c%d7%99%d7%aa%d7%95%d7%aa-%d7%95%d7%a6%d7%99%d7%a6%d7%99%d7%95%d7%aa";
+const SIDDURIM = "sidurim";
+const TALITOT = "talitot";
 // Canonical kippot slug is the ASCII 'kipot' (742+ products). The percent-encoded
 // twin that used to live here was a 14-product import artifact merged into 'kipot'
 // in the 2026-07 dedupe — pointing cross-sells at it meant kippot suggestions were
 // drawn from the tiny twin (and, after the merge, from a deleted category).
 const KIPOT = "kipot";
-const HATAN = "%d7%9e%d7%95%d7%a6%d7%a8%d7%99-%d7%97%d7%aa%d7%95%d7%a0%d7%94-%d7%95%d7%91%d7%a8-%d7%9e%d7%a6%d7%95%d7%95%d7%94";
-const YEHUDAIKA = "%d7%9e%d7%95%d7%a6%d7%a8%d7%99-%d7%99%d7%95%d7%93%d7%90%d7%99%d7%a7%d7%94";
+const HATAN = "marazim-chatanim";
+const YEHUDAIKA = "yehudaika";
 const HAGIM = "%d7%9e%d7%95%d7%a6%d7%a8%d7%99-%d7%97%d7%92%d7%99%d7%9d";
 const SET_TALIT_TEFILIN = "%d7%a1%d7%98-%d7%98%d7%9c%d7%99%d7%aa-%d7%aa%d7%a4%d7%99%d7%9c%d7%99%d7%9f";
 

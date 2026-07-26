@@ -39,7 +39,7 @@ type SearchSuggestion = {
 // below. TALITOT_SLUG is the store's percent-encoded talitot category slug —
 // the exact same slug the homepage hero CTA links to; keep it verbatim.
 // ---------------------------------------------------------------------------
-const TALITOT_SLUG = "%d7%98%d7%9c%d7%99%d7%aa%d7%95%d7%aa-%d7%95%d7%a6%d7%99%d7%a6%d7%99%d7%95%d7%aa";
+const TALITOT_SLUG = "talitot";
 
 // The curated category shortcuts, shared by the desktop nav row AND the drawer's
 // category section so the two surfaces can never drift. Every slug is a real

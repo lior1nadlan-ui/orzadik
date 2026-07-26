@@ -88,7 +88,7 @@ const OTHER_CATS_IMAGES: Record<string, string> = {
   "havdalah": oc_havdalah,
   "hanukkah": oc_hanukkah,
   "wedding": oc_wedding,
-  "%d7%98%d7%9c%d7%99%d7%aa%d7%95%d7%aa-%d7%95%d7%a6%d7%99%d7%a6%d7%99%d7%95%d7%aa": oc_tallitTzitzit,
+  "talitot": oc_tallitTzitzit,
   "challah-covers": oc_challahCover,
   "kipot": oc_kippot,
   "%d7%9e%d7%95%d7%a6%d7%a8%d7%99-%d7%97%d7%92%d7%99%d7%9d": oc_holidays,
@@ -249,12 +249,12 @@ type CatTile = { slug: string; name: string; img: string; w: number; h: number }
 // Curated featured categories. `slug` is hardcoded (verified against the DB) so
 // the section renders at SSR — no client round-trip, no post-hydration CLS.
 const FEATURED: { id: string; slug: string; name: string; img: string; w: number; h: number }[] = [
-  { id: "ac72c907-8981-404d-b776-642467e43110", slug: "%d7%98%d7%9c%d7%99%d7%aa%d7%95%d7%aa-%d7%95%d7%a6%d7%99%d7%a6%d7%99%d7%95%d7%aa", name: "טליתות", img: imgTallit, w: 800, h: 1000 },
-  { id: "51fd0522-192a-4ec2-bfc3-abf891b2e35e", slug: "%d7%9e%d7%95%d7%a6%d7%a8%d7%99-%d7%97%d7%aa%d7%95%d7%a0%d7%94-%d7%95%d7%91%d7%a8-%d7%9e%d7%a6%d7%95%d7%95%d7%94", name: "מארזים לחתנים", img: imgChatan, w: 800, h: 1067 },
+  { id: "ac72c907-8981-404d-b776-642467e43110", slug: "talitot", name: "טליתות", img: imgTallit, w: 800, h: 1000 },
+  { id: "51fd0522-192a-4ec2-bfc3-abf891b2e35e", slug: "marazim-chatanim", name: "מארזים לחתנים", img: imgChatan, w: 800, h: 1067 },
   { id: "f48e44e3-eab6-4281-a09d-cac9a96a8e96", slug: "talit-tefillin-sets", name: "כיסויים לטלית ותפילין", img: imgTallitTefillinCovers, w: 800, h: 1067 },
   { id: "3109eed6-32e3-40eb-9fe4-874029b8ab4d", slug: "chalaka-set", name: "סט חלאקה", img: imgChalaka, w: 800, h: 1067 },
-  { id: "c78aea58-8a38-43ee-a236-3aa2f1942225", slug: "%d7%9e%d7%95%d7%a6%d7%a8%d7%99-%d7%99%d7%95%d7%93%d7%90%d7%99%d7%a7%d7%94", name: "מוצרי יודאיקה", img: imgJudaica, w: 800, h: 800 },
-  { id: "b6854069-9746-4490-b6ea-ef7debe4d795", slug: "%d7%a1%d7%99%d7%93%d7%95%d7%a8%d7%99%d7%9d", name: "סידורים ותהילים", img: imgSiddur, w: 800, h: 800 },
+  { id: "c78aea58-8a38-43ee-a236-3aa2f1942225", slug: "yehudaika", name: "מוצרי יודאיקה", img: imgJudaica, w: 800, h: 800 },
+  { id: "b6854069-9746-4490-b6ea-ef7debe4d795", slug: "sidurim", name: "סידורים ותהילים", img: imgSiddur, w: 800, h: 800 },
   { id: "f356bae8-de78-45c6-ab68-f9b2e82444cf", slug: "study-books", name: "ספרי לימוד", img: imgBooks, w: 800, h: 800 },
   { id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890", slug: "esh-sheli-gold", name: "אש שלי - תכשיטי זהב", img: imgGoldJewelry, w: 800, h: 1144 },
   { id: "b1e55fa1-0000-4000-8000-000000000002", slug: "laser-cut", name: "חיתוך בלייזר", img: imgWallArt, w: 1500, h: 2000 },

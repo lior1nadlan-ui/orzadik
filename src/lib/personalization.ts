@@ -26,8 +26,8 @@ const BASE_PERSONALIZATION_CATEGORY_SLUGS = new Set<string>([
   "challah-covers",               // כיסויי חלה
   "bencher-stands",               // מעמדי בנצ'ר (חריטת לייזר)
   "wedding",                      // חתונה
-  "%d7%a1%d7%99%d7%93%d7%95%d7%a8%d7%99%d7%9d",                                                                       // סידורים
-  "%d7%9e%d7%95%d7%a6%d7%a8%d7%99-%d7%97%d7%aa%d7%95%d7%a0%d7%94-%d7%95%d7%91%d7%a8-%d7%9e%d7%a6%d7%95%d7%95%d7%94",   // מארזים לחתנים ובר מצווה
+  "sidurim",                                                                       // סידורים
+  "marazim-chatanim",   // מארזים לחתנים ובר מצווה
   "%d7%a1%d7%98-%d7%98%d7%9c%d7%99%d7%aa-%d7%aa%d7%a4%d7%99%d7%9c%d7%99%d7%9f",                                       // סט טלית תפילין (התיק)
 ]);
 
@@ -49,7 +49,7 @@ export const EMBROIDERY_ONLY_CATEGORY_SLUGS = new Set<string>([
  * Moved verbatim from product.$slug.tsx.
  */
 export const PRINT_INSTEAD_OF_EMBROIDERY_CATEGORY_SLUGS = new Set<string>([
-  "%d7%a1%d7%99%d7%93%d7%95%d7%a8%d7%99%d7%9d", // סידורים (כולל תהילים)
+  "sidurim", // סידורים (כולל תהילים)
 ]);
 
 /**
