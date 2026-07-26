@@ -27,8 +27,6 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import heroVideoAsset from "@/assets/hero-video.mp4.asset.json";
-const heroVideo = heroVideoAsset.url;
 import imgSiddur from "@/assets/cat-siddur.webp";
 import imgTallit from "@/assets/cat-tallit.webp";
 import imgChatan from "@/assets/cat-chatan.webp";
@@ -331,30 +329,15 @@ function HomePage() {
 
   // Defer the hero video off the mobile critical path. The poster is the LCP
   // paint; with the <source> children present at first render, autoPlay would
-  // override preload="metadata" and immediately stream the 7.2MB WebM / 20.5MB
+  // override preload="metadata" and immediately stream the 1.2MB WebM / 3.0MB
   // MP4, competing with hero-poster.webp on mobile. So the sources are withheld
   // from the initial render (poster only) and attached after the browser goes
   // idle — requestIdleCallback, with a ~1200ms setTimeout fallback. The whole
   // attach is gated behind a reduced-motion check, so those users get the poster
   // only and never download the video at all. Mirrors LazyReel's below-the-fold
-  // lazy pattern. SSR-safe: matchMedia/requestIdleCallback are touched only
-  // inside the effect, never at module top-level or during render.
+  // lazy pattern. SSR-safe: requestIdleCallback is touched only inside the
+  // effect, never at module top-level or during render.
   const [heroSourcesReady, setHeroSourcesReady] = useState(false);
-
-  // The soft-focus is DESKTOP-ONLY. The source is vertical (9:16): on desktop it
-  // is cropped to a landscape band where the mixed/dark frames read murky, so we
-  // blur it into warm atmosphere. On mobile the portrait video FITS its portrait
-  // frame and shows the real product beautifully, so it stays sharp. SSR-safe:
-  // matchMedia is read only inside the effect; defaults to false (mobile-first).
-  const [isWideHero, setIsWideHero] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia("(min-width: 768px)");
-    const sync = () => setIsWideHero(mq.matches);
-    sync();
-    mq.addEventListener("change", sync);
-    return () => mq.removeEventListener("change", sync);
-  }, []);
-  const heroSoftFocus = heroSourcesReady && isWideHero;
 
   useEffect(() => {
     if (prefersReducedMotion()) return;
@@ -409,37 +392,30 @@ function HomePage() {
           // would read out as a second, duplicate brand announcement. This is
           // what the accessibility statement (§4.5) declares — keep them in sync.
           aria-hidden="true"
-          // Grade, crop, and soft-focus. The source is a vertical (9:16) product
-          // reel that mixes warm amber crystal with cool/dark frames; cropped to
-          // a landscape desktop band its darker moments read murky. So the crisp
-          // warm POSTER carries first paint (LCP), and once the loop starts it
-          // eases into a gentle soft-focus — the moving footage becomes premium
-          // warm atmosphere behind the plaque rather than a jarring cropped reel,
-          // and the .glass-strong plaque stays the one crisp focal point. The
-          // saturate/contrast punch keeps the crystal alive; object-position
-          // biases the crop to the warm band; warmth is unified by the overlay
-          // below. Reduced-motion users never load the video, so they keep the
-          // sharp poster. All decorative — contrast lives on the plaque. The
-          // slight scale hides the blur's feathered edges. 600ms so the focus
-          // pulls softly rather than snapping.
-          style={{
-            filter: heroSoftFocus
-              ? "saturate(1.1) contrast(1.04) brightness(1.03) blur(8px)"
-              : "saturate(1.08) contrast(1.05) brightness(1.02)",
-            transform: heroSoftFocus ? "scale(1.16)" : undefined,
-            objectPosition: "50% 44%",
-            transition: "filter 700ms ease, transform 700ms ease",
-          }}
+          // Bespoke 16:9 landscape loop, built for this hero (HyperFrames): a
+          // seamless ~10.5s montage — tallit portrait → gold flame pendant →
+          // siddur → crystal candlesticks → wrap back to the tallit — already
+          // warm-graded with a baked-in sun-bloom + vignette, so it needs no CSS
+          // treatment. It's SHARP on every viewport: on desktop the wide frame
+          // fits the landscape band; on mobile object-cover center-crops onto the
+          // flagship tallit portrait (face + embroidered atara), which opens and
+          // closes the loop. The crisp warm POSTER (frame 0 of this same video)
+          // carries first paint (LCP), so when the loop attaches it starts on the
+          // identical frame — zero pop. object-position biases the crop a touch
+          // high so faces stay in view. Reduced-motion users never load the video
+          // and keep the poster. All decorative — contrast lives on the plaque.
+          style={{ objectPosition: "50% 42%" }}
           className="block w-full min-h-[520px] h-[62svh] md:min-h-0 md:h-[60vh] md:max-h-[720px] object-cover bg-cream"
         >
           {/* Sources are attached only after the browser is idle (see the effect
               above) so they never compete with the LCP poster on first paint, and
               are skipped entirely for reduced-motion users. WebM (VP9) first —
-              ~66% smaller; browsers that can't play it fall back to the MP4. */}
+              ~60% smaller (1.2MB vs 3.0MB); browsers that can't play it fall back
+              to the MP4. */}
           {heroSourcesReady && (
             <>
               <source src="/media/hero-video.webm" type="video/webm" />
-              <source src={heroVideo} type="video/mp4" />
+              <source src="/media/hero-video.mp4" type="video/mp4" />
             </>
           )}
         </video>

@@ -1,0 +1,19 @@
+# HyperFrames project — ignore regenerable / heavy artifacts.
+# Kept in git: project source (index.html, hyperframes.json, meta.json,
+# package.json, CLAUDE.md/AGENTS.md), the staged render inputs (assets/), and
+# the renders/ (the master orzadik-hero.mp4 + the web-encoded hero-wide.* the
+# site ships — the latter are also copied into public/media/).
+
+# npm deps
+node_modules/
+
+# Raw site capture — scraped product photos + fonts; regenerable, and the pieces
+# the video actually uses are already copied into assets/.
+capture/
+
+# QA contact sheets / per-frame PNGs — reviewer artifacts only (~7MB).
+snapshots/
+
+# transient logs / caches
+*.log
+.DS_Store
