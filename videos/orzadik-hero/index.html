@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en" data-resolution="landscape">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: #000;
+      }
+
+      #root {
+        position: relative;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: #1f1915; /* warm-dark safety ground; real fill is the layers below */
+      }
+      #root * { box-sizing: border-box; }
+
+      /* ---------- full-bleed ground (never on #root) ---------- */
+      .ground {
+        position: absolute;
+        inset: 0;
+        background: #1f1915;
+        z-index: 0;
+      }
+
+      /* ---------- photographic montage layers ---------- */
+      .layer {
+        position: absolute;
+        inset: 0;
+        background-size: cover;
+        background-repeat: no-repeat;
+        transform-origin: 50% 50%;
+        will-change: transform, opacity;
+        backface-visibility: hidden;
+      }
+
+      /* tallit portrait — opens AND closes the loop (same image, two layers) */
+      #L1,
+      #L5 {
+        background-image: url("assets/cat-tallit-cdg80v-6.webp");
+        background-position: 50% 33%;
+      }
+      #L2 {
+        /* framed low + tight on the flame pendant so the maker's tag and corner mark
+           stay up in the vignette, keeping the loop text-free */
+        background-image: url("assets/cat-gold-jewelry-c-ctazyj.webp");
+        background-position: 50% 60%;
+      }
+      #L3 {
+        background-image: url("assets/cat-siddur-zkg1hpcu.webp");
+        background-position: 50% 48%;
+      }
+      #L4 {
+        background-image: url("assets/cat-judaica-9pv3hhya.webp");
+        background-position: 50% 41%;
+      }
+
+      /* z-order: incoming image sits above the outgoing one for a clean dissolve */
+      #L1 { z-index: 1; opacity: 1; transform: scale(1.02); }
+      #L2 { z-index: 2; opacity: 0; transform: scale(1.06); }
+      #L3 { z-index: 3; opacity: 0; transform: scale(1.07); }
+      #L4 { z-index: 4; opacity: 0; transform: scale(1.03); }
+      #L5 { z-index: 5; opacity: 0; transform: scale(1.055); }
+
+      /* ---------- warm atmosphere (constant — never animated, so the loop seam is exact) ---------- */
+
+      /* soft warm haze centre + warm-dark falloff: unifies cool frames into one warm surface */
+      .warm-wash {
+        position: absolute;
+        inset: 0;
+        z-index: 6;
+        background: radial-gradient(
+          132% 104% at 50% 40%,
+          rgba(236, 220, 167, 0.12) 0%,
+          rgba(212, 175, 55, 0.07) 40%,
+          rgba(31, 25, 21, 0.06) 68%,
+          rgba(31, 25, 21, 0.16) 100%
+        );
+        pointer-events: none;
+      }
+
+      /* sun-bloom: the brand's signature gold glow, screened over the imagery */
+      .sun-bloom {
+        position: absolute;
+        left: 50%;
+        top: 36%;
+        width: 1680px;
+        height: 1680px;
+        margin-left: -840px;
+        margin-top: -840px;
+        z-index: 7;
+        border-radius: 50%;
+        background: radial-gradient(
+          circle at 50% 50%,
+          rgba(212, 175, 55, 0.30) 0%,
+          rgba(236, 220, 167, 0.16) 38%,
+          rgba(229, 207, 135, 0.06) 56%,
+          rgba(212, 175, 55, 0) 72%
+        );
+        mix-blend-mode: screen;
+        pointer-events: none;
+      }
+
+      /* vignette: warm-ink edges focus the centre, calm the corners, and quiet any product-photo
+         watermarks — also gives the frosted plaque a slightly darker, steadier bed to sit on */
+      .vignette {
+        position: absolute;
+        inset: 0;
+        z-index: 8;
+        background: radial-gradient(
+          ellipse 80% 84% at 50% 46%,
+          rgba(31, 25, 21, 0) 50%,
+          rgba(31, 25, 21, 0.30) 82%,
+          rgba(31, 25, 21, 0.54) 100%
+        );
+        pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="10.5"
+      data-width="1920"
+      data-height="1080"
+    >
+      <!-- ground -->
+      <div id="ground" class="ground clip" data-start="0" data-duration="10.5" data-track-index="0"></div>
+
+      <!-- montage (each simultaneously-visible layer on its own track) -->
+      <div id="L1" class="layer clip" data-start="0" data-duration="10.5" data-track-index="1"></div>
+      <div id="L2" class="layer clip" data-start="0" data-duration="10.5" data-track-index="2"></div>
+      <div id="L3" class="layer clip" data-start="0" data-duration="10.5" data-track-index="3"></div>
+      <div id="L4" class="layer clip" data-start="0" data-duration="10.5" data-track-index="4"></div>
+      <div id="L5" class="layer clip" data-start="0" data-duration="10.5" data-track-index="5"></div>
+
+      <!-- warm atmosphere (constant) -->
+      <div id="warm-wash" class="warm-wash clip" data-start="0" data-duration="10.5" data-track-index="6"></div>
+      <div id="sun-bloom" class="sun-bloom clip" data-start="0" data-duration="10.5" data-track-index="7"></div>
+      <div id="vignette" class="vignette clip" data-start="0" data-duration="10.5" data-track-index="8"></div>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      (function () {
+        var tl = gsap.timeline({ paused: true });
+
+        var T = 10.5;   // total duration (seconds)
+        var XF = 0.9;   // cross-dissolve duration
+
+        // Cross-dissolve cue times. The final cue (7.3) dissolves the candlesticks
+        // back to the OPENING tallit, so the last frame equals the first frame.
+        var cueAB = 1.6;
+        var cueBC = 3.5;
+        var cueCD = 5.4;
+        var cueDA = 7.3;
+
+        // fromTo defaults to immediateRender:true, which would bake every "from" value at build
+        // time and leave the wrong layer visible at t=0. immediateRender:false lets the CSS initial
+        // opacities govern until each tween is actually reached by the playhead (fully seek-safe).
+
+        // ---------- Ken-Burns: slow, continuous zoom across each layer's visible life ----------
+        // Both tallit layers pin scale 1.02 at the loop boundary (t=0 and t=T) -> seamless.
+        tl.fromTo("#L1", { scale: 1.02 }, { scale: 1.05,  duration: 2.5, ease: "none", immediateRender: false }, 0);
+        tl.fromTo("#L2", { scale: 1.06 }, { scale: 1.10, duration: 2.8, ease: "none", immediateRender: false }, cueAB);
+        tl.fromTo("#L3", { scale: 1.07 }, { scale: 1.02,  duration: 2.8, ease: "none", immediateRender: false }, cueBC);
+        tl.fromTo("#L4", { scale: 1.03 }, { scale: 1.075, duration: 2.8, ease: "none", immediateRender: false }, cueCD);
+        // closing tallit settles to exactly scale 1.02 by t=T (matches #L1 at t=0)
+        tl.fromTo("#L5", { scale: 1.055 }, { scale: 1.02, duration: T - cueDA, ease: "power2.out", immediateRender: false }, cueDA);
+
+        // ---------- cross-dissolves (fromTo pins both ends -> fully seek-safe) ----------
+        // tallit -> gold jewellery
+        tl.fromTo("#L1", { opacity: 1 }, { opacity: 0, duration: XF, ease: "power1.inOut", immediateRender: false }, cueAB);
+        tl.fromTo("#L2", { opacity: 0 }, { opacity: 1, duration: XF, ease: "power1.inOut", immediateRender: false }, cueAB);
+        // gold jewellery -> siddur flat-lay
+        tl.fromTo("#L2", { opacity: 1 }, { opacity: 0, duration: XF, ease: "power1.inOut", immediateRender: false }, cueBC);
+        tl.fromTo("#L3", { opacity: 0 }, { opacity: 1, duration: XF, ease: "power1.inOut", immediateRender: false }, cueBC);
+        // siddur -> crystal candlesticks
+        tl.fromTo("#L3", { opacity: 1 }, { opacity: 0, duration: XF, ease: "power1.inOut", immediateRender: false }, cueCD);
+        tl.fromTo("#L4", { opacity: 0 }, { opacity: 1, duration: XF, ease: "power1.inOut", immediateRender: false }, cueCD);
+        // candlesticks -> tallit (THE WRAP: end dissolves back to the start)
+        tl.fromTo("#L4", { opacity: 1 }, { opacity: 0, duration: XF, ease: "power1.inOut", immediateRender: false }, cueDA);
+        tl.fromTo("#L5", { opacity: 0 }, { opacity: 1, duration: XF, ease: "power1.inOut", immediateRender: false }, cueDA);
+
+        // full-span anchor so master duration == T (Studio master duration)
+        tl.to({}, { duration: T }, 0);
+
+        window.__timelines["main"] = tl;
+      })();
+    </script>
+  </body>
+</html>
