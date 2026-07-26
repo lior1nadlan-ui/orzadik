@@ -425,6 +425,7 @@ export type Database = {
           cardcom_operation: string | null
           cardcom_response_code: string | null
           cardcom_tranzaction_id: number | null
+          confirmation_email_sent_at: string | null
           contact_consent: boolean
           contact_consent_at: string | null
           created_at: string
@@ -466,6 +467,7 @@ export type Database = {
           cardcom_operation?: string | null
           cardcom_response_code?: string | null
           cardcom_tranzaction_id?: number | null
+          confirmation_email_sent_at?: string | null
           contact_consent?: boolean
           contact_consent_at?: string | null
           created_at?: string
@@ -507,6 +509,7 @@ export type Database = {
           cardcom_operation?: string | null
           cardcom_response_code?: string | null
           cardcom_tranzaction_id?: number | null
+          confirmation_email_sent_at?: string | null
           contact_consent?: boolean
           contact_consent_at?: string | null
           created_at?: string

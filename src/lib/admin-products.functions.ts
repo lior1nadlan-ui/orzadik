@@ -308,3 +308,159 @@ export const listCategoriesForBulk = createServerFn({ method: "POST" }).handler(
   if (error) throw new Error("שגיאה בטעינת הקטגוריות.");
   return data ?? [];
 });
+
+// ---------------------------------------------------------------------------
+// Per-product category assignment (product_categories)
+//
+// The single-product edit form had no way to place a product in a category, so
+// a freshly created product stayed orphaned until it was linked from the bulk
+// screen. These two functions read the product's current categories and write
+// the chosen set. Both run behind requireAdmin with the service-role client;
+// product_categories is the plain (product_id, category_id) join table.
+// ---------------------------------------------------------------------------
+
+/** The category ids this product currently belongs to — seeds the picker when editing. */
+export const getProductCategoryIds = createServerFn({ method: "POST" })
+  .inputValidator((i: unknown) => z.object({ productId: z.string().uuid() }).parse(i))
+  .handler(async ({ data }): Promise<string[]> => {
+    await requireAdmin();
+    const { data: rows, error } = await supabaseAdmin
+      .from("product_categories")
+      .select("category_id")
+      .eq("product_id", data.productId);
+    if (error) {
+      console.error("[getProductCategoryIds] failed:", error);
+      throw new Error("שגיאה בטעינת הקטגוריות של המוצר.");
+    }
+    return (rows ?? []).map((r) => r.category_id as string);
+  });
+
+const SetCategoriesSchema = z.object({
+  productId: z.string().uuid(),
+  // Empty is legal: it clears the product's category memberships.
+  categoryIds: z.array(z.string().uuid()).max(200),
+});
+
+/**
+ * Replace-set the product's categories in a single call: delete the product's
+ * existing rows, then insert the chosen ones. The two statements are not wrapped
+ * in a DB transaction (no RPC is available and the schema is fixed), so a failed
+ * insert after a successful delete would leave the product with no categories;
+ * the caller surfaces that as a warning and the owner can simply re-save.
+ */
+export const setProductCategories = createServerFn({ method: "POST" })
+  .inputValidator((i: unknown) => SetCategoriesSchema.parse(i))
+  .handler(async ({ data }) => {
+    const adminId = await requireAdmin();
+    const unique = [...new Set(data.categoryIds)];
+
+    console.log(
+      `[setProductCategories] admin=${adminId} product=${data.productId} categories=${unique.length}`,
+    );
+
+    const { error: delErr } = await supabaseAdmin
+      .from("product_categories")
+      .delete()
+      .eq("product_id", data.productId);
+    if (delErr) {
+      console.error("[setProductCategories] delete failed:", delErr);
+      throw new Error("שגיאה בעדכון הקטגוריות.");
+    }
+
+    if (unique.length > 0) {
+      const { error: insErr } = await supabaseAdmin
+        .from("product_categories")
+        .insert(unique.map((cid) => ({ product_id: data.productId, category_id: cid })));
+      if (insErr) {
+        console.error("[setProductCategories] insert failed:", insErr);
+        throw new Error("שגיאה בעדכון הקטגוריות.");
+      }
+    }
+
+    return { count: unique.length };
+  });
+
+// ---------------------------------------------------------------------------
+// Product image upload (Storage bucket "product-images")
+//
+// The form previously accepted only a pasted URL. This lets the owner upload a
+// real file: the client base64-encodes the bytes and posts them here, and the
+// service-role client writes them to the existing public bucket. No client-side
+// service-role usage — the upload happens only inside this admin server fn.
+// ---------------------------------------------------------------------------
+
+/** Content types we accept, mapped to the stored object's extension. */
+const IMAGE_EXT: Record<string, string> = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/jpg": "jpg",
+  "image/webp": "webp",
+  "image/gif": "gif",
+  "image/avif": "avif",
+};
+/** 5 MB cap on the decoded bytes — plenty for a catalog photo, small enough to POST. */
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
+/** Decode standard base64 to bytes without depending on Node's Buffer (Workers-safe). */
+function base64ToBytes(b64: string): Uint8Array {
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+const UploadImageSchema = z.object({
+  contentType: z.string().min(1).max(100),
+  // Raw base64 (no data: prefix); the client strips it before posting.
+  dataBase64: z.string().min(1),
+  fileName: z.string().max(255).optional(),
+});
+
+export const uploadProductImage = createServerFn({ method: "POST" })
+  .inputValidator((i: unknown) => UploadImageSchema.parse(i))
+  .handler(async ({ data }): Promise<{ url: string; path: string }> => {
+    const adminId = await requireAdmin();
+
+    const ct = data.contentType.toLowerCase().split(";")[0].trim();
+    if (!IMAGE_EXT[ct]) {
+      throw new Error("סוג הקובץ אינו נתמך. יש להעלות תמונה (PNG, JPG, WEBP, GIF או AVIF).");
+    }
+    // Cheap guard before decoding: base64 inflates ~4/3, so anything well past
+    // the cap can be rejected without materialising the whole payload.
+    if (data.dataBase64.length > Math.ceil((MAX_IMAGE_BYTES * 4) / 3) + 64) {
+      throw new Error("הקובץ גדול מדי. הגודל המרבי הוא 5MB.");
+    }
+
+    let bytes: Uint8Array;
+    try {
+      bytes = base64ToBytes(data.dataBase64);
+    } catch {
+      throw new Error("קובץ לא תקין.");
+    }
+    if (bytes.length === 0) throw new Error("הקובץ ריק.");
+    if (bytes.length > MAX_IMAGE_BYTES) {
+      throw new Error("הקובץ גדול מדי. הגודל המרבי הוא 5MB.");
+    }
+
+    // Collision-safe object path — a random uuid means two uploads of the same
+    // filename never clobber each other. Kept under uploads/ so it doesn't mix
+    // with the catalog/ import namespace.
+    const ext = IMAGE_EXT[ct];
+    const path = `uploads/${crypto.randomUUID()}.${ext}`;
+
+    const { error } = await supabaseAdmin.storage
+      .from("product-images")
+      .upload(path, bytes, {
+        contentType: ct,
+        cacheControl: "31536000",
+        upsert: false,
+      });
+    if (error) {
+      console.error("[uploadProductImage] upload failed:", error);
+      throw new Error("שגיאה בהעלאת התמונה.");
+    }
+
+    const { data: pub } = supabaseAdmin.storage.from("product-images").getPublicUrl(path);
+    console.log(`[uploadProductImage] admin=${adminId} path=${path} bytes=${bytes.length}`);
+    return { url: pub.publicUrl, path };
+  });

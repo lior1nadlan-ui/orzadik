@@ -95,7 +95,7 @@ async function fetchReviews(productId: string): Promise<PublicReview[]> {
   try {
     const { data } = await supabase
       .from("reviews")
-      .select("id, author_name, rating, title, body, created_at")
+      .select("id, author_name, rating, title, body, created_at, order_id")
       .eq("product_id", productId)
       .eq("is_approved", true)
       .order("created_at", { ascending: false })
