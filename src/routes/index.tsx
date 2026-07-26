@@ -341,6 +341,21 @@ function HomePage() {
   // inside the effect, never at module top-level or during render.
   const [heroSourcesReady, setHeroSourcesReady] = useState(false);
 
+  // The soft-focus is DESKTOP-ONLY. The source is vertical (9:16): on desktop it
+  // is cropped to a landscape band where the mixed/dark frames read murky, so we
+  // blur it into warm atmosphere. On mobile the portrait video FITS its portrait
+  // frame and shows the real product beautifully, so it stays sharp. SSR-safe:
+  // matchMedia is read only inside the effect; defaults to false (mobile-first).
+  const [isWideHero, setIsWideHero] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 768px)");
+    const sync = () => setIsWideHero(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+  const heroSoftFocus = heroSourcesReady && isWideHero;
+
   useEffect(() => {
     if (prefersReducedMotion()) return;
     const w = window as Window & {
@@ -394,6 +409,27 @@ function HomePage() {
           // would read out as a second, duplicate brand announcement. This is
           // what the accessibility statement (§4.5) declares — keep them in sync.
           aria-hidden="true"
+          // Grade, crop, and soft-focus. The source is a vertical (9:16) product
+          // reel that mixes warm amber crystal with cool/dark frames; cropped to
+          // a landscape desktop band its darker moments read murky. So the crisp
+          // warm POSTER carries first paint (LCP), and once the loop starts it
+          // eases into a gentle soft-focus — the moving footage becomes premium
+          // warm atmosphere behind the plaque rather than a jarring cropped reel,
+          // and the .glass-strong plaque stays the one crisp focal point. The
+          // saturate/contrast punch keeps the crystal alive; object-position
+          // biases the crop to the warm band; warmth is unified by the overlay
+          // below. Reduced-motion users never load the video, so they keep the
+          // sharp poster. All decorative — contrast lives on the plaque. The
+          // slight scale hides the blur's feathered edges. 600ms so the focus
+          // pulls softly rather than snapping.
+          style={{
+            filter: heroSoftFocus
+              ? "saturate(1.1) contrast(1.04) brightness(1.03) blur(8px)"
+              : "saturate(1.08) contrast(1.05) brightness(1.02)",
+            transform: heroSoftFocus ? "scale(1.16)" : undefined,
+            objectPosition: "50% 44%",
+            transition: "filter 700ms ease, transform 700ms ease",
+          }}
           className="block w-full min-h-[520px] h-[62svh] md:min-h-0 md:h-[60vh] md:max-h-[720px] object-cover bg-cream"
         >
           {/* Sources are attached only after the browser is idle (see the effect
@@ -408,10 +444,23 @@ function HomePage() {
           )}
         </video>
 
-        {/* Light frost over the footage. Purely decorative: it softens the video
-            into the white ground so the plaque reads as a pane of light. It is NOT
-            load-bearing for contrast — every glyph below sits on .glass-strong. */}
-        <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-white/55 via-white/25 to-white/10 pointer-events-none" />
+        {/* Depth stack over the footage — three decorative layers, none
+            load-bearing for contrast (every glyph below sits on .glass-strong).
+            Replaces the old flat white frost, which washed the whole hero cold
+            and gray. */}
+        {/* 1) Light pool + vignette: a pool of cream light at the plaque's
+            position that the panel floats in (the "pane of light"), fading to
+            warm-dark edges so the frame has depth instead of reading flat. */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 pointer-events-none bg-[radial-gradient(118%_88%_at_50%_40%,rgba(255,251,242,0.60)_0%,rgba(252,245,230,0.14)_40%,transparent_58%,rgba(42,29,9,0.34)_100%)]"
+        />
+        {/* 2) A whisper of brand gold top-to-bottom, tying the mixed cool/warm
+            reel to the warm identity. Low enough that crystal sparkle survives. */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 pointer-events-none bg-gradient-to-b from-[#7E611E]/22 via-[#7E611E]/10 to-[#4A360E]/34"
+        />
 
         {/* Centered headline + CTAs over the video.
             The value-prop line is the page's only h1 (the colophon heading was demoted to h2).
@@ -424,7 +473,7 @@ function HomePage() {
             <p className="text-[10px] md:text-xs tracking-[0.35em] text-accent mb-3">
               אור זרוע לצדיק
             </p>
-            <h1 className="font-display text-4xl md:text-6xl text-foreground">
+            <h1 className="font-display text-4xl md:text-6xl leading-[1.08] [text-wrap:balance] text-foreground">
               תשמישי קדושה בעבודת יד
             </h1>
             <span aria-hidden="true" className="gold-rule block w-24 mx-auto my-4" />
