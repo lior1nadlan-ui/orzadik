@@ -28,6 +28,15 @@ import { ChevronDown } from "lucide-react";
 // are intentionally left to 404 rather than risk a double-encoded redirect target.
 const MERGED_CATEGORY_REDIRECTS: Record<string, string> = {
   "talit-tefillin-covers": "talit-tefillin-sets",
+  // 2026-07 slug cleanup: four product-bearing categories carried percent-encoded
+  // Hebrew slugs (ugly URLs whose natural form 404'd — the router decodes %d7.. to
+  // Hebrew, which never matched the literal-encoded DB slug). Renamed to clean
+  // ASCII; these 301s catch any double-encoded inbound link whose decoded param is
+  // the old literal slug string.
+  "%d7%98%d7%9c%d7%99%d7%aa%d7%95%d7%aa-%d7%95%d7%a6%d7%99%d7%a6%d7%99%d7%95%d7%aa": "talitot",
+  "%d7%a1%d7%99%d7%93%d7%95%d7%a8%d7%99%d7%9d": "sidurim",
+  "%d7%9e%d7%95%d7%a6%d7%a8%d7%99-%d7%99%d7%95%d7%93%d7%90%d7%99%d7%a7%d7%94": "yehudaika",
+  "%d7%9e%d7%95%d7%a6%d7%a8%d7%99-%d7%97%d7%aa%d7%95%d7%a0%d7%94-%d7%95%d7%91%d7%a8-%d7%9e%d7%a6%d7%95%d7%95%d7%94": "marazim-chatanim",
 };
 
 // Page through product_categories → active products for one category. PostgREST

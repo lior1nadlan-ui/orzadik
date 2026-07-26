@@ -22,9 +22,9 @@
 // DB (WordPress-era imports), reused verbatim so `.in("slug", …)` matches.
 
 /** Literal percent-encoded Hebrew category slugs as stored in public.categories. */
-const SIDDURIM = "%d7%a1%d7%99%d7%93%d7%95%d7%a8%d7%99%d7%9d"; // סידורים
+const SIDDURIM = "sidurim"; // סידורים
 const HATAN_MARAZIM =
-  "%d7%9e%d7%95%d7%a6%d7%a8%d7%99-%d7%97%d7%aa%d7%95%d7%a0%d7%94-%d7%95%d7%91%d7%a8-%d7%9e%d7%a6%d7%95%d7%95%d7%94"; // מארזים לחתנים
+  "marazim-chatanim"; // מארזים לחתנים
 
 export type CollectionFaq = { q: string; a: string };
 
