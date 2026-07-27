@@ -22,7 +22,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter,
 } from "@/components/ui/dialog";
-import { useEffect, useState, type ChangeEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { toast } from "sonner";
 import { Pencil, Trash2, Plus, Layers, Upload, X } from "lucide-react";
 
@@ -110,6 +110,9 @@ function AdminProducts() {
   const [page, setPage] = useState(0);
   const [editing, setEditing] = useState<Product | null>(null);
   const [open, setOpen] = useState(false);
+  // Set by ProductDialog whenever the form differs from what it opened with, so
+  // a stray Escape / backdrop click can't discard a half-written product.
+  const productDirtyRef = useRef(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkOpen, setBulkOpen] = useState(false);
 
@@ -187,16 +190,43 @@ function AdminProducts() {
   };
 
   const onSave = async (form: Partial<Product>, categoryIds: string[]) => {
+    // Required-field guard. products.slug is `text UNIQUE NOT NULL`, and the
+    // empty string satisfies NOT NULL — so without this the first save of a
+    // Hebrew-named product (slugify() returns "" for any name with no Latin
+    // characters, by its own design) SUCCEEDED and created a live product whose
+    // URL is /product/ — matching no route, invisible to every customer, while
+    // the owner saw "נוסף". Covers the update branch too, which sends the whole
+    // form and could blank an existing slug the same way.
+    const name = (form.name ?? "").trim();
+    const slug = (form.slug ?? "").trim();
+    if (!name) return toast.error("יש להזין שם מוצר");
+    if (!slug) return toast.error("יש להזין כתובת (Slug) באנגלית — בלעדיה דף המוצר לא יהיה נגיש ללקוחות");
+    if (!/^[a-z0-9-]+$/.test(slug)) {
+      return toast.error("כתובת ה-Slug חייבת להכיל אותיות אנגליות קטנות, ספרות ומקפים בלבד");
+    }
+    // The one DB error the owner is guaranteed to hit, in Hebrew: the raw
+    // Postgres text ("duplicate key value violates unique constraint …") tells a
+    // non-technical shop owner nothing about which field to change.
+    const saveError = (error: { code?: string; message: string }) =>
+      toast.error(
+        error.code === "23505"
+          ? `כתובת ה-Slug "${slug}" כבר תפוסה על ידי מוצר אחר — בחרו כתובת אחרת`
+          : error.message,
+      );
+
     // Product CRUD stays on the anon client (RLS admin-gated), exactly as before.
     let productId = editing?.id;
     if (editing) {
-      const { error } = await supabase.from("products").update(form).eq("id", editing.id);
-      if (error) return toast.error(error.message);
+      const { error } = await supabase
+        .from("products")
+        .update({ ...form, name, slug })
+        .eq("id", editing.id);
+      if (error) return saveError(error);
     } else {
       const { data: inserted, error } = await supabase
         .from("products")
         .insert({
-          slug: form.slug!, name: form.name!, price: form.price ?? 0, sale_price: form.sale_price ?? null,
+          slug, name, price: form.price ?? 0, sale_price: form.sale_price ?? null,
           sku: form.sku ?? null, description: form.description ?? null, short_description: form.short_description ?? null,
           thumbnail_url: form.thumbnail_url ?? null, stock_status: form.stock_status ?? "instock",
           is_active: form.is_active ?? true,
@@ -205,7 +235,7 @@ function AdminProducts() {
         })
         .select("id")
         .single();
-      if (error) return toast.error(error.message);
+      if (error) return saveError(error);
       productId = inserted?.id;
     }
 
@@ -223,6 +253,9 @@ function AdminProducts() {
     }
     if (categoriesOk) toast.success(editing ? "עודכן" : "נוסף");
 
+    // Reached only after a successful save — the work is persisted, so drop the
+    // unsaved-changes flag before closing.
+    productDirtyRef.current = false;
     setOpen(false); setEditing(null);
     qc.invalidateQueries({ queryKey: ["admin-products"] });
     if (productId) qc.invalidateQueries({ queryKey: ["admin-product-cats", productId] });
@@ -240,11 +273,22 @@ function AdminProducts() {
     <div>
       <div className="flex items-center justify-between mb-4 gap-3">
         <h1 className="font-display text-2xl font-bold">מוצרים ({total})</h1>
-        <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setEditing(null); }}>
+        {/* Radix routes Escape, outside-pointer AND the X through onOpenChange,
+            so this single guard covers all three ways the dialog could silently
+            throw away a half-written product. Because the dialog is controlled,
+            simply not calling setOpen keeps it open. */}
+        <Dialog
+          open={open}
+          onOpenChange={(v) => {
+            if (!v && productDirtyRef.current && !confirm("יש שינויים שלא נשמרו במוצר. לצאת בלי לשמור?")) return;
+            setOpen(v);
+            if (!v) { productDirtyRef.current = false; setEditing(null); }
+          }}
+        >
           <DialogTrigger asChild>
             <Button onClick={() => { setEditing(null); setOpen(true); }} className="gap-2"><Plus className="h-4 w-4" /> חדש</Button>
           </DialogTrigger>
-          <ProductDialog key={editing?.id ?? "new"} product={editing} onSave={onSave} />
+          <ProductDialog key={editing?.id ?? "new"} product={editing} onSave={onSave} dirtyRef={productDirtyRef} />
         </Dialog>
       </div>
       <div className="mb-4 flex flex-wrap items-end gap-3">
@@ -560,16 +604,33 @@ function BulkDialog({
 function ProductDialog({
   product,
   onSave,
+  dirtyRef,
 }: {
   product: Product | null;
   onSave: (f: Partial<Product>, categoryIds: string[]) => void;
+  /** Parent-owned flag driving the unsaved-changes confirm on dismissal. */
+  dirtyRef?: { current: boolean };
 }) {
+  // Set by VariantsPanel while it has unsaved size rows; the footer שמור flushes
+  // them before saving the product, so edited size prices are never dropped.
+  const variantsSaveRef = useRef<null | (() => Promise<boolean>)>(null);
   const [form, setForm] = useState<Partial<Product>>(
     product ?? { name: "", slug: "", price: 0, stock_status: "instock", is_active: true, track_stock: false }
   );
+  // Dirty = the form differs from what the dialog opened with. Derived by
+  // comparison rather than by flagging each of the ~12 setForm call sites, so a
+  // newly-added field can't quietly escape the guard. The component is remounted
+  // per product (key=id), so this seed is always the right baseline.
+  const initialFormRef = useRef(JSON.stringify(
+    product ?? { name: "", slug: "", price: 0, stock_status: "instock", is_active: true, track_stock: false }
+  ));
   // An existing product keeps the slug the owner chose — never rewrite it. A new
   // product auto-derives its slug from the name until the owner edits slug itself.
   const [slugTouched, setSlugTouched] = useState(!!product);
+
+  useEffect(() => {
+    if (dirtyRef) dirtyRef.current = JSON.stringify(form) !== initialFormRef.current;
+  }, [form, dirtyRef]);
 
   // --- Categories ---------------------------------------------------------
   const loadAllCats = useServerFn(listCategoriesForBulk);
@@ -653,6 +714,13 @@ function ProductDialog({
               value={form.slug ?? ""}
               onChange={(e) => { setSlugTouched(true); setForm((prev) => ({ ...prev, slug: e.target.value })); }}
             />
+            {/* A Hebrew-only name auto-fills nothing (slugify has no Latin form
+                to work from), so say plainly what this field is and what a good
+                value looks like — it is the product's public URL. */}
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              כתובת הדף באתר: orzadik.com/product/<span dir="ltr">slug</span> — אותיות אנגליות קטנות, ספרות ומקפים.
+              לדוגמה: <span dir="ltr">mezuza-keramika-lavan</span>
+            </p>
           </div>
           <div><Label>מחיר</Label><Input type="number" step="0.01" value={form.price ?? 0} onChange={(e) => setForm({ ...form, price: Number(e.target.value) })} /></div>
           <div><Label>מחיר מבצע</Label><Input type="number" step="0.01" value={form.sale_price ?? ""} onChange={(e) => setForm({ ...form, sale_price: e.target.value ? Number(e.target.value) : null })} /></div>
@@ -790,7 +858,13 @@ function ProductDialog({
 
         {/* Sizes. Only for an existing product — variant rows hang off a
             product id, so there is nothing to show before the first save. */}
-        {product && <VariantsPanel productId={product.id} parentPrice={Number(form.price ?? 0)} />}
+        {product && (
+          <VariantsPanel
+            productId={product.id}
+            parentPrice={Number(form.price ?? 0)}
+            saveRef={variantsSaveRef}
+          />
+        )}
       </div>
       <DialogFooter>
         {(() => {
@@ -804,7 +878,32 @@ function ProductDialog({
           const categoriesLoading = !!product && currentCatIds === undefined;
           return (
             <Button
-              onClick={() => onSave(form, [...categoryIds])}
+              onClick={async () => {
+                // Validate BEFORE flushing the size rows: otherwise a bad slug
+                // would still commit product_variants (with a "נשמרו N גדלים"
+                // success toast) and only then reject the product save, leaving
+                // a success toast on top of a half-applied save.
+                const nameOk = (form.name ?? "").trim();
+                const slugOk = (form.slug ?? "").trim();
+                if (!nameOk) return toast.error("יש להזין שם מוצר");
+                if (!slugOk) return toast.error("יש להזין כתובת (Slug) באנגלית — בלעדיה דף המוצר לא יהיה נגיש ללקוחות");
+                if (!/^[a-z0-9-]+$/.test(slugOk)) {
+                  return toast.error("כתובת ה-Slug חייבת להכיל אותיות אנגליות קטנות, ספרות ומקפים בלבד");
+                }
+                // Commit pending size rows — they are the prices checkout
+                // charges. A failed size write aborts, so the dialog stays open
+                // with the edits intact instead of closing over a partial save.
+                const ok = await (variantsSaveRef.current?.() ?? Promise.resolve(true));
+                if (!ok) return;
+                // NOTE: deliberately NOT clearing dirtyRef here. onSave can still
+                // reject (duplicate slug, DB error) and leave the dialog open
+                // holding the edits — clearing first would disarm the
+                // unsaved-changes guard for exactly that case. The success path
+                // closes via the parent's setOpen(false), and because the Radix
+                // Root is controlled that never routes through onOpenChange, so
+                // no confirm can fire on a successful save anyway.
+                onSave(form, [...categoryIds]);
+              }}
               disabled={uploading || categoriesLoading}
             >
               {uploading ? "מעלה תמונה..." : categoriesLoading ? "טוען קטגוריות..." : "שמור"}
@@ -825,7 +924,16 @@ function ProductDialog({
  * here writes product_variants only; the parent product still saves separately
  * with the dialog's own שמור button.
  */
-function VariantsPanel({ productId, parentPrice }: { productId: string; parentPrice: number }) {
+function VariantsPanel({
+  productId,
+  parentPrice,
+  saveRef,
+}: {
+  productId: string;
+  parentPrice: number;
+  /** Lets the dialog's main שמור flush pending size edits before it closes. */
+  saveRef?: { current: null | (() => Promise<boolean>) };
+}) {
   const qc = useQueryClient();
   const load = useServerFn(listProductVariants);
   const save = useServerFn(saveProductVariants);
@@ -849,11 +957,13 @@ function VariantsPanel({ productId, parentPrice }: { productId: string; parentPr
   const differs = (r: AdminVariantRow) => r.price !== null && Number(r.price) !== parentPrice;
   const differingCount = (rows ?? []).filter(differs).length;
 
-  const onSaveRows = async () => {
-    if (!rows || rows.length === 0) return;
+  // Returns whether the rows are now persisted, so the dialog's main שמור can
+  // abort its close when a size write fails instead of silently dropping it.
+  const onSaveRows = async (): Promise<boolean> => {
+    if (!rows || rows.length === 0) return true;
     if (rows.some((r) => !r.label.trim())) {
       toast.error("לכל גודל חייב להיות שם");
-      return;
+      return false;
     }
     setBusy(true);
     try {
@@ -871,12 +981,33 @@ function VariantsPanel({ productId, parentPrice }: { productId: string; parentPr
       });
       toast.success(`נשמרו ${res.updated} גדלים`);
       qc.invalidateQueries({ queryKey: ["admin-variants", productId] });
+      return true;
     } catch (e: any) {
       toast.error(e?.message ?? "שגיאה בשמירת הגדלים");
+      return false;
     } finally {
       setBusy(false);
     }
   };
+
+  // Are there edited size rows the owner hasn't pressed "שמור גדלים" for?
+  const dirtyRows = !!rows && !!data && JSON.stringify(rows) !== JSON.stringify(data);
+
+  // Expose a flush to the dialog footer. Pressing the big שמור at the bottom is
+  // the natural thing to do after fixing a size price, but that button saved
+  // only the product and closed — silently discarding the edited variant prices,
+  // which are the ones checkout actually charges. Now it commits them first.
+  useEffect(() => {
+    if (!saveRef) return;
+    saveRef.current = async () => {
+      if (!dirtyRows) return true;
+      return onSaveRows();
+    };
+    return () => {
+      saveRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [saveRef, dirtyRows, rows]);
 
   return (
     <div className="rounded-md border p-3 space-y-3">

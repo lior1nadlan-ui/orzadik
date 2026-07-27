@@ -192,6 +192,27 @@ export function SiteHeader() {
     // makes the intent explicit and survives re-renders).
     searchInputRef.current?.focus();
 
+    // Keyboard-aware height + background scroll lock. autoFocus above always
+    // raises the software keyboard on a phone, which shrinks the *visual*
+    // viewport while 100dvh keeps reporting the full height — so the panel's cap
+    // is driven by visualViewport instead. Effect-only, so SSR never sees these.
+    const vv = window.visualViewport;
+    const syncVh = () => {
+      if (vv) document.documentElement.style.setProperty("--search-vh", `${vv.height}px`);
+    };
+    syncVh();
+    vv?.addEventListener("resize", syncVh);
+    // Lock the background, compensating for the scrollbar the lock reclaims —
+    // otherwise the whole desktop page jumps sideways ~15px on every open and
+    // close. In RTL the classic scrollbar sits on the LEFT, so the padding goes
+    // there. The gap is 0 on overlay-scrollbar platforms (phones, macOS), which
+    // makes this a no-op exactly where it should be.
+    const prevOverflow = document.body.style.overflow;
+    const prevPadLeft = document.body.style.paddingLeft;
+    const scrollbarGap = window.innerWidth - document.documentElement.clientWidth;
+    if (scrollbarGap > 0) document.body.style.paddingLeft = `${scrollbarGap}px`;
+    document.body.style.overflow = "hidden";
+
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         setSearchOpen(false);
@@ -215,6 +236,10 @@ export function SiteHeader() {
     document.addEventListener("keydown", onKey);
     return () => {
       document.removeEventListener("keydown", onKey);
+      vv?.removeEventListener("resize", syncVh);
+      document.documentElement.style.removeProperty("--search-vh");
+      document.body.style.overflow = prevOverflow;
+      document.body.style.paddingLeft = prevPadLeft;
       // Return focus to the button that opened the dialog.
       searchTriggerRef.current?.focus();
     };
@@ -610,7 +635,15 @@ export function SiteHeader() {
             role="dialog"
             aria-modal="true"
             aria-label="חיפוש באתר"
-            className="mx-auto max-w-2xl overflow-hidden glass-strong"
+            // Bounded height + an inner scroller. The panel used to be
+            // content-sized inside a `fixed inset-0` parent that cannot scroll,
+            // so on a phone — where autoFocus always raises the keyboard — the
+            // last suggestions and the "כל התוצאות" CTA sat below the fold with
+            // no way to reach them. --search-vh is set from visualViewport while
+            // the overlay is open (see the effect above); the 100dvh fallback
+            // keeps this correct even if that never runs. Desktop is unchanged:
+            // the panel is far shorter than the viewport, so the cap never binds.
+            className="mx-auto flex max-h-[calc(var(--search-vh,100dvh)-3rem)] max-w-2xl flex-col overflow-hidden glass-strong md:max-h-[calc(var(--search-vh,100dvh)-5rem)]"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Visually-hidden live region — announces the result count (or the
@@ -623,7 +656,8 @@ export function SiteHeader() {
                 : ""}
             </div>
 
-            <form onSubmit={submitSearch} className="flex items-center gap-3 px-4 py-4">
+            {/* shrink-0 so the field stays pinned while the results scroll. */}
+            <form onSubmit={submitSearch} className="flex shrink-0 items-center gap-3 px-4 py-4">
               <Search className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
               <label htmlFor="site-search" className="sr-only">חיפוש מוצרים וקטגוריות</label>
               <input
@@ -656,7 +690,11 @@ export function SiteHeader() {
 
             {/* Live suggestions (listbox) once the term is long enough; otherwise
                 the pre-typing state (recent terms + curated categories). The gold
-                hairline between the field and the panel is decorative, never text. */}
+                hairline between the field and the panel is decorative, never text.
+                Both branches share one scroller — min-h-0 so it can actually
+                shrink inside the flex column, overscroll-contain so momentum
+                doesn't chain into the page behind the scrim. */}
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
             {suggestionsEnabled ? (
               <div className="border-t border-gold/25">
                 <div id="search-listbox" role="listbox" aria-label="הצעות חיפוש">
@@ -811,6 +849,7 @@ export function SiteHeader() {
                 </div>
               </div>
             )}
+            </div>
           </div>
           </div>
         </div>

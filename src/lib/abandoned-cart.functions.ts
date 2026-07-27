@@ -16,6 +16,7 @@ import {
   listUnsubscribeHeaders,
 } from "@/lib/email.server";
 import { sellerIdentityLine, BUSINESS } from "@/lib/business";
+import { getEffectivePrice } from "@/lib/pricing";
 import { requireAdmin } from "@/lib/admin-authz.server";
 
 const Schema = z.object({
@@ -301,10 +302,15 @@ export async function runAbandonedCartReminders(): Promise<AbandonedCartRunResul
    * missing (can't build a compliant link) or the provider looks down.
    */
   const runPass = async (
-    list: Array<{ id: string; email: string; name: string | null; items: unknown }>,
+    // `subtotal` is a numeric column — PostgREST can hand it back as a string,
+    // hence the union.
+    list: Array<{ id: string; email: string; name: string | null; items: unknown; subtotal: number | string | null }>,
     stampColumn: "reminder_1_sent_at" | "reminder_2_sent_at",
     subject: string,
-    buildHtml: (cart: { name: string | null; items: unknown }, unsub: string) => string,
+    buildHtml: (
+      cart: { name: string | null; items: unknown; subtotal: number | string | null },
+      unsub: string,
+    ) => string,
   ): Promise<"stop" | "done"> => {
     for (const cart of list) {
       if (!consented.has(cart.email.toLowerCase())) continue;
@@ -378,21 +384,45 @@ export async function runAbandonedCartReminders(): Promise<AbandonedCartRunResul
     "פרסומת: העגלה שלכם ממתינה — אור זרוע לצדיק",
     (cart, unsub) => {
       const items = Array.isArray(cart.items) ? (cart.items as any[]) : [];
+      // getEffectivePrice, NOT the raw snapshot price: `items[].price` is the
+      // BASE catalog price (see CartItem.price in cart.tsx), and the site-wide
+      // discount is applied at display and at checkout. Rendering it raw quoted
+      // ₪199 in the reminder for a cart the shopper saw — and would be charged —
+      // as ₪139, i.e. a commercial message stating a price ABOVE the real one.
+      // The campaigns email already prices this way; this sender was missed.
+      // `|| 0` keeps a malformed snapshot row from rendering "₪NaN".
+      // Each name links to its own product page. The snapshot already stores
+      // `slug` for every line, and the cart lives in localStorage — so on the
+      // device where it is empty (exactly the case the copy addresses) these
+      // links are the only way back to the item without searching by name.
       const rows = items
-        .map(
-          (it) => `<tr>
-          <td style="padding:8px 0;border-bottom:1px solid #eee;">${esc(it.name)} × ${esc(it.quantity)}</td>
-          <td style="padding:8px 0;border-bottom:1px solid #eee;text-align:left;white-space:nowrap;">${ils(Number(it.price) * Number(it.quantity))}</td>
-        </tr>`,
-        )
+        .map((it) => {
+          const label = esc(it.name);
+          const nameCell = it.slug
+            ? `<a href="https://orzadik.com/product/${esc(it.slug)}" style="color:#1F1915;text-decoration:underline;">${label}</a>`
+            : label;
+          return `<tr>
+          <td style="padding:8px 0;border-bottom:1px solid #eee;">${nameCell} × ${esc(it.quantity)}</td>
+          <td style="padding:8px 0;border-bottom:1px solid #eee;text-align:left;white-space:nowrap;">${ils(getEffectivePrice(Number(it.price) || 0) * Number(it.quantity))}</td>
+        </tr>`;
+        })
         .join("");
+      // Stored subtotal is already post-discount (checkout sends useCart's
+      // subtotal), so it closes exactly against the corrected rows above. Named
+      // "סה״כ מוצרים", not "סה״כ": it excludes the flat shipping and any member
+      // benefit, so calling it the total would just relocate the inaccuracy.
+      const subtotalRow = `<tr>
+          <td style="padding:10px 0;font-weight:bold;">סה״כ מוצרים</td>
+          <td style="padding:10px 0;text-align:left;white-space:nowrap;font-weight:bold;">${ils(Number(cart.subtotal) || 0)}</td>
+        </tr>`;
       return emailShell(`
       <p class="oz-muted" style="font-size:11px;color:#999;margin:0 0 8px;">פרסומת</p>
       <h1 style="font-size:20px;margin:0 0 8px;">שכחתם משהו בעגלה? 🛍️</h1>
       <p class="oz-muted" style="font-size:14px;color:#555;margin:0 0 16px;">
-        ${cart.name ? esc(cart.name) + ", " : ""}העגלה שלכם עדיין ממתינה — המוצרים שבחרתם שמורים לכם.
+        ${cart.name ? esc(cart.name) + ", " : ""}אלה הפריטים שהיו בעגלה שלכם. אם העגלה כבר התרוקנה — אפשר להיכנס לכל פריט מהרשימה כאן ולהוסיף אותו שוב.
       </p>
-      <table style="width:100%;border-collapse:collapse;font-size:14px;">${rows}</table>
+      <table style="width:100%;border-collapse:collapse;font-size:14px;">${rows}${subtotalRow}</table>
+      <p class="oz-muted" style="font-size:12px;color:#777;margin:6px 0 0;">לא כולל דמי משלוח והטבת חברי מועדון.</p>
       ${emailButton("https://orzadik.com/cart", "חזרה לעגלה")}
       <div class="oz-muted" style="font-size:11px;color:#aaa;margin-top:20px;padding-top:12px;border-top:1px solid #eee;line-height:1.7;text-align:center;">
         <div>${esc(sellerIdentityLine())}${BUSINESS.email ? " · " + esc(BUSINESS.email) : ""}</div>
@@ -401,7 +431,7 @@ export async function runAbandonedCartReminders(): Promise<AbandonedCartRunResul
           <a class="oz-gold" href="${esc(unsub)}" style="color:#A8862A;">להסרה מרשימת התפוצה לחצו כאן</a>.
         </div>
       </div>
-    `, `${cart.name ? cart.name + ", " : ""}המוצרים שבחרתם שמורים בעגלה שלכם.`);
+    `, `${cart.name ? cart.name + ", " : ""}אלה הפריטים שהיו בעגלה שלכם.`);
     },
   );
 
@@ -418,7 +448,7 @@ export async function runAbandonedCartReminders(): Promise<AbandonedCartRunResul
       <p class="oz-muted" style="font-size:11px;color:#999;margin:0 0 8px;">פרסומת</p>
       <h1 style="font-size:20px;margin:0 0 8px;">עדיין חושבים על זה?</h1>
       <p class="oz-muted" style="font-size:14px;color:#555;margin:0 0 16px;">
-        ${cart.name ? esc(cart.name) + ", " : ""}רצינו רק להזכיר שהעגלה שלכם עדיין שמורה אצלנו. אם תרצו להשלים את ההזמנה — אנחנו כאן בשבילכם.
+        ${cart.name ? esc(cart.name) + ", " : ""}רצינו רק להזכיר שהתחלתם הזמנה אצלנו. אם תרצו להשלים אותה — אנחנו כאן בשבילכם.
       </p>
       ${emailButton("https://orzadik.com/cart", "חזרה לעגלה")}
       <div class="oz-muted" style="font-size:11px;color:#aaa;margin-top:20px;padding-top:12px;border-top:1px solid #eee;line-height:1.7;text-align:center;">
@@ -428,7 +458,7 @@ export async function runAbandonedCartReminders(): Promise<AbandonedCartRunResul
           <a class="oz-gold" href="${esc(unsub)}" style="color:#A8862A;">להסרה מרשימת התפוצה לחצו כאן</a>.
         </div>
       </div>
-    `, `${cart.name ? cart.name + ", " : ""}העגלה שלכם עדיין שמורה אצלנו.`),
+    `, `${cart.name ? cart.name + ", " : ""}התחלתם הזמנה אצלנו — נשמח להשלים אותה יחד.`),
     );
   }
 

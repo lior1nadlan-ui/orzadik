@@ -17,7 +17,7 @@ import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Download, Phone, Mail, MessageCircle, User } from "lucide-react";
+import { Download, Phone, Mail, MessageCircle, User, RefreshCw } from "lucide-react";
 
 export const Route = createFileRoute("/admin/orders")({
   // Deep-linkable filters: the dashboard KPIs/chips and the customer card link
@@ -150,10 +150,19 @@ function AdminOrders() {
     page,
   };
 
-  const { data, isFetching } = useQuery({
+  // The owner keeps this screen open while packing parcels, but the app-wide
+  // refetchOnWindowFocus is false (src/router.tsx) and this query had no
+  // refetchInterval — so the list was fetched once at mount and then never
+  // again, and a new order stayed invisible until a hard reload (which also
+  // wipes the filters). A paged 25-row read is cheap enough to poll. Polling
+  // pauses while the details dialog is open so a background re-render can't
+  // disturb a native <select> mid-interaction.
+  const { data, isFetching, isPlaceholderData, refetch, dataUpdatedAt } = useQuery({
     queryKey: ["admin-orders", filters],
     placeholderData: keepPreviousData,
     queryFn: () => listOrders({ data: filters }),
+    refetchInterval: selected ? false : 60_000,
+    refetchOnWindowFocus: true,
   });
   const orders = data?.rows ?? [];
   const total = data?.total ?? 0;
@@ -241,10 +250,26 @@ function AdminOrders() {
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <h1 className="font-display text-2xl font-bold">הזמנות ({total})</h1>
-        <Button size="sm" variant="outline" onClick={doExport}>
-          <Download className="h-4 w-4 ml-1" /> ייצוא CSV
-        </Button>
+        <div className="flex flex-wrap items-baseline gap-3">
+          <h1 className="font-display text-2xl font-bold">הזמנות ({total})</h1>
+          {/* Absolute clock time, not "לפני X" — no ticker interval, and it can
+              never go stale on screen. dataUpdatedAt is 0 until the first fetch
+              resolves, which would otherwise render the Unix epoch (02:00). */}
+          <span className="text-xs text-muted-foreground">
+            {dataUpdatedAt
+              ? `עודכן ב-${new Date(dataUpdatedAt).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" })}`
+              : "טוען..."}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => refetch()} disabled={isFetching}>
+            <RefreshCw className={`h-4 w-4 ml-1 ${isFetching ? "animate-spin" : ""}`} />
+            {isFetching ? "מרענן..." : "רענון"}
+          </Button>
+          <Button size="sm" variant="outline" onClick={doExport}>
+            <Download className="h-4 w-4 ml-1" /> ייצוא CSV
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -273,7 +298,16 @@ function AdminOrders() {
         </select>
       </div>
 
-      <div className={`rounded-lg border bg-card overflow-x-auto transition-opacity duration-200 ease-out ${isFetching ? "opacity-60" : ""}`}>
+      {/* isPlaceholderData, not isFetching: this dim marks "you're looking at the
+          PREVIOUS page/filter while the new one loads". Keyed on isFetching it
+          would now strobe the whole table once a minute on every background
+          poll. */}
+      {/* isPlaceholderData (not isFetching) marks "you're looking at the PREVIOUS
+          page/filter while the new one loads" — keyed on isFetching it would
+          strobe the whole table once a minute on every background poll. The
+          !dataUpdatedAt clause keeps the very first mount dimmed, so an empty
+          table never reads as an authoritative "אין הזמנות תואמות". */}
+      <div className={`rounded-lg border bg-card overflow-x-auto transition-opacity duration-200 ease-out ${isPlaceholderData || !dataUpdatedAt ? "opacity-60" : ""}`}>
         <table className="w-full text-sm">
           <thead className="bg-muted/50"><tr className="text-right">
             <th className="p-3">מס׳</th><th className="p-3">לקוח</th><th className="p-3">תאריך</th>
