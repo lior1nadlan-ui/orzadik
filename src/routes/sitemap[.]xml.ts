@@ -72,7 +72,9 @@ export const Route = createFileRoute("/sitemap.xml")({
             fetchAll<any>(() =>
               supabaseAdmin
                 .from("products")
-                .select("slug, updated_at, thumbnail_url")
+                // name_norm/stock/price/id are needed to pick one representative
+                // per duplicate-name family (see the dedupe below).
+                .select("slug, updated_at, thumbnail_url, name_norm, stock_status, price, id")
                 .eq("is_active", true)
                 .order("slug"),
             ),
@@ -129,8 +131,31 @@ export const Route = createFileRoute("/sitemap.xml")({
               `<url><loc>${esc(loc(`/category/${c.slug}`))}</loc>${imgTag((c as any).image_url)}<changefreq>weekly</changefreq><priority>0.7</priority></url>`,
             );
           }
+          // Submit ONE URL per name group. 528 supplier name-collisions cover
+          // 1,636 active products (largest family: 43) that differ only by
+          // photo, so listing them all asked Google to index 1,108 duplicates of
+          // another page. The representative is chosen with the same ordering as
+          // list_products_collapsed and canonical_product_slug — has an image,
+          // then in stock, then cheapest, then stable by id — so the sitemap,
+          // the listing grid and the canonical tag all name the same URL.
+          const better = (a: any, b: any) => {
+            const img = (x: any) => ((x.thumbnail_url ?? "") !== "" ? 0 : 1);
+            const stock = (x: any) => (x.stock_status !== "outofstock" ? 0 : 1);
+            if (img(a) !== img(b)) return img(a) - img(b);
+            if (stock(a) !== stock(b)) return stock(a) - stock(b);
+            const pa = Number(a.price ?? 0), pb = Number(b.price ?? 0);
+            if (pa !== pb) return pa - pb;
+            return String(a.id ?? "").localeCompare(String(b.id ?? ""));
+          };
+          const repByName = new Map<string, any>();
           for (const p of products ?? []) {
             if (!p.slug) continue;
+            // A missing name_norm can't be grouped — keep the row on its own key.
+            const key = (p as any).name_norm || `~${p.slug}`;
+            const cur = repByName.get(key);
+            if (!cur || better(p, cur) < 0) repByName.set(key, p);
+          }
+          for (const p of repByName.values()) {
             const lm = p.updated_at
               ? `<lastmod>${new Date(p.updated_at).toISOString().slice(0, 10)}</lastmod>`
               : "";
