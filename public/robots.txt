@@ -7,8 +7,6 @@ Disallow: /cart
 Disallow: /checkout
 Disallow: /account
 Disallow: /order/
-Disallow: /reset-password
-Disallow: /forgot-password
 Disallow: /api/
 
 # ── AI / answer engines ──────────────────────────────────────────────

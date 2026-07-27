@@ -17,6 +17,10 @@ const STATIC: Array<{ path: string; freq: string; pri: string }> = [
   // /track is deliberately absent: it is noindex and only ever renders a
   // specific customer's order.
   { path: "/club", freq: "monthly", pri: "0.6" },
+  // Shipping/returns rank above the other policy pages: they answer real
+  // pre-purchase queries ("החזרות", "זמני משלוח"), unlike privacy/terms.
+  { path: "/shipping", freq: "monthly", pri: "0.5" },
+  { path: "/returns", freq: "monthly", pri: "0.5" },
   { path: "/privacy", freq: "yearly", pri: "0.3" },
   { path: "/terms", freq: "yearly", pri: "0.3" },
   { path: "/accessibility", freq: "yearly", pri: "0.3" },

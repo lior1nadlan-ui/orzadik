@@ -907,6 +907,11 @@ export function SiteFooter() {
           <div className="text-center">
             <div className="text-xs tracking-[0.35em] text-accent uppercase mb-4">תקנון האתר</div>
             <ul className="space-y-2.5 text-[15px] text-muted-foreground">
+              {/* Shipping/returns lead the column: they are what a first-time
+                  buyer looks for, and each is a short summary of the matching
+                  clause in the terms below. */}
+              <li><Link to="/shipping" className={LINK_HOVER_CLS}>משלוחים ואספקה</Link></li>
+              <li><Link to="/returns" className={LINK_HOVER_CLS}>ביטול והחזרות</Link></li>
               <li><Link to="/privacy" className={LINK_HOVER_CLS}>מדיניות פרטיות</Link></li>
               <li><Link to="/accessibility" className={LINK_HOVER_CLS}>הצהרת נגישות</Link></li>
               <li><Link to="/terms" className={LINK_HOVER_CLS}>תקנון ותנאי שימוש</Link></li>

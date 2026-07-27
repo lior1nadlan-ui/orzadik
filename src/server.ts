@@ -126,8 +126,6 @@ const NO_STORE_PREFIXES = [
   "/admin",
   "/auth",
   "/api",
-  "/reset-password",
-  "/forgot-password",
 ];
 
 /**

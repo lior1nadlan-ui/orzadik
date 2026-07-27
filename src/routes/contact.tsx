@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Phone, MessageCircle, Mail, MapPin, Clock, RotateCcw } from "lucide-react";
 import { BUSINESS, CONSUMER_POLICY, sellerIdentityLine } from "@/lib/business";
+import { ContactForm } from "@/components/ContactForm";
 
 export const Route = createFileRoute("/contact")({
   component: ContactPage,
@@ -10,13 +11,13 @@ export const Route = createFileRoute("/contact")({
       {
         name: "description",
         content:
-          "צרו קשר עם אור זרוע לצדיק — טלפון, וואטסאפ, דוא\"ל וכתובת. נשמח לעזור בבירורים, בהזמנות מיוחדות ובכל שאלה על תשמישי הקדושה שלנו.",
+          "צרו קשר עם אור זרוע לצדיק — טופס פנייה באתר, טלפון, וואטסאפ, דוא\"ל וכתובת. נשמח לעזור בבירורים, בהזמנות מיוחדות ובכל שאלה על תשמישי הקדושה שלנו.",
       },
       { property: "og:title", content: "צור קשר | אור זרוע לצדיק" },
       {
         property: "og:description",
         content:
-          "דרכי יצירת קשר עם אור זרוע לצדיק — טלפון, וואטסאפ, דוא\"ל וכתובת בקרית ביאליק.",
+          "דרכי יצירת קשר עם אור זרוע לצדיק — טופס פנייה, טלפון, וואטסאפ, דוא\"ל וכתובת בקרית ביאליק.",
       },
       { property: "og:url", content: "https://orzadik.com/contact" },
       { property: "og:type", content: "website" },
@@ -24,7 +25,7 @@ export const Route = createFileRoute("/contact")({
       {
         name: "twitter:description",
         content:
-          "דרכי יצירת קשר עם אור זרוע לצדיק — טלפון, וואטסאפ, דוא\"ל וכתובת בקרית ביאליק.",
+          "דרכי יצירת קשר עם אור זרוע לצדיק — טופס פנייה, טלפון, וואטסאפ, דוא\"ל וכתובת בקרית ביאליק.",
       },
     ],
     links: [{ rel: "canonical", href: "https://orzadik.com/contact" }],
@@ -123,6 +124,10 @@ function ContactPage() {
           valueSuffix="פתח במפה ‹"
         />
       </div>
+
+      {/* On-site form — the fourth channel, added so a visitor who is not ready
+          to call does not have to leave the site to ask a question. */}
+      <ContactForm />
 
       {/* Response time + hours — an honest expectation, not a guarantee. */}
       <section className="glass mt-6 p-5 md:p-6">
