@@ -118,12 +118,24 @@ export const Route = createFileRoute("/product/$slug")({
     // Summary (accurate full-count, for head()/JSON-LD/star-link) and the
     // approved-review list (SSR-seed for ProductReviews) are independent public
     // reads — run them together.
-    const [reviewSummary, initialReviews] = product.id
+    const [reviewSummary, initialReviews, canonicalSlugRes] = product.id
       ? await Promise.all([
           fetchReviewSummary(product.id as string),
           fetchReviews(product.id as string),
+          // 528 supplier name-collisions cover 1,636 active products (largest
+          // family: 43) that differ only by photo. Self-canonicalising all of
+          // them offered Google 1,108 duplicate URLs. This resolves the one
+          // representative per name group — the same row the listings show.
+          // Cast: the generated Supabase types are checked in and must not be
+          // hand-edited, and they predate this function. The shape is a plain
+          // `text` return, handled defensively below.
+          (supabase.rpc as any)("canonical_product_slug", { p_slug: params.slug }),
         ])
-      : [{ average: 0, count: 0 }, [] as PublicReview[]];
+      : [{ average: 0, count: 0 }, [] as PublicReview[], null];
+    const canonicalSlug =
+      (canonicalSlugRes as any)?.data && !(canonicalSlugRes as any)?.error
+        ? ((canonicalSlugRes as any).data as string)
+        : params.slug; // fail open: a lookup problem must never break the page
     // When the first category is a subcategory, resolve its parent so the
     // breadcrumb trail (JSON-LD in head + visible nav) includes the full path.
     const loaderCats = ((product as any).product_categories ?? [])
@@ -143,10 +155,16 @@ export const Route = createFileRoute("/product/$slug")({
         parentCat = null;
       }
     }
-    return { product, reviewSummary, initialReviews, parentCat };
+    return { product, reviewSummary, initialReviews, parentCat, canonicalSlug };
   },
   head: ({ loaderData, params }) => {
     const url = `https://orzadik.com/product/${params.slug}`;
+    // Canonical points at the representative of this product's name group, which
+    // for a unique name is the product itself. Siblings that differ only by photo
+    // therefore consolidate onto one indexable URL instead of competing.
+    const canonicalUrl = `https://orzadik.com/product/${
+      (loaderData as any)?.canonicalSlug || params.slug
+    }`;
     const p = loaderData?.product as any;
     const reviewSummary = (loaderData as any)?.reviewSummary as { average: number; count: number } | undefined;
     if (!p) return { meta: [{ title: "מוצר | אור זרוע לצדיק" }], links: [{ rel: "canonical", href: url }] };
@@ -202,7 +220,22 @@ export const Route = createFileRoute("/product/$slug")({
       params.slug,
       cats.map((c: any) => c.slug).filter(Boolean),
     );
-    const plainDesc = (p.short_description || p.description || "")
+    // SERP snippet source. `description` now holds real Hebrew prose followed by
+    // a blank line and the spec block ("חומר: … | צבע: … | מידות: …"), so take
+    // the PROSE half and prefer it. Reading short_description first — as this did
+    // — put a raw spec dump into the Google result for all ~4,600 products:
+    //   "חומר: קריסטל | צבע: זהב | מידות: אורך 42 ס\"מ — נבחר בהקפדה…"
+    // which reads as a database row, not a shop. short_description stays the
+    // fallback for anything without prose.
+    const prose = (p.description || "").split(/\n\s*\n/)[0] ?? "";
+    const proseClean = prose.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
+    // A spec line as the FIRST paragraph means there is no prose to prefer.
+    const proseIsSpec = /^\s*(חומר|צבע|מידות|שפה)\s*:/.test(proseClean);
+    const plainDesc = (
+      !proseIsSpec && proseClean.length >= 60
+        ? proseClean
+        : (p.short_description || p.description || "")
+    )
       .replace(/<[^>]*>/g, "")
       .replace(/\s+/g, " ")
       .trim();
@@ -406,7 +439,7 @@ export const Route = createFileRoute("/product/$slug")({
         ...(images[0] ? [{ property: "og:image:alt", content: p.name }] : []),
         ...(images[0] ? [{ name: "twitter:image", content: images[0] }] : []),
       ],
-      links: [{ rel: "canonical", href: url }, ...lcpPreload],
+      links: [{ rel: "canonical", href: canonicalUrl }, ...lcpPreload],
       scripts: [
         // Google requires a Product to carry at least one of offers/review/
         // aggregateRating. Call-only (gold) products have no offers, so only
