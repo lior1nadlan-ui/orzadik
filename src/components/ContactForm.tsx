@@ -39,27 +39,42 @@ export function ContactForm() {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (busy) return;
+
+    const name = form.name.trim();
+    const email = form.email.trim();
+    const message = form.message.trim();
+
+    // Mirror the server's `.trim().min()` BEFORE sending. The browser's native
+    // minLength counts the untrimmed value, so a message padded with spaces
+    // (trailing space from mobile autocomplete, or literal spacebar padding)
+    // sails past the browser and then fails zod on the server — turning a
+    // fixable typo into a server round-trip and an opaque error. Check it here
+    // and name the field instead. The server still re-validates; this only
+    // stops the two constraints from disagreeing.
+    if (name.length < 2) return setError("אנא הזינו שם מלא.");
+    if (message.length < 10) return setError("אנא כתבו הודעה מפורטת מעט יותר.");
+
     setBusy(true);
     setError("");
     try {
-      await send({
-        data: {
-          name: form.name.trim(),
-          email: form.email.trim(),
-          phone: form.phone.trim(),
-          message: form.message.trim(),
-          website,
-        },
-      });
+      await send({ data: { name, email, phone: form.phone.trim(), message, website } });
       setSent(true);
       setForm({ name: "", email: "", phone: "", message: "" });
     } catch (err: any) {
-      // Server errors we throw ourselves are Hebrew; anything else (transport,
-      // zod) gets a Hebrew fallback the visitor can act on.
-      const msg = typeof err?.message === "string" && /[֐-׿]/.test(err.message)
-        ? err.message
-        : "לא הצלחנו לשלוח את ההודעה. נסו שוב, או פנו אלינו בטלפון או בוואטסאפ.";
-      setError(msg);
+      // Show the server's own Hebrew message, but ONLY that. Hebrew alone is not
+      // a safe test: a zod failure arrives as ZodError.message, which is a
+      // JSON.stringify dump of the issues array — and since this form's schema
+      // carries Hebrew messages, that dump matches a Hebrew check too and would
+      // be rendered to the visitor as a wall of JSON. Anything JSON-shaped is
+      // therefore rejected in favour of the fallback.
+      const raw = typeof err?.message === "string" ? err.message.trim() : "";
+      const isOwnMessage =
+        /[֐-׿]/.test(raw) && !raw.startsWith("[") && !raw.startsWith("{");
+      setError(
+        isOwnMessage
+          ? raw
+          : "לא הצלחנו לשלוח את ההודעה. נסו שוב, או פנו אלינו בטלפון או בוואטסאפ.",
+      );
     } finally {
       setBusy(false);
     }
