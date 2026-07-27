@@ -11,8 +11,13 @@ const TALITOT = "talitot";
 const KIPOT = "kipot";
 const HATAN = "marazim-chatanim";
 const YEHUDAIKA = "yehudaika";
-const HAGIM = "%d7%9e%d7%95%d7%a6%d7%a8%d7%99-%d7%97%d7%92%d7%99%d7%9d";
-const SET_TALIT_TEFILIN = "%d7%a1%d7%98-%d7%98%d7%9c%d7%99%d7%aa-%d7%aa%d7%a4%d7%99%d7%9c%d7%99%d7%9f";
+// Live slugs. The three constants here used to point at categories holding ZERO
+// active products (the percent-encoded חגים and סט-טלית-תפילין import twins, and
+// `wine-dividers`), so those cross-sell slots silently rendered nothing on every
+// matching product page. Repointed to the stocked equivalents.
+const HAGIM = "chagim";                       // 523 products
+const WINE_SETS = "machlekei-yain-setim";     // 40 products
+const SET_TALIT_TEFILIN = "setim-talit-tefilin"; // 229 products
 
 export const CROSS_SELL_MAP: Record<string, string[]> = {
   [SIDDURIM]: [TALITOT, "plastic", KIPOT, SET_TALIT_TEFILIN],
@@ -22,21 +27,21 @@ export const CROSS_SELL_MAP: Record<string, string[]> = {
   plastic: [SIDDURIM, KIPOT, "blessings"],
   [KIPOT]: [SIDDURIM, TALITOT, "talit-clips"],
   hanukkah: [HAGIM, "metal-kiddush-cups", "candlesticks"],
-  passover: ["metal-kiddush-cups", "maim-achronim", "washing-cups", "wine-dividers"],
+  passover: ["metal-kiddush-cups", "maim-achronim", "washing-cups", WINE_SETS],
   "rosh-hashana": [HAGIM, "metal-kiddush-cups", "challah-covers"],
   purim: [HAGIM, "blessings"],
-  "metal-kiddush-cups": ["wine-dividers", "washing-cups", "challah-covers", "candlesticks"],
-  "crystal-ceramic-kiddush-cups": ["wine-dividers", "washing-cups", "challah-covers"],
+  "metal-kiddush-cups": [WINE_SETS, "washing-cups", "challah-covers", "candlesticks"],
+  "crystal-ceramic-kiddush-cups": [WINE_SETS, "washing-cups", "challah-covers"],
   "challah-covers": ["metal-kiddush-cups", "washing-cups", "candlesticks", "bencher-stands"],
   [SET_TALIT_TEFILIN]: [TALITOT, "tefillin-cases", "talit-tefillin-sets", "atara"],
   "tefillin-cases": [TALITOT, "talit-tefillin-sets", SET_TALIT_TEFILIN, "pvc-bags"],
   "talit-tefillin-sets": [TALITOT, "tefillin-cases", SET_TALIT_TEFILIN],
   "bencher-stands": [SIDDURIM, "study-books", "challah-covers"],
   "study-books": [SIDDURIM, "bencher-stands"],
-  candlesticks: ["metal-kiddush-cups", "challah-covers", "wine-dividers"],
+  candlesticks: ["metal-kiddush-cups", "challah-covers", WINE_SETS],
   "washing-cups": ["maim-achronim", "challah-covers", "metal-kiddush-cups"],
   "maim-achronim": ["washing-cups", "metal-kiddush-cups"],
-  havdalah: ["metal-kiddush-cups", "candlesticks", "wine-dividers"],
+  havdalah: ["metal-kiddush-cups", "candlesticks", WINE_SETS],
   mirrors: [YEHUDAIKA, "blessings"],
   blessings: [SIDDURIM, "challah-covers", "candlesticks"],
   "chalaka-set": [SIDDURIM, KIPOT, TALITOT],

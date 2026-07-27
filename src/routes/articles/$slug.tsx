@@ -15,7 +15,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { Link } from "@tanstack/react-router";
 import { ArrowRight, Share2, Calendar, Clock, User, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
-import DOMPurify from "isomorphic-dompurify";
+// Workers-safe sanitiser. isomorphic-dompurify falls back to jsdom on the
+// server, which cannot run in the Cloudflare Workers runtime — it threw
+// during SSR, so this route shipped NO body HTML to crawlers at all.
+import { sanitizeHtml } from "@/lib/sanitize-html";
 import { guideFaq, faqJsonLd } from "@/lib/guide-faq";
 
 /** In-stock, imaged products from an article's category — a live rail so a
@@ -347,7 +350,7 @@ function ArticleDetailPage() {
             [&_img]:rounded-xl [&_img]:max-w-full [&_img]:h-auto
             [&_blockquote]:pr-5 [&_blockquote]:border-r-2 [&_blockquote]:border-glass-line [&_blockquote]:text-muted-foreground
             [&_hr]:my-10 [&_hr]:border-0 [&_hr]:h-px [&_hr]:bg-glass-line"
-          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(a.body_html) }}
+          dangerouslySetInnerHTML={{ __html: sanitizeHtml(a.body_html) }}
         />
 
         {/* FAQ — AEO surface (voice, "People also ask", AI answer engines).
