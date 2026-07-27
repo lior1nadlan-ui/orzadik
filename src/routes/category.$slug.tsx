@@ -16,6 +16,8 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { useEffect, useMemo, useState } from "react";
 import { categoryFaq, faqJsonLd } from "@/lib/category-faq";
+import { guidesForCategory } from "@/lib/guide-links";
+import { GuideLinks } from "@/components/content/GuideLinks";
 import { getEffectivePrice } from "@/lib/pricing";
 import { thumbUrl } from "@/lib/img";
 import { cn } from "@/lib/utils";
@@ -361,6 +363,15 @@ function CategoryPage() {
     initialData: initialCat ?? undefined,
   });
 
+  // Guides for this category, resolved through the parent_slug walk-up so a
+  // subcategory (e.g. כיפות קטיפה) inherits its parent's guide. `allCats` is
+  // already in the loader data, so the climb costs nothing.
+  const categoryGuides = guidesForCategory(
+    slug,
+    cat?.parent_slug ?? null,
+    allCats as Array<{ slug: string; parent_slug?: string | null }> | undefined,
+  );
+
   const heroImage = cat?.image_url;
   // Same builder as the head() preload — the two srcSet strings must match
   // exactly (identical widths/quality) or the browser double-downloads the LCP.
@@ -594,6 +605,12 @@ function CategoryPage() {
           />
         </div>
 
+        {/* Guide pointer, above the fold. Resolved from config with a walk up
+            parent_slug, so a subcategory inherits its parent's guide. Renders
+            in the SSR HTML — these are the catalog's first links into the
+            editorial content. */}
+        <GuideLinks guides={categoryGuides} variant="chip" className="mt-4" />
+
         {(slug === "study-books" || slug === "esh-sheli-gold") && products.length === 0 ? (
           <div className="glass max-w-2xl mx-auto my-12 text-center p-10 md:p-14 [--glass-radius:1.5rem]">
             <div className="mx-auto mb-5 w-14 h-14 rounded-full bg-secondary hairline flex items-center justify-center">
@@ -739,6 +756,18 @@ function CategoryPage() {
               </div>
             )}
           </>
+        )}
+
+        {/* The same guides again, below the grid, with blurbs — a shopper who
+            reached the bottom without adding anything is usually still deciding,
+            and this is the question they actually have. */}
+        {categoryGuides.length > 0 && (
+          <GuideLinks
+            guides={categoryGuides}
+            variant="card"
+            heading="לפני שקונים"
+            className="mt-14 max-w-2xl mx-auto"
+          />
         )}
 
         {/* Email capture — a category browser has shown intent for a whole

@@ -16,10 +16,18 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { ProductGridSkeleton } from "@/components/Skeletons";
 
-type ShopSort = "newest" | "price-asc" | "price-desc" | "name";
+// "recommended" is the default. It used to be "newest", but 4,184 of the 4,641
+// active products were bulk-imported inside a single minute, so created_at
+// carries no signal and the RPC's ORDER BY fell through to the id tiebreak —
+// /shop was effectively presenting the catalog in random UUID order. The
+// 'recommended' branch (see the list_products_collapsed migration) sorts by
+// in-stock → has photo → has copy → price, which is also what /category has
+// always meant by "מומלץ", so the two discovery pages finally agree.
+type ShopSort = "recommended" | "newest" | "price-asc" | "price-desc" | "name";
 
 function isShopSort(v: unknown): v is ShopSort {
-  return v === "newest" || v === "price-asc" || v === "price-desc" || v === "name";
+  return v === "recommended" || v === "newest" || v === "price-asc"
+    || v === "price-desc" || v === "name";
 }
 
 // Fetch a page at a time rather than the whole catalog. This used to pull a
@@ -135,7 +143,12 @@ async function fetchShopPage(opts: {
   if (sort === "price-asc") query = query.order("price", { ascending: true });
   else if (sort === "price-desc") query = query.order("price", { ascending: false });
   else if (sort === "name") query = query.order("name", { ascending: true });
-  else query = query.order("created_at", { ascending: false });
+  else if (sort === "newest") query = query.order("created_at", { ascending: false });
+  // "recommended" fallback. PostgREST cannot order by the computed in-stock /
+  // has-photo booleans the RPC uses, so approximate with price DESC — the same
+  // final term, and still far better than created_at, which is one timestamp
+  // for 90% of the catalog and therefore no order at all.
+  else query = query.order("price", { ascending: false });
 
   const { data, error, count } = await query
     // Deterministic tiebreaker: thousands of rows share identical prices,
@@ -150,7 +163,7 @@ export const Route = createFileRoute("/shop")({
   component: ShopPage,
   validateSearch: (s: Record<string, unknown>): { q?: string; sort?: ShopSort; page?: number; instock?: boolean } => ({
     q: typeof s.q === "string" ? s.q : undefined,
-    // Unknown values narrow to undefined and render as the default ("newest").
+    // Unknown values narrow to undefined and render as the default ("recommended").
     sort: isShopSort(s.sort) ? s.sort : undefined,
     page: parsePage(s.page),
     // Client-side view filter only (see displayProducts) — deliberately kept OUT
@@ -159,7 +172,7 @@ export const Route = createFileRoute("/shop")({
   }),
   loaderDeps: ({ search }) => ({
     q: search.q ?? "",
-    sort: search.sort ?? ("newest" as ShopSort),
+    sort: search.sort ?? ("recommended" as ShopSort),
     page: search.page ?? 1,
   }),
   // Server-render the first (or requested) page. Without this the route emitted
@@ -171,7 +184,7 @@ export const Route = createFileRoute("/shop")({
     // page of it: those views stay canonical to the bare /shop (unchanged from
     // before) and get no rel=prev/next, which would otherwise point at the
     // unfiltered page 2.
-    const filtered = deps.q.trim().length > 0 || deps.sort !== "newest";
+    const filtered = deps.q.trim().length > 0 || deps.sort !== "recommended";
     try {
       return {
         page: deps.page,
@@ -268,7 +281,7 @@ function ShopPage() {
   const [inStockOnly, setInStockOnly] = useState(instockFromUrl ?? false);
   // Sort is read straight off the URL (not mirrored into state) so the route
   // loader, the head tags and the query key can never disagree about it.
-  const sort: ShopSort = sortFromUrl ?? "newest";
+  const sort: ShopSort = sortFromUrl ?? "recommended";
 
   // Keep the box and the effective term in step with the URL, including
   // back/forward and the pagination links below.
@@ -286,7 +299,7 @@ function ShopPage() {
     navigate({
       // A different order means a different page 1 — drop ?page= so the user
       // does not land mid-catalog after re-sorting.
-      search: (prev) => ({ ...prev, sort: v === "newest" ? undefined : v, page: undefined }),
+      search: (prev) => ({ ...prev, sort: v === "recommended" ? undefined : v, page: undefined }),
       replace: true,
       resetScroll: false,
     });
@@ -389,7 +402,7 @@ function ShopPage() {
   const hasMorePages = pageStart + products.length < total;
   const pageSearch = (n: number): { q?: string; sort?: ShopSort; page?: number; instock?: boolean } => ({
     q: activeQ || undefined,
-    sort: sort === "newest" ? undefined : sort,
+    sort: sort === "recommended" ? undefined : sort,
     page: n <= 1 ? undefined : n,
     instock: inStockOnly ? true : undefined,
   });
@@ -460,6 +473,7 @@ function ShopPage() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="recommended">מומלץ</SelectItem>
                 <SelectItem value="newest">תאריך: מהחדש לישן</SelectItem>
                 <SelectItem value="price-asc">מחיר: מהנמוך לגבוה</SelectItem>
                 <SelectItem value="price-desc">מחיר: מהגבוה לנמוך</SelectItem>

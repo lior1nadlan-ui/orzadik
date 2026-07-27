@@ -4,6 +4,12 @@
   "compatibility_date": "2025-09-24",
   "compatibility_flags": ["nodejs_compat"],
   "main": "src/server.ts",
+  // Retain Worker logs. Every failure path in the crons, the email sender and
+  // the CardCom webhook currently ends at console.* — without this, those lines
+  // are gone the moment the request finishes, so a cron that silently stopped
+  // (an expired Resend key stops order confirmations, cart reminders AND review
+  // requests at once) leaves no evidence to look at afterwards.
+  "observability": { "enabled": true },
   // Public (non-secret) runtime vars. The anon/publishable key is safe to expose.
   // Secrets (SUPABASE_SERVICE_ROLE_KEY, CARDCOM_*, RESEND_API_KEY, CRON_SECRET,
   // UNSUBSCRIBE_SECRET) must be set with `wrangler secret put` — never here.

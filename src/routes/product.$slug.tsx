@@ -23,6 +23,8 @@ import { formatILS, useCart, getEffectivePrice, FREE_SHIPPING_THRESHOLD, SHIPPIN
 import { trackViewItem } from "@/lib/analytics";
 import { ProductCardData } from "@/components/ProductCard";
 import { ProductCarousel } from "@/components/product/ProductCarousel";
+import { GuideLinks } from "@/components/content/GuideLinks";
+import { guidesForCategories } from "@/lib/guide-links";
 import { PersonalizationPreview } from "@/components/product/PersonalizationPreview";
 import {
   isPersonalizableProduct,
@@ -44,7 +46,10 @@ import { useFavorites } from "@/components/engagement/favorites";
 import { readRecent, recordRecent } from "@/components/engagement/recently-viewed";
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
-import DOMPurify from "isomorphic-dompurify";
+// Workers-safe sanitiser. isomorphic-dompurify falls back to jsdom on the
+// server, which cannot run in the Cloudflare Workers runtime — it threw
+// during SSR, so this route shipped NO body HTML to crawlers at all.
+import { sanitizeHtml } from "@/lib/sanitize-html";
 
 async function fetchProductWithRetry(slug: string, maxRetries = 2) {
   for (let i = 0; i <= maxRetries; i++) {
@@ -705,6 +710,8 @@ function ProductPage() {
   const categorySlugs: string[] = (product?.product_categories ?? [])
     .map((pc: any) => pc?.categories?.slug ?? "")
     .filter(Boolean);
+  // Guides relevant to this product's categories (deduped, max 2).
+  const productGuides = guidesForCategories(categorySlugs);
   // Same gate as before, now from the shared module. isPersonalizableProduct is
   // exactly `!NO_PERSONALIZATION_PRODUCT_SLUGS.has(slug) && isPersonalizable(...)`,
   // and embroideryOnly / printInsteadOfEmbroidery / embroideryLabel are derived
@@ -1250,7 +1257,7 @@ function ProductPage() {
           {product.short_description && (
             <div
               className="prose prose-sm max-w-none mb-5 text-foreground"
-              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(product.short_description) }}
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(product.short_description) }}
             />
           )}
 
@@ -1560,7 +1567,7 @@ function ProductPage() {
                 {product.description ? (
                   <div
                     className="prose prose-sm max-w-none text-foreground"
-                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(product.description) }}
+                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(product.description) }}
                   />
                 ) : (
                   // 142 products have no long description. Rather than omit the
@@ -1607,6 +1614,17 @@ function ProductPage() {
               </AccordionContent>
             </AccordionItem>
           </Accordion>
+
+          {/* Contextual guide link, capped at 2. Across ~4,600 product pages
+              this is the largest block of internal links into the guides on the
+              site — and it renders server-side, so crawlers see it. Capped and
+              category-varied so it reads as a pointer, not boilerplate. */}
+          {productGuides.length > 0 && (
+            <div className="mt-6 border-t border-glass-line pt-4">
+              <p className="mb-1.5 text-xs text-muted-foreground">עוד בנושא</p>
+              <GuideLinks guides={productGuides} variant="inline" />
+            </div>
+          )}
           </div>
         </div>
       </div>
