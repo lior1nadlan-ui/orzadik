@@ -370,13 +370,15 @@ export const Route = createFileRoute("/product/$slug")({
     // siddurim, "רקמה" elsewhere — so the ~4,600 non-personalizable products
     // (candlesticks, jewelry, mezuzah cases) no longer falsely advertise
     // "אפשרות רקמה אישית" on their SERP/OG snippets, contradicting the page body.
-    // ("כשרות מהודרת" is the store's standing site-wide claim — left as-is,
-    // pending the owner's per-item hashgacha review.) The 160-char meta is
-    // trimmed on a word boundary with an ellipsis instead of cutting mid-word.
+    // The kashrut phrase is a SELECTION claim ("נבחר בהקפדה על כשרות והידור"),
+    // matching llms.txt, the homepage FAQ and the about page — the old blanket
+    // "כשרות מהודרת" asserted certification for every SKU, candlesticks and gold
+    // jewelry included. The 160-char meta is trimmed on a word boundary with an
+    // ellipsis instead of cutting mid-word.
     const catSlugs = cats.map((c: any) => c.slug).filter(Boolean);
     const descTail =
       [
-        "כשרות מהודרת",
+        "נבחר בהקפדה על כשרות והידור",
         ...(personalizable ? [`אפשרות ${getEmbroideryLabel(catSlugs)} אישית`] : []),
         "משלוח עד הבית בכל ישראל",
       ].join(", ") + ".";
@@ -1659,7 +1661,10 @@ function ProductPage() {
           retires into the flow at the end of the container, so it can never
           cover the footer. Pure CSS — nothing here touches window/document, so
           it renders identically on the server. */}
-      <div className="glass-strong lg:hidden sticky bottom-0 z-40 -mx-4 mt-10 px-4 py-3 [--glass-radius:0] [--glass-shadow-lift:0_-10px_30px_-16px_rgba(22,24,29,0.20)]">
+      {/* data-mobile-actionbar: styles.css lifts the global WhatsApp / a11y FABs
+          above this bar while it is in the DOM — otherwise they float on top of
+          the price readout and the add-to-cart button on every phone. */}
+      <div data-mobile-actionbar className="glass-strong lg:hidden sticky bottom-0 z-40 -mx-4 mt-10 px-4 py-3 [--glass-radius:0] [--glass-shadow-lift:0_-10px_30px_-16px_rgba(22,24,29,0.20)]">
         {isCallOnly || !canBuy ? (
           <div className="flex items-center gap-2">
             {contactCtas(isCallOnly ? QUOTE_WA_TEXT : RESTOCK_WA_TEXT, true)}

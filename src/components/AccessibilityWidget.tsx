@@ -152,7 +152,7 @@ export function AccessibilityWidget() {
         aria-label="תפריט נגישות"
         aria-haspopup="dialog"
         aria-expanded={open}
-        className="press fixed bottom-5 left-5 z-50 inline-flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring motion-safe:[@media(hover:hover)_and_(pointer:fine)]:hover:[transform:scale(1.05)]"
+        className="press fab-float fixed bottom-5 left-5 z-50 inline-flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring motion-safe:[@media(hover:hover)_and_(pointer:fine)]:hover:[transform:scale(1.05)]"
       >
         <Accessibility className="h-6 w-6" aria-hidden="true" />
       </button>
@@ -175,7 +175,18 @@ export function AccessibilityWidget() {
         aria-modal="true"
         aria-label="הגדרות נגישות"
         className={
-          "glass-strong fixed bottom-20 left-5 z-50 w-[88vw] max-w-xs p-4 origin-bottom-left " +
+          // fab-float-panel: lifted above a page-level mobile action bar (see
+          // styles.css). max-h/overflow so the raised offset can never push the
+          // panel off a short viewport — it scrolls instead. The focus trap
+          // queries the DOM, so .focus() simply scrolls a control into view.
+          "glass-strong fab-float-panel fixed bottom-20 left-5 z-50 w-[88vw] max-w-xs p-4 origin-bottom-left " +
+          // dvh, and capped against the LIFTED bottom offset (9.5rem) plus a
+          // 2rem top margin — not 75vh. vh resolves against the large viewport
+          // (toolbars retracted), so on a short phone the cap would never engage
+          // while the lift still applied, pushing the panel's TOP edge off
+          // screen — which overflow-y-auto cannot rescue, since the box itself
+          // is out of view.
+          "max-h-[calc(100dvh-11.5rem)] overflow-y-auto overscroll-contain " +
           "[--glass-radius:1.25rem] transition-[opacity,transform,visibility] duration-200 ease-out " +
           (open
             ? "visible opacity-100"

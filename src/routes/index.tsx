@@ -167,7 +167,13 @@ function settle<T>(p: Promise<T>): Promise<T | null> {
 const FAQ_ITEMS: { q: string; a: string }[] = [
   {
     q: "האם המוצרים מהודרים ובעלי כשרות?",
-    a: "כן. כל מוצר נבחר בקפידה ועומד בסטנדרטים גבוהים של כשרות ומהדרין. טליתות, תפילין ומזוזות מגיעים עם תעודות כשרות מגופים מוכרים.",
+    // Truthful scope. The catalog holds נרתיקי מזוזה, תיקי תפילין and כיסויים —
+    // NOT written klaf or sofer-made tefillin — so the previous answer ("תפילין
+    // ומזוזות מגיעים עם תעודות כשרות") named products the store does not sell.
+    // This string is ALSO emitted as FAQPage JSON-LD, so it was eligible to show
+    // verbatim as a Google rich result. Part of the tzitzit/talit range does
+    // carry hashgacha, which is why that is stated separately rather than dropped.
+    a: "אנו בוחרים כל פריט בקפידה, בהקפדה על איכות והידור. חשוב לדעת: בחנות נמכרים נרתיקי מזוזה, תיקי תפילין וכיסויים לטלית ולתפילין — ולא קלף כתוב או תפילין מסופר סת\"ם. חלק מהטליתות והציציות מגיעות בהשגחה רבנית. לפרטים על ההכשר של פריט מסוים נשמח לענות בטלפון או בוואטסאפ.",
   },
   {
     q: "האם ניתן להוסיף שם אישי או רקמה על המוצרים?",
@@ -187,7 +193,8 @@ const FAQ_ITEMS: { q: string; a: string }[] = [
   },
   {
     q: "מה זה \"אור זרוע לצדיק\" ומי עומד מאחורי החנות?",
-    a: "אור זרוע לצדיק היא חנות אונליין ישראלית לתשמישי קדושה ויודאיקה מהודרת, בבעלות ליאור בן עמי מקרית ביאליק. השם נלקח מהפסוק בתהילים (צ\"ז), \"אוֹר זָרֻעַ לַצַּדִּיק\". החנות מתמחה בטליתות, תפילין, מזוזות, גביעי קידוש, חנוכיות ומארזים לחתנים, עם אפשרות רקמה וחריטה אישית ומשלוח עד הבית בישראל.",
+    // Product list matches FAQ item 1 and the catalog: כיסויים/נרתיקים, not klaf.
+    a: "אור זרוע לצדיק היא חנות אונליין ישראלית לתשמישי קדושה ויודאיקה מהודרת, בבעלות ליאור בן עמי מקרית ביאליק. השם נלקח מהפסוק בתהילים (צ\"ז), \"אוֹר זָרֻעַ לַצַּדִּיק\". החנות מתמחה בטליתות, כיסויי טלית ותפילין, נרתיקי מזוזה, גביעי קידוש, חנוכיות ומארזים לחתנים, עם אפשרות רקמה וחריטה אישית ומשלוח עד הבית בישראל.",
   },
 ];
 
@@ -209,13 +216,16 @@ export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
       { title: "אור זרוע לצדיק | תשמישי קדושה ויודאיקה מהודרת" },
-      { name: "description", content: "חנות תשמישי קדושה ויודאיקה: טליתות, תפילין, מזוזות, גביעי קידוש, חנוכיות, מארזים לחתנים וסטי חלאקה. כשרות מהודרת, רקמה אישית ומשלוח עד הבית." },
+      // "נבחרים בהקפדה על כשרות והידור" — a selection claim, matching llms.txt
+      // and FAQ item 1. The previous "כשרות מהודרת" asserted certification for
+      // every SKU (candlesticks and gold jewelry included) in the SERP snippet.
+      { name: "description", content: "חנות תשמישי קדושה ויודאיקה: טליתות, כיסויי טלית ותפילין, נרתיקי מזוזה, גביעי קידוש, חנוכיות ומארזים לחתנים. נבחרים בהקפדה על כשרות והידור, רקמה אישית ומשלוח עד הבית." },
       { property: "og:title", content: "אור זרוע לצדיק | תשמישי קדושה ויודאיקה מהודרת" },
-      { property: "og:description", content: "טליתות, תפילין, מזוזות, גביעי קידוש ומארזים לחתנים בכשרות מהודרת. רקמה אישית ומשלוח עד הבית." },
+      { property: "og:description", content: "טליתות, כיסויי טלית ותפילין, נרתיקי מזוזה, גביעי קידוש ומארזים לחתנים — נבחרים בהקפדה על כשרות והידור. רקמה אישית ומשלוח עד הבית." },
       { property: "og:url", content: "https://orzadik.com/" },
       { property: "og:type", content: "website" },
       { name: "twitter:title", content: "אור זרוע לצדיק | תשמישי קדושה ויודאיקה מהודרת" },
-      { name: "twitter:description", content: "טליתות, תפילין, מזוזות, גביעי קידוש ומארזים לחתנים בכשרות מהודרת." },
+      { name: "twitter:description", content: "טליתות, כיסויי טלית ותפילין, נרתיקי מזוזה, גביעי קידוש ומארזים לחתנים — נבחרים בהקפדה על כשרות והידור." },
     ],
     links: [
       { rel: "canonical", href: "https://orzadik.com/" },
@@ -310,11 +320,15 @@ function IconShieldCheck({ className }: { className?: string }) {
 }
 
 // Three house facts, each already asserted in FAQ_ITEMS: personal embroidery &
-// engraving (172), mehadrin kashrut with certificates (168), 3–14-day home
-// delivery (176). Nothing new is claimed here — the strip only restates truths.
+// engraving, careful selection, and 3–14-day home delivery. Nothing new is
+// claimed here — the strip only restates truths stated in the FAQ.
+// The middle badge used to read "כשרות מהודרת עם תעודות", which asserted a
+// certificate for EVERY product — candlesticks and gold jewelry included — and
+// contradicted the FAQ answer above it. Keep this strip and FAQ_ITEMS in step:
+// this comment is exactly the link that let the two drift apart before.
 const DIFFERENTIATORS = [
   { title: "רקמה וחריטה אישית", icon: <IconGem className="w-8 h-8 md:w-9 md:h-9" /> },
-  { title: "כשרות מהודרת עם תעודות", icon: <IconShieldCheck className="w-8 h-8 md:w-9 md:h-9" /> },
+  { title: "פריטים נבחרים בקפידה", icon: <IconShieldCheck className="w-8 h-8 md:w-9 md:h-9" /> },
   { title: "משלוח עד הבית 3–14 ימים", icon: <IconTruck className="w-8 h-8 md:w-9 md:h-9" /> },
 ];
 

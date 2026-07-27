@@ -570,6 +570,22 @@ html.a11y-cursor, html.a11y-cursor * {
 #app-root.a11y-grayscale { filter: grayscale(100%); }
 html:has(#app-root.a11y-grayscale) body::before { filter: grayscale(100%); }
 
+/* Lift the floating buttons clear of a page-level mobile action bar.
+   The product page's buy bar is `sticky bottom-0` and ~68px tall (12 + 44 + 12),
+   while both global FABs sit at bottom:1.25rem and are 48px tall — their
+   footprints fall ENTIRELY inside that band, so on a phone the WhatsApp pill
+   covered the live price readout and the a11y button covered the start of
+   "הוסף לעגלה". Raising the bar's z-index instead would half-bury the FABs
+   behind 94%-white glass, so the FABs move instead. Unlayered on purpose: it
+   must outrank Tailwind's layered `bottom-5` utility. The max-width guard
+   matches `lg`, so desktop is untouched even though :has() still matches the
+   lg:hidden bar there. rem units so this scales with the a11y font-size zoom
+   exactly as the bar does. */
+@media (max-width: 1023px) {
+  body:has([data-mobile-actionbar]) .fab-float { bottom: 5.75rem; }
+  body:has([data-mobile-actionbar]) .fab-float-panel { bottom: 9.5rem; }
+}
+
 /* Respect a system "reduce motion" preference by default.
    Per the standard: KEEP opacity and colour, DROP movement. */
 @media (prefers-reduced-motion: reduce) {

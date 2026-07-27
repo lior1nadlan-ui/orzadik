@@ -29,8 +29,24 @@ import { sellerIdentityLine, BUSINESS } from "@/lib/business";
 const DAYS_AFTER_SHIPPING = 7;
 /** Orders handled per cron tick. */
 const BATCH = 50;
+/** Resend allows roughly 2 requests/second — same pacing as the other senders. */
+const SEND_GAP_MS = 550;
+/**
+ * Actual send attempts per run (~22s wall at SEND_GAP_MS — the same budget
+ * abandoned-cart already accepts, so the cron request can't time out). Orders
+ * past the budget stay UNSTAMPED and drain on the next tick.
+ */
+const MAX_SENDS_PER_RUN = 40;
+/** Consecutive failures that mean the provider is down, not one bad address. */
+const MAX_CONSECUTIVE_FAILURES = 5;
+/**
+ * Past this age an order stops being retried. Without a floor, the first tick
+ * after any gap would scan the entire historical order book.
+ */
+const MAX_AGE_DAYS = 30;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-export async function runReviewRequests(): Promise<{ sent: number; scanned: number }> {
+export async function runReviewRequests(): Promise<{ sent: number; scanned: number; failed?: number }> {
   if (!isEmailConfigured()) {
     console.log("[review-request] email not configured — skipping");
     return { sent: 0, scanned: 0 };
@@ -43,6 +59,9 @@ export async function runReviewRequests(): Promise<{ sent: number; scanned: numb
   const cutoff = new Date(
     Date.now() - DAYS_AFTER_SHIPPING * 24 * 60 * 60 * 1000,
   ).toISOString();
+  // Lower bound on the scan: orders older than this stop being retried. (.gte
+  // excludes NULL shipped_at exactly as the existing .lte already does.)
+  const floor = new Date(Date.now() - MAX_AGE_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
   const { data: orders, error } = await supabaseAdmin
     .from("orders")
@@ -54,6 +73,10 @@ export async function runReviewRequests(): Promise<{ sent: number; scanned: numb
     .eq("contact_consent", true)
     .is("review_request_sent_at", null)
     .lte("shipped_at", cutoff)
+    .gte("shipped_at", floor)
+    // Oldest first, so the orders nearest aging out get their retry before the
+    // fresh ones.
+    .order("shipped_at", { ascending: true })
     .limit(BATCH);
 
   if (error) {
@@ -98,6 +121,9 @@ export async function runReviewRequests(): Promise<{ sent: number; scanned: numb
   }
 
   let sent = 0;
+  let failed = 0;
+  let attempted = 0;
+  let consecutiveFailures = 0;
   for (const order of rows) {
     const email = (order.customer_email ?? "").toLowerCase();
     const stamp = async () =>
@@ -170,6 +196,11 @@ export async function runReviewRequests(): Promise<{ sent: number; scanned: numb
       </div>
     `, `${order.customer_name}, נשמח לשמוע איך היו המוצרים מהזמנה ${order.order_number}.`);
 
+    // Budget reached — the rest keep review_request_sent_at null and go out on
+    // the next daily tick.
+    if (attempted >= MAX_SENDS_PER_RUN) break;
+    attempted++;
+
     const ok = await sendEmail({
       to: order.customer_email,
       subject: "איך היו המוצרים? נשמח לחוות דעת — אור זרוע לצדיק",
@@ -179,12 +210,39 @@ export async function runReviewRequests(): Promise<{ sent: number; scanned: numb
       headers: listUnsubscribeHeaders(unsub),
     });
 
-    // Stamp regardless of send outcome — a failed send is logged inside
-    // sendEmail, and retrying on every tick would be a retry storm.
-    await stamp();
-    if (ok) sent++;
+    // Stamp on ATTEMPT, not on success. It looks tempting to stamp only when
+    // ok===true so a failure can retry, but sendEmail also returns false when
+    // the 8s abort fires on a request Resend already accepted — and
+    // review_request_sent_at is the hard gate that makes the signed review link
+    // in that delivered email valid. Retrying would then mail the same customer
+    // a fresh copy every day (up to the 30-day floor), each carrying a link that
+    // reports "הקישור אינו תקין". One lost request beats 30 duplicates with a
+    // dead CTA. The real fix for the original bug is the pacing above: the mass
+    // failures were 429s from unthrottled sends, which no longer happen. Orders
+    // never ATTEMPTED (past the budget, or after the breaker trips) stay
+    // unstamped and go out on the next tick.
+    const { error: stampErr } = await stamp();
+    if (stampErr) console.error("[review-request] stamp failed for", order.id, stampErr);
+
+    if (ok) {
+      sent++;
+      consecutiveFailures = 0;
+    } else {
+      failed++;
+      consecutiveFailures++;
+      if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+        console.error(
+          `[review-request] ${consecutiveFailures} consecutive send failures — stopping run`,
+        );
+        break;
+      }
+    }
+
+    // Resend allows ~2 req/s. Without this, back-to-back POSTs are 429'd from
+    // roughly the third request on. This is I/O wait, not Worker CPU time.
+    await sleep(SEND_GAP_MS);
   }
 
-  console.log(`[review-request] scanned=${rows.length} sent=${sent}`);
-  return { sent, scanned: rows.length };
+  console.log(`[review-request] scanned=${rows.length} sent=${sent} failed=${failed}`);
+  return { sent, scanned: rows.length, ...(failed ? { failed } : {}) };
 }

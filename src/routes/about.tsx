@@ -10,14 +10,14 @@ export const Route = createFileRoute("/about")({
       {
         name: "description",
         content:
-          "אור זרוע לצדיק - חנות תשמישי קדושה ויודאיקה מהודרת. סטי חלאקה, מארזים לחתנים, כיסויי טלית ותפילין, סידורים, גביעי קידוש, חנוכיות ומזוזות בכשרות מובחרת.",
+          "אור זרוע לצדיק - חנות תשמישי קדושה ויודאיקה מהודרת. סטי חלאקה, מארזים לחתנים, כיסויי טלית ותפילין, סידורים, גביעי קידוש, חנוכיות ונרתיקי מזוזה — נבחרים בהקפדה על כשרות והידור.",
       },
       { property: "og:title", content: "אודות | אור זרוע לצדיק" },
-      { property: "og:description", content: "חנות תשמישי קדושה ויודאיקה מהודרת בכשרות מובחרת: חלאקה, מארזים לחתנים, טלית ותפילין, גביעי קידוש, חנוכיות ומזוזות." },
+      { property: "og:description", content: "חנות תשמישי קדושה ויודאיקה מהודרת: חלאקה, מארזים לחתנים, כיסויי טלית ותפילין, גביעי קידוש, חנוכיות ונרתיקי מזוזה — נבחרים בהקפדה על כשרות והידור." },
       { property: "og:url", content: "https://orzadik.com/about" },
       { property: "og:type", content: "website" },
       { name: "twitter:title", content: "אודות | אור זרוע לצדיק" },
-      { name: "twitter:description", content: "חנות תשמישי קדושה ויודאיקה מהודרת בכשרות מובחרת." },
+      { name: "twitter:description", content: "חנות תשמישי קדושה ויודאיקה מהודרת — נבחרים בהקפדה על כשרות והידור." },
     ],
     links: [{ rel: "canonical", href: "https://orzadik.com/about" }],
     scripts: [
@@ -60,7 +60,7 @@ function AboutPage() {
           </h1>
           <p className="text-base md:text-lg text-muted-foreground leading-relaxed">
             מבריתות וחלאקות, דרך בר מצוות וחתונות, ועד לרגעי השבת והחג בבית —
-            אנחנו כאן עם מוצרים מהודרים, איכותיים ובכשרות מובחרת.
+            אנחנו כאן עם מוצרים מהודרים ואיכותיים, נבחרים בקפידה.
           </p>
         </div>
       </section>
@@ -120,8 +120,13 @@ function AboutPage() {
           <div className="grid gap-6 md:grid-cols-3">
             {[
               {
-                t: "כשרות מובחרת",
-                d: "כל המוצרים מיוצרים בהקפדה על כשרות מהודרת בפיקוח רבני.",
+                // A selection claim, not a manufacturing claim: the previous
+                // wording ("כל המוצרים מיוצרים בהקפדה על כשרות מהודרת בפיקוח
+                // רבני") covered ~4,600 SKUs including candlesticks and gold
+                // jewelry, for which rabbinic manufacturing supervision is not a
+                // meaningful statement. Kept in step with the homepage FAQ.
+                t: "בחירה מוקפדת",
+                d: "אנו בוחרים כל פריט בהקפדה על איכות והידור. לפרטים על ההכשר של פריט מסוים — צרו קשר ונשמח לסייע.",
               },
               {
                 t: "איכות פרימיום",
