@@ -17,8 +17,26 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useEffect, useMemo, useState } from "react";
 import { categoryFaq, faqJsonLd } from "@/lib/category-faq";
 import { getEffectivePrice } from "@/lib/pricing";
+import { thumbUrl } from "@/lib/img";
 import { cn } from "@/lib/utils";
 import { ChevronDown } from "lucide-react";
+
+// Responsive srcSet for the category hero (the page's LCP element). Mirrors the
+// PDP/home pattern: width-constrained storage transforms for smaller viewports
+// (where CWV is scored) plus the untouched original as the widest candidate so
+// desktop never regresses. Returns undefined when the URL isn't Supabase-
+// transformable (external / already-transformed) → the hero falls back to plain
+// single-src markup. BOTH the head() preload's imagesrcset and the <img> srcSet
+// call this one builder: the two strings MUST be byte-identical or the browser
+// double-downloads the hero.
+function buildHeroSrcSet(url: string | null | undefined): string | undefined {
+  if (!url) return undefined;
+  if (thumbUrl(url, 1280, 80) === url) return undefined; // not transformable
+  return [
+    ...[640, 960, 1280].map((w) => `${thumbUrl(url, w, 80)} ${w}w`),
+    `${url} 1600w`,
+  ].join(", ");
+}
 
 // Old category slugs that were merged into a canonical one (2026-07 dedupe).
 // `talit-tefillin-covers` was a full duplicate of `talit-tefillin-sets` (all 46
@@ -70,35 +88,38 @@ async function fetchCategoryWithRetry(slug: string, maxRetries = 2) {
         .maybeSingle();
       if (catErr) throw catErr;
       if (!cat) return { cat: null, parent: null, products: [], allCats: [] as CategoryChipRow[] };
-      // Paged read (see fetchCategoryProducts) so a >1000-row category never
-      // silently drops products; a thrown DB error still reaches the retry below.
-      const products = await fetchCategoryProducts(cat.id);
-      // Subcategories surface their parent level in the breadcrumb trail
-      // (visible nav + JSON-LD) — fetch it once here so crawlers get the full
-      // trail in the initial SSR HTML.
-      let parent: { slug: string; name: string } | null = null;
-      if (cat.parent_slug) {
-        const { data: parentRow } = await supabase
+      // These three reads are independent (only `parent` needs the category
+      // row's parent_slug, which we already have), so run them in parallel — run
+      // serially they were three round-trips landing back-to-back on SSR TTFB.
+      // Behavior is preserved: fetchCategoryProducts still throws on a real DB
+      // error, which rejects Promise.all and reaches the retry below; the
+      // parent/allCats builders resolve with { data } and never reject, so their
+      // errors stay non-fatal (page still renders, chips fill from the client).
+      const [products, parentRes, allCatsRes] = await Promise.all([
+        // Paged read (see fetchCategoryProducts) so a >1000-row category never
+        // silently drops products.
+        fetchCategoryProducts(cat.id),
+        // Parent surfaces in the breadcrumb trail (visible nav + JSON-LD), so
+        // crawlers get the full trail in the initial SSR HTML.
+        cat.parent_slug
+          ? supabase
+              .from("categories")
+              .select("slug, name")
+              .eq("slug", cat.parent_slug)
+              .maybeSingle()
+          : Promise.resolve({ data: null as { slug: string; name: string } | null }),
+        // Subcategory / sibling chips, so the internal links exist in the SSR
+        // HTML (not only after the client query resolves). Same select + order
+        // as SubcategoryChips/categories.tsx so it seeds the shared ["all-cats"]
+        // cache. 105 rows — under the 1000-row PostgREST cap, one bounded select.
+        supabase
           .from("categories")
-          .select("slug, name")
-          .eq("slug", cat.parent_slug)
-          .maybeSingle();
-        parent = parentRow ?? null;
-      }
-      // Subcategory / sibling chips, fetched here so the internal links exist
-      // in the SSR HTML instead of only after the client query resolves.
-      // Same select + order as SubcategoryChips/categories.tsx so it seeds the
-      // shared ["all-cats"] cache. 105 rows — comfortably under the 1000-row
-      // PostgREST cap, so one bounded-in-practice select, not a paged read.
-      // Non-fatal like the parent lookup above: the chips are navigation, not
-      // the page — if this one select fails the page still renders and the
-      // client query fills the strip in.
-      const { data: allCatRows } = await supabase
-        .from("categories")
-        .select("id, slug, name, description, parent_slug, sort_order")
-        .order("sort_order")
-        .order("name");
-      const allCats = (allCatRows ?? []) as CategoryChipRow[];
+          .select("id, slug, name, description, parent_slug, sort_order")
+          .order("sort_order")
+          .order("name"),
+      ]);
+      const parent = (parentRes.data ?? null) as { slug: string; name: string } | null;
+      const allCats = (allCatsRes.data ?? []) as CategoryChipRow[];
       return { cat, parent, products, allCats };
     } catch (err: any) {
       if (i === maxRetries || !["ECONNREFUSED", "ETIMEDOUT", "network"].some(m => String(err).includes(m))) {
@@ -213,12 +234,24 @@ export const Route = createFileRoute("/category/$slug")({
 
     // LCP preload. On categories that have a hero banner it is the page's
     // largest paint, so start it downloading from the initial HTML. The hero
-    // <img> renders the raw image_url with no srcSet, so a plain href preload
-    // matches exactly what it fetches — nothing to mirror via imagesrcset, and
-    // no double-download. Guarded: categories with no hero emit no preload, and
-    // the grid thumbnails drop their high fetchpriority so this hero wins.
+    // <img> ships a responsive srcSet (buildHeroSrcSet), so the preload mirrors
+    // it via imagesrcset/imagesizes — byte-identical to the <img> so the browser
+    // fetches exactly one candidate (no double-download), and on a phone that is
+    // a width-constrained transform, not the 1600px original. Guarded:
+    // categories with no hero emit no preload; a non-transformable URL falls
+    // back to a plain href preload; grid thumbnails drop their high fetchpriority
+    // so this hero wins.
+    const heroSrcSet = buildHeroSrcSet(cat.image_url);
     const heroPreload = cat.image_url
-      ? [{ rel: "preload", as: "image", href: cat.image_url, fetchpriority: "high" }]
+      ? [
+          {
+            rel: "preload",
+            as: "image",
+            href: cat.image_url,
+            ...(heroSrcSet ? { imagesrcset: heroSrcSet, imagesizes: "100vw" } : {}),
+            fetchpriority: "high",
+          },
+        ]
       : [];
 
     return {
@@ -329,6 +362,9 @@ function CategoryPage() {
   });
 
   const heroImage = cat?.image_url;
+  // Same builder as the head() preload — the two srcSet strings must match
+  // exactly (identical widths/quality) or the browser double-downloads the LCP.
+  const heroImageSrcSet = buildHeroSrcSet(heroImage);
 
   const { data: products = [] } = useQuery({
     queryKey: ["cat-products", cat?.id],
@@ -463,11 +499,15 @@ function CategoryPage() {
             <div className="relative w-full aspect-[16/7] md:aspect-[21/8]">
               <img
                 src={heroImage}
+                srcSet={heroImageSrcSet}
                 alt={cat?.name ? `תמונת קטגוריה עבור ${cat.name}` : "תמונת קטגוריה"}
                 // Above-the-fold hero — the category page's LCP element, so it
                 // is fetched eagerly on purpose. loading="lazy" here would
                 // contradict fetchPriority="high" and delay LCP; the explicit
-                // intrinsic size reserves the box and keeps CLS at zero.
+                // intrinsic size reserves the box and keeps CLS at zero. srcSet
+                // (when the URL is transformable) serves a width-matched
+                // candidate — a phone no longer downloads the 1600px original;
+                // src stays as the fallback for non-srcSet browsers.
                 fetchPriority="high"
                 loading="eager"
                 decoding="async"

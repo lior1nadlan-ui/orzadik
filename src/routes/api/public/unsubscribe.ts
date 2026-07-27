@@ -31,22 +31,25 @@ async function handle(request: Request): Promise<Response> {
   }
 
   try {
+    // .eq, not .ilike, throughout: `email` is already lowercased (L26), so an
+    // exact match cannot miss — while .ilike would treat `_`/`%` in the address
+    // as LIKE wildcards and collaterally unsubscribe look-alike addresses.
     // Stop abandoned-cart / marketing reminders for this address.
     await supabaseAdmin
       .from("abandoned_carts")
       .update({ unsubscribed: true })
-      .ilike("email", email);
+      .eq("email", email);
     // If a registered profile exists, revoke marketing consent too.
     await supabaseAdmin
       .from("profiles")
       .update({ marketing_consent: false })
-      .ilike("email", email);
+      .eq("email", email);
     // Newsletter list: mark the subscription closed rather than deleting it, so
     // the opt-out itself stays auditable (Spam Law §30א).
     await supabaseAdmin
       .from("newsletter_subscribers")
       .update({ unsubscribed_at: new Date().toISOString() })
-      .ilike("email", email)
+      .eq("email", email)
       .is("unsubscribed_at", null);
     // Global kill-switch. The lists above are the ones we know about today;
     // this row is what every future sender checks, so an address that opts out

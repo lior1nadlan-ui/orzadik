@@ -106,7 +106,9 @@ export function AccessibilityWidget() {
         panel?.querySelectorAll<HTMLElement>(
           'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
         ) ?? [],
-      ).filter((el) => !el.hasAttribute("disabled"));
+      ).filter((el) => !el.hasAttribute("disabled") && el.tabIndex !== -1);
+    // Exclude tabindex=-1 controls so the trap's first/last stops are always
+    // real, focusable elements (mirrors the SiteHeader search dialog).
     focusables()[0]?.focus();
 
     const onKey = (e: KeyboardEvent) => {

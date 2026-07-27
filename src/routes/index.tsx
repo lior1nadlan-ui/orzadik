@@ -810,7 +810,7 @@ function HomePage() {
               decoding="async"
               width={800}
               height={1067}
-              className="w-full h-full aspect-[4/3] object-cover rounded-2xl border border-gold/40"
+              className="w-full h-full aspect-[4/3] object-cover rounded-[1.5rem] border border-gold/40"
             />
             <div className="glass glass-gold p-10 md:p-14 flex flex-col justify-center [--glass-radius:1.5rem]">
               <p className="text-[10px] md:text-xs tracking-[0.35em] text-accent mb-4">
