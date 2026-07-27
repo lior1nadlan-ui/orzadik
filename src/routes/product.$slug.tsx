@@ -364,11 +364,32 @@ export const Route = createFileRoute("/product/$slug")({
       })),
     };
 
-    const desc = ((plainDesc ? plainDesc + " — " : "") + "כשרות מהודרת, אפשרות רקמה אישית ומשלוח עד הבית.").slice(0, 200);
+    // Meta/OG description. The embroidery clause is gated on `personalizable`
+    // (the same predicate that renders the embroidery UI, via
+    // isPersonalizableProduct) and uses the correct method word — "הטבעה" for
+    // siddurim, "רקמה" elsewhere — so the ~4,600 non-personalizable products
+    // (candlesticks, jewelry, mezuzah cases) no longer falsely advertise
+    // "אפשרות רקמה אישית" on their SERP/OG snippets, contradicting the page body.
+    // ("כשרות מהודרת" is the store's standing site-wide claim — left as-is,
+    // pending the owner's per-item hashgacha review.) The 160-char meta is
+    // trimmed on a word boundary with an ellipsis instead of cutting mid-word.
+    const catSlugs = cats.map((c: any) => c.slug).filter(Boolean);
+    const descTail =
+      [
+        "כשרות מהודרת",
+        ...(personalizable ? [`אפשרות ${getEmbroideryLabel(catSlugs)} אישית`] : []),
+        "משלוח עד הבית בכל ישראל",
+      ].join(", ") + ".";
+    const descBase = (plainDesc ? plainDesc + " — " : "") + descTail;
+    const desc = descBase.length <= 200 ? descBase : descBase.slice(0, 200);
+    const metaDesc =
+      descBase.length <= 160
+        ? descBase
+        : `${descBase.slice(0, 160).replace(/\s+\S*$/, "").trim() || descBase.slice(0, 160).trim()}…`;
     return {
       meta: [
         { title: `${p.name} | אור זרוע לצדיק` },
-        { name: "description", content: desc.slice(0, 160) },
+        { name: "description", content: metaDesc },
         { property: "og:title", content: `${p.name} | אור זרוע לצדיק` },
         { name: "twitter:title", content: `${p.name} | אור זרוע לצדיק` },
         { property: "og:description", content: desc },

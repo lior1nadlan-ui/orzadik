@@ -193,11 +193,14 @@ export const placeOrder = createServerFn({ method: "POST" })
       throw new Error("שגיאה בשמירת פרטי ההזמנה. אנא נסה שוב.");
     }
 
-    // Mark any open abandoned cart for this email as converted
+    // Mark any open abandoned cart for this email as converted. .eq, not .ilike:
+    // normalizedEmail is already lowercased (L59), so an exact match is correct —
+    // .ilike would treat `_`/`%` in the local-part as wildcards and mark a
+    // look-alike customer's cart converted, killing their reminder.
     await supabaseAdmin
       .from("abandoned_carts")
       .update({ converted_order_id: order.id })
-      .ilike("email", normalizedEmail)
+      .eq("email", normalizedEmail)
       .is("converted_order_id", null);
 
     // Optional marketing opt-in ticked at checkout. Fully isolated: the order

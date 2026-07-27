@@ -101,7 +101,11 @@ export async function recordNewsletterConsent(opts: {
   };
   const { error: profErr } = opts.userId
     ? await supabaseAdmin.from("profiles").update(profileUpdate).eq("id", opts.userId)
-    : await supabaseAdmin.from("profiles").update(profileUpdate).ilike("email", email);
+    // .eq, not .ilike: `email` is already lowercased (L54) so an exact match
+    // never misses, and .ilike treats `_`/`%` in the local-part as LIKE
+    // wildcards — flipping marketing_consent=true on a look-alike stranger's
+    // profile (e.g. john_doe vs johnXdoe), a §30א opt-in violation.
+    : await supabaseAdmin.from("profiles").update(profileUpdate).eq("email", email);
   if (profErr) console.error("[newsletter] profile consent sync failed:", profErr);
 
   return { suppressed: false };

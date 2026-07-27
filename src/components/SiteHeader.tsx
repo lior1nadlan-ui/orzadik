@@ -181,7 +181,13 @@ export function SiteHeader() {
         panel?.querySelectorAll<HTMLElement>(
           'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
         ) ?? [],
-      ).filter((el) => !el.hasAttribute("disabled"));
+      ).filter((el) => !el.hasAttribute("disabled") && el.tabIndex !== -1);
+    // el.tabIndex !== -1 is load-bearing: the result options are
+    // <a href tabIndex={-1}> (roving tabindex) and the "all results" control is
+    // a <button tabIndex={-1}>. The [href]/button clauses still match them, so
+    // without this guard `last` becomes a tabindex=-1 element that can never be
+    // document.activeElement, forward-Tab never wraps, and focus escapes the
+    // modal into the page behind the scrim.
     // Move focus into the search field (autoFocus covers the same target; this
     // makes the intent explicit and survives re-renders).
     searchInputRef.current?.focus();

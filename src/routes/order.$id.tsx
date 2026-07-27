@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { getOrderConfirmation } from "@/lib/order.functions";
+import { createCardcomPayment } from "@/lib/cardcom.functions";
 import { formatILS, useCart } from "@/lib/cart";
 import { BUSINESS } from "@/lib/business";
 import { Button } from "@/components/ui/button";
@@ -57,6 +58,35 @@ function OrderConfirmationPage() {
   const isPaid = order?.payment_status === "paid";
   // Just paid, webhook not caught up yet, still inside the poll window.
   const verifying = justPaid && !isPaid && pollWindowOpen;
+
+  // Re-open the Cardcom payment page for THIS SAME order (declined / cancelled /
+  // never-paid). createCardcomPayment re-verifies the amount from the DB and
+  // refuses if already paid, so no duplicate order is created and no re-fill of
+  // the checkout form is needed — unlike sending the buyer back to /cart, which
+  // runs placeOrder again (new unpaid order + burns the 5-orders/hour cap and
+  // can lock them out mid-purchase). Gated on !justPaid at the call site so a
+  // just-paid-but-webhook-lagging buyer is never shown "pay again".
+  const retryPay = useServerFn(createCardcomPayment);
+  const [retrying, setRetrying] = useState(false);
+  const [retryError, setRetryError] = useState<string | null>(null);
+  const onRetryPayment = async () => {
+    setRetrying(true);
+    setRetryError(null);
+    try {
+      const { url } = await retryPay({ data: { order_id: id } });
+      window.location.href = url;
+    } catch (e) {
+      // Surface the server's Hebrew message when it sent one; otherwise a
+      // friendly fallback. (e.g. "ההזמנה כבר שולמה" if it paid in a race.)
+      const msg = e instanceof Error ? e.message : "";
+      setRetryError(
+        /[֐-׿]/.test(msg)
+          ? msg
+          : "לא הצלחנו לפתוח את עמוד התשלום כרגע. נסו שוב או צרו קשר בוואטסאפ.",
+      );
+      setRetrying(false);
+    }
+  };
 
   // Clear the cart only once payment is confirmed — never before.
   useEffect(() => {
@@ -197,10 +227,27 @@ function OrderConfirmationPage() {
             </div>
             <h1 className="font-display text-3xl font-bold">ההזמנה התקבלה — ממתינה לתשלום</h1>
             <p className="text-muted-foreground mt-2">מספר הזמנה: <span className="font-mono font-bold">{order.order_number}</span></p>
-            <p className="text-sm text-muted-foreground mt-1">טרם נקלט תשלום עבור הזמנה זו. אם ביטלת בטעות, ניתן לחזור לעגלה ולהשלים את התשלום, או ליצור איתנו קשר בוואטסאפ.</p>
-            <div className="mt-4">
-              <Link to="/cart"><Button className="press">חזרה לעגלה להשלמת התשלום</Button></Link>
+            <p className="text-sm text-muted-foreground mt-1">טרם נקלט תשלום עבור הזמנה זו. אפשר להשלים את התשלום המאובטח כאן, או ליצור איתנו קשר בוואטסאפ.</p>
+            <div className="mt-4 flex flex-wrap justify-center gap-3">
+              {/* !justPaid so a just-paid buyer whose webhook is still lagging
+                  (poll window closed) is never offered "pay again" — that would
+                  re-introduce the double-charge the poll fix removed. */}
+              {!justPaid && (
+                <Button className="press" onClick={onRetryPayment} disabled={retrying}>
+                  {retrying ? (
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    "להשלמת התשלום המאובטח"
+                  )}
+                </Button>
+              )}
+              <Link to="/cart">
+                <Button variant={justPaid ? "default" : "outline"} className="press">חזרה לעגלה</Button>
+              </Link>
             </div>
+            {retryError && (
+              <p role="alert" className="mt-2 text-sm text-destructive">{retryError}</p>
+            )}
           </>
         )}
       </div>

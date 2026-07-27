@@ -3,7 +3,16 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
-import { useCart, formatILS, getEffectivePrice, applyMemberDiscount, lineKey } from "@/lib/cart";
+import {
+  useCart,
+  formatILS,
+  getEffectivePrice,
+  applyMemberDiscount,
+  getShipping,
+  lineKey,
+  type CartItem,
+} from "@/lib/cart";
+import { useCartRevalidation, isBlocking } from "@/lib/cart-revalidation";
 import { trackBeginCheckout } from "@/lib/analytics";
 import { useAuth } from "@/lib/auth";
 import { placeOrder } from "@/lib/checkout.functions";
@@ -33,7 +42,7 @@ export const Route = createFileRoute("/checkout")({
 });
 
 function CheckoutPage() {
-  const { items, subtotal, shipping } = useCart();
+  const { items, subtotal } = useCart();
   const { user } = useAuth();
   const navigate = useNavigate();
   const submitOrder = useServerFn(placeOrder);
@@ -139,12 +148,42 @@ function CheckoutPage() {
   // read the authoritative flag here. Unknown (anonymous, or the profile query
   // still in flight) ⇒ false, i.e. the quote is never lower than the charge.
   const isMember = !!prefill?.profile?.is_member;
-  // Exactly the sum of the per-line amounts rendered in the summary column, so
-  // the breakdown below always reconciles against סך הכל.
-  const itemsTotal = items.reduce((s, i) => s + getEffectivePrice(i.price) * i.quantity, 0);
+
+  // Revalidate prices/stock against the catalog (shared with /cart) — the cart
+  // is localStorage-backed and can be days stale, while placeOrder() re-reads DB
+  // prices and THROWS on an out-of-stock/inactive line. Without this, buy-now and
+  // the mini-cart (which skip the /cart block gate) could quote a stale total and
+  // then hard-reject after the whole form is filled. Empty during SSR / on read
+  // failure, so checkout behaves exactly as before when the check is unavailable.
+  const { checks, blockedCount } = useCartRevalidation(items);
+  // The charged price of a line: the revalidated one once known, the stored one
+  // until then (mirrors /cart's linePrice).
+  const linePrice = (item: CartItem) => {
+    const c = checks.get(lineKey(item));
+    return c?.kind === "price" ? c.current : getEffectivePrice(item.price);
+  };
+  // Sum of the orderable lines at their current price — a line placeOrder() would
+  // reject (blocking) cannot be part of any amount the customer is charged, so it
+  // is excluded, exactly like /cart. This makes the CTA amount equal the Cardcom
+  // charge even when a product was repriced after it was added.
+  const itemsTotal = items.reduce((s, i) => {
+    const c = checks.get(lineKey(i));
+    if (c && isBlocking(c)) return s;
+    return s + linePrice(i) * i.quantity;
+  }, 0);
   const memberSubtotal = applyMemberDiscount(itemsTotal, isMember);
   const memberBenefit = itemsTotal - memberSubtotal;
+  // Same helper + input as the server and /cart (SHIPPING_FLAT on a positive
+  // post-member subtotal), computed from the revalidated subtotal rather than the
+  // stale cart's shipping so a fully-blocked cart never quotes a phantom fee.
+  const shipping = getShipping(memberSubtotal);
   const finalTotal = memberSubtotal + shipping;
+  // Nothing here can actually be ordered (every line is one placeOrder() would
+  // reject): itemsTotal — and with it משלוח and סך הכל — collapses to 0. Printing
+  // "סך הכל ₪0" over visible product rows reads as "free", so the numeric
+  // breakdown is withheld (mirrors /cart). blockedCount is 0 while the check
+  // loads and if it failed, so the fail-open path keeps the ordinary summary.
+  const nothingOrderable = blockedCount > 0 && itemsTotal === 0;
 
   // Save abandoned-cart snapshot 2s after the user types a valid email
   const lastSavedRef = useRef<string>("");
@@ -218,6 +257,15 @@ function CheckoutPage() {
       toast.error("יש לאשר יצירת קשר לצורך טיפול בהזמנה");
       consentRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
       consentRef.current?.focus();
+      return;
+    }
+    // A stale line that placeOrder() would reject (out of stock / inactive).
+    // Submitting would hard-fail server-side after all the work above, so stop
+    // here and point the shopper to /cart to remove it — checkout has no per-line
+    // remove UI. blockedCount is 0 while the check loads and if it failed, so the
+    // fail-open path never blocks a legitimate order.
+    if (blockedCount > 0) {
+      toast.error("יש בעגלה פריט שאזל מהמלאי או אינו זמין. יש להסירו בעמוד העגלה כדי להמשיך.");
       return;
     }
     // GA4 begin_checkout / Meta InitiateCheckout — the shopper committed to
@@ -405,7 +453,17 @@ function CheckoutPage() {
             {submitError}
           </p>
         )}
-        <Button type="submit" size="lg" disabled={submitting} aria-busy={submitting} className="press w-full">
+        {/* A blocking line (out of stock / inactive) would make placeOrder()
+            reject the whole order. Surface it here and disable the CTA, pointing
+            to /cart to remove it — checkout has no per-line remove control. */}
+        {blockedCount > 0 && (
+          <p role="alert" className="rounded-xl hairline bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            יש בעגלה פריט שאזל מהמלאי או אינו זמין כרגע.{" "}
+            <Link to="/cart" className="font-semibold underline underline-offset-2">חזרה לעגלה</Link>{" "}
+            להסרתו לפני השלמת התשלום.
+          </p>
+        )}
+        <Button type="submit" size="lg" disabled={submitting || blockedCount > 0} aria-busy={submitting} className="press w-full">
           {submitting ? "טוען..." : `המשך לתשלום · ${formatILS(finalTotal)}`}
         </Button>
         {/* Visually-hidden live region: the button-text swap alone isn't reliably
@@ -434,49 +492,73 @@ function CheckoutPage() {
       <div className="glass-strong p-6 h-fit lg:sticky lg:top-20">
         <h2 className="font-display text-xl font-bold mb-4">סיכום</h2>
         <div className="space-y-2 mb-4">
-          {items.map((i) => (
-            <div key={lineKey(i)} className="text-sm">
-              <div className="flex justify-between">
-                <span className="line-clamp-1">{i.name} × {i.quantity}</span>
-                <span className="font-medium whitespace-nowrap mr-2">{formatILS(getEffectivePrice(i.price) * i.quantity)}</span>
+          {items.map((i) => {
+            // Mirror /cart: the row amount is the REVALIDATED current price
+            // (linePrice), so the itemized rows always sum to סכום פריטים. A
+            // blocking line (out of stock / inactive) is greyed and marked
+            // "אינו זמין" — it carries no amount because it is excluded from the
+            // total placeOrder() will charge.
+            const c = checks.get(lineKey(i));
+            const blocked = !!c && isBlocking(c);
+            return (
+              <div key={lineKey(i)} className={blocked ? "text-sm opacity-55" : "text-sm"}>
+                <div className="flex justify-between">
+                  <span className="line-clamp-1">{i.name} × {i.quantity}</span>
+                  {blocked ? (
+                    <span className="text-xs text-destructive whitespace-nowrap mr-2">אינו זמין</span>
+                  ) : (
+                    <span className="font-medium whitespace-nowrap mr-2">{formatILS(linePrice(i) * i.quantity)}</span>
+                  )}
+                </div>
+                {i.variantLabel && (
+                  <div className="text-xs text-muted-foreground mt-1">גודל: {i.variantLabel}</div>
+                )}
+                {c?.kind === "price" && (
+                  <div className="text-xs text-muted-foreground mt-1">המחיר עודכן למחיר הנוכחי באתר.</div>
+                )}
+                {i.customText && (
+                  <div className="text-xs text-accent">
+                    ✦ {i.customMethod === "laser" ? "חריטת לייזר" : "רקמה"}: {i.customText}
+                  </div>
+                )}
               </div>
-              {i.variantLabel && (
-                <div className="text-xs text-muted-foreground mt-1">גודל: {i.variantLabel}</div>
-              )}
-              {i.customText && (
-                <div className="text-xs text-accent">
-                  ✦ {i.customMethod === "laser" ? "חריטת לייזר" : "רקמה"}: {i.customText}
+            );
+          })}
+        </div>
+        {nothingOrderable ? (
+          <p className="border-t border-glass-line pt-3 text-sm text-muted-foreground">
+            אין כרגע פריטים שניתן להזמין. יש להסיר את הפריטים שאזלו או שאינם זמינים כדי להמשיך בתשלום.
+          </p>
+        ) : (
+          <>
+            {/* Full breakdown of the exact amount Cardcom will charge. Every row is a
+                factual component of that number — no percentages, no "before" price
+                and no savings claims. סכום פריטים (− הטבת מועדון) + משלוח = סך הכל. */}
+            <div className="space-y-2 border-t border-glass-line pt-3">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">סכום פריטים</span>
+                <span className="whitespace-nowrap">{formatILS(itemsTotal)}</span>
+              </div>
+              {memberBenefit > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">הטבת מועדון</span>
+                  <span className="whitespace-nowrap">{formatILS(-memberBenefit)}</span>
                 </div>
               )}
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">משלוח (תעריף אחיד לכל הזמנה)</span>
+                <span className="whitespace-nowrap">{formatILS(shipping)}</span>
+              </div>
             </div>
-          ))}
-        </div>
-        {/* Full breakdown of the exact amount Cardcom will charge. Every row is a
-            factual component of that number — no percentages, no "before" price
-            and no savings claims. סכום פריטים (− הטבת מועדון) + משלוח = סך הכל. */}
-        <div className="space-y-2 border-t border-glass-line pt-3">
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">סכום פריטים</span>
-            <span className="whitespace-nowrap">{formatILS(itemsTotal)}</span>
-          </div>
-          {memberBenefit > 0 && (
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">הטבת מועדון</span>
-              <span className="whitespace-nowrap">{formatILS(-memberBenefit)}</span>
+            {/* Decorative gold hairline — a gradient rule, not text. */}
+            <div className="gold-rule my-4" aria-hidden="true" />
+            <div className="flex justify-between text-lg">
+              <span className="font-bold">סך הכל</span>
+              <span className="font-bold text-accent whitespace-nowrap">{formatILS(finalTotal)}</span>
             </div>
-          )}
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">משלוח (תעריף אחיד לכל הזמנה)</span>
-            <span className="whitespace-nowrap">{formatILS(shipping)}</span>
-          </div>
-        </div>
-        {/* Decorative gold hairline — a gradient rule, not text. */}
-        <div className="gold-rule my-4" aria-hidden="true" />
-        <div className="flex justify-between text-lg">
-          <span className="font-bold">סך הכל</span>
-          <span className="font-bold text-accent whitespace-nowrap">{formatILS(finalTotal)}</span>
-        </div>
-        <p className="mt-1 text-[11px] text-muted-foreground">כל המחירים בשקלים (₪) וכוללים מע"מ.</p>
+            <p className="mt-1 text-[11px] text-muted-foreground">כל המחירים בשקלים (₪) וכוללים מע"מ.</p>
+          </>
+        )}
         <Link
           to="/cart"
           className="mt-3 inline-block text-sm text-accent underline underline-offset-2 transition-[color] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-strong"
