@@ -14,6 +14,7 @@ import { HomeReviews, fetchHomeReviews } from "@/components/content/HomeReviews"
 import { SectionHeader } from "@/components/home/SectionHeader";
 import { Reveal } from "@/components/Reveal";
 import { OCCASION_COLLECTIONS } from "@/lib/collections";
+import { CONSUMER_POLICY } from "@/lib/business";
 import {
   Carousel,
   CarouselContent,
@@ -647,20 +648,32 @@ function HomePage() {
           <SectionHeader eyebrow="ההבטחה שלנו" title="למה לקוחות בוחרים בנו" />
 
           <div className="grid grid-cols-1 md:grid-cols-3 max-w-6xl mx-auto divide-y md:divide-y-0 md:divide-x md:divide-x-reverse divide-border">
+            {/* Every claim here has to be one the store can actually stand
+                behind — this strip is the homepage's trust promise, and an
+                unbacked line here is worse than no line at all.
+                  · The delivery window is read from CONSUMER_POLICY, the same
+                    constant /shipping, the terms and the checkout badges use.
+                  · The middle card no longer claims hand-inspection or artisan
+                    manufacture: this is a curated catalogue of 4,600+ supplier
+                    items, not a workshop.
+                  · The third card no longer promises "full warranty" — there is
+                    no warranty page to back it. It now names what the store
+                    genuinely offers: personal help, and the statutory right of
+                    cancellation, which /returns documents in full. */}
             {[
               {
-                title: "משלוח מהיר עד הבית",
-                desc: "תוך 3–14 ימי עסקים לכל הארץ, באריזה מהודרת ומאובטחת — עם מעקב מלא בכל שלב.",
+                title: "משלוח עד הבית",
+                desc: `אספקה משוערת ${CONSUMER_POLICY.deliveryMinDays}–${CONSUMER_POLICY.deliveryMaxDays} ימי עסקים לכל הארץ, ארוז בקפידה — עם מעקב אחר ההזמנה בכל שלב.`,
                 icon: <IconTruck className="w-10 h-10 md:w-12 md:h-12" />,
               },
               {
-                title: "איכות ללא פשרות",
-                desc: "כל מוצר נבחר בקפידה ונבדק ידנית — עבודת יד של אומנים מנוסים, חומרי גלם מהמעלה הראשונה.",
+                title: "נבחר בקפידה",
+                desc: "מבחר תשמישי קדושה ויודאיקה הנבחרים בהקפדה על כשרות והידור, עם תיאור מפורט וכן לכל פריט.",
                 icon: <IconGem className="w-10 h-10 md:w-12 md:h-12" />,
               },
               {
-                title: "שירות ואחריות מלאה",
-                desc: "ליווי אישי לפני ואחרי הרכישה ואחריות מלאה על כל מוצר.",
+                title: "ליווי אישי וזכות ביטול",
+                desc: `ליווי אישי לפני ואחרי הרכישה, וזכות ביטול תוך ${CONSUMER_POLICY.cancellationDays} יום מקבלת המוצר לפי חוק הגנת הצרכן.`,
                 icon: <IconShieldCheck className="w-10 h-10 md:w-12 md:h-12" />,
               },
             ].map((item) => (
@@ -860,32 +873,41 @@ function HomePage() {
           whose recently-viewed store has items. */}
       <RecentlyViewedRail />
 
-      {/* 12. Instagram — visual closer */}
+      {/* 12. Gallery — visual closer.
+          Framed as OUR gallery, not as an Instagram feed: the tiles are a fixed
+          set of stills and clips bundled with the site (see GALLERY_MEDIA), not
+          posts pulled live from the account. Calling it a feed implied fresh
+          posts and per-post links that do not exist; the Instagram handle is
+          still here as what it actually is — a link to the profile. */}
       <section>
         <Reveal className="container mx-auto px-4 py-14 md:py-20">
           <div className="text-center mb-10 md:mb-14">
             <p className="text-[10px] md:text-xs tracking-[0.35em] text-accent mb-3">
-              Instagram
+              גלריה
             </p>
             <h2 className="font-display text-3xl md:text-4xl tracking-wide mb-3 text-foreground">
-              עקבו אחרינו
+              מהפריטים שלנו
             </h2>
             <div className="flex items-center justify-center gap-3 mb-4" aria-hidden="true">
               <span className="gold-rule w-8 shrink-0" />
               <span className="text-accent text-xs">✦</span>
               <span className="gold-rule w-8 shrink-0" />
             </div>
-            <a
-              href="https://www.instagram.com/or_zarua_latzadik/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-block text-base md:text-lg text-muted-foreground underline-offset-4 transition-colors duration-200 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent [@media(hover:hover)_and_(pointer:fine)]:hover:underline"
-            >
-              @or_zarua_latzadik
-            </a>
+            <p className="mx-auto max-w-xl text-sm md:text-[15px] text-muted-foreground leading-relaxed">
+              מבחר צילומים וסרטונים של פריטים מהחנות. לעדכונים שוטפים ולתכנים נוספים —
+              עקבו אחרינו באינסטגרם:{" "}
+              <a
+                href={INSTAGRAM_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-accent underline underline-offset-4 transition-[color] duration-200 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-strong"
+              >
+                @or_zarua_latzadik
+              </a>
+            </p>
           </div>
 
-          <InstagramFeed />
+          <StoreGallery />
         </Reveal>
       </section>
 
@@ -1088,9 +1110,11 @@ function OtherCategoriesSection({
   );
 }
 
+// A FIXED set of stills and clips bundled with the site — not a live feed, and
+// deliberately not presented as one (see the gallery section above).
 // `w`/`h` are the still's intrinsic pixels (src/assets/ig/post-1.jpg is
 // 1080×1350); the tile's aspect-[4/5] box + object-cover own the layout.
-const INSTAGRAM_MEDIA: { type: "video" | "image"; src: string; w?: number; h?: number }[] = [
+const GALLERY_MEDIA: { type: "video" | "image"; src: string; w?: number; h?: number }[] = [
   { type: "video", src: igReel1 },
   { type: "video", src: igReel2 },
   { type: "image", src: igPost1, w: 1080, h: 1350 },
@@ -1145,22 +1169,26 @@ function LazyReel({ src }: { src: string }) {
   );
 }
 
-function InstagramFeed() {
+function StoreGallery() {
   return (
     <Carousel
       dir="rtl"
       opts={{ direction: "rtl", align: "start" }}
       className="max-w-6xl mx-auto"
-      aria-label="גלריית אינסטגרם"
+      aria-label="גלריית פריטים של אור זרוע לצדיק"
     >
       <CarouselContent>
-        {INSTAGRAM_MEDIA.map((m, i) => (
+        {GALLERY_MEDIA.map((m, i) => (
           <CarouselItem key={i} className="basis-2/3 sm:basis-1/3">
+            {/* Every tile links to the PROFILE, because that is the only real
+                destination we have — there are no per-post URLs for these
+                assets. The label says exactly that, so nobody taps expecting
+                the individual post. */}
             <a
               href={INSTAGRAM_URL}
               target="_blank"
               rel="noopener noreferrer"
-              aria-label={`אור זרוע לצדיק באינסטגרם — ${m.type === "video" ? "סרטון" : "תמונה"} ${i + 1}`}
+              aria-label="לפרופיל האינסטגרם של אור זרוע לצדיק"
               className="group relative block aspect-[4/5] overflow-hidden rounded-lg bg-muted shadow-[var(--shadow-card)]"
             >
               {m.type === "video" ? (

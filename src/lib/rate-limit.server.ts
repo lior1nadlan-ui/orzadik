@@ -125,6 +125,33 @@ export async function checkNewsletterRateLimitByIp(
 }
 
 /**
+ * IP-based rate limiter for the public contact form.
+ *
+ * Its own key namespace, for the same reason as `track:`/`newsletter:`: every
+ * submission sends a real email to the owner's inbox, so it needs a tight cap —
+ * but sharing the `order:` bucket would mean a shopper who asks two questions
+ * before buying can no longer place an order. A low cap is safe here because a
+ * genuine customer sends one message, not five.
+ */
+export async function checkContactRateLimitByIp(
+  ip: string,
+  maxPerWindow = 5,
+  windowSeconds = 60 * 60, // 1 hour
+): Promise<{ limited: boolean }> {
+  if (!ip || ip === "unknown") return { limited: false };
+  try {
+    const bucket = Math.floor(Date.now() / (windowSeconds * 1000));
+    const key = `contact:${ip}:${bucket}`;
+    const { data, error } = await supabaseAdmin
+      .rpc("increment_rate_limit", { p_key: key, p_ttl_seconds: windowSeconds * 2 });
+    if (error) return { limited: false };
+    return { limited: (data as number) > maxPerWindow };
+  } catch {
+    return { limited: false };
+  }
+}
+
+/**
  * IP-based rate limiter for the CardCom webhook endpoint.
  * Uses the rate_limits table (see migration 20260626040000).
  * Returns { limited: true } if the IP has exceeded the threshold.
