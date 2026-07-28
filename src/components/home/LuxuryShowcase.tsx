@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { thumbUrl } from "@/lib/img";
+import { formatILS, getEffectivePrice } from "@/lib/cart";
 import { SectionHeader } from "@/components/home/SectionHeader";
 
 /**
@@ -9,22 +10,29 @@ import { SectionHeader } from "@/components/home/SectionHeader";
  * stacked premium cards, all linking to real products.
  *
  * להחלפת פריטים (owner note): ערכו את FLAGSHIP_ITEM / STACKED_ITEMS למטה.
- * `slug` חייב להיות slug אמיתי של מוצר קיים באתר, ו-name/price הם הטקסטים
- * שיוצגו על הכרטיס. כרטיס שאין לו `img` מקומי מושך אוטומטית את תמונת המוצר
- * עצמו מהמאגר לפי ה-slug (הדרך המומלצת — התמונה תמיד תואמת למוצר). כרטיס עם
- * `img` (כמו מארז החתן, המשתמש בצילום מעוצב מ-public/groom-sets/) מציג את
- * התמונה המקומית כפי שהיא.
+ * `slug` חייב להיות slug אמיתי של מוצר קיים באתר, ו-name הוא הכיתוב שיוצג על
+ * הכרטיס. **אין לכתוב כאן מחיר** — המחיר נמשך מהמאגר לפי ה-slug ומחושב חי,
+ * בדיוק כמו בעמוד המוצר. כרטיס שאין לו `img` מקומי מושך אוטומטית גם את תמונת
+ * המוצר מהמאגר (הדרך המומלצת — התמונה תמיד תואמת למוצר). כרטיס עם `img` (כמו
+ * מארז החתן, המשתמש בצילום מעוצב מ-public/groom-sets/) מציג את התמונה המקומית
+ * כפי שהיא.
+ *
+ * Prices were hardcoded here until 2026-07-28 and every one of them was the
+ * CATALOGUE list price — i.e. exactly 1/0.7 of what the store actually charges,
+ * because they never passed through getEffectivePrice() and so never had
+ * SITE_DISCOUNT applied. The flagship advertised ₪1,737 for an item whose own
+ * page sold it for ₪1,216. A literal here cannot track pricing.ts, so the only
+ * safe design is to read the row and run it through the same function the PDP
+ * uses. Do not reintroduce a price string.
  */
 const FLAGSHIP_ITEM = {
   slug: "acrilic-blessing-90x59-cm-gold-white-83127",
   name: "ברכת הבית אקריליק ענק 90×59 זהב-לבן",
-  price: "‏1,737 ₪",
 };
 
 type StackedItem = {
   slug: string;
   name: string;
-  price: string;
   // When present, a bundled local image (public/…) shown as-is. Otherwise the
   // card pulls the product's own thumbnail from the catalogue by `slug`.
   img?: string;
@@ -33,11 +41,10 @@ type StackedItem = {
 };
 
 const STACKED_ITEMS: StackedItem[] = [
-  { slug: "talit-2871971", name: "טלית פלטניום תשבץ 100% צמר", price: "‏1,572 ₪" },
+  { slug: "talit-2871971", name: "טלית פלטניום תשבץ 100% צמר" },
   {
     slug: "groom-set-liam-shalom-goli",
     name: "מארז חתן — ליאם שלום גולי",
-    price: "‏2,572 ₪",
     // Styled local photo (every public/groom-sets/*.jpeg is 1440×1920).
     img: "/groom-sets/groom-02.jpeg",
     imgW: 1440,
@@ -46,11 +53,12 @@ const STACKED_ITEMS: StackedItem[] = [
 ];
 
 /**
- * Slugs whose photo comes from the catalogue — the flagship plus any stacked
- * card without a bundled local image. Fetched together so the SSR loader seeds
- * all of them in one round-trip and the flagship photo is in the initial HTML.
+ * Every slug on the board. This is ALL of them, not just the ones needing a
+ * photo: a card with a bundled local image still needs its row for the PRICE.
+ * Fetched together so the SSR loader seeds them in one round-trip and both the
+ * flagship photo and every price are in the initial HTML.
  */
-const DB_SLUGS = [FLAGSHIP_ITEM.slug, ...STACKED_ITEMS.filter((s) => !s.img).map((s) => s.slug)];
+const DB_SLUGS = [FLAGSHIP_ITEM.slug, ...STACKED_ITEMS.map((s) => s.slug)];
 
 /**
  * Rendered width of a stacked card: ~450 CSS px at the desktop breakpoint,
@@ -62,37 +70,56 @@ const STACKED_THUMB_W = 600;
 /** The flagship card is up to 3/5 of a max-w-6xl grid — ask for a larger box. */
 const FLAGSHIP_THUMB_W = 1000;
 
-export type LuxuryThumbs = Record<string, string | null>;
+/** Per-slug catalogue row behind a card: its photo and its raw list price. */
+export type LuxuryCards = Record<string, { thumb: string | null; price: number | null }>;
 
 /**
- * The query behind the DB-backed cards. Exported so a route loader can run it
- * on the server and hand the result back as `initialThumbs` — same function,
- * same shape, so the SSR HTML and the client refetch can never disagree.
+ * The query behind the cards. Exported so a route loader can run it on the
+ * server and hand the result back as `initialCards` — same function, same
+ * shape, so the SSR HTML and the client refetch can never disagree.
+ *
+ * `price` is the RAW catalogue price straight from the row. It is deliberately
+ * NOT discounted here: getEffectivePrice() is applied at the render site, so
+ * this component runs the identical function the PDP and the cart run and the
+ * three can never drift.
  */
-export async function fetchLuxuryShowcaseThumbs(): Promise<LuxuryThumbs> {
+export async function fetchLuxuryShowcaseCards(): Promise<LuxuryCards> {
   const { data, error } = await supabase
     .from("products")
-    .select("slug, thumbnail_url")
+    .select("slug, thumbnail_url, price")
     .in("slug", DB_SLUGS);
   if (error) throw error;
-  return Object.fromEntries((data ?? []).map((p) => [p.slug, p.thumbnail_url]));
+  return Object.fromEntries(
+    (data ?? []).map((p) => [
+      p.slug,
+      { thumb: p.thumbnail_url, price: p.price === null ? null : Number(p.price) },
+    ]),
+  );
 }
 
-export function LuxuryShowcase({ initialThumbs }: { initialThumbs?: LuxuryThumbs }) {
+/** Live price for a card, or null when the row hasn't loaded / has no price.
+ *  A missing price renders NOTHING — a placeholder number would be a lie. */
+function cardPrice(cards: LuxuryCards | undefined, slug: string): string | null {
+  const raw = cards?.[slug]?.price;
+  if (raw === null || raw === undefined || !Number.isFinite(raw) || raw <= 0) return null;
+  return formatILS(getEffectivePrice(raw));
+}
+
+export function LuxuryShowcase({ initialCards }: { initialCards?: LuxuryCards }) {
   // Same query pattern as the featured-products carousel — pull each product's
-  // own thumbnail so the card always shows the real item photo.
-  const { data: thumbs } = useQuery({
-    queryKey: ["home-luxury-showcase-thumbs", DB_SLUGS],
+  // own thumbnail and price so the card always matches the real item.
+  const { data: cards } = useQuery({
+    queryKey: ["home-luxury-showcase-cards", DB_SLUGS],
     staleTime: 5 * 60_000,
-    // Seeded from the SSR loader when the caller has it, so the photos are in
-    // the initial HTML instead of appearing only after hydration.
-    initialData: initialThumbs,
-    queryFn: fetchLuxuryShowcaseThumbs,
+    // Seeded from the SSR loader when the caller has it, so the photos and
+    // prices are in the initial HTML instead of appearing only after hydration.
+    initialData: initialCards,
+    queryFn: fetchLuxuryShowcaseCards,
   });
 
   // Flagship photo — right-sized transform of the catalogue original, same
   // rewrite-detection as the stacked cards below.
-  const flagThumb = thumbs?.[FLAGSHIP_ITEM.slug] ?? null;
+  const flagThumb = cards?.[FLAGSHIP_ITEM.slug]?.thumb ?? null;
   const flagSrc = thumbUrl(flagThumb, FLAGSHIP_THUMB_W);
   const flagSrcSet =
     flagSrc && flagSrc !== flagThumb
@@ -111,7 +138,7 @@ export function LuxuryShowcase({ initialThumbs }: { initialThumbs?: LuxuryThumbs
         <SectionHeader
           eyebrow="אוסף היוקרה"
           title="פריטי יוקרה נבחרים"
-          sub="היצירות המוקפדות ביותר של הבית, בעבודת יד ובחומרי גלם נבחרים"
+          sub="הפריטים המוקפדים והמרשימים ביותר בקטלוג שלנו"
         />
 
         <div className="max-w-6xl mx-auto grid md:grid-cols-5 gap-6">
@@ -147,7 +174,12 @@ export function LuxuryShowcase({ initialThumbs }: { initialThumbs?: LuxuryThumbs
                 gold-bright price on this plate would be 1.1:1 / 1.8:1. */}
             <div className="glass-strong absolute inset-x-4 bottom-4 p-5 [--glass-radius:1rem]">
               <span className="block font-display text-2xl text-foreground">{FLAGSHIP_ITEM.name}</span>
-              <span className="mt-1 block text-accent text-xl font-bold">{FLAGSHIP_ITEM.price}</span>
+              {/* Live price, or nothing at all. Never a placeholder number. */}
+              {cardPrice(cards, FLAGSHIP_ITEM.slug) && (
+                <span className="mt-1 block text-accent text-xl font-bold">
+                  {cardPrice(cards, FLAGSHIP_ITEM.slug)}
+                </span>
+              )}
             </div>
           </Link>
 
@@ -155,7 +187,8 @@ export function LuxuryShowcase({ initialThumbs }: { initialThumbs?: LuxuryThumbs
           <div className="md:col-span-2 grid grid-cols-2 md:grid-cols-1 gap-6 md:grid-rows-2">
             {STACKED_ITEMS.map((s) => {
               const localImg = s.img;
-              const thumb = localImg ? null : thumbs?.[s.slug] ?? null;
+              const thumb = localImg ? null : cards?.[s.slug]?.thumb ?? null;
+              const price = cardPrice(cards, s.slug);
               // Right-sized transform of the catalog original. thumbUrl returns
               // the input untouched for anything that is not a Supabase public
               // object URL, so only offer a srcset when it actually rewrote it.
@@ -194,7 +227,7 @@ export function LuxuryShowcase({ initialThumbs }: { initialThumbs?: LuxuryThumbs
                   <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-white/45 via-transparent to-transparent" />
                   <div className="glass-strong absolute inset-x-3 bottom-3 p-4 [--glass-radius:1rem]">
                     <span className="block font-display text-lg text-foreground leading-snug">{s.name}</span>
-                    <span className="mt-1 block text-accent text-lg font-bold">{s.price}</span>
+                    {price && <span className="mt-1 block text-accent text-lg font-bold">{price}</span>}
                   </div>
                 </Link>
               );

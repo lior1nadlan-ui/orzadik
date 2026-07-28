@@ -251,7 +251,7 @@ export const Route = createFileRoute("/shop")({
         { title },
         { name: "description", content: "כל מוצרי תשמישי הקדושה והיודאיקה של אור זרוע לצדיק — טליתות, כיסויי טלית ותפילין, נרתיקי מזוזה, גביעי קידוש, חנוכיות, פמוטים ומארזים לחתנים. נבחרים בהקפדה על כשרות והידור, עם משלוח עד הבית." },
         { property: "og:title", content: title },
-        { property: "og:description", content: "טליתות, תפילין, מזוזות, גביעי קידוש, חנוכיות ומארזים לחתנים — כל המוצרים במקום אחד." },
+        { property: "og:description", content: "טליתות, כיסויי טלית ותפילין, נרתיקי מזוזה, גביעי קידוש, חנוכיות ומארזים לחתנים — כל המוצרים במקום אחד." },
         { property: "og:url", content: canonical },
         { property: "og:type", content: "website" },
         { name: "twitter:title", content: title },
