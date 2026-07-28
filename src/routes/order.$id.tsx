@@ -209,7 +209,7 @@ function OrderConfirmationPage() {
             </div>
             <h1 className="font-display text-3xl font-bold">תודה על ההזמנה!</h1>
             <p className="text-muted-foreground mt-2">מספר הזמנה: <span className="font-mono font-bold">{order.order_number}</span></p>
-            <p className="text-sm text-muted-foreground mt-1">קיבלנו את התשלום. אישור הזמנה יישלח לדוא"ל שלך, וניצור עמך קשר לתיאום המשלוח.</p>
+            <p className="text-sm text-muted-foreground mt-1">קיבלנו את התשלום. אישור הזמנה יישלח לדוא"ל שלך, וכשההזמנה תישלח נעדכן אותך בדוא"ל.</p>
           </>
         ) : verifying ? (
           <>

@@ -87,7 +87,7 @@ export function orderStatusHe(s: string): string {
  * pages (terms / privacy / accessibility). Currently hardcoded in each as
  * "עודכן לאחרונה: 26.6.2026" — point all three at this constant instead.
  */
-export const LEGAL_LAST_UPDATED = "26.6.2026";
+export const LEGAL_LAST_UPDATED = "28.7.2026";
 
 /** Consumer-law policy constants (Consumer Protection Law §14ג–§14ה). */
 export const CONSUMER_POLICY = {

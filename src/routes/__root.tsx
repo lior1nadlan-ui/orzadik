@@ -187,11 +187,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         ? [{ name: "msvalidate.01", content: BUSINESS.bingSiteVerification }]
         : []),
       { title: "אור זרוע לצדיק - תשמישי קדושה" },
-      { name: "description", content: "חנות תשמישי קדושה - כלי כסף, כוסות קידוש, חנוכיות, מזוזות ועוד." },
+      { name: "description", content: "חנות תשמישי קדושה - כלי כסף, כוסות קידוש, חנוכיות, נרתיקי מזוזה ועוד." },
       { property: "og:title", content: "אור זרוע לצדיק - תשמישי קדושה" },
       { name: "twitter:title", content: "אור זרוע לצדיק - תשמישי קדושה" },
-      { property: "og:description", content: "חנות תשמישי קדושה - כלי כסף, כוסות קידוש, חנוכיות, מזוזות ועוד." },
-      { name: "twitter:description", content: "חנות תשמישי קדושה - כלי כסף, כוסות קידוש, חנוכיות, מזוזות ועוד." },
+      { property: "og:description", content: "חנות תשמישי קדושה - כלי כסף, כוסות קידוש, חנוכיות, נרתיקי מזוזה ועוד." },
+      { name: "twitter:description", content: "חנות תשמישי קדושה - כלי כסף, כוסות קידוש, חנוכיות, נרתיקי מזוזה ועוד." },
       { property: "og:image", content: "https://orzadik.com/og-default.jpg" },
       // NOTE: no og:image:secure_url / :width / :height here on purpose. og:image
       // is already https, so secure_url is redundant. More importantly, product /
@@ -306,7 +306,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           },
           image: "https://orzadik.com/og-default.jpg",
           description:
-            "חנות תשמישי קדושה ויודאיקה — טליתות, תפילין, מזוזות, גביעי קידוש, חנוכיות, מארזים לחתנים ותכשיטי זהב, עם אפשרות רקמה וחריטה אישית.",
+            "חנות תשמישי קדושה ויודאיקה — טליתות, כיסויי טלית ותפילין, נרתיקי מזוזה, גביעי קידוש, חנוכיות, מארזים לחתנים ותכשיטי זהב, עם אפשרות רקמה וחריטה אישית.",
           slogan: "אור זרוע לצדיק — תשמישי קדושה ויודאיקה מהודרת בהתאמה אישית",
           telephone: "+972-54-581-8486",
           email: "orzarualachatz@gmail.com",
@@ -325,8 +325,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
             "תשמישי קדושה",
             "יודאיקה",
             "טליתות וציציות",
-            "תפילין וכיסויים",
-            "מזוזות",
+            "כיסויי טלית ותפילין",
+            "נרתיקי מזוזה",
             "גביעי קידוש וכלי כסף",
             "חנוכיות ופמוטים",
             "סידורים",
@@ -384,7 +384,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           },
           image: "https://orzadik.com/og-default.jpg",
           description:
-            "חנות תשמישי קדושה ויודאיקה — טליתות, תפילין, מזוזות, גביעי קידוש, חנוכיות ומארזים לחתנים.",
+            "חנות תשמישי קדושה ויודאיקה — טליתות, כיסויי טלית ותפילין, נרתיקי מזוזה, גביעי קידוש, חנוכיות ומארזים לחתנים.",
           telephone: "+972-54-581-8486",
           email: "orzarualachatz@gmail.com",
           address: {

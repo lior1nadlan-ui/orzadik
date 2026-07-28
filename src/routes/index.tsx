@@ -9,12 +9,13 @@ import { MobileCarousel } from "@/components/MobileCarousel";
 import { ProductCard, type ProductCardData } from "@/components/ProductCard";
 import { readRecent } from "@/components/engagement/recently-viewed";
 import { NewsletterSignup } from "@/components/NewsletterSignup";
-import { LuxuryShowcase, fetchLuxuryShowcaseThumbs } from "@/components/home/LuxuryShowcase";
+import { LuxuryShowcase, fetchLuxuryShowcaseCards } from "@/components/home/LuxuryShowcase";
 import { HomeReviews, fetchHomeReviews } from "@/components/content/HomeReviews";
 import { SectionHeader } from "@/components/home/SectionHeader";
 import { Reveal } from "@/components/Reveal";
 import { OCCASION_COLLECTIONS } from "@/lib/collections";
 import { CONSUMER_POLICY } from "@/lib/business";
+import { formatILS, getEffectivePrice } from "@/lib/cart";
 import {
   Carousel,
   CarouselContent,
@@ -182,7 +183,7 @@ const FAQ_ITEMS: { q: string; a: string }[] = [
   },
   {
     q: "כמה זמן לוקח המשלוח?",
-    a: "המשלוח מגיע תוך 3–14 ימי עסקים לכל רחבי הארץ. מוצרים עם רקמה אישית עשויים לקחת מעט יותר זמן. תקבלו מספר מעקב עם שיגור ההזמנה.",
+    a: `המשלוח מגיע תוך ${CONSUMER_POLICY.deliveryMinDays}–${CONSUMER_POLICY.deliveryMaxDays} ימי עסקים לכל רחבי הארץ. מוצרים עם רקמה אישית עשויים לקחת מעט יותר זמן. אפשר לעקוב אחר מצב ההזמנה בעמוד "מעקב הזמנה" עם מספר ההזמנה וכתובת הדוא"ל, וכאשר מתקבל מספר מעקב מחברת השילוח הוא מופיע שם.`,
   },
   {
     q: "האם ניתן להחזיר מוצרים?",
@@ -206,13 +207,14 @@ export const Route = createFileRoute("/")({
   // rest down. Resolving them here puts them in the server-rendered HTML.
   // Each fetch is independently fault-tolerant — see settle().
   loader: async () => {
-    const [otherCats, featuredProducts, luxuryThumbs, reviews] = await Promise.all([
+    const [otherCats, featuredProducts, luxuryCards, reviews, groomPrices] = await Promise.all([
       settle(fetchOtherCategories()),
       settle(fetchHomeFeaturedProducts()),
-      settle(fetchLuxuryShowcaseThumbs()),
+      settle(fetchLuxuryShowcaseCards()),
       settle(fetchHomeReviews()),
+      settle(fetchGroomThumbPrices()),
     ]);
-    return { otherCats, featuredProducts, luxuryThumbs, reviews };
+    return { otherCats, featuredProducts, luxuryCards, reviews, groomPrices };
   },
   head: () => ({
     meta: [
@@ -287,12 +289,37 @@ const BTN_OUTLINE =
 
 // Curated groom-set thumbs under the flagship banner image.
 // להחלפת פריטים: החליפו את `img` לכל קובץ תחת public/groom-sets/ (groom-01..17.jpeg)
-// ואת `slug` ל-slug אמיתי של מוצר קיים (עם תווית המחיר המתאימה).
-const GROOM_THUMBS: { img: string; slug: string; price: string }[] = [
-  { img: "/groom-sets/groom-03.jpeg", slug: "groom-set-yaron-ben-dror", price: "‏2,000 ₪" },
-  { img: "/groom-sets/groom-05.jpeg", slug: "groom-set-yaron-biton", price: "‏2,000 ₪" },
-  { img: "/groom-sets/groom-07.jpeg", slug: "groom-set-oren-realov", price: "‏2,000 ₪" },
+// ואת `slug` ל-slug אמיתי של מוצר קיים. **אין לכתוב כאן מחיר** — הוא נמשך
+// מהמאגר לפי ה-slug ומחושב חי, כמו בעמוד המוצר.
+//
+// All three carried a hardcoded "‏2,000 ₪" until 2026-07-28 — the catalogue list
+// price, never run through getEffectivePrice(), so the badge overstated every
+// one of them by 1/0.7 (₪2,000 shown vs ₪1,400 charged). Three different SKUs
+// sharing one round number was the tell. Read the row instead.
+const GROOM_THUMBS: { img: string; slug: string }[] = [
+  { img: "/groom-sets/groom-03.jpeg", slug: "groom-set-yaron-ben-dror" },
+  { img: "/groom-sets/groom-05.jpeg", slug: "groom-set-yaron-biton" },
+  { img: "/groom-sets/groom-07.jpeg", slug: "groom-set-oren-realov" },
 ];
+
+/**
+ * Live prices for the three groom thumbs above. Same contract as the luxury
+ * showcase: fetch the RAW row price and apply getEffectivePrice() at the render
+ * site, so the badge, the PDP and the cart all run the one function.
+ */
+async function fetchGroomThumbPrices(): Promise<Record<string, number>> {
+  const { data, error } = await supabase
+    .from("products")
+    .select("slug, price")
+    .in("slug", GROOM_THUMBS.map((t) => t.slug));
+  if (error) throw error;
+  const out: Record<string, number> = {};
+  for (const row of data ?? []) {
+    const n = Number(row.price);
+    if (Number.isFinite(n) && n > 0) out[row.slug] = n;
+  }
+  return out;
+}
 
 // Line-icons shared by the differentiators strip and the trust band. Kept
 // size-agnostic (each caller passes its own `className` scale) so the same glyph
@@ -340,7 +367,7 @@ function prefersReducedMotion() {
 
 function HomePage() {
   const heroVideoRef = useRef<HTMLVideoElement | null>(null);
-  const { otherCats, featuredProducts, luxuryThumbs, reviews } = Route.useLoaderData();
+  const { otherCats, featuredProducts, luxuryCards, reviews, groomPrices } = Route.useLoaderData();
 
   // Defer the hero video off the mobile critical path. The poster is the LCP
   // paint; with the <source> children present at first render, autoPlay would
@@ -465,11 +492,11 @@ function HomePage() {
               אור זרוע לצדיק
             </p>
             <h1 className="font-display text-4xl md:text-6xl leading-[1.08] [text-wrap:balance] text-foreground">
-              תשמישי קדושה בעבודת יד
+              תשמישי קדושה ויודאיקה מהודרת
             </h1>
             <span aria-hidden="true" className="gold-rule block w-24 mx-auto my-4" />
             <p className="text-muted-foreground text-sm md:text-lg">
-              טליתות, תפילין, מזוזות ומארזי חתן — בעבודת יד, עם רקמה אישית
+              טליתות, כיסויי טלית ותפילין, נרתיקי מזוזה ומארזי חתן — עם רקמה וחריטה אישית
             </p>
             <div className="mt-6 flex flex-col sm:flex-row justify-center gap-3">
               <Link to="/shop" className={`${BTN_SOLID} w-full sm:w-auto`}>
@@ -515,11 +542,13 @@ function HomePage() {
                 <span className="text-accent text-xs">✦</span>
                 <span className="gold-rule w-10 shrink-0" />
               </div>
+              {/* No "from ₪X" line here. The old one read "החל מ־2,000 ₪" — a bare
+                  literal nothing computed, and 43% above what the cheapest set
+                  actually costs. The CTA below lands on live prices; if a floor
+                  is ever wanted, compute min(getEffectivePrice(price)) over the
+                  wedding category in the loader rather than typing a number. */}
               <p className="text-muted-foreground text-[15px] leading-7 max-w-md mb-6">
-                טלית מהודרת, עטרה וכלי קודש נבחרים — ערוכים ביד ומוגשים במארז מפואר. כל מארז מורכב אישית עבור החתן.
-              </p>
-              <p className="font-display text-xl text-accent mb-6">
-                החל מ־2,000 ₪
+                טלית מהודרת, עטרה וכלי קודש נבחרים — מוגשים במארז מעוצב. אפשר להוסיף רקמה או חריטה אישית בשם החתן.
               </p>
               <div className="flex flex-wrap items-center gap-x-6 gap-y-4">
                 <Link to="/category/$slug" params={{ slug: "wedding" }} className={BTN_SOLID}>
@@ -552,7 +581,13 @@ function HomePage() {
               {/* 3-up linked thumb strip — shown on mobile too so the flagship
                   reads as a set on a phone, not just one hero image. */}
               <div className="grid grid-cols-3 gap-2 mt-2">
-                {GROOM_THUMBS.map((t) => (
+                {GROOM_THUMBS.map((t) => {
+                  const raw = groomPrices?.[t.slug];
+                  const price =
+                    raw !== undefined && Number.isFinite(raw) && raw > 0
+                      ? formatILS(getEffectivePrice(raw))
+                      : null;
+                  return (
                   <Link
                     key={t.slug}
                     to="/product/$slug"
@@ -571,15 +606,20 @@ function HomePage() {
                     {/* The frame rides above the photo, so it is an overlay rather
                         than an inset ring on the tile itself. */}
                     <span aria-hidden="true" className="hairline-gold absolute inset-0 rounded-lg pointer-events-none" />
-                    {/* Price — glass-strong because it sits on the photo (--accent
-                        over it is 5.10:1 worst case). Visible by DEFAULT so touch
-                        devices (no hover) always see the price; only hover-capable
-                        pointers hide it and reveal it on group-hover. */}
-                    <span className="glass-strong absolute inset-x-2 bottom-2 py-1.5 text-sm font-semibold text-accent text-center opacity-100 transition-opacity duration-200 ease-out [--glass-radius:0.75rem] [@media(hover:hover)_and_(pointer:fine)]:opacity-0 [@media(hover:hover)_and_(pointer:fine)]:group-hover:opacity-100">
-                      {t.price}
-                    </span>
+                    {/* Live price — glass-strong because it sits on the photo
+                        (--accent over it is 5.10:1 worst case). Visible by
+                        DEFAULT so touch devices (no hover) always see the price;
+                        only hover-capable pointers hide it and reveal it on
+                        group-hover. Omitted entirely when the row is missing —
+                        no badge beats a wrong badge. */}
+                    {price && (
+                      <span className="glass-strong absolute inset-x-2 bottom-2 py-1.5 text-sm font-semibold text-accent text-center opacity-100 transition-opacity duration-200 ease-out [--glass-radius:0.75rem] [@media(hover:hover)_and_(pointer:fine)]:opacity-0 [@media(hover:hover)_and_(pointer:fine)]:group-hover:opacity-100">
+                        {price}
+                      </span>
+                    )}
                   </Link>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -668,7 +708,7 @@ function HomePage() {
               },
               {
                 title: "נבחר בקפידה",
-                desc: "מבחר תשמישי קדושה ויודאיקה הנבחרים בהקפדה על כשרות והידור, עם תיאור מפורט וכן לכל פריט.",
+                desc: "מבחר תשמישי קדושה ויודאיקה הנבחרים בהקפדה על כשרות והידור, עם תיאור ומפרט ברורים בעמוד המוצר.",
                 icon: <IconGem className="w-10 h-10 md:w-12 md:h-12" />,
               },
               {
@@ -823,7 +863,7 @@ function HomePage() {
       />
 
       {/* 9. פריטי יוקרה — curated luxury showcase */}
-      <LuxuryShowcase initialThumbs={luxuryThumbs ?? undefined} />
+      <LuxuryShowcase initialCards={luxuryCards ?? undefined} />
 
       {/* 10. חלאקה — promo band. The argaman half is now a glass panel beside the
           photo rather than a wine fill behind cream text. */}
@@ -852,7 +892,7 @@ function HomePage() {
                 <span className="gold-rule w-10 shrink-0" />
               </div>
               <p className="text-muted-foreground leading-7 mb-7">
-                סטים מהודרים לגיל שלוש — 40 סטים מעוצבים לבחירה, ארוזים ומוכנים לחגיגה.
+                סטים מהודרים לגיל שלוש — מבחר עיצובים וסגנונות לבחירה, ארוזים ומוכנים לחגיגה.
               </p>
               <div>
                 <Link to="/category/$slug" params={{ slug: "chalaka-set" }} className={BTN_SOLID}>
@@ -944,7 +984,7 @@ function HomePage() {
             אור זרוע לצדיק — חנות תשמישי קדושה ויודאיקה מהודרת
           </h2>
           <p className="text-center text-sm text-muted-foreground leading-relaxed mb-4 max-w-3xl mx-auto">
-            <strong>אור זרוע לצדיק</strong> היא חנות אונליין ישראלית לתשמישי קדושה ויודאיקה מהודרת — טליתות, תפילין, מזוזות, גביעי קידוש, חנוכיות ומארזים לחתנים. השם נלקח מהפסוק בתהילים (צ״ז), "אוֹר זָרֻעַ לַצַּדִּיק", ומבטא את רוח החנות: הידור, כשרות ואיכות. אנו מציעים רקמה וחריטה אישית, ומשלוח עד הבית בכל הארץ.
+            <strong>אור זרוע לצדיק</strong> היא חנות אונליין ישראלית לתשמישי קדושה ויודאיקה מהודרת — טליתות, כיסויי טלית ותפילין, נרתיקי מזוזה, גביעי קידוש, חנוכיות ומארזים לחתנים. השם נלקח מהפסוק בתהילים (צ״ז), "אוֹר זָרֻעַ לַצַּדִּיק", ומבטא את רוח החנות: אור, הידור ואיכות. הפריטים נבחרים בהקפדה על כשרות והידור, ואנו מציעים רקמה וחריטה אישית ומשלוח עד הבית בכל הארץ.
           </p>
           <p className="text-center text-xs text-muted-foreground leading-relaxed mb-12 max-w-3xl mx-auto">
             הבעלים: ליאור בן עמי · דרך עכו 190, קרית ביאליק · טל׳ 054-581-8486.

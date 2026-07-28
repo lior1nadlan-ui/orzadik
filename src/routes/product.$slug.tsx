@@ -1582,7 +1582,7 @@ function ProductPage() {
               </li>
               <li className="flex items-center gap-2">
                 <ShieldCheck className="h-4 w-4 shrink-0 text-accent" />
-                כשרות והידור — מתוך מחויבות לאיכות
+                נבחר בהקפדה על כשרות והידור
               </li>
             </ul>
             <div className="mt-3 border-t border-glass-line pt-2.5 text-[11px] leading-relaxed text-muted-foreground">
@@ -1623,8 +1623,14 @@ function ProductPage() {
               <AccordionTrigger className="font-display text-base">משלוחים</AccordionTrigger>
               <AccordionContent>
                 <p className="text-sm text-muted-foreground leading-relaxed">
-                  משלוח עד הבית לכל רחבי הארץ תוך 3–14 ימי עסקים. ניתן גם איסוף עצמי בתיאום מראש.
-                  להזמנות דחופות צרו קשר בוואטסאפ ונדאג למשלוח אקספרס.
+                  משלוח עד הבית לכל רחבי הארץ, אספקה משוערת {CONSUMER_POLICY.deliveryMinDays}–{CONSUMER_POLICY.deliveryMaxDays} ימי עסקים ממועד אישור ההזמנה. פרטים מלאים ב
+                  <Link
+                    to="/shipping"
+                    className="text-accent underline underline-offset-4 [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-strong"
+                  >
+                    עמוד המשלוחים
+                  </Link>
+                  .
                 </p>
               </AccordionContent>
             </AccordionItem>
@@ -1632,7 +1638,7 @@ function ProductPage() {
               <AccordionTrigger className="font-display text-base">מדיניות החזרות וביטולים</AccordionTrigger>
               <AccordionContent>
                 <p className="text-sm text-muted-foreground leading-relaxed">
-                  ניתן לבטל עסקה בכתב עד 14 ימים מקבלת המוצר, בהתאם לחוק הגנת הצרכן — בהודעה בדוא"ל
+                  ניתן לבטל עסקה בכתב עד {CONSUMER_POLICY.cancellationDays} ימים מקבלת המוצר, בהתאם לחוק הגנת הצרכן — בהודעה בדוא"ל
                   או דרך{" "}
                   <Link
                     to="/contact"
@@ -1641,7 +1647,7 @@ function ProductPage() {
                     עמוד יצירת הקשר
                   </Link>
                   . בביטול שאינו עקב פגם ייתכן ניכוי דמי ביטול בשיעור שלא יעלה על
-                  5% ממחיר העסקה או 100 ₪, הנמוך מביניהם, והחזר כספי יבוצע תוך 14 ימים מקבלת ההודעה.
+                  {CONSUMER_POLICY.cancellationFeePct}% ממחיר העסקה או {CONSUMER_POLICY.cancellationFeeCapIls} ₪, הנמוך מביניהם, והחזר כספי יבוצע תוך {CONSUMER_POLICY.refundDays} ימים מקבלת ההודעה.
                   המוצר יוחזר באריזתו המקורית וללא שימוש. פריטים בהתאמה אישית (רקמה/חריטה) אינם ניתנים לביטול.
                 </p>
               </AccordionContent>

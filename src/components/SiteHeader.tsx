@@ -880,7 +880,7 @@ export function SiteFooter() {
             <span className="h-px w-16 bg-gradient-to-l from-transparent to-gold/60" />
           </div>
           <p className="mt-5 max-w-xl text-sm md:text-[15px] text-muted-foreground leading-relaxed">
-            חנות תשמישי קדושה — כלי כסף, כוסות קידוש, חנוכיות, מזוזות, טליתות ועוד, באיכות ובהידור.
+            חנות תשמישי קדושה — כלי כסף, כוסות קידוש, חנוכיות, נרתיקי מזוזה, טליתות ועוד, באיכות ובהידור.
           </p>
         </div>
 

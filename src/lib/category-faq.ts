@@ -3,6 +3,8 @@
 // AI answer engines, and is emitted as FAQPage JSON-LD. Pure module — safe on
 // both client and server (used in the route loader head and the component).
 
+import { CONSUMER_POLICY } from "@/lib/business";
+
 export type FaqItem = { q: string; a: string };
 
 /**
@@ -22,8 +24,8 @@ export function categoryFaq(categoryName: string): FaqItem[] {
   const inCat = raw ? `בקטגוריית "${raw}"` : "באתר";
   return [
     {
-      q: `האם המוצרים ${inCat} כשרים ומהודרים?`,
-      a: `כן. המוצרים ${inCat} נבחרים ב"אור זרוע לצדיק" בהקפדה על כשרות והידור, מתוך מחויבות לאיכות בכל פריט.`,
+      q: `לפי מה נבחרים המוצרים ${inCat}?`,
+      a: `המוצרים ${inCat} נבחרים ב"אור זרוע לצדיק" בהקפדה על כשרות והידור, מתוך מחויבות לאיכות בכל פריט. לפרטים על ההכשר של פריט מסוים — צרו קשר ונשמח לסייע.`,
     },
     {
       q: `האם ניתן להוסיף רקמה או חריטה אישית למוצרים ${inCat}?`,
@@ -31,7 +33,7 @@ export function categoryFaq(categoryName: string): FaqItem[] {
     },
     {
       q: `מהם זמני המשלוח למוצרים ${inCat}?`,
-      a: `אנו שולחים עד הבית בכל רחבי ישראל. זמן האספקה המשוער הוא 3–14 ימי עסקים ממועד ההזמנה.`,
+      a: `אנו שולחים עד הבית בכל רחבי ישראל. זמן האספקה המשוער הוא ${CONSUMER_POLICY.deliveryMinDays}–${CONSUMER_POLICY.deliveryMaxDays} ימי עסקים ממועד אישור ההזמנה.`,
     },
     {
       q: `מה מדיניות ההחזרות וההחלפות?`,

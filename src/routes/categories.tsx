@@ -30,7 +30,7 @@ export const Route = createFileRoute("/categories")({
   head: ({ loaderData }) => {
     const url = "https://orzadik.com/categories";
     const description =
-      "כל קטגוריות תשמישי הקדושה והיודאיקה: טליתות ותפילין, מזוזות, גביעי קידוש, חנוכיות, פמוטים, מארזים לחתנים, סטי חלאקה ותכשיטי זהב. בחרו עולם תוכן והתחילו לקנות.";
+      "כל קטגוריות תשמישי הקדושה והיודאיקה: טליתות, כיסויי טלית ותפילין, נרתיקי מזוזה, גביעי קידוש, חנוכיות, מארזים לחתנים, סטי חלאקה ותכשיטי זהב. בחרו עולם תוכן והתחילו לקנות.";
     // Every row is a real /category/<slug> page rendered as a link on this hub,
     // so an ItemList of them is truthful. numberOfItems is the genuine category
     // count (no image nodes — categories carry no image here — so the markup
@@ -69,7 +69,7 @@ export const Route = createFileRoute("/categories")({
         { title: "קטגוריות המוצרים | אור זרוע לצדיק" },
         { name: "description", content: description },
         { property: "og:title", content: "קטגוריות המוצרים | אור זרוע לצדיק" },
-        { property: "og:description", content: "טליתות, תפילין, מזוזות, גביעי קידוש, חנוכיות, מארזים לחתנים וסטי חלאקה — כל הקטגוריות במקום אחד." },
+        { property: "og:description", content: "טליתות, כיסויי טלית ותפילין, נרתיקי מזוזה, גביעי קידוש, חנוכיות, מארזים לחתנים וסטי חלאקה — כל הקטגוריות במקום אחד." },
         { property: "og:url", content: url },
         { property: "og:type", content: "website" },
         { name: "twitter:title", content: "קטגוריות המוצרים | אור זרוע לצדיק" },
@@ -106,7 +106,7 @@ function CategoriesPage() {
       <PageHeader
         eyebrow="קטגוריות"
         title="כל תשמישי הקדושה והיודאיקה, לפי קטגוריה"
-        sub="טליתות ותפילין, מזוזות, גביעי קידוש, חנוכיות, פמוטים, מארזים לחתנים, סטי חלאקה ותכשיטי זהב — בחרו עולם תוכן והתחילו לקנות."
+        sub="טליתות, כיסויי טלית ותפילין, נרתיקי מזוזה, גביעי קידוש, חנוכיות, פמוטים, מארזים לחתנים, סטי חלאקה ותכשיטי זהב — בחרו עולם תוכן והתחילו לקנות."
       />
 
       {/* Shop-by-occasion — Judaica is calendar- and lifecycle-driven, so surface
