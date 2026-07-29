@@ -202,7 +202,7 @@ function AdminOrders() {
     try {
       const r = await refundOrder({ data: { order_id: orderId } });
       toast.success(
-        `הזיכוי בוצע בהצלחה${r.newDocumentNumber ? ` — מסמך ${r.newDocumentType ?? ""} מס׳ ${r.newDocumentNumber}` : ""}`,
+        `הזיכוי בוצע בהצלחה${r.newTransactionId ? ` — עסקת זיכוי מס׳ ${r.newTransactionId}` : ""}`,
       );
       setSelected(null);
       refresh();
@@ -467,11 +467,16 @@ function AdminOrders() {
                       {selected.cardcom_document_number
                         ? ` · מסמך ${selected.cardcom_document_type ?? ""} מס׳ ${selected.cardcom_document_number}`
                         : ""}
+                      {!Number(selected.cardcom_tranzaction_id) && (
+                        <span className="block text-destructive">
+                          אין מזהה עסקה מקארדקום — זיכוי אוטומטי אינו זמין. בצעו זיכוי ידני בממשק קארדקום.
+                        </span>
+                      )}
                     </div>
                     <Button
                       size="sm"
                       variant="destructive"
-                      disabled={refunding || !selected.cardcom_document_number}
+                      disabled={refunding || !Number(selected.cardcom_tranzaction_id)}
                       onClick={() => doRefund(selected.id)}
                     >
                       {refunding ? "מבצע זיכוי..." : "זיכוי מלא"}

@@ -75,6 +75,16 @@ export const ORDER_STATUS_LABELS_HE: Record<string, string> = {
   completed: "הושלמה",
   cancelled: "בוטלה",
   refunded: "זוכתה",
+  // payment_status values that the CardCom webhook can write but that had no Hebrew
+  // label, so any screen rendering them fell through to the raw English token:
+  //   `failed`          — the charge was declined, or our own amount/currency
+  //                       integrity check refused to mark the order paid.
+  //   `pending_charge`  — a CreateTokenOnly authorisation: the card is tokenised
+  //                       but NOT captured. Reachable only if CardCom_Operation is
+  //                       ever switched off ChargeOnly; the label exists so the
+  //                       state is legible the moment it appears.
+  failed: "התשלום נכשל",
+  pending_charge: "ממתינה לחיוב",
 };
 
 /** Hebrew label for an order status, falling back to the raw token if unknown. */
