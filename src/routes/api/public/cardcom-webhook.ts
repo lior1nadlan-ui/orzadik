@@ -351,11 +351,24 @@ export const Route = createFileRoute("/api/public/cardcom-webhook")({
           // a usable amount; if CardCom returns none (NaN), the check is skipped
           // (fail-open for field gaps) but now logged at high severity.
           const chargedAmount = Number(ti?.Amount);
-          const AMOUNT_EPSILON = 0.01; // one agora — far below any real mismatch
+          // Instalment diagnostics. There is NO test path — CardCom's documented test
+          // credentials return ResponseCode 603 — so the first real order IS the
+          // experiment and it must not run uninstrumented.
+          const nPayments = Number(ti?.NumberOfPayments ?? lp?.UIValues?.NumOfPayments);
+          const payInfo = `payments=${ti?.NumberOfPayments ?? "?"} type=${ti?.PaymentType ?? "?"} first=${ti?.FirstPaymentAmount ?? "?"} const=${ti?.ConstPaymentAmount ?? "?"}`;
+          // Scale the tolerance by instalment count and nothing else. תשלומים
+          // introduce per-payment rounding a single-payment epsilon cannot absorb
+          // (₪1,000 / 3 = 333.333…), and the owner can switch instalments on from the
+          // CardCom terminal WITHOUT any deploy on our side — so this has to be safe
+          // before that happens, not after. At CardCom's maximum of 36 payments this
+          // is still only ₪0.36, far below any real discrepancy. Deliberately NOT
+          // widened to accept charged > total.
+          const AMOUNT_EPSILON =
+            Number.isFinite(nPayments) && nPayments > 1 ? 0.01 * nPayments : 0.01;
           if (Number.isFinite(chargedAmount)) {
             if (Math.abs(chargedAmount - Number(order.total)) > AMOUNT_EPSILON) {
               console.error(
-                `[cardcom-webhook] CRITICAL: amount mismatch for order ${order.id} — charged=${chargedAmount} expected=${order.total}. Blocking.`,
+                `[cardcom-webhook] CRITICAL: amount mismatch for order ${order.id} — charged=${chargedAmount} expected=${order.total} epsilon=${AMOUNT_EPSILON} ${payInfo}. Blocking.`,
               );
               // Mark payment failed so the customer can retry; never mark as paid.
               await blockAndPersist("סכום לא תואם");
@@ -368,6 +381,10 @@ export const Route = createFileRoute("/api/public/cardcom-webhook")({
               `[cardcom-webhook] HIGH: GetLpResult returned no usable amount for order ${order.id} (TranzactionInfo.Amount absent) — proceeding WITHOUT amount verification.`,
             );
           }
+
+          console.log(
+            `[cardcom-webhook] settling order ${order.id} — charged=${chargedAmount} total=${order.total} coin=${coinRaw} ${payInfo}`,
+          );
 
           // ChargeOnly success → paid
           const { data: updated, error: updErr } = await supabaseAdmin

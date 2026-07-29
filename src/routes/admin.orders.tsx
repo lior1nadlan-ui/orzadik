@@ -40,7 +40,17 @@ const STATUSES = ["pending", "processing", "shipped", "completed", "cancelled", 
 const STATUS_HE: Record<string, string> = {
   pending: "ממתינה", processing: "בטיפול", shipped: "נשלחה", completed: "הושלמה", cancelled: "בוטלה", refunded: "זוכתה",
 };
-const PAYMENT_HE: Record<string, string> = { paid: "שולם", unpaid: "לא שולם", refunded: "זוכה" };
+// `failed` and `pending_charge` are both statuses the CardCom webhook can write.
+// Without them here they rendered as raw English tokens, and with no matching filter
+// option the owner could not even LIST a blocked order — so a charge that was taken
+// and refused would sit unnoticed. A block nobody can see is a block nobody fixes.
+const PAYMENT_HE: Record<string, string> = {
+  paid: "שולם",
+  unpaid: "לא שולם",
+  refunded: "זוכה",
+  failed: "נכשל",
+  pending_charge: "ממתין לחיוב",
+};
 
 /** Israeli local number -> wa.me international format. Also used by the
  * abandoned-carts screen (admin.abandoned.tsx). */
@@ -289,6 +299,7 @@ function AdminOrders() {
           <option value="paid">שולם</option>
           <option value="unpaid">לא שולם</option>
           <option value="refunded">זוכה</option>
+          <option value="failed">נכשל</option>
         </select>
         <select value={days} onChange={(e) => setDays(Number(e.target.value))} className="rounded-md border bg-background px-3 py-2 text-sm">
           <option value={0}>כל הזמן</option>

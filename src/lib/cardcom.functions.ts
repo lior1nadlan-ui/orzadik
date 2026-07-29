@@ -109,7 +109,7 @@ export const createCardcomPayment = createServerFn({ method: "POST" })
     const { data: order, error } = await supabaseAdmin
       .from("orders")
       .select(
-        "id, user_id, order_number, subtotal, shipping, total, customer_name, customer_email, customer_phone, customer_address, customer_city, payment_status, order_items(product_name, variant_label, custom_text, unit_price, quantity, line_total)",
+        "id, user_id, order_number, subtotal, shipping, total, customer_name, customer_email, customer_phone, customer_address, customer_city, payment_status, cardcom_tranzaction_id, order_items(product_name, variant_label, custom_text, unit_price, quantity, line_total)",
       )
       .eq("id", data.order_id)
       .maybeSingle();
@@ -125,6 +125,25 @@ export const createCardcomPayment = createServerFn({ method: "POST" })
     }
     if (order.payment_status === "refunded") {
       throw new Error("ההזמנה זוכתה ואינה זמינה לתשלום. לפתיחת הזמנה חדשה — צרו איתנו קשר.");
+    }
+    // DOUBLE-CHARGE GUARD. payment_status alone is not enough: the webhook's
+    // amount/currency integrity checks mark an order "failed" even though CardCom
+    // DID capture the card — that is the whole point of blocking. "failed" is a
+    // retryable state by design, so without this guard a buyer returning to
+    // /order/{id} after a blocked-but-charged payment gets a fresh payment page and
+    // is charged a SECOND time for one order.
+    //
+    // A non-zero cardcom_tranzaction_id is the reliable "CardCom captured money for
+    // this order" signal: the declined path (ResponseCode != 0) never writes it, and
+    // CreateTokenOnly writes 0 (authorised, nothing captured). So this refuses only
+    // orders where money genuinely moved, and needs a human — never a retry.
+    if (Number(order.cardcom_tranzaction_id) > 0) {
+      console.error(
+        `[cardcom] HIGH: refused re-payment of order ${order.id} (${order.order_number}) — it already has captured transaction ${order.cardcom_tranzaction_id} but payment_status="${order.payment_status}". A charge was taken and blocked; this needs manual reconciliation, not another charge.`,
+      );
+      throw new Error(
+        "קיים חיוב שבוצע להזמנה זו אך טרם אושר במערכת. אנא צרו איתנו קשר לפני ביצוע תשלום נוסף — לא נרצה שתחויבו פעמיים.",
+      );
     }
 
     // Authorization: owned orders require the owner; guest orders (user_id null)
