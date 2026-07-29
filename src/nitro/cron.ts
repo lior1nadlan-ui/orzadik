@@ -23,6 +23,7 @@
 import { runReviewRequests } from "@/lib/review-request.functions";
 import { runCampaignTick } from "@/lib/campaigns.functions";
 import { runAbandonedCartReminders } from "@/lib/abandoned-cart.functions";
+import { runCardcomReconciliation } from "@/lib/cardcom-settle.server";
 
 type NitroAppLike = {
   hooks: { hook: (name: string, fn: (payload: any) => unknown) => void };
@@ -36,6 +37,12 @@ const JOBS: Record<string, { name: string; run: () => Promise<unknown> }> = {
   "0 7 * * *": { name: "review-requests", run: runReviewRequests },
   "*/5 * * * *": { name: "campaign-tick", run: runCampaignTick },
   "15 * * * *": { name: "abandoned-cart-reminders", run: runAbandonedCartReminders },
+  // Safety net for every path that ends CardCom's retry ladder without settling the
+  // order — a 200 on order-not-found / ReturnValue mismatch / integrity block, or a
+  // plain Worker error. Without this, a charged card can sit against an unpaid order
+  // forever and nothing notices. 10 minutes is well clear of the 15-minute grace
+  // window inside the job, so it never races a webhook that is merely in flight.
+  "*/10 * * * *": { name: "cardcom-reconcile", run: runCardcomReconciliation },
 };
 
 export default function (nitroApp: NitroAppLike) {

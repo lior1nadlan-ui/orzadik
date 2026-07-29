@@ -48,6 +48,7 @@ import { Route as AdminAbandonedRouteImport } from './routes/admin.abandoned'
 import { Route as ApiPublicUnsubscribeRouteImport } from './routes/api/public/unsubscribe'
 import { Route as ApiPublicCardcomWebhookRouteImport } from './routes/api/public/cardcom-webhook'
 import { Route as ApiCronReviewRequestsRouteImport } from './routes/api/cron/review-requests'
+import { Route as ApiCronCardcomReconcileRouteImport } from './routes/api/cron/cardcom-reconcile'
 import { Route as ApiCronCampaignTickRouteImport } from './routes/api/cron/campaign-tick'
 import { Route as ApiCronAbandonedCartRemindersRouteImport } from './routes/api/cron/abandoned-cart-reminders'
 
@@ -246,6 +247,11 @@ const ApiCronReviewRequestsRoute = ApiCronReviewRequestsRouteImport.update({
   path: '/api/cron/review-requests',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCronCardcomReconcileRoute = ApiCronCardcomReconcileRouteImport.update({
+  id: '/api/cron/cardcom-reconcile',
+  path: '/api/cron/cardcom-reconcile',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCronCampaignTickRoute = ApiCronCampaignTickRouteImport.update({
   id: '/api/cron/campaign-tick',
   path: '/api/cron/campaign-tick',
@@ -297,6 +303,7 @@ export interface FileRoutesByFullPath {
   '/articles/': typeof ArticlesIndexRoute
   '/api/cron/abandoned-cart-reminders': typeof ApiCronAbandonedCartRemindersRoute
   '/api/cron/campaign-tick': typeof ApiCronCampaignTickRoute
+  '/api/cron/cardcom-reconcile': typeof ApiCronCardcomReconcileRoute
   '/api/cron/review-requests': typeof ApiCronReviewRequestsRoute
   '/api/public/cardcom-webhook': typeof ApiPublicCardcomWebhookRoute
   '/api/public/unsubscribe': typeof ApiPublicUnsubscribeRoute
@@ -339,6 +346,7 @@ export interface FileRoutesByTo {
   '/articles': typeof ArticlesIndexRoute
   '/api/cron/abandoned-cart-reminders': typeof ApiCronAbandonedCartRemindersRoute
   '/api/cron/campaign-tick': typeof ApiCronCampaignTickRoute
+  '/api/cron/cardcom-reconcile': typeof ApiCronCardcomReconcileRoute
   '/api/cron/review-requests': typeof ApiCronReviewRequestsRoute
   '/api/public/cardcom-webhook': typeof ApiPublicCardcomWebhookRoute
   '/api/public/unsubscribe': typeof ApiPublicUnsubscribeRoute
@@ -383,6 +391,7 @@ export interface FileRoutesById {
   '/articles/': typeof ArticlesIndexRoute
   '/api/cron/abandoned-cart-reminders': typeof ApiCronAbandonedCartRemindersRoute
   '/api/cron/campaign-tick': typeof ApiCronCampaignTickRoute
+  '/api/cron/cardcom-reconcile': typeof ApiCronCardcomReconcileRoute
   '/api/cron/review-requests': typeof ApiCronReviewRequestsRoute
   '/api/public/cardcom-webhook': typeof ApiPublicCardcomWebhookRoute
   '/api/public/unsubscribe': typeof ApiPublicUnsubscribeRoute
@@ -428,6 +437,7 @@ export interface FileRouteTypes {
     | '/articles/'
     | '/api/cron/abandoned-cart-reminders'
     | '/api/cron/campaign-tick'
+    | '/api/cron/cardcom-reconcile'
     | '/api/cron/review-requests'
     | '/api/public/cardcom-webhook'
     | '/api/public/unsubscribe'
@@ -470,6 +480,7 @@ export interface FileRouteTypes {
     | '/articles'
     | '/api/cron/abandoned-cart-reminders'
     | '/api/cron/campaign-tick'
+    | '/api/cron/cardcom-reconcile'
     | '/api/cron/review-requests'
     | '/api/public/cardcom-webhook'
     | '/api/public/unsubscribe'
@@ -513,6 +524,7 @@ export interface FileRouteTypes {
     | '/articles/'
     | '/api/cron/abandoned-cart-reminders'
     | '/api/cron/campaign-tick'
+    | '/api/cron/cardcom-reconcile'
     | '/api/cron/review-requests'
     | '/api/public/cardcom-webhook'
     | '/api/public/unsubscribe'
@@ -549,6 +561,7 @@ export interface RootRouteChildren {
   ArticlesIndexRoute: typeof ArticlesIndexRoute
   ApiCronAbandonedCartRemindersRoute: typeof ApiCronAbandonedCartRemindersRoute
   ApiCronCampaignTickRoute: typeof ApiCronCampaignTickRoute
+  ApiCronCardcomReconcileRoute: typeof ApiCronCardcomReconcileRoute
   ApiCronReviewRequestsRoute: typeof ApiCronReviewRequestsRoute
   ApiPublicCardcomWebhookRoute: typeof ApiPublicCardcomWebhookRoute
   ApiPublicUnsubscribeRoute: typeof ApiPublicUnsubscribeRoute
@@ -829,6 +842,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCronReviewRequestsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/cron/cardcom-reconcile': {
+      id: '/api/cron/cardcom-reconcile'
+      path: '/api/cron/cardcom-reconcile'
+      fullPath: '/api/cron/cardcom-reconcile'
+      preLoaderRoute: typeof ApiCronCardcomReconcileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/cron/campaign-tick': {
       id: '/api/cron/campaign-tick'
       path: '/api/cron/campaign-tick'
@@ -901,6 +921,7 @@ const rootRouteChildren: RootRouteChildren = {
   ArticlesIndexRoute: ArticlesIndexRoute,
   ApiCronAbandonedCartRemindersRoute: ApiCronAbandonedCartRemindersRoute,
   ApiCronCampaignTickRoute: ApiCronCampaignTickRoute,
+  ApiCronCardcomReconcileRoute: ApiCronCardcomReconcileRoute,
   ApiCronReviewRequestsRoute: ApiCronReviewRequestsRoute,
   ApiPublicCardcomWebhookRoute: ApiPublicCardcomWebhookRoute,
   ApiPublicUnsubscribeRoute: ApiPublicUnsubscribeRoute,

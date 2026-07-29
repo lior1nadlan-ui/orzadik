@@ -27,7 +27,7 @@
   //   "15 * * * *"  → hourly at :15: abandoned-cart reminders (carts 1h–30d old,
   //                   ≤100 per tick, one reminder per cart ever)
   "triggers": {
-    "crons": ["0 7 * * *", "*/5 * * * *", "15 * * * *"],
+    "crons": ["0 7 * * *", "*/5 * * * *", "15 * * * *", "*/10 * * * *"],
   },
   // Serve the Worker on the real domain (Cloudflare auto-creates DNS + TLS).
   "routes": [
