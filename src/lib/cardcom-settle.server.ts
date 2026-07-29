@@ -205,6 +205,16 @@ export async function settleCardcomOrder(
     `${tag} settling order ${order.id} — charged=${chargedAmount} total=${order.total} coin=${coinRaw} ${payInfo}`,
   );
 
+  // CLAIM-FIRST, like every other side effect below it. The idempotency check at
+  // the top of this function tests the caller's in-memory snapshot, which is fine
+  // when there is one caller — but this function now has two. A CardCom retry and a
+  // reconciliation tick can read the same order as unpaid and both settle it; the
+  // stock and email latches would each still hold, but this write had no guard, so
+  // the loser would overwrite paid_at with a later, wrong timestamp.
+  //
+  // `.neq("payment_status", "paid")` makes the transition itself the latch: exactly
+  // one caller flips unpaid → paid and proceeds to the side effects; the other
+  // matches zero rows and reports already_paid without re-running anything.
   const { data: updated, error: updErr } = await supabaseAdmin
     .from("orders")
     .update({
@@ -216,12 +226,19 @@ export async function settleCardcomOrder(
       paid_at: new Date().toISOString(),
     })
     .eq("id", order.id)
+    .neq("payment_status", "paid")
     .select("*")
-    .single();
+    .maybeSingle();
 
-  if (updErr || !updated) {
+  if (updErr) {
     console.error(`${tag} order update failed:`, updErr);
     return { kind: "update_failed" };
+  }
+  if (!updated) {
+    // Zero rows: another caller won the transition between our snapshot and this
+    // write. Not an error — the order IS paid, just not by us.
+    console.log(`${tag} order ${order.id} was settled concurrently by another caller`);
+    return { kind: "already_paid" };
   }
 
   // Everything below runs AFTER the payment is committed and the row already says
@@ -314,7 +331,11 @@ export async function runCardcomReconciliation() {
     .from("orders")
     .select("*")
     .not("cardcom_low_profile_id", "is", null)
-    .not("payment_status", "in", '("paid","refunded")')
+    // pending_charge is excluded deliberately: that is a CreateTokenOnly
+    // authorisation whose Operation is fixed at session creation, so polling can
+    // only ever re-take the same branch. Sweeping it would be 72 hours of pointless
+    // CardCom calls per order.
+    .not("payment_status", "in", '("paid","refunded","pending_charge")')
     .lt("created_at", notAfter)
     .gt("created_at", notBefore)
     .order("created_at", { ascending: true })
