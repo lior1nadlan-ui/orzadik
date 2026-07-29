@@ -194,6 +194,11 @@ export const createCardcomPayment = createServerFn({ method: "POST" })
       Amount: Number(order.total),
       SuccessRedirectUrl: `${origin}/order/${order.id}?paid=1`,
       FailedRedirectUrl: `${origin}/order/${order.id}?paid=0`,
+      // Without this CardCom shows no labelled way back and the buyer has to hunt
+      // for the browser's back button — a real abandonment cost. Same destination
+      // as the failure page: the order exists and is unpaid either way, and that
+      // page already offers "השלמת תשלום".
+      CancelRedirectUrl: `${origin}/order/${order.id}?paid=0`,
       WebHookUrl: `${origin}/api/public/cardcom-webhook`,
       Language: "he",
       ISOCoinId: 1, // ILS
