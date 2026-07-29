@@ -49,6 +49,9 @@ function CheckoutPage() {
   const startPayment = useServerFn(createCardcomPayment);
   const saveCart = useServerFn(saveAbandonedCart);
   const [submitting, setSubmitting] = useState(false);
+  // Set only in the instant between "CardCom gave us a URL" and the browser
+  // actually leaving. Purely cosmetic — nothing depends on it.
+  const [redirecting, setRedirecting] = useState(false);
   const [contactConsent, setContactConsent] = useState(false);
   // Optional and unchecked by default — never bundled with the required
   // operational consent above it.
@@ -310,6 +313,12 @@ function CheckoutPage() {
         const pay = await startPayment({
           data: { order_id: result.id },
         });
+        // Name the destination BEFORE the domain changes. An unannounced jump to
+        // secure.cardcom.solutions is exactly the moment a first-time buyer at a
+        // shop with no reviews hesitates. Baymard's finding on redirects is not
+        // "avoid them", it is "signpost them" — and unlike embedding the payment
+        // page in an iframe, this costs nothing and keeps Apple Pay working.
+        setRedirecting(true);
         window.location.href = pay.url;
         return;
       } catch (payErr: any) {
@@ -464,13 +473,25 @@ function CheckoutPage() {
           </p>
         )}
         <Button type="submit" size="lg" disabled={submitting || blockedCount > 0} aria-busy={submitting} className="press w-full">
-          {submitting ? "טוען..." : `המשך לתשלום · ${formatILS(finalTotal)}`}
+          {redirecting
+            ? "מעבירים לתשלום מאובטח…"
+            : submitting
+              ? "יוצרים את ההזמנה…"
+              : `המשך לתשלום · ${formatILS(finalTotal)}`}
         </Button>
         {/* Visually-hidden live region: the button-text swap alone isn't reliably
             announced, so read the processing state to assistive tech. */}
         <span className="sr-only" aria-live="polite">
-          {submitting ? "מעבד את ההזמנה" : ""}
+          {redirecting ? "מעבירים אתכם לעמוד התשלום המאובטח של Cardcom" : submitting ? "מעבד את ההזמנה" : ""}
         </span>
+        {/* Visible hand-off notice. The domain is about to change to
+            secure.cardcom.solutions; saying so first is the difference between an
+            expected step and a moment of doubt. */}
+        {redirecting && (
+          <p className="flex items-center justify-center gap-1.5 text-[13px] leading-relaxed text-accent">
+            מעבירים אתכם לעמוד התשלום המאובטח של Cardcom להשלמת התשלום…
+          </p>
+        )}
         {/* Reassurance AT the submit button — checkout anxiety peaks here, but on
             mobile the full TrustBadges sit in the summary column far below the
             form, so this one line keeps the security promise adjacent to the
