@@ -47,3 +47,6 @@ supabase/.temp/
 
 __pycache__/
 *.pyc
+
+# Local dev-server config written by tooling — contains machine-absolute paths.
+.claude/launch.json
