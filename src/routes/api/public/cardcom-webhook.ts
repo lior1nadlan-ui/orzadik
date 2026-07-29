@@ -130,6 +130,15 @@ export const Route = createFileRoute("/api/public/cardcom-webhook")({
             return new Response("missing LowProfileId", { status: 400 });
           }
 
+          // GetLpResult is memoized: the orphaned-session recovery below needs it
+          // before the order is known, and the validation step needs it after.
+          // Calling it twice would double the outbound latency for no gain.
+          let lpCached: any = null;
+          const lp$ = async () => {
+            if (lpCached === null) lpCached = await getLpResult(String(lowProfileId));
+            return lpCached;
+          };
+
           // Locate order by LowProfileId (fallback to legacy payment_txn_id)
           let { data: order } = await supabaseAdmin
             .from("orders")
@@ -143,6 +152,41 @@ export const Route = createFileRoute("/api/public/cardcom-webhook")({
               .eq("payment_txn_id", String(lowProfileId))
               .maybeSingle();
             order = legacy;
+          }
+          if (!order) {
+            // ORPHANED SESSION RECOVERY. There is one slot for a LowProfileId, so a
+            // buyer who opens the payment page, backs out, and clicks pay again gets
+            // a new id written OVER the old one. If they then complete payment on the
+            // first, still-open tab, both lookups above miss — the card is charged
+            // and the order would stay unpaid forever, with no confirmation, no stock
+            // decrement and no retry (CardCom stops once it has our 200).
+            //
+            // Recover via ReturnValue, which is the order id we ourselves set at
+            // LowProfile/Create. This is NOT the prohibited "match on ReturnValue":
+            // that rule protects against trusting the UNAUTHENTICATED webhook body,
+            // whereas this value comes from CardCom's own server-to-server
+            // GetLpResult response, keyed by the LowProfileId — the same response
+            // this handler already treats as the source of truth below.
+            try {
+              const probe = await lp$();
+              const rv = probe?.ReturnValue;
+              if (rv && /^[0-9a-f-]{36}$/i.test(String(rv))) {
+                const { data: byRv } = await supabaseAdmin
+                  .from("orders")
+                  .select("*")
+                  .eq("id", String(rv))
+                  .eq("payment_provider", "cardcom")
+                  .maybeSingle();
+                if (byRv) {
+                  order = byRv;
+                  console.error(
+                    `[cardcom-webhook] HIGH: recovered orphaned session LowProfileId=${lowProfileId} → order ${byRv.id} via ReturnValue. A superseded payment page was completed; verify no double charge.`,
+                  );
+                }
+              }
+            } catch (e) {
+              console.error("[cardcom-webhook] orphan recovery GetLpResult failed:", e);
+            }
           }
           if (!order) {
             console.error(
@@ -160,7 +204,7 @@ export const Route = createFileRoute("/api/public/cardcom-webhook")({
           // Server-to-server validation — this is the source of truth
           let lp: any;
           try {
-            lp = await getLpResult(String(lowProfileId));
+            lp = await lp$();
           } catch (e: any) {
             console.error("[cardcom-webhook] GetLpResult failed after retry:", e);
             return new Response(`GetLpResult failed: ${e?.message ?? "error"}`, { status: 500 });
@@ -236,45 +280,51 @@ export const Route = createFileRoute("/api/public/cardcom-webhook")({
           // replay with a wrong transaction or an integrity violation — both unsafe.
           const ti = lp?.TranzactionInfo ?? {};
 
-          // Currency: assert ILS whenever GetLpResult exposes a *reliable* signal.
-          // CardCom denominates currency with a small coin id (1 = ILS/NIS,
-          // mirroring the ISOCoinId:1 we send; 2 = USD, 3 = EUR, …). That numeric
-          // coin id is the authoritative, locale-independent signal, so it is
-          // trusted FIRST and decides on its own: a plausible CardCom coin id of 1
-          // means the charge was in ILS regardless of any display string. Only when
-          // no coin id is present do we fall back to an ISO *code* string
-          // (Currency/CurrencyIso). We deliberately do NOT read CurrencyName — a
-          // localized display name ("שקל חדש", "₪", "Shekel") is not an ISO code
-          // and, if AND-compared against ISO codes, would veto a correct coin id and
-          // wrongly fail a genuinely-paid order. An implausible coin encoding, a
-          // non-ISO string, or absent fields → fail open (skip; the amount check
-          // below is the real backstop).
-          const coinRaw = ti?.CoinId ?? ti?.ISOCoinId ?? lp?.ISOCoinId ?? null;
+          /**
+           * Refuse a transaction we cannot reconcile — WITHOUT losing the evidence.
+           *
+           * The earlier version wrote only { payment_status: 'failed', notes } and
+           * dropped cardcomFields entirely, so an order whose card WAS genuinely
+           * charged ended up with no TranzactionId, no document number and no
+           * response code — leaving nothing to refund by and nothing to trace. It
+           * also appended to `orders.notes`, which is customer-authored, from a
+           * stale read: any note the buyer typed at checkout could be clobbered.
+           *
+           * The reason now rides on cardcom_description alongside CardCom's own
+           * text, which is admin-visible and ours to write.
+           */
+          const blockAndPersist = async (reason: string) => {
+            await supabaseAdmin
+              .from("orders")
+              .update({
+                ...cardcomFields,
+                cardcom_tranzaction_id: lp?.TranzactionId ?? null,
+                cardcom_description: `[חסום: ${reason}] ${lp?.Description ?? ""}`.trim(),
+                payment_status: "failed",
+              })
+              .eq("id", order.id);
+          };
+
+          // Currency: assert ILS from CoinId, which is the ONLY currency signal the
+          // v11 schema exposes on this object. Verified against
+          // https://secure.cardcom.solutions/swagger/v11/swagger.json —
+          // TransactionInfo has `CoinId: integer` and carries no currency string, so
+          // the ISO-code fallback that used to live here (ti.Currency /
+          // ti.CurrencyIso) could never fire. 1 = ILS/NIS, mirroring the
+          // ISOCoinId: 1 we send at LowProfile/Create. An absent or implausible coin
+          // id → fail open; the amount check below is the real backstop.
+          const coinRaw = ti?.CoinId ?? null;
           const coinNum = Number(coinRaw);
           const coinExposed =
             coinRaw !== null && coinRaw !== undefined && coinRaw !== "" &&
             Number.isInteger(coinNum) && coinNum > 0 && coinNum < 200;
-          // ISO code fields only (never CurrencyName). Judge a string only when it
-          // is actually a 3-letter ISO-4217 code; a symbol/name/empty is "no signal".
-          const currencyStr = String(ti?.Currency ?? ti?.CurrencyIso ?? "")
-            .trim()
-            .toUpperCase();
-          const isoCodeExposed = /^[A-Z]{3}$/.test(currencyStr);
-          let currencyIsIls = true; // default: no reliable signal → fail open
-          if (coinExposed) {
-            currencyIsIls = coinNum === 1; // coin id is authoritative when present
-          } else if (isoCodeExposed) {
-            currencyIsIls = currencyStr === "ILS" || currencyStr === "NIS";
-          }
+          const currencyIsIls = coinExposed ? coinNum === 1 : true;
           if (!currencyIsIls) {
             console.error(
-              `[cardcom-webhook] CRITICAL: currency mismatch for order ${order.id} — coin=${coinRaw} currency=${currencyStr || "?"} expected ILS. Blocking.`,
+              `[cardcom-webhook] CRITICAL: currency mismatch for order ${order.id} — coin=${coinRaw} expected ILS (CoinId 1). Blocking.`,
             );
             // Mark payment failed so the customer can retry; never mark as paid.
-            await supabaseAdmin
-              .from("orders")
-              .update({ payment_status: "failed", notes: (order.notes ? order.notes + "\n" : "") + "[BLOCKED: currency mismatch]" })
-              .eq("id", order.id);
+            await blockAndPersist("מטבע לא תואם");
             return new Response("currency mismatch", { status: 200 });
           }
 
@@ -283,7 +333,7 @@ export const Route = createFileRoute("/api/public/cardcom-webhook")({
           // accepted a sub-₪0.50 discrepancy. Blocks only when GetLpResult returns
           // a usable amount; if CardCom returns none (NaN), the check is skipped
           // (fail-open for field gaps) but now logged at high severity.
-          const chargedAmount = Number(ti?.Amount ?? ti?.ApprovedAmount ?? ti?.SumPaid);
+          const chargedAmount = Number(ti?.Amount);
           const AMOUNT_EPSILON = 0.01; // one agora — far below any real mismatch
           if (Number.isFinite(chargedAmount)) {
             if (Math.abs(chargedAmount - Number(order.total)) > AMOUNT_EPSILON) {
@@ -291,17 +341,14 @@ export const Route = createFileRoute("/api/public/cardcom-webhook")({
                 `[cardcom-webhook] CRITICAL: amount mismatch for order ${order.id} — charged=${chargedAmount} expected=${order.total}. Blocking.`,
               );
               // Mark payment failed so the customer can retry; never mark as paid.
-              await supabaseAdmin
-                .from("orders")
-                .update({ payment_status: "failed", notes: (order.notes ? order.notes + "\n" : "") + "[BLOCKED: amount mismatch]" })
-                .eq("id", order.id);
+              await blockAndPersist("סכום לא תואם");
               return new Response("amount mismatch", { status: 200 });
             }
           } else {
             // Field-absent fail-open: proceed as before, but no longer silently —
             // an unverifiable amount is a real integrity gap worth surfacing.
             console.error(
-              `[cardcom-webhook] HIGH: GetLpResult returned no usable amount for order ${order.id} (Amount/ApprovedAmount/SumPaid absent) — proceeding WITHOUT amount verification.`,
+              `[cardcom-webhook] HIGH: GetLpResult returned no usable amount for order ${order.id} (TranzactionInfo.Amount absent) — proceeding WITHOUT amount verification.`,
             );
           }
 
