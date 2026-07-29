@@ -134,8 +134,12 @@ export const Route = createFileRoute("/api/public/cardcom-webhook")({
           // before the order is known, and the validation step needs it after.
           // Calling it twice would double the outbound latency for no gain.
           let lpCached: any = null;
+          let lpFetched = false;
           const lp$ = async () => {
-            if (lpCached === null) lpCached = await getLpResult(String(lowProfileId));
+            if (!lpFetched) {
+              lpCached = await getLpResult(String(lowProfileId));
+              lpFetched = true;
+            }
             return lpCached;
           };
 
@@ -195,8 +199,21 @@ export const Route = createFileRoute("/api/public/cardcom-webhook")({
             return new Response("order not found", { status: 200 });
           }
 
-          // Idempotency — already processed
-          if (order.cardcom_tranzaction_id) {
+          // Idempotency — already SETTLED.
+          //
+          // This tests the payment OUTCOME, not merely whether
+          // cardcom_tranzaction_id is populated. The block paths below also record a
+          // TranzactionId, because a blocked charge is still a real charge and the
+          // admin needs a handle to refund by — so a presence-only test would treat
+          // the retry of a previously-blocked order as "already processed", return
+          // 200, and never mark the successful second payment as paid. Card charged,
+          // order stuck on "failed" forever, no email, no stock decrement.
+          //
+          // Re-entering for a not-yet-paid order is safe: the confirmation email and
+          // the stock decrement each carry their own atomic latch
+          // (confirmation_email_sent_at / stock_decremented_at), so neither can fire
+          // twice regardless of how often this handler runs.
+          if (order.cardcom_tranzaction_id && order.payment_status === "paid") {
             console.log(`[cardcom-webhook] order ${order.id} already processed, skipping`);
             return new Response("ok (idempotent)", { status: 200 });
           }

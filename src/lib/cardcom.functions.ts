@@ -26,6 +26,19 @@ const cap = (s: unknown, n = 50): string | undefined => {
   return v ? v.slice(0, n) : undefined;
 };
 
+/**
+ * Email is the one field where truncating is WORSE than omitting. Slicing at 50
+ * can cut mid-domain, and CardCom's DocumentBase.Email carries a maxLength but no
+ * format validation — while DocumentBase.IsSendByEmail defaults to true. So a
+ * truncated address would be accepted and CardCom would then try to email the
+ * buyer's own invoice to a mangled mailbox and fail silently. Over 50 chars we
+ * send nothing; our own confirmation email reads the untouched DB column anyway.
+ */
+const capEmail = (s: unknown): string | undefined => {
+  const v = typeof s === "string" ? s.trim() : "";
+  return v && v.length <= 50 ? v : undefined;
+};
+
 const InputSchema = z.object({
   order_id: z.string().uuid(),
 });
@@ -55,10 +68,9 @@ function buildDocumentProducts(order: any): DocProduct[] {
   const lines: DocProduct[] = items.map((it) => ({
     // variant + engraving text belong on the invoice line: they are what the
     // customer actually bought. 250 is the schema cap on Products.Description.
-    Description: cap(
-      [it.product_name, it.variant_label, it.custom_text].filter(Boolean).join(" — "),
-      250,
-    ) as string,
+    Description:
+      cap([it.product_name, it.variant_label, it.custom_text].filter(Boolean).join(" — "), 250) ??
+      `הזמנה ${order.order_number}`,
     UnitCost: Number(it.unit_price),
     Quantity: Number(it.quantity),
   }));
@@ -169,7 +181,7 @@ export const createCardcomPayment = createServerFn({ method: "POST" })
       UIDefinition: {
         CardOwnerNameValue: cap(order.customer_name),
         CardOwnerPhoneValue: cap(order.customer_phone),
-        CardOwnerEmailValue: cap(order.customer_email),
+        CardOwnerEmailValue: capEmail(order.customer_email),
         // CardCom's own Apple Pay guidance: phone and email should be required on
         // the payment page, because those are what lets a transaction be located
         // in their reports later. We prefill both, so requiring them costs the
@@ -181,7 +193,7 @@ export const createCardcomPayment = createServerFn({ method: "POST" })
         DocumentTypeToCreate: "Auto",
         IsAllowEditDocument: true,
         Name: cap(order.customer_name) ?? "לקוח",
-        Email: cap(order.customer_email),
+        Email: capEmail(order.customer_email),
         AddressLine1: cap(order.customer_address),
         City: cap(order.customer_city),
         Mobile: cap(order.customer_phone),
