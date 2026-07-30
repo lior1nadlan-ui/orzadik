@@ -514,6 +514,13 @@ function CheckoutPage() {
           <Lock className="h-3.5 w-3.5 text-accent" />
           תשלום מאובטח בסליקת Cardcom · תקן PCI
         </p>
+        {/* Guest checkout is real and completely unguarded — placeOrder never
+            requires a session — but nothing on the site ever said so, and
+            "do I have to open an account?" is one of the most documented reasons a
+            cart is abandoned. One line, at the moment the question is being asked. */}
+        <p className="text-center text-[11px] text-muted-foreground">
+            אין צורך בהרשמה — אפשר להשלים את ההזמנה כאורח.
+        </p>
       </form>
       {/* The summary follows the form in the DOM, with no `order-*` overrides,
           so visual, DOM and focus order agree at every breakpoint: on `lg` the

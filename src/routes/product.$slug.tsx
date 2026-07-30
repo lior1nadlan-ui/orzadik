@@ -1354,6 +1354,7 @@ function ProductPage() {
                 method={customMethod}
                 embroideryLabel={embroideryLabel}
               />
+              <p className="text-xs text-accent mt-2 font-medium">ההתאמה האישית ללא תוספת תשלום.</p>
               <p className="text-xs text-muted-foreground mt-2">
                 {printInsteadOfEmbroidery
                   ? "ניתן להוסיף שם בהטבעה או בחריטת לייזר בעברית. ניצור איתכם קשר לאחר ההזמנה לתיאום פונט וגוון."
@@ -1593,6 +1594,13 @@ function ProductPage() {
           {/* Accordion — one glass pane, hairline dividers between the rows,
               instead of three gold-ruled bands. */}
           <div className="glass mt-8 px-4 md:px-5">
+          {/* Radix renders each AccordionTrigger inside an <h3>. On this page those
+              are the first headings after the <h1>, so the document skipped h1→h3
+              on all 4,641 product pages. This visually-hidden <h2> names the group
+              and restores the ladder. Deliberately NOT fixed by re-levelling the
+              shared Accordion primitive: elsewhere its <h3> is correctly nested
+              under a real <h2>, and changing it globally would break those. */}
+          <h2 className="sr-only">מידע נוסף על המוצר</h2>
           <Accordion type="single" collapsible defaultValue="desc">
             <AccordionItem value="desc" className="border-glass-line last:border-b-0">
               <AccordionTrigger className="font-display text-base">תיאור המוצר</AccordionTrigger>

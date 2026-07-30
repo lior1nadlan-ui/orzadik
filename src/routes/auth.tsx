@@ -328,8 +328,9 @@ function AuthPage() {
                     checked={marketingConsent}
                     onCheckedChange={(v) => setMarketingConsent(v === true)}
                     className="mt-0.5"
+                    aria-labelledby="cb-auth-marketing"
                   />
-                  <span className="text-xs leading-relaxed text-foreground/90">
+                  <span id="cb-auth-marketing" className="text-xs leading-relaxed text-foreground/90">
                     אני מאשר/ת קבלת <strong>דיוור שיווקי — מדריכים, תוכן ועדכונים</strong> מאור זרוע
                     באימייל וב-SMS. ניתן להסיר את ההסכמה בכל עת מתוך אזור החשבון
                     או בקישור ההסרה שבכל הודעה.
@@ -340,8 +341,9 @@ function AuthPage() {
                     checked={termsAccepted}
                     onCheckedChange={(v) => setTermsAccepted(v === true)}
                     className="mt-0.5"
+                    aria-labelledby="cb-auth-terms"
                   />
-                  <span className="text-xs leading-relaxed text-foreground/90">
+                  <span id="cb-auth-terms" className="text-xs leading-relaxed text-foreground/90">
                     קראתי ואני מאשר/ת את <a href="/terms" className="underline">תנאי השימוש</a> ואת
                     {" "}<a href="/privacy" className="underline">מדיניות הפרטיות</a>. <span className="text-destructive">*</span>
                   </span>

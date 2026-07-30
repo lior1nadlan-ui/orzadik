@@ -3,6 +3,11 @@ import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { MobileCarousel } from "@/components/MobileCarousel";
 import { Sparkles, Gift, PackageSearch, BellRing, BadgePercent } from "lucide-react";
+import { MEMBER_DISCOUNT } from "@/lib/pricing";
+
+/** Rendered from the constant the checkout actually applies, so the promise on
+ *  this page can never drift from the discount the server gives. */
+const MEMBER_PCT = Math.round(MEMBER_DISCOUNT * 100);
 
 export const Route = createFileRoute("/club")({
   component: ClubPage,
@@ -12,12 +17,12 @@ export const Route = createFileRoute("/club")({
       {
         name: "description",
         content:
-          "הצטרפו בחינם למועדון אור זרוע לצדיק — מעקב הזמנות באזור האישי, עטיפת מתנה והקדשה ללא עלות ועדכונים לפני כולם.",
+          `הצטרפו בחינם למועדון אור זרוע לצדיק — ${MEMBER_PCT}% הנחה אוטומטית על כל הזמנה, מעקב הזמנות באזור האישי ועדכונים לפני כולם.`,
       },
       { property: "og:title", content: "מועדון אור זרוע — חברות חינם" },
       {
         property: "og:description",
-        content: "חברות חינם, מעקב הזמנות והטבות לחברי מועדון.",
+        content: `חברות חינם, ${MEMBER_PCT}% הנחה אוטומטית על כל הזמנה ומעקב הזמנות.`,
       },
       { property: "og:url", content: "https://orzadik.com/club" },
       { property: "og:type", content: "website" },
@@ -29,8 +34,8 @@ export const Route = createFileRoute("/club")({
 const BENEFITS = [
   {
     icon: BadgePercent,
-    title: "הטבות לחברי מועדון",
-    body: "הטבות החברים מחושבות אוטומטית בקופה לאחר התחברות לחשבון.",
+    title: `${MEMBER_PCT}% הנחה על כל הזמנה`,
+    body: `ההנחה מחושבת אוטומטית בקופה לכל חבר מועדון מחובר — על כל הזמנה, בלי קוד קופון ובלי מינימום.`,
   },
   {
     icon: PackageSearch,
@@ -40,7 +45,7 @@ const BENEFITS = [
   {
     icon: Gift,
     title: "עטיפת מתנה והקדשה בחינם",
-    body: "כל הזמנה יכולה לצאת ארוזה כמתנה, עם הקדשה אישית מודפסת, ללא תוספת מחיר.",
+    body: "כל הזמנה יכולה לצאת ארוזה כמתנה, עם הקדשה אישית מודפסת, ללא תוספת מחיר — גם ללא הרשמה.",
   },
   {
     icon: BellRing,
