@@ -31,14 +31,21 @@ function OrderConfirmationPage() {
 
   // The webhook that flips payment_status to 'paid' races the browser redirect
   // back here. When we just came from a successful charge (?paid=1) but the
-  // order isn't paid yet, poll briefly so the buyer sees "מאמתים את התשלום…"
-  // instead of a false "payment not received" that invites a double charge.
-  // The window closes after ~15s, after which the honest pending copy shows.
+  // order isn't paid yet, poll so the buyer sees "מאמתים את התשלום…" instead of a
+  // false "payment not received" that invites a double charge.
+  //
+  // 90s, not the 15s this used to be. The old window was SHORTER than CardCom's
+  // own retry interval: if their first delivery fails, the second lands about a
+  // minute later — so at t=15s a buyer who really had paid was shown the pending
+  // copy, 45 seconds before the payment would have confirmed itself on screen.
+  // 90s outlasts that second attempt. Anything still unconfirmed after it is
+  // caught by the reconciliation sweep within ~10 minutes, so no order is lost
+  // either way; this window is only about what the buyer is told meanwhile.
   const justPaid = search.paid === "1";
   const [pollWindowOpen, setPollWindowOpen] = useState(justPaid);
   useEffect(() => {
     if (!justPaid) return;
-    const t = setTimeout(() => setPollWindowOpen(false), 15000);
+    const t = setTimeout(() => setPollWindowOpen(false), 90000);
     return () => clearTimeout(t);
   }, [justPaid]);
 
@@ -225,9 +232,21 @@ function OrderConfirmationPage() {
             <div className="glass glass-gold [--glass-radius:9999px] mx-auto mb-5 flex h-24 w-24 items-center justify-center">
               <Clock className="h-12 w-12 text-accent" />
             </div>
-            <h1 className="font-display text-3xl font-bold">ההזמנה התקבלה — ממתינה לתשלום</h1>
+            {/* Two very different people land here, and they must not be told the
+                same thing. `justPaid` completed a charge at CardCom and is simply
+                waiting on a slow webhook — telling them "טרם נקלט תשלום" is false
+                from their point of view, frightening, and the single most likely
+                way to provoke a second payment. Everyone else genuinely has an
+                unpaid order and needs the pay button. */}
+            <h1 className="font-display text-3xl font-bold">
+              {justPaid ? "התשלום התקבל — ממתין לאישור סופי" : "ההזמנה התקבלה — ממתינה לתשלום"}
+            </h1>
             <p className="text-muted-foreground mt-2">מספר הזמנה: <span className="font-mono font-bold">{order.order_number}</span></p>
-            <p className="text-sm text-muted-foreground mt-1">טרם נקלט תשלום עבור הזמנה זו. אפשר להשלים את התשלום המאובטח כאן, או ליצור איתנו קשר בוואטסאפ.</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              {justPaid
+                ? "קיבלנו את התשלום, והאישור מחברת הסליקה עדיין בדרך. זה קורה לפעמים ונסגר מעצמו תוך דקות ספורות — אין צורך לשלם שוב. נשלח אישור בדוא\"ל ברגע שהתשלום ייקלט, ואם משהו לא יסתדר ניצור איתכם קשר."
+                : "טרם נקלט תשלום עבור הזמנה זו. אפשר להשלים את התשלום המאובטח כאן, או ליצור איתנו קשר בוואטסאפ."}
+            </p>
             <div className="mt-4 flex flex-wrap justify-center gap-3">
               {/* !justPaid so a just-paid buyer whose webhook is still lagging
                   (poll window closed) is never offered "pay again" — that would
@@ -241,9 +260,24 @@ function OrderConfirmationPage() {
                   )}
                 </Button>
               )}
-              <Link to="/cart">
-                <Button variant={justPaid ? "default" : "outline"} className="press">חזרה לעגלה</Button>
-              </Link>
+              {/* The copy has always offered WhatsApp; there was never a link.
+                  Someone who just paid and sees an unconfirmed order wants a human
+                  immediately, so this is the one action that must be present. */}
+              <a
+                href={`https://wa.me/${BUSINESS.whatsapp}?text=${encodeURIComponent(`שלום, ביצעתי תשלום להזמנה ${order.order_number} והאישור עדיין לא נקלט.`)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Button variant={justPaid ? "default" : "outline"} className="press">
+                  <MessageCircle className="h-4 w-4" aria-hidden="true" />
+                  שאלה בוואטסאפ
+                </Button>
+              </a>
+              {!justPaid && (
+                <Link to="/cart">
+                  <Button variant="outline" className="press">חזרה לעגלה</Button>
+                </Link>
+              )}
             </div>
             {retryError && (
               <p role="alert" className="mt-2 text-sm text-destructive">{retryError}</p>
