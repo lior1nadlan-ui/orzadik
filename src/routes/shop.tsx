@@ -474,6 +474,7 @@ function ShopPage() {
             <Checkbox
               checked={inStockOnly}
               onCheckedChange={(v) => changeInStockOnly(!!v)}
+              aria-label="הצגת מוצרים במלאי בלבד"
             />
             במלאי בלבד
           </label>

@@ -680,13 +680,14 @@ function CategoryPage() {
                     checked={inStockOnly}
                     onCheckedChange={(v) => changeInStockOnly(!!v)}
                     className="data-[state=checked]:bg-accent data-[state=checked]:border-accent data-[state=checked]:text-accent-foreground"
+                    aria-label="הצגת מוצרים במלאי בלבד"
                   />
                   במלאי בלבד
                 </label>
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-muted-foreground">מיון:</span>
                   <Select value={sort} onValueChange={(v) => changeSort(v as SortMode)}>
-                    <SelectTrigger className="w-[200px] h-10 rounded-lg border-border">
+                    <SelectTrigger className="w-[200px] h-10 rounded-lg border-border" aria-label="מיון תוצאות">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>

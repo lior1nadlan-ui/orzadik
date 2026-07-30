@@ -33,12 +33,9 @@ import imgSiddur from "@/assets/cat-siddur.webp";
 import imgTallit from "@/assets/cat-tallit.webp";
 import imgChatan from "@/assets/cat-chatan.webp";
 import imgChalaka from "@/assets/cat-chalaka.webp";
-import imgBooks from "@/assets/cat-books.webp";
 import imgGoldJewelry from "@/assets/cat-gold-jewelry.webp";
 import imgTallitTefillinCovers from "@/assets/cat-tallit-tefillin-covers.webp";
 import imgJudaica from "@/assets/cat-judaica.webp";
-import imgWallArtAsset from "@/assets/categories/wall-art.jpeg.asset.json";
-const imgWallArt = imgWallArtAsset.url;
 import igPost1 from "@/assets/ig/post-1.jpg";
 import igReel1 from "@/assets/ig/reel-1.mp4";
 import igReel2 from "@/assets/ig/reel-2.mp4";
@@ -266,9 +263,7 @@ const FEATURED: { id: string; slug: string; name: string; img: string; w: number
   { id: "3109eed6-32e3-40eb-9fe4-874029b8ab4d", slug: "chalaka-set", name: "סט חלאקה", img: imgChalaka, w: 800, h: 1067 },
   { id: "c78aea58-8a38-43ee-a236-3aa2f1942225", slug: "yehudaika", name: "מוצרי יודאיקה", img: imgJudaica, w: 800, h: 800 },
   { id: "b6854069-9746-4490-b6ea-ef7debe4d795", slug: "sidurim", name: "סידורים ותהילים", img: imgSiddur, w: 800, h: 800 },
-  { id: "f356bae8-de78-45c6-ab68-f9b2e82444cf", slug: "study-books", name: "ספרי לימוד", img: imgBooks, w: 800, h: 800 },
   { id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890", slug: "esh-sheli-gold", name: "אש שלי - תכשיטי זהב", img: imgGoldJewelry, w: 800, h: 1144 },
-  { id: "b1e55fa1-0000-4000-8000-000000000002", slug: "laser-cut", name: "חיתוך בלייזר", img: imgWallArt, w: 1500, h: 2000 },
 ];
 
 // Light-ground button variants. Every band on this page is now white/glass, so
