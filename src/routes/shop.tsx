@@ -80,6 +80,20 @@ async function fetchShopPage(opts: {
   const { rawQ, sort, offset } = opts;
   const term = sanitizeTerm(rawQ);
 
+  // "recommended" is the right default for BROWSING, but it must not survive a
+  // search term. Its ordering is in-stock → has-photo → has-copy → price DESC, and
+  // since every active product is in stock and has a thumbnail, the first keys are
+  // constant and PRICE decides. The effect on a real query was severe: /shop?q=כיפה
+  // returned four ₪2,000 groom boxes, then talitot, then velvet sets — the first
+  // actual kippah was result #9 of 688, in a store whose largest category is 743
+  // kippot. The RPC's relevance ranking (name_norm LIKE, word_similarity) was dead
+  // code for every default search.
+  //
+  // The header's search dropdown already sends "relevance" to this same RPC, so the
+  // two disagreed with each other: the preview was ranked and the results page was
+  // not. An explicit user sort still wins — this only replaces the default.
+  const rpcSort = rawQ.trim() && sort === "recommended" ? "relevance" : sort;
+
   // Preferred path: the pg_trgm hybrid RPC. It is word-order independent,
   // folds gershayim/nikud, and tolerates a one-letter typo — none of which
   // the ILIKE fallback below can do. Parameters are bound, so the raw term
@@ -96,7 +110,7 @@ async function fetchShopPage(opts: {
       p_term: rawQ.trim().slice(0, 100),
       p_limit: PAGE,
       p_offset: offset,
-      p_sort: sort,
+      p_sort: rpcSort,
     });
     if (!rpcErr) {
       const rows = (rpcRows ?? []) as Array<ProductCardData & { total_count: number }>;
