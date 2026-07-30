@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { LEGAL_LAST_UPDATED } from "@/lib/business";
+import { BUSINESS, LEGAL_LAST_UPDATED } from "@/lib/business";
 
 // Stable anchor ids for each section, single-sourced here so the table of
 // contents and the section headings can never drift: the TOC renders from this
@@ -87,9 +87,10 @@ function AccessibilityPage() {
       <Section title="3. רמת הנגישות באתר">
         <p>
           האתר נבנה במטרה לעמוד בדרישות התקן הישראלי ת"י 5568 ברמת <strong>AA</strong>, המבוסס על
-          הנחיות הנגישות הבינלאומיות WCAG 2.1. עבודות ההנגשה בוצעו על ידי צוות פיתוח שעבר הדרכה
-          בנושא נגישות דיגיטלית, תוך בדיקות שוטפות בכלי בדיקה אוטומטיים וידניים, ובדיקות עם
-          טכנולוגיות מסייעות מובילות.
+          הנחיות הנגישות הבינלאומיות WCAG 2.1. עבודות ההנגשה בוצעו על ידי צוות הפיתוח ונבדקות
+          באופן שוטף בכלי בדיקה אוטומטיים ובבדיקות ידניות. למען השקיפות: טרם בוצעה ביקורת נגישות
+          על ידי מורשה נגישות שירות, ולא בוצעה בדיקת תאימות מלאה מול כל אחת מהטכנולוגיות
+          המסייעות. אנו מתקנים ליקויים שמתגלים, ונשמח לקבל דיווח על כל ליקוי שנתקלתם בו.
         </p>
       </Section>
 
@@ -105,7 +106,7 @@ function AccessibilityPage() {
 
         <h3 className="font-display text-lg mt-4 mb-2">4.2 קוראי מסך וטכנולוגיות מסייעות</h3>
         <ul>
-          <li>תאימות לקוראי מסך נפוצים: NVDA, JAWS, VoiceOver (macOS/iOS), TalkBack (Android).</li>
+          <li>מבנה סמנטי ותוויות ARIA שנועדו לתמוך בקוראי המסך הנפוצים (NVDA, JAWS, VoiceOver, TalkBack) — האתר נבנה לפי התקנים שהם נשענים עליהם.</li>
           <li>תיוג סמנטי תקין (HTML5 Semantic) — header, nav, main, footer, article, section.</li>
           <li>היררכיית כותרות תקינה (h1-h6) על כל דף.</li>
           <li>תוויות ARIA (aria-label, aria-labelledby, aria-describedby) על אלמנטים שדורשים זאת.</li>
@@ -199,8 +200,8 @@ function AccessibilityPage() {
         </p>
         <ul>
           <li><strong>שם הרכז:</strong> רכז הנגישות, אור זרוע לצדיק</li>
-          <li><strong>דוא"ל:</strong> <a href="mailto:accessibility@orzadik.com" className="text-accent underline-offset-4 [@media(hover:hover)_and_(pointer:fine)]:hover:underline">accessibility@orzadik.com</a></li>
-          <li><strong>טלפון:</strong> ניתן להשאיר פנייה דרך <Link to="/contact">עמוד צור קשר</Link> ונחזור אליך בהקדם.</li>
+          <li><strong>דוא"ל:</strong> <a href={`mailto:${BUSINESS.accessibilityEmail}`} className="text-accent underline-offset-4 [@media(hover:hover)_and_(pointer:fine)]:hover:underline">{BUSINESS.accessibilityEmail}</a></li>
+          <li><strong>טלפון:</strong> <a href={`tel:${BUSINESS.phone}`} className="text-accent underline-offset-4 [@media(hover:hover)_and_(pointer:fine)]:hover:underline">{BUSINESS.phoneDisplay}</a> · ניתן גם להשאיר פנייה דרך <Link to="/contact">עמוד צור קשר</Link>.</li>
           <li><strong>שעות מענה:</strong> ימים א'-ה', 09:00-17:00 (למעט ערבי חג וחגים).</li>
         </ul>
         <p>
@@ -211,10 +212,10 @@ function AccessibilityPage() {
 
       <Section title="9. נוהל טיפול בפניות נגישות">
         <ol className="list-decimal pr-5 space-y-2">
-          <li>קבלת הפנייה ורישומה במערכת מעקב ייעודית.</li>
-          <li>אישור קבלת הפנייה ושליחת מספר אסמכתא לפונה תוך 2 ימי עסקים.</li>
-          <li>בדיקה מקצועית של תקלת הנגישות על ידי מומחה.</li>
-          <li>הצעת פתרון או חלופה נגישה לפונה.</li>
+          <li>קבלת הפנייה בדוא"ל, בטלפון, בוואטסאפ או דרך טופס יצירת הקשר באתר.</li>
+          <li>מענה אישי לפונה — בדרך כלל תוך יום עסקים אחד.</li>
+          <li>בדיקת הליקוי שדווח.</li>
+          <li>הצעת פתרון או דרך חלופית לקבלת השירות.</li>
           <li>תיקון הליקוי באתר בהקדם האפשרי, בהתאם למורכבות.</li>
           <li>עדכון הפונה על השלמת הטיפול.</li>
         </ol>

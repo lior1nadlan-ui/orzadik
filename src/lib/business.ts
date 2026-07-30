@@ -20,10 +20,19 @@ export const BUSINESS = {
   email: "orzarualachatz@gmail.com",
   /** WhatsApp number (digits only, international). */
   whatsapp: "972545818486",
+  // ⚠️ These two are STATUTORY contact routes — the privacy contact (חוק הגנת
+  // הפרטיות) and the accessibility coordinator (תקנות שוויון זכויות / ת"י 5568) —
+  // and they are published in /privacy, /terms and /accessibility as the way to
+  // reach the business. They pointed at privacy@ and accessibility@orzadik.com,
+  // and **orzadik.com has no MX record**, so both addresses bounced: the
+  // accessibility statement promised a 30-day response at an address that could
+  // not receive mail at all. Pointed at the working inbox until the owner sets up
+  // real mail routing on the domain (Cloudflare Email Routing is free and would
+  // also remove the no-MX spam signal on every order confirmation we send).
   /** Privacy / data-protection contact. */
-  privacyEmail: "privacy@orzadik.com",
+  privacyEmail: "orzarualachatz@gmail.com",
   /** Accessibility coordinator contact. */
-  accessibilityEmail: "accessibility@orzadik.com",
+  accessibilityEmail: "orzarualachatz@gmail.com",
   site: "https://orzadik.com",
   /**
    * Search-engine verification tokens. Fill from Google Search Console

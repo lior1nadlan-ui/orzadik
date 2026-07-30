@@ -382,8 +382,12 @@ function CheckoutPage() {
             parchment block. */}
         <div className="glass glass-gold p-4 [--glass-radius:0.75rem]">
           <label className="flex items-center gap-2 cursor-pointer">
-            <Checkbox checked={isGift} onCheckedChange={(v) => setIsGift(v === true)} />
-            <span className="text-sm font-medium">🎁 זו מתנה</span>
+            <Checkbox
+              checked={isGift}
+              onCheckedChange={(v) => setIsGift(v === true)}
+              aria-labelledby="cb-gift-label"
+            />
+            <span id="cb-gift-label" className="text-sm font-medium">🎁 זו מתנה</span>
             <span className="text-xs text-accent">ללא תוספת מחיר</span>
           </label>
           {isGift && (
@@ -412,8 +416,12 @@ function CheckoutPage() {
                 )}
               </div>
               <label className="flex items-center gap-2 cursor-pointer">
-                <Checkbox checked={giftWrap} onCheckedChange={(v) => setGiftWrap(v === true)} />
-                <span className="text-sm">עטיפת מתנה חגיגית — בחינם</span>
+                <Checkbox
+                  checked={giftWrap}
+                  onCheckedChange={(v) => setGiftWrap(v === true)}
+                  aria-labelledby="cb-giftwrap-label"
+                />
+                <span id="cb-giftwrap-label" className="text-sm">עטיפת מתנה חגיגית — בחינם</span>
               </label>
               <p className="text-[11px] text-muted-foreground">
                 העטיפה וההקדשה ניתנות ללא עלות ואינן משפיעות על סכום ההזמנה.
@@ -423,7 +431,11 @@ function CheckoutPage() {
         </div>
 
         {/* Still one full-size clickable <label> wrapping the checkbox — only the
-            surface changed (gilded parchment → glass + gold hairline). */}
+            surface changed (gilded parchment → glass + gold hairline).
+            aria-labelledby, NOT htmlFor: Radix renders a <button role="checkbox">,
+            and HTML-AAM does not consult a wrapping <label> when naming a button.
+            Without it a screen reader announced only "checkbox, not checked" — on a
+            mandatory legal consent, on the payment path. WCAG 2.1 4.1.2 (Level A). */}
         <label className="flex items-start gap-2 glass glass-gold p-4 [--glass-radius:0.75rem] cursor-pointer">
           <Checkbox
             ref={consentRef}
@@ -431,8 +443,9 @@ function CheckoutPage() {
             onCheckedChange={(v) => setContactConsent(v === true)}
             className="mt-0.5"
             required
+            aria-labelledby="cb-consent-label"
           />
-          <span className="text-xs leading-relaxed text-foreground/90">
+          <span id="cb-consent-label" className="text-xs leading-relaxed text-foreground/90">
             אני מאשר/ת שלצורך טיפול בהזמנה — אישור, תיאום משלוח ובירורים — ייצרו עמי קשר
             בטלפון או בדוא"ל שמסרתי. הפרטים נדרשים להשלמת ההזמנה ואינם משמשים לדיוור שיווקי
             ללא הסכמה נפרדת.
@@ -445,8 +458,9 @@ function CheckoutPage() {
             checked={marketingConsent}
             onCheckedChange={(v) => setMarketingConsent(v === true)}
             className="mt-0.5"
+            aria-labelledby="cb-marketing-label"
           />
-          <span className="text-xs leading-relaxed text-muted-foreground">
+          <span id="cb-marketing-label" className="text-xs leading-relaxed text-muted-foreground">
             אשמח לקבל דיוור שיווקי — מדריכים, תוכן לקראת החגים ועדכונים בדוא"ל (אופציונלי, ניתן להסרה בכל עת).
           </span>
         </label>
