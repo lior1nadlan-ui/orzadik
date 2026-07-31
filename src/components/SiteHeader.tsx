@@ -46,7 +46,10 @@ const TALITOT_SLUG = "talitot";
 // category verified in the DB (see note above). Owner: edit here to retarget a
 // shortcut in both places at once.
 const CURATED_CATEGORIES: { slug: string; label: string }[] = [
-  { slug: "wedding", label: "מארזים לחתן" },
+  // marazim-chatanim, NOT "wedding": /category/wedding contains הפרשת חלה sets, a
+  // bride's blessing plaque and tallit clips — zero groom boxes. The four active
+  // groom sets are all in marazim-chatanim.
+  { slug: "marazim-chatanim", label: "מארזים לחתן" },
   { slug: "chatan-kala", label: "חתן וכלה" },
   { slug: "chalaka-set", label: "סטי חלאקה" },
   { slug: TALITOT_SLUG, label: "טליתות" },
