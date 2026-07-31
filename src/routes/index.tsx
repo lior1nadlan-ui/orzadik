@@ -136,7 +136,34 @@ async function fetchOtherCategories(): Promise<CatTile[]> {
     .not("id", "in", `(${featuredIds.join(",")})`);
   if (error) throw error;
 
-  const blacklist = new Set(["sale", "uncategorized"]);
+  // Verified against production 2026-07-31: these have ZERO active products and no
+  // children with products, yet each shipped as a full-size gift photograph with a
+  // gold-bordered label, visually indistinguishable from the 24 that work. Five of
+  // the 37 homepage category links were dead ends; three more (aluminum /
+  // bencher-stands / liqueur-sets) hold a single product that is a duplicate of one
+  // already reachable via mezuzot-aluminium / gviei-kidush / birchonim, so the tile
+  // buys the shopper nothing.
+  //
+  // Re-check with:
+  //   select c.slug, count(p.id) filter (where p.is_active)
+  //     from categories c
+  //     left join product_categories pc on pc.category_id = c.id
+  //     left join products p on p.id = pc.product_id
+  //    group by c.slug having count(p.id) filter (where p.is_active) = 0;
+  const blacklist = new Set([
+    "sale",
+    "uncategorized",
+    "wine-dividers",                                                        // מחלקי יין — 0
+    "birkat-habayit",                                                       // תמונות בלייזר — 0
+    "study-books",                                                          // ספרי לימוד — 0
+    "%d7%90%d7%a7%d7%a1%d7%a1%d7%95%d7%a8%d7%99%d7%96",                     // אקססוריז — 0
+    "%d7%9e%d7%95%d7%a6%d7%a8%d7%99-%d7%97%d7%92%d7%99%d7%9d",              // מוצרי חגים — 0
+    "%d7%9e%d7%99%d7%aa%d7%95%d7%92",                                       // מיתוג — 0
+    "%d7%a1%d7%98-%d7%98%d7%9c%d7%99%d7%aa-%d7%aa%d7%a4%d7%99%d7%9c%d7%99%d7%9f", // סט טלית תפילין — 0
+    "aluminum",                                                             // 1 product, duplicate
+    "bencher-stands",                                                       // 1 product, duplicate
+    "liqueur-sets",                                                         // 1 product, duplicate
+  ]);
   const bySlug = new Map((cats ?? []).map((c) => [c.slug, c.name]));
   // Emit in the curated map order rather than PostgREST's (unordered) row
   // order, so the loader result and any later refetch render the same sequence.

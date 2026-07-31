@@ -349,7 +349,23 @@ function ShopPage() {
   }, [q]);
 
   const urlQ = (qFromUrl ?? "").trim();
-  const activeQ = debouncedQ.trim();
+    // Push the debounced term INTO the url. Without this the search box filtered the
+  // list but never touched the URL, so the <h1> and <title> — which read the URL —
+  // said "כל המוצרים" while the page showed "111 תוצאות עבור …", and reload,
+  // bookmark, share and Back all silently discarded the search. Guarded on
+  // inequality so it cannot ping-pong with the url→state effect above.
+  useEffect(() => {
+    const inUrl = (qFromUrl || "").trim();
+    const typed = debouncedQ.trim();
+    if (typed === inUrl) return;
+    navigate({
+      search: (prev) => ({ ...prev, q: typed || undefined, page: undefined }),
+      replace: true,
+      resetScroll: false,
+    });
+  }, [debouncedQ]);
+
+const activeQ = debouncedQ.trim();
   const term = sanitizeTerm(debouncedQ);
   // While the user is typing a term that is not (yet) in the URL, the ?page=
   // offset belongs to a different result set — restart that search at page 1.
@@ -462,12 +478,24 @@ function ShopPage() {
           {term ? `${total} תוצאות עבור "${rawTerm}"` : `${total} מוצרים`}
         </p>
         <div className="flex flex-wrap items-center gap-4">
-          <Input
-            placeholder="חיפוש מוצר..."
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            className="max-w-xs"
-          />
+          {/* A real <form>: without one the input had no ancestor form, so pressing
+              Enter did nothing at all. Submitting commits the term immediately
+              instead of waiting out the 300ms debounce. */}
+          <form
+            role="search"
+            onSubmit={(e) => {
+              e.preventDefault();
+              setDebouncedQ(q);
+            }}
+          >
+            <Input
+              placeholder="חיפוש מוצר..."
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              aria-label="חיפוש מוצר בקטלוג"
+              className="max-w-xs"
+            />
+          </form>
           {/* Default (ink --primary) checkbox — no accent override, so /shop
               stays gold-free. */}
           <label className="flex items-center gap-2 text-sm cursor-pointer">

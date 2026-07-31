@@ -313,15 +313,26 @@ function CategoryPage() {
   const { cat: initialCat, products: initialProducts, parent, allCats } = Route.useLoaderData();
   const { sort: sortFromUrl, instock: instockFromUrl, price: priceFromUrl } = Route.useSearch();
   const navigate = Route.useNavigate();
-  // Seed from the URL so sorted/filtered views survive reload and sharing.
-  const [sort, setSort] = useState<SortMode>(isSortMode(sortFromUrl) ? sortFromUrl : "recommended");
-  const [inStockOnly, setInStockOnly] = useState(instockFromUrl ?? false);
-  const [priceBucket, setPriceBucket] = useState<PriceBucketId | null>(
-    isPriceBucketId(priceFromUrl) ? priceFromUrl : null,
-  );
+  // DERIVED from the URL, deliberately NOT held in useState.
+  //
+  // These were three useState seeded from the URL at mount. TanStack Router reuses
+  // this component across $slug changes, so the state outlived the URL: tap a price
+  // filter on one category, then use a subcategory chip or the header drawer, and
+  // the next category rendered with a CLEAN url, the correct <h1>, and
+  // "0 מוצרים · לא נמצאו מוצרים" — including /category/marazim-chatanim, where all
+  // eleven ₪1,150–1,800 groom boxes vanished. Reloading "fixed" it, which is
+  // exactly why it stayed invisible: nobody reloads, they leave.
+  //
+  // Deriving costs nothing — the router already re-renders on a param change — and
+  // it makes the URL the single source of truth, so back/forward and sharing work
+  // for free. This is the pattern /shop already uses for its sort (shop.tsx).
+  const sort: SortMode = isSortMode(sortFromUrl) ? sortFromUrl : "recommended";
+  const inStockOnly = instockFromUrl ?? false;
+  const priceBucket: PriceBucketId | null = isPriceBucketId(priceFromUrl)
+    ? priceFromUrl
+    : null;
 
   const changeSort = (v: SortMode) => {
-    setSort(v);
     navigate({
       search: (prev) => ({ ...prev, sort: v === "recommended" ? undefined : v }),
       replace: true,
@@ -330,7 +341,6 @@ function CategoryPage() {
   };
 
   const changeInStockOnly = (v: boolean) => {
-    setInStockOnly(v);
     navigate({
       search: (prev) => ({ ...prev, instock: v ? true : undefined }),
       replace: true,
@@ -340,7 +350,6 @@ function CategoryPage() {
 
   // Single-select facet: tapping the active bucket clears it (null → no ?price=).
   const changePriceBucket = (v: PriceBucketId | null) => {
-    setPriceBucket(v);
     navigate({
       search: (prev) => ({ ...prev, price: v ?? undefined }),
       replace: true,
@@ -725,11 +734,20 @@ function CategoryPage() {
                     ? "אין כרגע מוצרים שתואמים את הסינון בקטגוריה הזו."
                     : "אין כרגע מוצרים בקטגוריה הזו."}
                 </p>
+                {/* A genuinely-empty category (no filter active) previously rendered
+                    NO link at all — the shopper had to reach for the browser's back
+                    button. Always offer a way onward. */}
+                {!inStockOnly && !priceBucket && (
+                  <Link
+                    to="/shop"
+                    className="press mt-6 inline-block rounded-full bg-card/70 px-6 py-2.5 text-sm font-medium text-foreground hairline transition-[background-color,color,transform] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:text-background"
+                  >
+                    לכל המוצרים בחנות
+                  </Link>
+                )}
                 {(inStockOnly || priceBucket) && (
                   <button
                     onClick={() => {
-                      setInStockOnly(false);
-                      setPriceBucket(null);
                       navigate({
                         search: (prev) => ({ ...prev, instock: undefined, price: undefined }),
                         replace: true,
