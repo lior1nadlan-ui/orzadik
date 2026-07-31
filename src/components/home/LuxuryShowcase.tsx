@@ -43,8 +43,12 @@ type StackedItem = {
 const STACKED_ITEMS: StackedItem[] = [
   { slug: "talit-2871971", name: "טלית פלטניום תשבץ 100% צמר" },
   {
-    slug: "groom-set-liam-shalom-goli",
-    name: "מארז חתן — ליאם שלום גולי",
+    slug: "groom-set-linen-look-premium",
+    // Until 2026-07-31 this read "מארז חתן — ליאם שלום גולי": the PERSONAL NAME
+    // of the customer whose bespoke box was photographed, rendered as the card
+    // label AND as this image's alt text, on the most-crawled page of the site.
+    // A card label must describe the product, never the person who ordered one.
+    name: "מארז לחתן — דמוי פשתן, דגם פרימיום",
     // Styled local photo (every public/groom-sets/*.jpeg is 1440×1920).
     img: "/groom-sets/groom-02.jpeg",
     imgW: 1440,
