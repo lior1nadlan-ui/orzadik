@@ -318,10 +318,14 @@ const BTN_OUTLINE =
 // price, never run through getEffectivePrice(), so the badge overstated every
 // one of them by 1/0.7 (₪2,000 shown vs ₪1,400 charged). Three different SKUs
 // sharing one round number was the tell. Read the row instead.
+//
+// The three slugs below were personal names until 2026-07-31 (…/groom-set-yaron-biton
+// — the customer whose bespoke box was photographed). They now describe the
+// product; src/server.ts 301s the old URLs.
 const GROOM_THUMBS: { img: string; slug: string }[] = [
-  { img: "/groom-sets/groom-03.jpeg", slug: "groom-set-yaron-ben-dror" },
-  { img: "/groom-sets/groom-05.jpeg", slug: "groom-set-yaron-biton" },
-  { img: "/groom-sets/groom-07.jpeg", slug: "groom-set-oren-realov" },
+  { img: "/groom-sets/groom-03.jpeg", slug: "groom-set-grey-melange" },
+  { img: "/groom-sets/groom-05.jpeg", slug: "groom-set-brown-leather-look" },
+  { img: "/groom-sets/groom-07.jpeg", slug: "groom-set-black-leather-look" },
 ];
 
 /**

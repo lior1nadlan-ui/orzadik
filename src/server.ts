@@ -156,6 +156,60 @@ function applyCachePolicy(request: Request, response: Response): Response {
   });
 }
 
+/**
+ * Product slugs that were renamed, old → new, served as 301.
+ *
+ * The groom range had two problems in its URLs. Four of the eleven boxes were
+ * slugged with the PERSONAL NAME of the customer whose bespoke unit had been
+ * photographed — /product/groom-set-yaron-biton — and those URLs were live in
+ * the sitemap, in the canonical tag and in og:url, so the names travelled with
+ * every share and were queued for indexing. The other seven were opaque
+ * (groom-set-06), which is a poor URL for what is the store's highest-ticket
+ * line. Both sets were renamed to describe the product.
+ *
+ * The redirect matters because the old URLs were already submitted to Google;
+ * without it they become 404s and the store loses the only crawl equity its
+ * flagship line has. Keep entries here permanently — a 301 costs one lookup.
+ */
+const RENAMED_PRODUCT_SLUGS: Record<string, string> = {
+  "groom-set-06": "groom-set-grey-print",
+  "groom-set-07": "groom-set-white-crown",
+  "groom-set-08": "groom-set-beige-suede",
+  "groom-set-09": "groom-set-light-blue",
+  "groom-set-10": "groom-set-blue-denim",
+  "groom-set-15": "groom-set-white-embroidered",
+  "groom-set-16": "groom-set-beige-linen-classic",
+  "groom-set-liam-shalom-goli": "groom-set-linen-look-premium",
+  "groom-set-oren-realov": "groom-set-black-leather-look",
+  "groom-set-yaron-ben-dror": "groom-set-grey-melange",
+  "groom-set-yaron-biton": "groom-set-brown-leather-look",
+};
+
+const PRODUCT_PATH_PREFIX = "/product/";
+
+/**
+ * Resolve a request path to its renamed product slug, or undefined.
+ *
+ * decodeURIComponent THROWS on a malformed percent sequence, and this store has
+ * genuinely percent-encoded Hebrew slugs in the wild
+ * (/product/%D7%9B%D7%99%D7%A4%D7%94-...), so a crawler or a truncated share
+ * link hitting a broken escape must not take down the whole fetch handler.
+ */
+function renamedProductSlug(pathname: string): string | undefined {
+  if (!pathname.startsWith(PRODUCT_PATH_PREFIX)) return undefined;
+  const rest = pathname.slice(PRODUCT_PATH_PREFIX.length).replace(/\/+$/, "");
+  if (!rest || rest.includes("/")) return undefined;
+  let slug: string;
+  try {
+    slug = decodeURIComponent(rest);
+  } catch {
+    return undefined;
+  }
+  return Object.prototype.hasOwnProperty.call(RENAMED_PRODUCT_SLUGS, slug)
+    ? RENAMED_PRODUCT_SLUGS[slug]
+    : undefined;
+}
+
 // NOTE: cron triggers are NOT handled here. Nitro overrides wrangler's `main`
 // and emits its own Cloudflare module, so a `scheduled` export on this object
 // would never be invoked. The handler lives in src/nitro/cron.ts, registered on
@@ -167,6 +221,13 @@ export default {
     const reqUrl = new URL(request.url);
     if (reqUrl.hostname === "www.orzadik.com") {
       reqUrl.hostname = "orzadik.com";
+      return new Response(null, { status: 301, headers: { Location: reqUrl.toString() } });
+    }
+    // Renamed product slugs. Mutating only `pathname` keeps any query string
+    // (?utm_source=…) intact, so campaign attribution survives the hop.
+    const renamedSlug = renamedProductSlug(reqUrl.pathname);
+    if (renamedSlug) {
+      reqUrl.pathname = PRODUCT_PATH_PREFIX + renamedSlug;
       return new Response(null, { status: 301, headers: { Location: reqUrl.toString() } });
     }
     try {
