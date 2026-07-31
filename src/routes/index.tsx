@@ -499,7 +499,7 @@ function HomePage() {
               </Link>
               <Link
                 to="/category/$slug"
-                params={{ slug: "wedding" }}
+                params={{ slug: "marazim-chatanim" }}
                 className={`${BTN_OUTLINE} w-full sm:w-auto`}
               >
                 למארזי החתן
@@ -546,7 +546,7 @@ function HomePage() {
                 טלית מהודרת, עטרה וכלי קודש נבחרים — מוגשים במארז מעוצב. אפשר להוסיף רקמה או חריטה אישית בשם החתן.
               </p>
               <div className="flex flex-wrap items-center gap-x-6 gap-y-4">
-                <Link to="/category/$slug" params={{ slug: "wedding" }} className={BTN_SOLID}>
+                <Link to="/category/$slug" params={{ slug: "marazim-chatanim" }} className={BTN_SOLID}>
                   לצפייה במארזי החתן
                 </Link>
                 <Link
