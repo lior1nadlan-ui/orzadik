@@ -261,6 +261,34 @@ export async function settleCardcomOrder(
     console.error(`${tag} shipping notify failed:`, e);
   }
 
+  // Mark this buyer's open abandoned cart as converted. This used to run in
+  // placeOrder, against an order that was still `unpaid` — which disqualified
+  // the cart from both reminder passes the moment the buyer was sent to CardCom,
+  // whether or not they ever paid. Doing it here means only a REAL payment stops
+  // the reminders, so the "reached the payment page and hesitated" cohort is
+  // recoverable again. Both settlement callers (webhook and reconciliation
+  // sweep) go through this function, so a payment picked up late by the sweep
+  // also stops the reminders. Timing is safe in the other direction too: the
+  // reminder floor is 1h and the sweep's grace is 15 minutes, so a slow webhook
+  // cannot email someone who actually paid.
+  //
+  // .eq, not .ilike: the stored email is lowercased at checkout, so an exact
+  // match is correct — .ilike would treat `_`/`%` in the local-part as wildcards
+  // and mark a look-alike customer's cart converted, killing THEIR reminder.
+  try {
+    const buyerEmail = String(updated.customer_email ?? "").trim().toLowerCase();
+    if (buyerEmail) {
+      const { error: cartErr } = await supabaseAdmin
+        .from("abandoned_carts")
+        .update({ converted_order_id: updated.id })
+        .eq("email", buyerEmail)
+        .is("converted_order_id", null);
+      if (cartErr) console.error(`${tag} abandoned-cart conversion stamp failed:`, cartErr);
+    }
+  } catch (e) {
+    console.error(`${tag} abandoned-cart conversion stamp threw:`, e);
+  }
+
   // Idempotent paid-confirmation email. Claim the send atomically BEFORE
   // dispatching: two near-simultaneous callers (a CardCom retry, the delivery that
   // races the browser redirect, or the webhook racing the sweep) can both read the

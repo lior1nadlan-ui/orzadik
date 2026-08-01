@@ -83,6 +83,12 @@ export function CookieConsent() {
       role="dialog"
       aria-modal="false"
       aria-label="הגדרות עוגיות"
+      // data-cookie-consent: styles.css lifts this band above the product page's
+      // sticky mobile buy bar while that bar is in the DOM. Without it the band —
+      // which auto-opens 600ms into a first visit and is ~44% of a 375x667
+      // viewport — lands exactly on "הוסף לעגלה", so the first tap of the money
+      // path hits "שמירת בחירה" instead. Same mechanism the FABs already use.
+      data-cookie-consent
       className={
         "fixed inset-x-0 bottom-0 z-[60] px-3 pb-3 sm:px-4 sm:pb-4 pointer-events-none " +
         "transition-[opacity,transform,visibility] duration-300 ease-out " +

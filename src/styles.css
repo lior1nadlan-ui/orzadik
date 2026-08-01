@@ -584,6 +584,14 @@ html:has(#app-root.a11y-grayscale) body::before { filter: grayscale(100%); }
 @media (max-width: 1023px) {
   body:has([data-mobile-actionbar]) .fab-float { bottom: 5.75rem; }
   body:has([data-mobile-actionbar]) .fab-float-panel { bottom: 9.5rem; }
+  /* The cookie-consent band is the same class of problem as the FABs above, and
+     it is worse: it sits at bottom:0, is ~44% of a 375x667 viewport, and opens
+     itself 600ms into every first visit. Measured on the live PDP at 375x667,
+     document.elementFromPoint() at the centre of "הוסף לעגלה" returned the
+     band's "שמירת בחירה" button — the first tap of the money path, on the
+     device most of this store's traffic uses. It starts at bottom:0 rather than
+     bottom:1.25rem like the FABs, so it clears the ~4.25rem bar with 4.5rem. */
+  body:has([data-mobile-actionbar]) [data-cookie-consent] { bottom: 4.5rem; }
 }
 
 /* Respect a system "reduce motion" preference by default.

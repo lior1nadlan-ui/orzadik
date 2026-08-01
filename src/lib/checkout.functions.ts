@@ -193,15 +193,17 @@ export const placeOrder = createServerFn({ method: "POST" })
       throw new Error("שגיאה בשמירת פרטי ההזמנה. אנא נסה שוב.");
     }
 
-    // Mark any open abandoned cart for this email as converted. .eq, not .ilike:
-    // normalizedEmail is already lowercased (L59), so an exact match is correct —
-    // .ilike would treat `_`/`%` in the local-part as wildcards and mark a
-    // look-alike customer's cart converted, killing their reminder.
-    await supabaseAdmin
-      .from("abandoned_carts")
-      .update({ converted_order_id: order.id })
-      .eq("email", normalizedEmail)
-      .is("converted_order_id", null);
+    // NOTE: the abandoned-cart "converted" stamp deliberately does NOT happen
+    // here any more. This order is `status: pending, payment_status: unpaid` —
+    // the buyer has not paid, they are only about to be sent to CardCom. Marking
+    // the cart converted at this point permanently disqualified it from BOTH
+    // reminder passes (they gate on `converted_order_id IS NULL`, and nothing
+    // ever clears it), so the single most recoverable segment — shoppers who
+    // filled the whole form, reached the payment page, then hesitated or had a
+    // card declined — was the one segment that never got a reminder, while
+    // people who bailed much earlier still got two. The stamp now lives in
+    // settleCardcomOrder, keyed on the paid transition. See
+    // src/lib/cardcom-settle.server.ts.
 
     // Optional marketing opt-in ticked at checkout. Fully isolated: the order
     // is already committed at this point, and nothing in here may surface an

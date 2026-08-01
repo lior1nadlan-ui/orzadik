@@ -28,7 +28,25 @@ const BASE_PERSONALIZATION_CATEGORY_SLUGS = new Set<string>([
   "wedding",                      // חתונה
   "sidurim",                                                                       // סידורים
   "marazim-chatanim",   // מארזים לחתנים ובר מצווה
-  "%d7%a1%d7%98-%d7%98%d7%9c%d7%99%d7%aa-%d7%aa%d7%a4%d7%99%d7%9c%d7%99%d7%9f",                                       // סט טלית תפילין (התיק)
+  // The ART Judaica import created a second, larger set of slugs for the SAME
+  // bag families that were already listed above, and only the small originals
+  // were ever gated — so 355 tallit/tefillin bags, the most obviously
+  // embroiderable SKUs in the catalogue, showed no personalization at all.
+  // (`setim-talit-tefilin` is the same family as `talit-tefillin-sets`;
+  // `tik-tefilin` the same as `tefillin-cases`.) cross-sells.ts:14-20 records
+  // this exact class of bug being fixed there in the 2026-07 dedupe; this file
+  // was missed in that pass.
+  "setim-talit-tefilin",          // סטים טלית ותפילין (229 active)
+  "tikei-talit",                  // תיקי טלית (138 active)
+  "tik-tefilin",                  // תיק- תפ (25 active)
+  // Deliberately NOT added, verified against the live catalogue:
+  //  • `talit-tefilin` — the PARENT of the three above. Holds no tallit
+  //    garments (0 found), but does hold 26 metal clips and nylon sleeves.
+  //  • `machzikei-talit-atarot` — mixed: עטרות are embroiderable, but the same
+  //    category holds קליפסים and ניילונים. The `atara` slug above already
+  //    covers the עטרות, so nothing embroiderable is lost.
+  // The dead `%d7%a1%d7%98-…` percent-encoded import twin was removed: it
+  // resolves to a real category row holding ZERO active products.
 ]);
 
 /**
@@ -39,7 +57,12 @@ export const EMBROIDERY_ONLY_CATEGORY_SLUGS = new Set<string>([
   "talit-tefillin-sets",
   "tefillin-cases",
   "pvc-bags",
-  "%d7%a1%d7%98-%d7%98%d7%9c%d7%99%d7%aa-%d7%aa%d7%a4%d7%99%d7%9c%d7%99%d7%9f",
+  // Same three import twins as above. These are fabric and faux-leather bags,
+  // so they belong with their originals here rather than being offered laser
+  // engraving — matching how `talit-tefillin-sets` / `tefillin-cases` behave.
+  "setim-talit-tefilin",
+  "tikei-talit",
+  "tik-tefilin",
 ]);
 
 /**

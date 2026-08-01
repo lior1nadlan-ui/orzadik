@@ -298,7 +298,7 @@ type PriceBucketId = "0-100" | "100-300" | "300-plus";
 
 const PRICE_BUCKETS: { id: PriceBucketId; label: string; test: (eff: number) => boolean }[] = [
   { id: "0-100", label: "עד ₪100", test: (eff) => eff <= 100 },
-  { id: "100-300", label: "₪100–300", test: (eff) => eff > 100 && eff <= 300 },
+  { id: "100-300", label: "₪100-300", test: (eff) => eff > 100 && eff <= 300 },
   { id: "300-plus", label: "₪300+", test: (eff) => eff > 300 },
 ];
 

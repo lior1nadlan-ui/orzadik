@@ -383,7 +383,7 @@ function IconShieldCheck({ className }: { className?: string }) {
 const DIFFERENTIATORS = [
   { title: "רקמה וחריטה אישית", icon: <IconGem className="w-8 h-8 md:w-9 md:h-9" /> },
   { title: "פריטים נבחרים בקפידה", icon: <IconShieldCheck className="w-8 h-8 md:w-9 md:h-9" /> },
-  { title: "משלוח עד הבית 3–14 ימים", icon: <IconTruck className="w-8 h-8 md:w-9 md:h-9" /> },
+  { title: "משלוח עד הבית 3-14 ימים", icon: <IconTruck className="w-8 h-8 md:w-9 md:h-9" /> },
 ];
 
 // SSR-safe prefers-reduced-motion check — only ever called from effects/handlers.
