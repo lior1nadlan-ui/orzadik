@@ -158,9 +158,19 @@ function CartPage() {
                   >
                     {item.name}
                   </Link>
+                  {/* The touch target is grown by an INVISIBLE ::before, not by
+                      padding: the icon, the row rhythm and the gap to the title
+                      stay pixel-identical, while the hit box goes 24x24 -> 44x44
+                      (WCAG 2.5.5 / Apple HIG). 24x24 sat exactly on the 2.5.8
+                      floor with zero margin, and a missed tap on it landed on the
+                      product link and navigated the shopper out of the cart.
+                      The reach is deliberately asymmetric: 8px on the start side
+                      is exactly the gap-2 to the title, so it stops at that link's
+                      edge and never steals a tap meant for the product; 12px on
+                      the end side spends the card's own p-3 padding. */}
                   <button
                     onClick={() => remove(k)}
-                    className="press flex-shrink-0 rounded-full p-1 text-muted-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:text-destructive"
+                    className="press relative flex-shrink-0 rounded-full p-1 text-muted-foreground before:absolute before:-inset-y-2.5 before:-start-2 before:-end-3 before:content-[''] [@media(hover:hover)_and_(pointer:fine)]:hover:text-destructive"
                     aria-label={`הסר ${item.name} מהעגלה`}
                   >
                     <Trash2 className="h-4 w-4 sm:h-5 sm:w-5" />
@@ -196,9 +206,16 @@ function CartPage() {
                   <div className="mt-2 rounded-xl bg-secondary/70 hairline px-3 py-2 text-xs leading-relaxed text-foreground">
                     <p>{noticeText(check, item)}</p>
                     {blocked && (
+                      // The other remove control, and the smallest thing on the
+                      // page at 60x20. Same invisible ::before treatment, sized
+                      // to the room it actually has: 12px up (6px of margin, then
+                      // only the paragraph's leading — nothing tappable) and 6px
+                      // down, which stays inside the notice's own py-2 and so
+                      // never reaches the stepper's expanded area below. 76x38
+                      // is past the 24x24 floor of WCAG 2.5.8 with real margin.
                       <button
                         onClick={() => remove(k)}
-                        className="press mt-1.5 font-semibold text-accent underline underline-offset-2 [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-strong"
+                        className="press relative mt-1.5 font-semibold text-accent underline underline-offset-2 before:absolute before:-inset-x-2 before:-top-3 before:-bottom-1.5 before:content-[''] [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-strong"
                       >
                         הסר מהעגלה
                       </button>
@@ -206,13 +223,43 @@ function CartPage() {
                   </div>
                 )}
 
-                <div className="mt-auto pt-2 flex items-center justify-between gap-2">
-                  <div className="inline-flex items-center overflow-hidden rounded-full hairline">
-                    <button onClick={() => setQty(k, item.quantity - 1)} className="press px-2.5 py-1.5 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary" aria-label={`הפחת כמות ${item.name}`}>
+                {/* flex-wrap: dropping `overflow-hidden` from the stepper pill
+                    below (needed so the expanded hit areas are not clipped) also
+                    changed its automatic minimum size from 0 to min-content —
+                    per CSS Flexbox 4.5, a flex item stops being a scroll
+                    container and `min-width: auto` no longer resolves to 0. The
+                    price beside it cannot absorb the squeeze either, because
+                    Intl.NumberFormat emits one unbreakable NBSP-joined token. So
+                    at very narrow widths this row could no longer shrink and
+                    would push the page sideways — the same horizontal-overflow
+                    failure the `min-w-0` note earlier in this file exists to
+                    prevent. Wrapping lets the price drop to its own line
+                    instead. */}
+                <div className="mt-auto pt-2 flex flex-wrap items-center justify-between gap-2">
+                  {/* Quantity stepper. The two buttons measured 34x26 — 59% of the
+                      44x44 the design system hits everywhere else (the CTAs on
+                      this very page are 271x44) — on the one control a shopper
+                      touches right before paying. Each one now carries an
+                      invisible 46x46 ::before, so the visible pill, the icons and
+                      the desktop density are untouched and only the touch box
+                      grows: 10px on each vertical edge (26 -> 46) and 6px on each
+                      horizontal edge (34 -> 46). 6px inward leaves ~20px of the
+                      quantity span uncovered, so tapping the NUMBER still does
+                      nothing rather than silently stepping the count.
+
+                      `overflow-hidden` had to go: it clipped those hit areas, and
+                      it was already clipping the global :focus-visible outline
+                      (2px at 2px offset, styles.css) of both buttons — an outline
+                      is clipped by an overflow ancestor like any other paint. The
+                      logical rounded-s/e-full on the end buttons reproduces
+                      exactly what the clip drew, since a rounded-full pill and a
+                      full-rounded child both clamp to half the same height. */}
+                  <div className="inline-flex items-center rounded-full hairline">
+                    <button onClick={() => setQty(k, item.quantity - 1)} className="press relative rounded-s-full px-2.5 py-1.5 before:absolute before:-inset-x-1.5 before:-inset-y-2.5 before:content-[''] [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary" aria-label={`הפחת כמות ${item.name}`}>
                       <Minus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                     </button>
                     <span className="px-3 text-sm font-medium tabular-nums">{item.quantity}</span>
-                    <button onClick={() => setQty(k, item.quantity + 1)} className="press px-2.5 py-1.5 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary" aria-label={`הוסף כמות ${item.name}`}>
+                    <button onClick={() => setQty(k, item.quantity + 1)} className="press relative rounded-e-full px-2.5 py-1.5 before:absolute before:-inset-x-1.5 before:-inset-y-2.5 before:content-[''] [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary" aria-label={`הוסף כמות ${item.name}`}>
                       <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                     </button>
                   </div>

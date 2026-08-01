@@ -105,13 +105,59 @@ function LegalPage() {
 
       <Section title={"5. מסירת מידע לצדדים שלישיים (מחזיקים וספקי שירות)"}>
         <p>{"איננו מוכרים את המידע האישי שלכם. אנו נעזרים בנותני שירות חיצוניים (\"מחזיקים\") המעבדים מידע מטעמנו ועבור מטרות מדיניות זו בלבד. אלה המחזיקים הפעילים כיום:"}</p>
+        {/* This list is a disclosure under חוק הגנת הפרטיות, so it has to describe
+            the deployment as it is now, not as it was. Three corrections, each
+            against a verified fact:
+            • "Lovable Cloud" removed. That subscription was cancelled and the DB
+              moved to the owner's own project (auth.tsx:153-158 documents it);
+              src/integrations/lovable/index.ts is imported by nothing, so the
+              vendor receives no data at all — naming it points a data-access
+              request (§13) at a company that holds nothing.
+            • Cloudflare added. wrangler.jsonc routes orzadik.com/www as custom
+              domains onto the Worker, so Cloudflare terminates TLS for EVERY
+              request including /checkout — live responses carry `Server:
+              cloudflare` and a CF-RAY header. It was the single largest holder
+              missing from the list.
+            • Google added. The live homepage loads
+              googletagmanager.com/gtag/js?id=G-SNVN50FGWL plus the AW- config
+              (business.ts gaMeasurementId/googleAdsId), and the project's
+              /auth/v1/settings reports google:true for the sign-in button at
+              auth.tsx:272. §7 already admits analytics/marketing cookies, so
+              omitting the recipient here contradicted the same page.
+            The courier moved out of "ספקים עתידיים" into the active list: /terms §6
+            and /shipping both already tell the buyer the order ships via חברת
+            שילוח / דואר, i.e. their address IS handed over — calling that vendor
+            "not active" was the one outright false statement in the section.
+            Resend was a stray <p> under the list; it is a holder like the rest,
+            so it belongs inside the <ul>. */}
         <ul>
           <li>{"Cardcom — חברת סליקה ישראלית, לצורך עיבוד התשלום. פרטי כרטיס האשראי המלאים נמסרים ישירות ל-Cardcom בסביבה מאובטחת התואמת לתקן PCI-DSS, ואלינו מועבר אסימון (token) בלבד ולא מספרי הכרטיס."}</li>
-          <li>{"Lovable Cloud — לצורך אירוח האתר וניהול שירותי האימות (Auth)."}</li>
-          <li>{"Supabase — לצורך אחסון מסד הנתונים והקבצים (Storage)."}</li>
+          <li>{"Cloudflare — לצורך אירוח האתר ורשת הפצת התוכן (CDN). כלל תעבורת האתר, לרבות עמודי ההרשמה, הסל והתשלום, עוברת דרך שרתי החברה."}</li>
+          <li>{"Supabase — לצורך אחסון מסד הנתונים והקבצים (Storage) וניהול שירותי האימות (Auth) וחשבונות המשתמשים."}</li>
+          {/* Phone is in the list because order-emails.server.ts renders
+              order.customer_phone into the shop-owner alert, which goes out
+              through Resend. Omitting it while the courier bullet below names
+              מספר הטלפון explicitly would read as a claim that Resend never
+              sees it. */}
+          <li>{"Resend — ספק לשליחת הודעות דוא\"ל תפעוליות (כגון אישורי הזמנה ועדכוני משלוח) ודיוור למי שהסכים לכך; המידע המועבר אליו מוגבל לכתובת הדוא\"ל ולתוכן ההודעה, הכולל — בהתאם לסוג ההודעה — את שמכם, מספר הטלפון, פרטי ההזמנה וכתובת המשלוח."}</li>
+          {/* This bullet must separate STORAGE from TRANSFER, because the
+              deployment does not gate the two the same way and an earlier draft
+              here claimed it did.
+              What is actually true: __root.tsx injects gtag.js into the SSR
+              <head> on EVERY page, and loads the Google Fonts stylesheet from
+              fonts.googleapis.com/fonts.gstatic.com on every page too. Both are
+              requests to Google, so the visitor's IP and browser headers reach
+              Google BEFORE any consent is given. What consent actually gates is
+              Consent Mode v2 storage: analytics_storage / ad_storage default to
+              "denied", so no analytics or advertising COOKIE is written and no
+              identified measurement happens until the banner choice is granted.
+              Saying "these services operate only after your consent" was
+              therefore false as written — the same class of inaccuracy the
+              Lovable Cloud removal above was made to fix. */}
+          <li>{"Google — שירותי Google Analytics ו-Google Ads, לצורך מדידת השימוש באתר ומדידת אפקטיביות הפרסום, וכן שירות הגופנים Google Fonts. תגי המדידה וקובצי הגופנים נטענים משרתי Google בכל עמוד, ולפיכך כתובת ה-IP ונתוני הדפדפן שלכם נמסרים ל-Google גם בטרם מתן הסכמה. עוגיות אנליטיקה ושיווק ומדידה מזוהה מופעלות רק לאחר קבלת הסכמתכם (Consent Mode), כמפורט בסעיף 7. בנוסף, למשתמשים הבוחרים להתחבר באמצעות חשבון Google, ההתחברות מתבצעת מול Google."}</li>
+          <li>{"חברת שילוח / דואר — לצורך מסירת ההזמנה ליעדה. מועברים אליה שם המקבל, מספר הטלפון וכתובת המשלוח בלבד, ולא פרטי תשלום."}</li>
         </ul>
-        <p>{"Resend — ספק לשליחת הודעות דוא\"ל תפעוליות (כגון אישורי הזמנה) ודיוור למי שהסכים לכך; המידע המועבר אליו מוגבל לכתובת הדוא\"ל ולתוכן ההודעה."}</p>
-        <p>{"ספקים עתידיים (אינם פעילים כעת): חברת שילוח לצורך משלוח ההזמנות. ככל שייעשה בהם שימוש, מדיניות זו תעודכן בהתאם."}</p>
+        <p>{"ככל שנוסיף, נחליף או נפסיק להשתמש בנותן שירות מהמפורטים לעיל, נעדכן רשימה זו בהתאם."}</p>
         <p>{"בנוסף, אנו עשויים לחשוף מידע אם נידרש לכך על פי דין, צו שיפוטי או דרישה של רשות מוסמכת, וכן לשם הגנה על זכויותינו או על שלום הציבור."}</p>
       </Section>
 
@@ -189,7 +235,17 @@ function LegalPage() {
       </Section>
 
       <Section title={"14. הדין החל, סמכות שיפוט ויצירת קשר"}>
-        <p>{"על מדיניות זו ועל כל הנובע ממנה יחולו אך ורק דיני מדינת ישראל. סמכות השיפוט הבלעדית בכל מחלוקת הקשורה למדיניות זו תהיה נתונה לבתי המשפט המוסמכים בעיר תל אביב-יפו בלבד."}</p>
+        {/* Venue must match /terms §14 word for word in substance, because
+            /terms §11 declares this policy "חלק בלתי נפרד מתקנון זה" — two
+            different exclusive venues inside one agreement leave the buyer
+            unable to tell where a dispute is heard. The old text named תל
+            אביב-יפו exclusively, which matches no party: BUSINESS.address is
+            "דרך עכו 190, קרית ביאליק" (Haifa district). Broadened to the same
+            "בתי המשפט המוסמכים בישראל" wording /terms already uses, and carried
+            over its consumer carve-out — a bare exclusive-venue clause over a
+            buyer's own personal data is exactly what a careful Israeli shopper
+            scans for. No new obligation is introduced: this only relaxes venue. */}
+        <p>{"על מדיניות זו ועל כל הנובע ממנה יחולו אך ורק דיני מדינת ישראל. סמכות השיפוט בכל מחלוקת הקשורה למדיניות זו נתונה לבתי המשפט המוסמכים בישראל. אין באמור כדי לגרוע מזכות צרכן לפנות לערכאה המוסמכת לפי כל דין צרכני קוגנטי."}</p>
         <p>{`לפניות בנושאי פרטיות ומימוש זכויות ניתן לפנות לאיש הקשר לענייני פרטיות בדוא"ל: ${BUSINESS.privacyEmail}.`}</p>
         <p>{`לפניות בנושא נגישות ניתן לפנות בדוא"ל: ${BUSINESS.accessibilityEmail}. הצהרת הנגישות המלאה של האתר זמינה בעמוד הנגישות בכתובת /accessibility.`}</p>
         <p>{`פרטי בעל האתר ליצירת קשר: ${BUSINESS.name}${BUSINESS.legalId ? ", " + BUSINESS.legalId : ""}${BUSINESS.address ? ", כתובת: " + BUSINESS.address : ""}, טלפון: ${BUSINESS.phoneDisplay}.`}</p>

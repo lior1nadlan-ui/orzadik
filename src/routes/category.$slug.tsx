@@ -16,6 +16,9 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { useEffect, useMemo, useState } from "react";
 import { categoryFaq, faqJsonLd } from "@/lib/category-faq";
+// Same "is this category real?" predicate the /categories hub, the header
+// drawer and /sitemap.xml read — see src/routes/categories.tsx.
+import { isListableCategory } from "@/routes/categories";
 import { guidesForCategory } from "@/lib/guide-links";
 import { GuideLinks } from "@/components/content/GuideLinks";
 import { getEffectivePrice } from "@/lib/pricing";
@@ -189,6 +192,18 @@ export const Route = createFileRoute("/category/$slug")({
         ? full
         : `${full.slice(0, 160).replace(/\s+\S*$/, "").trim() || full.slice(0, 160).trim()}…`;
 
+    // A category with nothing in it must not be advertised as a rankable
+    // landing page. Seven zero-product categories were live with the site-wide
+    // "index, follow", each shipping a CollectionPage whose ItemList was
+    // literally `numberOfItems: 0, itemListElement: []` plus a full
+    // five-question FAQPage answering "מהם זמני המשלוח למוצרים בקטגוריית …"
+    // for a category that sells nothing — textbook soft-404/thin-content
+    // signals, and crawl budget taken from the ~3,540 real product pages. The
+    // same predicate also catches the double-encoded twins of the four
+    // percent-encoded categories: those render 200 but the canonical below
+    // resolves to their natural-encoded form, which genuinely 404s.
+    const indexable = isListableCategory(params.slug, products.length);
+
     // Cap the inline ItemList to roughly the first rendered window (2 × the
     // grid's 24-item page). numberOfItems stays the TRUE category total — it may
     // exceed the listed items, which is honest — but we no longer inline a JSON
@@ -259,6 +274,11 @@ export const Route = createFileRoute("/category/$slug")({
     return {
       meta: [
         { title: `${cat.name} | אור זרוע לצדיק` },
+        // "follow", not "nofollow": the page is empty but its breadcrumb and
+        // "לכל המוצרים בחנות" links are legitimate routes back into the
+        // catalog. Meta is merged leaf→root with first-seen winning (see
+        // __root.tsx), so this overrides the site-wide "index, follow".
+        ...(indexable ? [] : [{ name: "robots", content: "noindex, follow" }]),
         { name: "description", content: desc },
         { property: "og:title", content: `${cat.name} | אור זרוע לצדיק` },
         { property: "og:description", content: desc },
@@ -272,11 +292,17 @@ export const Route = createFileRoute("/category/$slug")({
         { name: "twitter:image", content: cat.image_url || "https://orzadik.com/og-default.jpg" },
       ],
       links: [{ rel: "canonical", href: url }, ...heroPreload],
-      scripts: [
-        { type: "application/ld+json", children: JSON.stringify(collectionLd) },
-        { type: "application/ld+json", children: JSON.stringify(breadcrumbLd) },
-        { type: "application/ld+json", children: JSON.stringify(faqJsonLd(categoryFaq(cat.name))) },
-      ],
+      // The breadcrumb stays on a noindex page (it is true, and it is the trail
+      // back out). The CollectionPage and the FAQPage do NOT: an empty ItemList
+      // and five shipping/returns answers about a category with no products are
+      // markup claiming a storefront that isn't there.
+      scripts: indexable
+        ? [
+            { type: "application/ld+json", children: JSON.stringify(collectionLd) },
+            { type: "application/ld+json", children: JSON.stringify(breadcrumbLd) },
+            { type: "application/ld+json", children: JSON.stringify(faqJsonLd(categoryFaq(cat.name))) },
+          ]
+        : [{ type: "application/ld+json", children: JSON.stringify(breadcrumbLd) }],
     };
   },
   component: CategoryPage,
@@ -819,7 +845,11 @@ function CategoryPage() {
             the server HTML: a JS accordion that mounts its panel only when open
             leaves the JSON-LD claiming text no crawler can find on the page.
             Native <details>/<summary> keeps every answer in the markup while
-            still collapsing visually, with no JS and no hydration cost. */}
+            still collapsing visually, with no JS and no hydration cost.
+            The head now emits that FAQPage only for a category that actually
+            holds products (see `indexable` there). This block still renders on
+            an empty one — visible copy without markup is fine, the invariant
+            that matters is the other direction. */}
         {cat?.name && (
           <section className="mt-16 max-w-3xl mx-auto">
             <h2 className="font-display text-2xl font-bold mb-5 text-center">שאלות נפוצות — {cat.name}</h2>
