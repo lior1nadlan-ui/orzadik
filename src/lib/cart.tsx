@@ -64,9 +64,30 @@ type CartCtx = {
   grandTotal: number;
 };
 
-/** Unique line key that distinguishes same product across variants & custom text. */
-export function lineKey(i: { productId: string; variantId?: string; customText?: string }) {
-  return `${i.productId}|${i.variantId ?? ""}|${i.customText ?? ""}`;
+/**
+ * Unique line key that distinguishes the same product across variants, custom
+ * text AND personalization method.
+ *
+ * The method belongs in the identity because add() merges on this key and keeps
+ * the EXISTING line, discarding the incoming item's fields. Without it, a buyer
+ * who typed a name with רקמה, then switched to חריטת לייזר and added again — the
+ * natural way to correct the choice on a page with no "update cart" control —
+ * got one line of quantity 2 still labelled רקמה, with nothing saying the laser
+ * selection had been dropped. The method is carried all the way to
+ * order_items.custom_text as `[רקמה]` / `[לייזר]`, so it reaches the packing
+ * slip and the CardCom invoice line; and personalized goods are the one
+ * category the store's own emails say cannot be freely cancelled.
+ *
+ * Callers pass whole CartItem objects, so no call site changes. Nothing is
+ * persisted under the old key either — localStorage stores the items array.
+ */
+export function lineKey(i: {
+  productId: string;
+  variantId?: string;
+  customText?: string;
+  customMethod?: string;
+}) {
+  return `${i.productId}|${i.variantId ?? ""}|${i.customText ?? ""}|${i.customMethod ?? ""}`;
 }
 
 const Ctx = createContext<CartCtx | null>(null);

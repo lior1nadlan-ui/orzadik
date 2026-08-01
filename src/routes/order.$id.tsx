@@ -307,19 +307,40 @@ function OrderConfirmationPage() {
             )}
           </div>
         )}
-        {/* Reconcile the total: סכום פריטים + משלוח = סך הכל — the same breakdown
-            shown in the checkout summary, so the paid confirmation no longer
-            reads as a bare total the line items can't add up to. */}
-        <div className="space-y-2 border-t border-glass-line pt-3">
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">סכום פריטים</span>
-            <span className="whitespace-nowrap">{formatILS(Number(order.subtotal))}</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">משלוח (תעריף אחיד לכל הזמנה)</span>
-            <span className="whitespace-nowrap">{formatILS(Number(order.shipping))}</span>
-          </div>
-        </div>
+        {/* Reconcile the total: סכום פריטים (− הטבת מועדון) + משלוח = סך הכל —
+            the same three-row shape the checkout summary shows before paying.
+            orders.subtotal is stored ALREADY reduced by the member discount
+            while order_items keep their pre-discount line_total, so printing
+            `subtotal` against the item rows above made a signed-in buyer's
+            receipt fail to add up, and never named the 5% benefit /club had
+            promised them. The CardCom invoice does name it, so this surface was
+            the least transparent of the three. Derived from data already
+            fetched — no query change, no pricing.ts change. */}
+        {(() => {
+          const itemsSum = order.order_items.reduce(
+            (s: number, it: any) => s + Number(it.line_total),
+            0,
+          );
+          const memberBenefit = itemsSum - Number(order.subtotal);
+          return (
+            <div className="space-y-2 border-t border-glass-line pt-3">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">סכום פריטים</span>
+                <span className="whitespace-nowrap">{formatILS(itemsSum)}</span>
+              </div>
+              {memberBenefit > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">הטבת מועדון</span>
+                  <span className="whitespace-nowrap">{formatILS(-memberBenefit)}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">משלוח (תעריף אחיד לכל הזמנה)</span>
+                <span className="whitespace-nowrap">{formatILS(Number(order.shipping))}</span>
+              </div>
+            </div>
+          );
+        })()}
         <div className="gold-rule my-4" aria-hidden="true" />
         <div className="flex justify-between text-lg">
           <span className="font-bold">סך הכל</span>
@@ -339,7 +360,7 @@ function OrderConfirmationPage() {
             </li>
             <li className="flex items-start gap-2.5">
               <Truck className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
-              <span>נארוז את ההזמנה ונשלח אותה עד הבית · אספקה משוערת 3–14 ימי עסקים.</span>
+              <span>נארוז את ההזמנה ונשלח אותה עד הבית · אספקה משוערת 3-14 ימי עסקים.</span>
             </li>
             <li className="flex items-start gap-2.5">
               <Package className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden="true" />

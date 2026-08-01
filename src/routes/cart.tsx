@@ -265,7 +265,7 @@ function CartPage() {
               </div>
             </div>
             <p className="text-xs text-muted-foreground mt-2 mb-3">
-              זמן אספקה משוער: 3–14 ימי עסקים
+              זמן אספקה משוער: 3-14 ימי עסקים
             </p>
             {/* Decorative gold hairline — the rule is a gradient image, never text. */}
             <div className="gold-rule my-4" aria-hidden="true" />

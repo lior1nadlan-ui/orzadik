@@ -46,10 +46,14 @@ import { useFavorites } from "@/components/engagement/favorites";
 import { readRecent, recordRecent } from "@/components/engagement/recently-viewed";
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
-// Workers-safe sanitiser. isomorphic-dompurify falls back to jsdom on the
-// server, which cannot run in the Cloudflare Workers runtime — it threw
-// during SSR, so this route shipped NO body HTML to crawlers at all.
-import { sanitizeHtml } from "@/lib/sanitize-html";
+// Product copy renderer. Replaces the sanitised-innerHTML pair this route used
+// to have: description/short_description are plain text on 4,348 of 4,648 rows,
+// and the 300 with markup use only <p>/<br>/<strong> with no attributes, so the
+// whole field renders as JSX and this route builds no HTML from stored data.
+// (sanitizeHtml itself is still the right tool for articles/$slug.tsx, whose
+// body_html is genuinely rich — and is still Workers-safe, unlike the
+// isomorphic-dompurify/jsdom path that once shipped crawlers an empty body.)
+import { RichCopy } from "@/components/product/RichCopy";
 
 async function fetchProductWithRetry(slug: string, maxRetries = 2) {
   for (let i = 0; i <= maxRetries; i++) {
@@ -1280,19 +1284,23 @@ function ProductPage() {
             <div className="glass inline-flex items-center gap-1.5 text-sm text-foreground px-2.5 py-1 [--glass-radius:0.625rem] [--glass-shadow:0_1px_2px_rgba(22,24,29,0.05)]">
               <Truck className="h-4 w-4 text-accent" />
               <span>
-                דמי משלוח {formatILS(SHIPPING_FLAT)} (מתווספים בעגלה) • <span className="font-semibold text-accent">זמן אספקה 3–14 ימי עסקים</span>
+                דמי משלוח {formatILS(SHIPPING_FLAT)} (מתווספים בעגלה) • <span className="font-semibold text-accent">זמן אספקה 3-14 ימי עסקים</span>
               </span>
 
             </div>
           </div>
 
 
-          {product.short_description && (
-            <div
-              className="prose prose-sm max-w-none mb-5 text-foreground"
-              dangerouslySetInnerHTML={{ __html: sanitizeHtml(product.short_description) }}
-            />
-          )}
+          {/* short_description carries NO markup on any of the 4,648 active
+              products (verified against the live DB), and on 2,366 of them it IS
+              the pipe-delimited spec line — which was being dumped raw as the
+              above-the-fold blurb. RichCopy renders it as a real key/value row.
+              Skipped entirely when the description below already repeats it
+              verbatim, so the buy box stops echoing the accordion. */}
+          {product.short_description &&
+            !(product.description ?? "").includes(product.short_description.trim()) && (
+              <RichCopy text={product.short_description} compact className="mb-5" />
+            )}
 
           {/* Personalization (embroidery / laser engraving) */}
           {showEmbroidery && (
@@ -1606,10 +1614,13 @@ function ProductPage() {
               <AccordionTrigger className="font-display text-base">תיאור המוצר</AccordionTrigger>
               <AccordionContent>
                 {product.description ? (
-                  <div
-                    className="prose prose-sm max-w-none text-foreground"
-                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(product.description) }}
-                  />
+                  // Was a sanitised innerHTML injection with dead `prose` hooks.
+                  // 4,348 of 4,648 descriptions are plain text whose blank line
+                  // HTML was collapsing, gluing the prose to the spec block; the
+                  // 300 that carry markup use only <p>/<br>/<strong> with no
+                  // attributes, so RichCopy renders that subset as JSX and this
+                  // route no longer builds HTML from stored data at all.
+                  <RichCopy text={product.description} />
                 ) : (
                   // 142 products have no long description. Rather than omit the
                   // section, build a truthful fallback from facts the page

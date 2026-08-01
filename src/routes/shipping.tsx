@@ -9,7 +9,7 @@ import { PolicyHeader, PolicySection, PolicyFootnote } from "@/components/Policy
 // pricing.ts and shown live at checkout, so any figure typed into copy would go
 // stale the moment it changes.
 
-const DELIVERY_WINDOW = `${CONSUMER_POLICY.deliveryMinDays}–${CONSUMER_POLICY.deliveryMaxDays}`;
+const DELIVERY_WINDOW = `${CONSUMER_POLICY.deliveryMinDays}-${CONSUMER_POLICY.deliveryMaxDays}`;
 
 export const Route = createFileRoute("/shipping")({
   component: ShippingPage,

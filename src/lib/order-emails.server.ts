@@ -66,9 +66,23 @@ export async function sendOrderConfirmationEmails(orderId: string) {
 
   const items = (order.order_items as any[]) ?? [];
   const rows = itemsRows(items);
+  // orders.subtotal is stored ALREADY reduced by the 5% member discount while
+  // order_items keep their pre-discount line_total — so printing `subtotal`
+  // straight under the item rows made this document fail to add up for every
+  // signed-in buyer, and never named the benefit /club promised them. This
+  // email doubles as the §14ג(ב) written confirmation, so it is the last place
+  // that should be less transparent than the CardCom invoice (which does list
+  // "הנחת חבר מועדון" as its own line).
+  const itemsSum = items.reduce((s, it) => s + Number(it.line_total ?? 0), 0);
+  const memberBenefit = itemsSum - Number(order.subtotal);
+  const memberRow =
+    memberBenefit > 0
+      ? `<tr><td class="oz-muted" style="color:#666;">הטבת חבר מועדון</td><td style="text-align:left;">-${ils(memberBenefit)}</td></tr>`
+      : "";
   const totalsBlock = `
     <table style="width:100%;font-size:14px;margin-top:12px;">
-      <tr><td class="oz-muted" style="color:#666;">סכום ביניים</td><td style="text-align:left;">${ils(order.subtotal)}</td></tr>
+      <tr><td class="oz-muted" style="color:#666;">סכום פריטים</td><td style="text-align:left;">${ils(itemsSum)}</td></tr>
+      ${memberRow}
       <tr><td class="oz-muted" style="color:#666;">משלוח</td><td style="text-align:left;">${Number(order.shipping) === 0 ? "חינם" : ils(order.shipping)}</td></tr>
       <tr><td style="font-weight:bold;font-size:16px;padding-top:8px;">סך הכל</td><td style="font-weight:bold;font-size:16px;text-align:left;padding-top:8px;color:#A8862A;">${ils(order.total)}</td></tr>
     </table>`;

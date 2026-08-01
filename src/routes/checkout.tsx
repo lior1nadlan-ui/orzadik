@@ -236,7 +236,14 @@ function CheckoutPage() {
     // in any input re-fires submit during the multi-second placeOrder→startPayment
     // window. Bail before doing any work. (preventDefault stays first so a
     // re-entrant Enter can never fall through to a native form navigation.)
-    if (submitting) return;
+    // `redirecting` is included because the success path returns from inside the
+    // try, so the `finally` below flips `submitting` back to false while the
+    // hand-off to secure.cardcom.solutions is still in flight. location.href is
+    // not synchronous — on a slow phone the page stays interactive, and a second
+    // tap used to pass this guard and create a SECOND order for one basket. The
+    // existing double-charge guard cannot catch that: it keys on one order's
+    // cardcom_tranzaction_id, and this produces two orders with two sessions.
+    if (submitting || redirecting) return;
     // A retry starts clean: drop any prior persistent failure banner.
     setSubmitError(null);
     // 1) Inline field validation — surface Hebrew errors and jump to the first.
@@ -486,7 +493,11 @@ function CheckoutPage() {
             להסרתו לפני השלמת התשלום.
           </p>
         )}
-        <Button type="submit" size="lg" disabled={submitting || blockedCount > 0} aria-busy={submitting} className="press w-full">
+        {/* `redirecting` is never cleared, so once the CardCom hand-off starts
+            the form stays inert for the rest of the page's life. The `finally`
+            is deliberately left alone: the two genuine failure paths still
+            restore the button. */}
+        <Button type="submit" size="lg" disabled={submitting || redirecting || blockedCount > 0} aria-busy={submitting || redirecting} className="press w-full">
           {redirecting
             ? "מעבירים לתשלום מאובטח…"
             : submitting
