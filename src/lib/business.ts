@@ -106,7 +106,13 @@ export function orderStatusHe(s: string): string {
  * pages (terms / privacy / accessibility). Currently hardcoded in each as
  * "עודכן לאחרונה: 26.6.2026" — point all three at this constant instead.
  */
-export const LEGAL_LAST_UPDATED = "28.7.2026";
+// Bumped when /privacy §5 (the holders list) and §14 (jurisdiction) were
+// substantively amended. §13 tells the reader "תאריך העדכון האחרון מצוין בראש
+// המדיניות", so leaving it stale makes the page assert something false about
+// itself. Shared by /privacy, /terms and /accessibility — moving all three is
+// correct here, since /terms §11 binds the privacy policy in as part of the
+// same agreement and its jurisdiction clause changed in the same pass.
+export const LEGAL_LAST_UPDATED = "1.8.2026";
 
 /** Consumer-law policy constants (Consumer Protection Law §14ג–§14ה). */
 export const CONSUMER_POLICY = {

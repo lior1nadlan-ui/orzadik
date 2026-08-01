@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { keepPreviousData, useInfiniteQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ProductCard, ProductCardData } from "@/components/ProductCard";
@@ -35,8 +35,11 @@ function isShopSort(v: unknown): v is ShopSort {
 // 4,672 products and made the header report "500 מוצרים". Paging server-side
 // keeps the DOM light *and* reachable across the full catalog.
 const PAGE = 24;
-// 4,672 products / 24 ≈ 195 pages today. The clamp keeps a hand-typed or
-// crawler-invented ?page=999999 from turning into an absurd DB offset.
+// The clamp keeps a hand-typed or crawler-invented ?page=999999 from turning into
+// an absurd DB offset (999,998 * 24 ≈ 24 million rows to skip). It is a floodgate,
+// NOT the end-of-catalog check: the real listing is 3,540 collapsed rows ≈ 148
+// pages, so a clamped ?page= still lands well past the end. The loader's
+// out-of-range redirect below is what sends it back to the last real page.
 const MAX_PAGE = 500;
 
 const SITE = "https://orzadik.com";
@@ -192,28 +195,79 @@ export const Route = createFileRoute("/shop")({
   // Server-render the first (or requested) page. Without this the route emitted
   // nothing but a skeleton grid, so the non-JS crawlers robots.txt explicitly
   // welcomes saw zero product links on a page advertised at sitemap priority 0.9.
-  loader: async ({ deps }) => {
+  loader: async ({ deps, location }) => {
     const offset = (deps.page - 1) * PAGE;
     // A search term or a non-default sort makes the URL a facet of /shop, not a
     // page of it: those views stay canonical to the bare /shop (unchanged from
     // before) and get no rel=prev/next, which would otherwise point at the
     // unfiltered page 2.
     const filtered = deps.q.trim().length > 0 || deps.sort !== "recommended";
+    let first: ShopPageData;
     try {
-      return {
-        page: deps.page,
-        offset,
-        filtered,
-        // Echoed for head() so the doc title can reflect an active search term.
-        q: deps.q,
-        first: await fetchShopPage({ rawQ: deps.q, sort: deps.sort, offset }),
-      };
+      first = await fetchShopPage({ rawQ: deps.q, sort: deps.sort, offset });
     } catch (err) {
       // Degrade to the client-side query + its existing retry UI rather than
       // blowing the whole route into the error boundary on a transient DB blip.
+      // The fetch is awaited HERE rather than inline in the return below so the
+      // out-of-range branch that follows sits outside this catch — a thrown
+      // redirect must never be swallowed and turned into "first: null".
       console.warn("[shop] loader failed, falling back to client fetch:", err);
       return { page: deps.page, offset, filtered, q: deps.q, first: null as ShopPageData | null };
     }
+
+    // Past the end of the listing. The collapsed catalog is 3,540 rows, so page 148
+    // is the last real one; every page from 149 to MAX_PAGE used to answer HTTP 200
+    // with zero products, "index, follow" and a rel=canonical pointing at itself —
+    // 352 crawlable soft-404s, advertised by the rel=next chain and reached from
+    // ?page=999999 by the MAX_PAGE clamp's own 307. The body read the
+    // self-contradicting "עמוד 195 מתוך 1" for anyone who hand-edited the number.
+    //
+    // Redirect rather than notFound(): the last page is not a fixed address, it
+    // moves with the catalog (this route has already seen 4,672 / 4,641 / 4,648
+    // products), so a 404 would harden a boundary that shifts on the next supplier
+    // import — and it would leave a shopper who edited ?page= on a dead end instead
+    // of on products. 302 rather than 301 for the same reason: a permanent redirect
+    // is cached by browsers and proxies long after page 149 becomes real, while a
+    // temporary one still drops the empty URL from the index in favour of the
+    // target and is re-checked on every crawl.
+    if (deps.page > 1 && first.rows.length === 0) {
+      // The empty response carries no total — total_count rides on row 0 of the
+      // RPC result — so re-probe offset 0 to learn where the listing actually ends.
+      // The extra round trip only ever runs on a page that had nothing to show.
+      let lastPage = 1;
+      try {
+        const probe = await fetchShopPage({ rawQ: deps.q, sort: deps.sort, offset: 0 });
+        lastPage = Math.max(1, Math.ceil(probe.total / PAGE));
+      } catch (err) {
+        console.warn("[shop] out-of-range probe failed, redirecting to page 1:", err);
+      }
+      // Loop-breaker: we already know deps.page is empty, so the target must be
+      // strictly below it. Without this, a total that disagreed between the two
+      // calls could redirect a page to itself forever.
+      const target = lastPage < deps.page ? lastPage : 1;
+      throw redirect({
+        to: "/shop",
+        search: {
+          q: deps.q.trim() || undefined,
+          sort: deps.sort === "recommended" ? undefined : deps.sort,
+          page: target > 1 ? target : undefined,
+          // instock is a client-side view filter and is deliberately kept out of
+          // loaderDeps, so read it off the location — otherwise the redirect would
+          // silently clear the shopper's "במלאי בלבד" checkbox.
+          instock: (location.search as { instock?: boolean }).instock ? true : undefined,
+        },
+        statusCode: 302,
+      });
+    }
+
+    return {
+      page: deps.page,
+      offset,
+      filtered,
+      // Echoed for head() so the doc title can reflect an active search term.
+      q: deps.q,
+      first,
+    };
   },
   head: ({ loaderData }) => {
     const page = loaderData?.page ?? 1;
@@ -223,6 +277,12 @@ export const Route = createFileRoute("/shop")({
     const total = loaderData?.first?.total ?? 0;
     const lastPage = Math.max(1, Math.ceil(total / PAGE));
     const paged = !filtered;
+    // Braces to the loader redirect's belt. The redirect cannot fire when the DB
+    // fetch itself failed (first === null → rows is []), and that degraded SSR
+    // response has no products in it either. Whatever produced an empty page past
+    // page 1, it is never worth indexing and must not claim itself as canonical —
+    // that combination is exactly what made ?page=149-500 soft-404s.
+    const emptyPastFirst = page > 1 && rows.length === 0;
 
     // A ?q= search is a facet of /shop, so its title reflects the term. The
     // canonical still points at the bare /shop below (paged is false when
@@ -235,7 +295,16 @@ export const Route = createFileRoute("/shop")({
         : "כל המוצרים | אור זרוע לצדיק";
     // Page 1 keeps the bare /shop canonical; deeper pages are canonical to
     // themselves so their products are indexable in their own right.
-    const canonical = paged && page > 1 ? `${SITE}/shop?page=${page}` : `${SITE}/shop`;
+    //
+    // An empty page past page 1 stays SELF-canonical rather than pointing at
+    // /shop, even though it is the one case we do not want indexed. Pairing
+    // `noindex` (emitted below) with a canonical to a DIFFERENT URL is the one
+    // combination Google explicitly warns about: the two are contradictory, and
+    // the documented failure mode is that the noindex is applied to the
+    // canonical TARGET — which here would be /shop, the listing's own root. A
+    // self-canonical keeps the noindex scoped to the degraded URL that earned it.
+    const canonical =
+      paged && page > 1 ? `${SITE}/shop?page=${page}` : `${SITE}/shop`;
 
     const itemListLd = {
       "@context": "https://schema.org",
@@ -263,6 +332,11 @@ export const Route = createFileRoute("/shop")({
     return {
       meta: [
         { title },
+        // "follow", not "nofollow": the page is empty but its prev link is still a
+        // legitimate route back into the catalog. Meta is merged leaf→root with
+        // first-seen winning (see __root.tsx), so this overrides the site-wide
+        // "index, follow".
+        ...(emptyPastFirst ? [{ name: "robots", content: "noindex, follow" }] : []),
         { name: "description", content: "כל מוצרי תשמישי הקדושה והיודאיקה של אור זרוע לצדיק — טליתות, כיסויי טלית ותפילין, נרתיקי מזוזה, גביעי קידוש, חנוכיות, פמוטים ומארזים לחתנים. נבחרים בהקפדה על כשרות והידור, עם משלוח עד הבית." },
         { property: "og:title", content: title },
         { property: "og:description", content: "טליתות, כיסויי טלית ותפילין, נרתיקי מזוזה, גביעי קידוש, חנוכיות ומארזים לחתנים — כל המוצרים במקום אחד." },
@@ -273,8 +347,10 @@ export const Route = createFileRoute("/shop")({
       ],
       links: [
         { rel: "canonical", href: canonical },
-        ...(paged && page > 1 ? [{ rel: "prev", href: page - 1 > 1 ? `${SITE}/shop?page=${page - 1}` : `${SITE}/shop` }] : []),
-        ...(paged && page < lastPage ? [{ rel: "next", href: `${SITE}/shop?page=${page + 1}` }] : []),
+        // An empty page is not a member of the prev/next chain — advertising one
+        // is what invited crawlers into the dead zone in the first place.
+        ...(paged && !emptyPastFirst && page > 1 ? [{ rel: "prev", href: page - 1 > 1 ? `${SITE}/shop?page=${page - 1}` : `${SITE}/shop` }] : []),
+        ...(paged && !emptyPastFirst && page < lastPage ? [{ rel: "next", href: `${SITE}/shop?page=${page + 1}` }] : []),
       ],
       scripts: [
         { type: "application/ld+json", children: JSON.stringify(itemListLd) },
@@ -425,7 +501,13 @@ const activeQ = debouncedQ.trim();
     trackSearch(activeQ, total);
   }, [activeQ, total, isLoading, isFetching]);
 
-  const lastPage = Math.max(1, Math.ceil(total / PAGE));
+  // The denominator can never sit below the page being displayed. `total` is 0
+  // while the client query is still in flight AND whenever the SSR loader had to
+  // degrade to a client fetch, so the old Math.max(1, ceil(0 / 24)) rendered the
+  // self-contradicting "עמוד 195 מתוך 1" that /shop?page=195 served live. The
+  // loader now 302s out-of-range pages away before they can render; this keeps the
+  // sentence honest on every other path that reaches it with an unknown total.
+  const lastPage = Math.max(1, Math.ceil(total / PAGE), page);
   // "Next" skips past everything already rendered, so a visitor who pressed
   // "load more" twice does not get a link back to products they can see.
   const nextPage = Math.min(MAX_PAGE, Math.floor((pageStart + products.length) / PAGE) + 1);

@@ -150,9 +150,15 @@ export function CartDrawer() {
                         >
                           {item.name}
                         </Link>
+                        {/* Identical hit-area expansion to /cart — see the long
+                            note at src/routes/cart.tsx. Invisible ::before takes
+                            24x24 (exactly the WCAG 2.5.8 floor, no margin) to
+                            44x44 without moving a pixel of the visible icon;
+                            8px on the start side is the gap-2, so it stops at the
+                            title link and never steals a tap from it. */}
                         <button
                           onClick={() => handleRemove(k)}
-                          className="press shrink-0 rounded-full p-1 text-muted-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:text-destructive"
+                          className="press relative shrink-0 rounded-full p-1 text-muted-foreground before:absolute before:-inset-y-2.5 before:-start-2 before:-end-3 before:content-[''] [@media(hover:hover)_and_(pointer:fine)]:hover:text-destructive"
                           aria-label={`הסר ${item.name}`}
                         >
                           <Trash2 className="h-4 w-4" />
@@ -168,11 +174,25 @@ export function CartDrawer() {
                         </div>
                       )}
 
-                      <div className="mt-auto flex items-center justify-between gap-2 pt-2">
-                        <div className="inline-flex items-center overflow-hidden rounded-full hairline">
+                      {/* flex-wrap for the same reason as /cart: without
+                          `overflow-hidden` the pill's automatic minimum size is
+                          min-content, and the NBSP-joined currency string beside
+                          it cannot shrink, so a narrow drawer would overflow
+                          sideways instead of wrapping. */}
+                      <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-2">
+                        {/* Same 34x26 -> 46x46 expansion as the /cart stepper, and
+                            it matters MORE here: this drawer is what opens after
+                            every single add-to-cart on the site. Invisible
+                            ::before only — the pill stays 26px tall so the drawer
+                            rows keep their density. `overflow-hidden` removed for
+                            the same two reasons as on /cart (it clipped both the
+                            hit areas and the buttons' :focus-visible outline);
+                            rounded-s/e-full on the end buttons draws exactly what
+                            the clip used to. */}
+                        <div className="inline-flex items-center rounded-full hairline">
                           <button
                             onClick={() => handleSetQty(k, item.quantity - 1)}
-                            className="press px-2.5 py-1.5 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary"
+                            className="press relative rounded-s-full px-2.5 py-1.5 before:absolute before:-inset-x-1.5 before:-inset-y-2.5 before:content-[''] [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary"
                             aria-label="הפחת"
                           >
                             <Minus className="h-3.5 w-3.5" />
@@ -180,7 +200,7 @@ export function CartDrawer() {
                           <span className="px-3 text-sm font-medium tabular-nums">{item.quantity}</span>
                           <button
                             onClick={() => handleSetQty(k, item.quantity + 1)}
-                            className="press px-2.5 py-1.5 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary"
+                            className="press relative rounded-e-full px-2.5 py-1.5 before:absolute before:-inset-x-1.5 before:-inset-y-2.5 before:content-[''] [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary"
                             aria-label="הוסף"
                           >
                             <Plus className="h-3.5 w-3.5" />

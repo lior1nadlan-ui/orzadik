@@ -127,48 +127,116 @@ export const Route = createFileRoute("/product/$slug")({
           fetchReviewSummary(product.id as string),
           fetchReviews(product.id as string),
           // 528 supplier name-collisions cover 1,636 active products (largest
-          // family: 43) that differ only by photo. Self-canonicalising all of
-          // them offered Google 1,108 duplicate URLs. This resolves the one
-          // representative per name group — the same row the listings show.
+          // family: 43). Self-canonicalising all of them offered Google 1,108
+          // duplicate URLs. This nominates the one representative per name
+          // group — the same row the listings show. It is only a CANDIDATE:
+          // 190 of those families turn out to hold more than one price, so the
+          // block below still has to check before trusting it.
           // Cast: the generated Supabase types are checked in and must not be
           // hand-edited, and they predate this function. The shape is a plain
           // `text` return, handled defensively below.
           (supabase.rpc as any)("canonical_product_slug", { p_slug: params.slug }),
         ])
       : [{ average: 0, count: 0 }, [] as PublicReview[], null];
-    const canonicalSlug =
+    const canonicalCandidate =
       (canonicalSlugRes as any)?.data && !(canonicalSlugRes as any)?.error
-        ? ((canonicalSlugRes as any).data as string)
+        ? String((canonicalSlugRes as any).data)
         : params.slug; // fail open: a lookup problem must never break the page
-    // When the first category is a subcategory, resolve its parent so the
-    // breadcrumb trail (JSON-LD in head + visible nav) includes the full path.
+    // A rel=canonical asserts "this page is a duplicate of that one". That is
+    // true for the photo-only twins the name grouping was built for — and FALSE
+    // the moment the two rows carry different prices. Measured on prod today:
+    // the 528 name families cover 1,636 active products, but 190 of those
+    // families (753 products) hold MORE THAN ONE catalogue price, spread up to
+    // ₪432 apart, and the RPC deliberately elects the CHEAPEST row. Result: 466
+    // pages told Google they were duplicates of a cheaper page — e.g.
+    // /polymer-washing-cup-14-cm-83321 (₪202 → ₪141 shown) canonicalising onto
+    // …-40594 (₪134 → ₪94) — so the model the shopper searched for could never
+    // be indexed at all. Differently-priced rows are different products, not
+    // duplicates, so the canonical is only accepted when the target charges the
+    // same effective price; otherwise the page stays self-canonical.
+    //
+    // The check is a single indexed slug lookup and runs ONLY when the RPC
+    // actually nominates another row (1,108 of 4,648 pages today), so the 3,540
+    // pages that are already their own canonical pay nothing. It also keeps
+    // this route correct on its own while supabase/migrations/
+    // 20260801120000_canonical_product_slug_price_aware.sql — which moves the
+    // same rule into the RPC's grouping key, so same-priced twins still collapse
+    // — is waiting to be applied by hand.
+    let canonicalSlug = params.slug;
+    if (canonicalCandidate && canonicalCandidate !== params.slug) {
+      try {
+        const { data: canonRow } = await supabase
+          .from("products")
+          .select("slug, price")
+          .eq("slug", canonicalCandidate)
+          .eq("is_active", true)
+          .maybeSingle();
+        if (
+          canonRow &&
+          getEffectivePrice(Number((canonRow as any).price)) ===
+            getEffectivePrice(Number((product as any).price))
+        ) {
+          canonicalSlug = canonicalCandidate;
+        }
+      } catch {
+        // Fail closed onto self-canonical: a lookup problem must never make the
+        // page declare itself a duplicate of a row we could not read.
+      }
+    }
+    // Which category this product's breadcrumb should lead through. Taking
+    // index 0 of the join — as this did — is not a rule, it is row order: 3,297
+    // of the 4,648 active products sit in BOTH a top-level category and one of
+    // its children, and on 2,493 of them Postgres hands back the parent first,
+    // so the specific shelf silently vanished from the trail (a חנוכייה linked
+    // back to חגים, 523 items, instead of חנוכה). Deepest-first and
+    // deterministic: prefer a subcategory whose parent the product is ALSO in,
+    // then any subcategory, then whatever the product has.
     const loaderCats = ((product as any).product_categories ?? [])
       .map((pc: any) => pc?.categories)
       .filter(Boolean);
-    const loaderFirstCat = loaderCats[0];
+    const catsBySlug = new Map<string, any>(loaderCats.map((c: any) => [c.slug, c]));
+    const leafCat =
+      loaderCats.find((c: any) => c.parent_slug && catsBySlug.has(c.parent_slug)) ??
+      loaderCats.find((c: any) => c.parent_slug) ??
+      loaderCats[0] ??
+      null;
+    // When the leaf is a subcategory, resolve its parent so the breadcrumb trail
+    // (JSON-LD in head + visible nav) includes the full path. On the 3,297
+    // products above the parent is already in the join, so the extra round-trip
+    // is only paid by the handful whose parent they are not filed under.
     let parentCat: { slug: string; name: string } | null = null;
-    if (loaderFirstCat?.parent_slug) {
-      try {
-        const { data } = await supabase
-          .from("categories")
-          .select("slug, name")
-          .eq("slug", loaderFirstCat.parent_slug)
-          .maybeSingle();
-        parentCat = data ?? null;
-      } catch {
-        parentCat = null;
+    if (leafCat?.parent_slug) {
+      const joinedParent = catsBySlug.get(leafCat.parent_slug);
+      if (joinedParent) {
+        parentCat = { slug: joinedParent.slug, name: joinedParent.name };
+      } else {
+        try {
+          const { data } = await supabase
+            .from("categories")
+            .select("slug, name")
+            .eq("slug", leafCat.parent_slug)
+            .maybeSingle();
+          parentCat = data ?? null;
+        } catch {
+          parentCat = null;
+        }
       }
     }
-    return { product, reviewSummary, initialReviews, parentCat, canonicalSlug };
+    return { product, reviewSummary, initialReviews, parentCat, leafCat, canonicalSlug };
   },
   head: ({ loaderData, params }) => {
     const url = `https://orzadik.com/product/${params.slug}`;
     // Canonical points at the representative of this product's name group, which
     // for a unique name is the product itself. Siblings that differ only by photo
-    // therefore consolidate onto one indexable URL instead of competing.
-    const canonicalUrl = `https://orzadik.com/product/${
-      (loaderData as any)?.canonicalSlug || params.slug
-    }`;
+    // AND cost the same therefore consolidate onto one indexable URL instead of
+    // competing; the loader refuses any candidate at a different price, so this
+    // never claims a page is a duplicate of a cheaper one.
+    const canonicalSlug = (loaderData as any)?.canonicalSlug || params.slug;
+    const canonicalUrl = `https://orzadik.com/product/${canonicalSlug}`;
+    // Everything the markup asserts about the ITEM has to be said about the URL
+    // Google is being pointed at, not about this one — otherwise the page hands
+    // Google a rel=canonical and a Product node that contradict each other.
+    const isSelfCanonical = canonicalSlug === params.slug;
     const p = loaderData?.product as any;
     const reviewSummary = (loaderData as any)?.reviewSummary as { average: number; count: number } | undefined;
     if (!p) return { meta: [{ title: "מוצר | אור זרוע לצדיק" }], links: [{ rel: "canonical", href: url }] };
@@ -213,7 +281,14 @@ export const Route = createFileRoute("/product/$slug")({
         ]
       : [];
     const cats = (p.product_categories ?? []).map((pc: any) => pc?.categories).filter(Boolean);
-    const firstCat = cats[0];
+    // Deepest-first category, resolved ONCE in the loader. head() and the body
+    // both read it from there instead of each taking index 0 of an unordered
+    // join, so the JSON-LD trail and the visible trail can no longer disagree
+    // after the client refetch.
+    const leafCat = (loaderData as any)?.leafCat as
+      | { slug: string; name: string; parent_slug: string | null }
+      | null
+      | undefined;
     const isCallOnly = cats.some((c: any) => c.slug === "esh-sheli-gold");
     // The SAME personalization gate the page body uses for `showEmbroidery`:
     // same helper, same inputs (product slug + its category slugs, both already
@@ -250,11 +325,26 @@ export const Route = createFileRoute("/product/$slug")({
       name: p.name,
       image: images,
       description: plainDesc || p.name,
+      // Row-level identifiers are emitted only by the page that IS the canonical.
+      // On a duplicate this node describes canonicalUrl, and stamping THIS row's
+      // SKU onto that URL would give Google two SKUs for one merged entity —
+      // exactly the inconsistency merchant listings are rejected for.
+      // sku/mpn are emitted UNCONDITIONALLY, including on the ~870 pages that
+      // canonicalise elsewhere. Suppressing them on duplicates was tempting but
+      // wrong on two counts: this node still carries THIS row's image,
+      // description, category and aggregateRating, so hiding only the identifier
+      // does not make it describe the twin; and src/routes/feed[.]xml.ts submits
+      // every active product to Merchant Center under its OWN URL with its own
+      // <g:mpn>, so a landing page that omits the identifier its own feed item
+      // declares is the actual inconsistency a merchant listing gets rejected
+      // for. Google ignores rel=canonical often enough that these pages do get
+      // indexed on their own; when they do, they must not present a Product with
+      // no identifier at all.
       sku: p.sku || undefined,
       mpn: p.sku || undefined,
       brand: { "@type": "Brand", name: "אור זרוע לצדיק" },
-      category: firstCat?.name,
-      url,
+      category: leafCat?.name,
+      url: canonicalUrl,
     };
     if (!isCallOnly) {
       // priceValidUntil is recommended by Google for Offer rich results;
@@ -263,7 +353,10 @@ export const Route = createFileRoute("/product/$slug")({
       validUntil.setFullYear(validUntil.getFullYear() + 1);
       productLd.offers = {
         "@type": "Offer",
-        url,
+        // Same URL as rel=canonical. The price below is safe to attach to it:
+        // the loader only accepts a canonical whose effective price equals this
+        // page's, so the offer is true of both URLs.
+        url: canonicalUrl,
         priceCurrency: "ILS",
         price: String(getEffectivePrice(Number(p.price))),
         priceValidUntil: validUntil.toISOString().slice(0, 10),
@@ -390,10 +483,12 @@ export const Route = createFileRoute("/product/$slug")({
       ...(parentCat
         ? [{ name: parentCat.name, item: `https://orzadik.com/category/${parentCat.slug}` }]
         : []),
-      ...(firstCat
-        ? [{ name: firstCat.name, item: `https://orzadik.com/category/${firstCat.slug}` }]
+      ...(leafCat
+        ? [{ name: leafCat.name, item: `https://orzadik.com/category/${leafCat.slug}` }]
         : []),
-      { name: p.name, item: url },
+      // Last crumb = the URL this page canonicalises to, so the trail lands
+      // where rel=canonical and Product.url already point.
+      { name: p.name, item: canonicalUrl },
     ];
     const breadcrumbLd = {
       "@context": "https://schema.org",
@@ -438,6 +533,11 @@ export const Route = createFileRoute("/product/$slug")({
         { name: "twitter:title", content: `${p.name} | אור זרוע לצדיק` },
         { property: "og:description", content: desc },
         { property: "og:type", content: "product" },
+        // og:url deliberately stays THIS page, unlike rel=canonical/Product.url.
+        // A collapsed twin is the same product at the same price but a DIFFERENT
+        // photo, and og:image below is this row's photo — pointing og:url at the
+        // twin would show one photo in the WhatsApp/Facebook card and open
+        // another when tapped. Social sharing has no duplicate-content cost.
         { property: "og:url", content: url },
         ...(images[0] ? [{ property: "og:image", content: images[0] }] : []),
         ...(images[0] ? [{ property: "og:image:alt", content: p.name }] : []),
@@ -515,11 +615,24 @@ function ZoomableImage({
   const LENS = 176;
 
   // Start the pan-scroll view centred on the image instead of at a corner.
+  // This container inherits the document's dir=rtl, and in an RTL scroller
+  // scrollLeft runs from -(scrollWidth - clientWidth) up to 0 — so the positive
+  // assignment this used to make was clamped straight back to 0 and the dialog
+  // opened pinned to the edge of the 2.3x image (usually blank studio
+  // background). Measured inside the live orzadik.com document with a scroller
+  // of this exact shape (300 px wide, 230%-wide child, max scroll 371):
+  // `scrollLeft = +185` lands on 1, `scrollLeft = -185` lands on -186 — the
+  // real centre. It is exactly the branch coarse pointers get (useZoomMode), so
+  // a laptop, which takes the lens branch, never sees the bug.
+  // Reading the computed direction here is SSR-safe: effects never run during
+  // render. scrollTop is unaffected by direction and is left alone.
   useEffect(() => {
     if (lensMode) return;
     const el = scrollRef.current;
     if (!el) return;
-    el.scrollLeft = (el.scrollWidth - el.clientWidth) / 2;
+    const maxLeft = el.scrollWidth - el.clientWidth;
+    const rtl = getComputedStyle(el).direction === "rtl";
+    el.scrollLeft = rtl ? -maxLeft / 2 : maxLeft / 2;
     el.scrollTop = (el.scrollHeight - el.clientHeight) / 2;
   }, [src, lensMode]);
 
@@ -603,10 +716,17 @@ function ZoomableImage({
 
 function ProductPage() {
   const { slug } = Route.useParams();
-  // parentCat is resolved once in the loader (server-side) and reused for both
-  // the JSON-LD trail in head() and the visible breadcrumb — no client query.
-  const { product: initialProduct, reviewSummary, initialReviews, parentCat: parentCategory } =
-    Route.useLoaderData();
+  // The breadcrumb's category pair (leaf + its parent) is resolved once in the
+  // loader (server-side) and reused for both the JSON-LD trail in head() and the
+  // visible trail here — no client query, and no chance of the two picking
+  // different categories out of the same unordered join.
+  const {
+    product: initialProduct,
+    reviewSummary,
+    initialReviews,
+    parentCat: parentCategory,
+    leafCat: leafCategory,
+  } = Route.useLoaderData();
   const navigate = useNavigate();
   // Desktop fine-pointer (motion allowed) gets the hover lens; everyone else the
   // touch-pannable scaled view. Resolved once, shared by every zoom slide.
@@ -939,7 +1059,20 @@ function ProductPage() {
   const variantAvailable = inPlaceVariants.length === 0 || !!selectedVariant?.inStock;
   // The single buy gate for this page — every add-to-cart entry point uses it.
   const canBuy = inStock && variantAvailable;
-  const firstCategory: any = (product.product_categories ?? [])[0]?.categories;
+  // Deepest-first category from the loader (see the pick there) — never index 0
+  // of product_categories, which is row order and drops the specific shelf on
+  // 2,493 of the 3,297 products filed under both a parent and one of its children.
+  const firstCategory: any = leafCategory ?? null;
+  // ...but the fallback DESCRIPTION sentence below must use the PARENT, not the
+  // leaf. It reads ` מתוך מבחר ה${name}`, gluing the definite article onto the
+  // category name, and that only scans when the name is a clean single noun —
+  // which parents are (חגים, כיפות, מזוזות, תכשיטים). Child names in this
+  // catalogue are compound or raw supplier strings, so the leaf would emit
+  // "מבחר הסטים טלית ותפילין", "מבחר הקרשי חלה סכינים  ומפיונים" and worst
+  // "מבחר התיק- תפ" — broken, customer-facing and indexable Hebrew, on the 142
+  // products that have no description of their own. The breadcrumb genuinely
+  // wants the leaf; this sentence genuinely wants the parent.
+  const copyCategory: any = parentCategory ?? leafCategory ?? null;
   const isCallOnly = (product.product_categories ?? []).some(
     (pc: any) => pc?.categories?.slug === "esh-sheli-gold"
   );
@@ -1630,7 +1763,7 @@ function ProductPage() {
                   // no material, dimension, or availability the DB doesn't have.
                   <p className="text-sm text-foreground/90 leading-relaxed">
                     {product.name}
-                    {firstCategory ? ` מתוך מבחר ה${firstCategory.name}` : ""} של אור זרוע לצדיק —
+                    {copyCategory ? ` מתוך מבחר ה${copyCategory.name}` : ""} של אור זרוע לצדיק —
                     תשמישי קדושה ויודאיקה הנבחרים בהקפדה על כשרות והידור.
                     {showEmbroidery ? " לפריט זה ניתן להוסיף התאמה אישית (רקמה/חריטה) בעמוד ההזמנה." : ""}
                     {" "}יש לכם שאלה על הפריט? נשמח לעזור בטלפון או בוואטסאפ.

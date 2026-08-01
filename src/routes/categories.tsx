@@ -4,17 +4,120 @@ import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/PageHeader";
 import { OCCASION_COLLECTIONS } from "@/lib/collections";
 
-// /categories is the only hub that links all 105 categories. Fetching it in a
-// route loader (rather than only in useQuery) is what puts those links into the
-// server-rendered HTML — a client-only useQuery renders an empty grid for every
-// crawler that does not execute JS.
+// ---------------------------------------------------------------------------
+// "Is this category real enough to advertise?" — ONE definition, exported from
+// the hub that owns the category link graph and reused by the header drawer,
+// /sitemap.xml and the category page's robots tag, so those four surfaces agree.
+// (Importing a helper out of a route module is the shape SiteHeader already uses
+// for sanitizeTerm from /shop.)
+//
+// NOT yet routed through this predicate — two surfaces still decide for
+// themselves, so "every surface agrees" is not true yet:
+//   • src/routes/index.tsx (fetchOtherCategories) keeps a hand-maintained
+//     blacklist. It is a strict superset of HIDDEN_CATEGORY_SLUGS: it also drops
+//     `aluminum`, `bencher-stands` and `liqueur-sets`, which DO hold active
+//     products, as editorial "1 product, duplicate" calls. Replacing it means
+//     deciding which of those exclusions are editorial and which were really
+//     just stock checks — an owner call, not a mechanical one.
+//   • src/components/catalog/SubcategoryChips.tsx filters on parent_slug only,
+//     against the unfiltered ["all-cats"] cache. Harmless today only because all
+//     nine dead categories happen to be top-level — data luck, not a guarantee.
+//
+// Measured against prod on 2026-08-01: 9 of the 102 categories hold ZERO active
+// products. Four of those nine carry percent-encoded Hebrew slugs (e.g.
+// %d7%9e%d7%99%d7%aa%d7%95%d7%92 = מיתוג) whose /category/<slug> URL answers a
+// genuine 404 — the router decodes %d7.. back to Hebrew, which never matches
+// the literal encoded string stored in categories.slug, the same hazard the
+// 2026-07 slug cleanup fixed for the four PRODUCT-BEARING encoded categories.
+// All four 404s were nonetheless <loc> entries in the live sitemap AND "url"
+// values in this page's own ItemList, and eight of the nine sat in the mobile
+// drawer dead-ending on "לא נמצאו מוצרים" (one of them labelled with the
+// literal English word "sale").
+// ---------------------------------------------------------------------------
+
+/** Never advertised even if they gain products: `uncategorized` is the
+ *  importer's catch-all bucket and `sale` is an empty placeholder whose NAME is
+ *  the English string "sale" in an otherwise all-Hebrew nav. */
+export const HIDDEN_CATEGORY_SLUGS = new Set(["sale", "uncategorized"]);
+
+/** PostgREST embed carrying a category's active-product count. Append it to any
+ *  `categories` select and pair it with `.eq("products.is_active", true)`:
+ *  PostgREST applies an embedded filter to the aggregate itself (verified on
+ *  prod — swap the filter for `price=gt.1000` and the same embed returns 29 for
+ *  talitot instead of 55). It resolves the many-to-many through
+ *  product_categories, so no view or RPC is needed, and being an aggregate it
+ *  is immune to the 1000-row select cap. */
+export const CATEGORY_COUNT_EMBED = "products(count)";
+
+export type CountedCategory = {
+  slug: string;
+  parent_slug?: string | null;
+  products?: { count: number }[] | null;
+};
+
+/** Active products assigned directly to this row (0 when the embed is absent). */
+export const directProductCount = (c: CountedCategory) =>
+  Number(c.products?.[0]?.count ?? 0);
+
+/** Single-row form of the test, for a surface that already knows its own count
+ *  (the category page decides its own robots tag with it). */
+export function isListableCategory(
+  slug: string | null | undefined,
+  activeProductCount: number,
+): boolean {
+  if (!slug || HIDDEN_CATEGORY_SLUGS.has(slug)) return false;
+  // Any '%' in a stored slug means the URL cannot round-trip through the router
+  // — it 404s — so linking it costs a dead tap and a "Submitted URL not found"
+  // in Search Console on every sitemap fetch.
+  if (slug.includes("%")) return false;
+  return activeProductCount > 0;
+}
+
+/**
+ * Keep only the categories worth linking to / submitting for indexing.
+ *
+ * Deliberately uses the DIRECT count, with no roll-up of a child's stock into
+ * its parent. A roll-up looks kinder — "a category that exists only to group
+ * children survives" — but it makes this function disagree with the category
+ * PAGE, which is the other half of the same decision: that page loads only the
+ * products assigned directly to its own row (fetchCategoryProducts reads
+ * product_categories for one category id and never descends), so a grouping
+ * parent with stocked children but no direct rows would be submitted in
+ * sitemap.xml, tiled here and listed in the drawer while its own page rendered
+ * "לא נמצאו מוצרים" and emitted `noindex`. That is "Submitted URL marked
+ * noindex" in Search Console plus the dead-end drawer tap — precisely the two
+ * symptoms this predicate was written to remove.
+ *
+ * It is latent rather than live today only because the ART Judaica importer
+ * double-assigns every product to BOTH the leaf and the parent, so no parent
+ * currently has a zero direct count. One hand-made grouping category, or one
+ * importer change that stops writing the parent row, would have reintroduced
+ * the bug on three surfaces at once. Matching the page is the invariant that
+ * actually holds.
+ */
+export function listableCategories<T extends CountedCategory>(rows: T[]): T[] {
+  return rows.filter((c) => isListableCategory(c.slug, directProductCount(c)));
+}
+
+// /categories is the only hub that links the whole category graph. Fetching it
+// in a route loader (rather than only in useQuery) is what puts those links into
+// the server-rendered HTML — a client-only useQuery renders an empty grid for
+// every crawler that does not execute JS.
 async function fetchAllCategories() {
   const { data, error } = await supabase
     .from("categories")
-    .select("id, slug, name, description, parent_slug, sort_order")
+    // The count embed rides along on the same round-trip: this hub used to
+    // render every row it got back, so nine dead-end categories were both
+    // linked as tiles and named in the ItemList JSON-LD below.
+    .select(
+      `id, slug, name, description, parent_slug, sort_order, ${CATEGORY_COUNT_EMBED}`,
+    )
+    // Embedded filter — see CATEGORY_COUNT_EMBED. Without it a category whose
+    // products were all deactivated would still count as stocked.
+    .eq("products.is_active", true)
     .order("sort_order")
     .order("name")
-    // PostgREST silently caps an unbounded select at 1000 rows. 105 categories
+    // PostgREST silently caps an unbounded select at 1000 rows. 102 categories
     // today, but the bound is explicit so growth fails loudly rather than
     // quietly dropping links off the hub page.
     .range(0, 999);
@@ -31,11 +134,13 @@ export const Route = createFileRoute("/categories")({
     const url = "https://orzadik.com/categories";
     const description =
       "כל קטגוריות תשמישי הקדושה והיודאיקה: טליתות, כיסויי טלית ותפילין, נרתיקי מזוזה, גביעי קידוש, חנוכיות, מארזים לחתנים, סטי חלאקה ותכשיטי זהב. בחרו עולם תוכן והתחילו לקנות.";
-    // Every row is a real /category/<slug> page rendered as a link on this hub,
-    // so an ItemList of them is truthful. numberOfItems is the genuine category
-    // count (no image nodes — categories carry no image here — so the markup
-    // stays lean). Same paged loader data that fills the visible grid.
-    const cats = (loaderData?.categories ?? []) as CategoryRow[];
+    // Every LISTED row is a real /category/<slug> page rendered as a link on
+    // this hub, so an ItemList of them is truthful. It stopped being truthful
+    // once the raw table was used: four of the rows named here were URLs that
+    // answer 404, so the same predicate that filters the visible grid below has
+    // to filter the markup too. numberOfItems is the genuine listed count (no
+    // image nodes — categories carry no image here — so the markup stays lean).
+    const cats = listableCategories((loaderData?.categories ?? []) as CategoryRow[]);
     const collectionLd = {
       "@context": "https://schema.org",
       "@type": "CollectionPage",
@@ -87,8 +192,14 @@ export const Route = createFileRoute("/categories")({
 function CategoriesPage() {
   const { categories: initialCategories } = Route.useLoaderData();
 
+  // Deliberately NOT the shared ["all-cats"] key. SubcategoryChips owns that
+  // key with a select that has no count embed, and it fills the cache on every
+  // /category/<slug> visit — the most common way in here. Sharing the key would
+  // hand this page rows with no counts, listableCategories would read every one
+  // as zero, and the whole grid would vanish. One extra small select is the
+  // cheap side of that trade.
   const { data = [] } = useQuery({
-    queryKey: ["all-cats"],
+    queryKey: ["all-cats-counted"],
     queryFn: fetchAllCategories,
     // Seed from the SSR loader so the whole category link graph is present in
     // the initial HTML instead of appearing only after hydration.
@@ -98,8 +209,15 @@ function CategoriesPage() {
   // Render one card per top-level category with its subcategories inside it.
   // A flat list would interleave the 25 parents and 47 children alphabetically,
   // which reads as noise once the full supplier catalog is loaded.
-  const tops = data.filter((c) => !c.parent_slug);
-  const childrenOf = (slug: string) => data.filter((c) => c.parent_slug === slug);
+  //
+  // Filtered FIRST, and once, so parents and child chips are held to the same
+  // test: this hub was rendering all 102 rows with no product-count filter, so
+  // a shopper on the store's main browse page could tap "מוצרי חגים" or
+  // "סט טלית תפילין" — headline categories for this exact store — and get a
+  // 404 or an empty "לא נמצאו מוצרים" page.
+  const listed = listableCategories(data);
+  const tops = listed.filter((c) => !c.parent_slug);
+  const childrenOf = (slug: string) => listed.filter((c) => c.parent_slug === slug);
 
   return (
     <div className="container mx-auto px-4 py-10">

@@ -7,6 +7,7 @@ import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { sanitizeTerm } from "@/routes/shop";
+import { CATEGORY_COUNT_EMBED, listableCategories } from "@/routes/categories";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { CartDrawer } from "@/components/cart/CartDrawer";
 import { ClubBadge } from "@/components/ClubBadge";
@@ -22,7 +23,15 @@ import logoUrl from "@/assets/logo.webp";
 const RECENT_SEARCHES_KEY = "ozl-recent-search-v1";
 const RECENT_SEARCHES_MAX = 5;
 
-type Cat = { id: string; slug: string; name: string };
+type Cat = {
+  id: string;
+  slug: string;
+  name: string;
+  // parent_slug + the count embed are fetched only so listableCategories() can
+  // do its job (see the query below); neither is rendered.
+  parent_slug: string | null;
+  products?: { count: number }[] | null;
+};
 
 type SearchSuggestion = {
   id: string;
@@ -36,8 +45,10 @@ type SearchSuggestion = {
 // ---------------------------------------------------------------------------
 // Desktop nav row — curated links to REAL category slugs (verified in the DB).
 // Owner: to swap a destination, edit the <Link> labels/slugs in the nav row
-// below. TALITOT_SLUG is the store's percent-encoded talitot category slug —
-// the exact same slug the homepage hero CTA links to; keep it verbatim.
+// below. TALITOT_SLUG is the same slug the homepage hero CTA links to; keep the
+// two in step. (It used to be the percent-encoded Hebrew slug — the 2026-07
+// cleanup renamed that row to clean ASCII precisely because the encoded form
+// 404s through the router.)
 // ---------------------------------------------------------------------------
 const TALITOT_SLUG = "talitot";
 
@@ -134,18 +145,26 @@ export function SiteHeader() {
     staleTime: 10 * 60 * 1000,
     gcTime: 60 * 60 * 1000,
     queryFn: async () => {
-      // Top level only. With the full supplier catalog loaded there are 72
-      // categories, and listing every subcategory turns the drawer into a
-      // 70-item scroll. Subcategories are reachable from /categories.
+      // The WHOLE tree is fetched (102 small rows, cached for the session) but
+      // only the top level is rendered: with the full supplier catalog loaded
+      // there are 56 top-level categories, and listing every subcategory turns
+      // the drawer into a 100-item scroll. Subcategories stay reachable from
+      // /categories. The children are here purely so listableCategories() can
+      // roll a child's stock up to its parent before filtering.
       const { data, error } = await supabase
         .from("categories")
-        .select("id, slug, name")
-        .is("parent_slug", null)
-        .not("slug", "in", "(uncategorized)")
+        .select(`id, slug, name, parent_slug, ${CATEGORY_COUNT_EMBED}`)
+        .eq("products.is_active", true)
         .order("sort_order")
         .order("name");
       if (error) throw error;
-      return data as Cat[];
+      // The drawer is the ONLY navigation on a phone, and it was listing every
+      // top-level row with just `uncategorized` excluded — 8 of those 55 entries
+      // held zero active products and dead-ended on "לא נמצאו מוצרים", three of
+      // them above the fold (positions 3, 8, 9) and one labelled with the
+      // English word "sale". Four of the eight were outright 404s. The shared
+      // predicate replaces the hand-maintained exclusion list.
+      return listableCategories((data ?? []) as Cat[]).filter((c) => !c.parent_slug);
     },
   });
 

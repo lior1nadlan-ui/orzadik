@@ -1,6 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { OCCASION_COLLECTIONS } from "@/lib/collections";
+// One shared "is this category real?" predicate — the same one the /categories
+// hub, the header drawer and the category page's robots tag read, so the
+// sitemap can never advertise a URL the site itself refuses to link.
+import { CATEGORY_COUNT_EMBED, listableCategories } from "@/routes/categories";
 
 // Dynamic sitemap served at /sitemap.xml (referenced by public/robots.txt).
 // Uses the service-role client so it can read regardless of RLS/grant nuances.
@@ -55,12 +59,26 @@ const loc = (path: string) => `${SITE}${path.startsWith("/") ? path : "/" + path
 // reached the sitemap — the rest were silently missing from indexing. Page
 // through explicitly instead of trusting the default.
 const PAGE = 1000;
+// `error` is checked, not discarded. Swallowing it turned any query failure into
+// `data: null` -> `[]` -> a 200 sitemap that silently omits a whole entity type
+// with nothing logged — and the category query is no longer the trivially safe
+// `select("slug, image_url")` it used to be: it now depends on PostgREST
+// resolving a many-to-many aggregate embed. Throwing puts that failure into the
+// route's existing catch block instead of shipping Google a category-free
+// sitemap that looks perfectly healthy.
 async function fetchAll<T>(
-  build: () => { range: (from: number, to: number) => PromiseLike<{ data: T[] | null }> },
+  build: () => {
+    range: (from: number, to: number) => PromiseLike<{ data: T[] | null; error?: unknown }>;
+  },
+  label = "rows",
 ): Promise<T[]> {
   const out: T[] = [];
   for (let from = 0; ; from += PAGE) {
-    const { data } = await build().range(from, from + PAGE - 1);
+    const { data, error } = await build().range(from, from + PAGE - 1);
+    if (error) {
+      console.error(`[sitemap] ${label} query failed at offset ${from}:`, error);
+      throw error;
+    }
     const batch = data ?? [];
     out.push(...batch);
     if (batch.length < PAGE) return out;
@@ -82,7 +100,18 @@ export const Route = createFileRoute("/sitemap.xml")({
                 .eq("is_active", true)
                 .order("slug"),
             ),
-            fetchAll<any>(() => supabaseAdmin.from("categories").select("slug, image_url").order("slug")),
+            fetchAll<any>(() =>
+              supabaseAdmin
+                .from("categories")
+                // parent_slug + the active-product count feed listableCategories()
+                // below. Without them this select could only be filtered by a
+                // two-slug blacklist, which is how seven zero-product categories
+                // ended up submitted for indexing — four of them at URLs that
+                // answer 404.
+                .select(`slug, image_url, parent_slug, ${CATEGORY_COUNT_EMBED}`)
+                .eq("products.is_active", true)
+                .order("slug"),
+            ),
             fetchAll<any>(() =>
               supabaseAdmin
                 .from("articles")
@@ -113,9 +142,6 @@ export const Route = createFileRoute("/sitemap.xml")({
             .toISOString()
             .slice(0, 10);
 
-          // Thin/placeholder categories that shouldn't be advertised for indexing.
-          const CAT_BLACKLIST = new Set(["sale", "uncategorized"]);
-
           const urls: string[] = [];
           for (const s of STATIC) {
             urls.push(
@@ -129,8 +155,12 @@ export const Route = createFileRoute("/sitemap.xml")({
               `<url><loc>${esc(loc(s.path))}</loc><lastmod>${freshest}</lastmod><changefreq>${s.freq}</changefreq><priority>${s.pri}</priority></url>`,
             );
           }
-          for (const c of categories ?? []) {
-            if (!c.slug || CAT_BLACKLIST.has(c.slug)) continue;
+          // Only categories that both resolve and hold products. The old
+          // two-slug blacklist submitted 100 category URLs, of which four were
+          // hard 404s (percent-encoded slugs) and three more were live but
+          // empty — seven soft-404/thin-content candidates competing for crawl
+          // budget with the ~3,540 real product pages below.
+          for (const c of listableCategories(categories ?? [])) {
             urls.push(
               `<url><loc>${esc(loc(`/category/${c.slug}`))}</loc>${imgTag((c as any).image_url)}<changefreq>weekly</changefreq><priority>0.7</priority></url>`,
             );
@@ -154,8 +184,18 @@ export const Route = createFileRoute("/sitemap.xml")({
           const repByName = new Map<string, any>();
           for (const p of products ?? []) {
             if (!p.slug) continue;
+            // The grouping key MUST match what canonical_product_slug groups on,
+            // or the sitemap and the canonical tag disagree about which URLs
+            // exist. That function is now price-aware — differently-priced rows
+            // sharing a name are no longer collapsed, because a ₪141 page is not
+            // a duplicate of a ₪94 one and the cheapest-wins election was making
+            // the expensive models unindexable. Grouping on name alone here
+            // would leave the 238 URLs that just became self-canonical missing
+            // from the sitemap entirely.
             // A missing name_norm can't be grouped — keep the row on its own key.
-            const key = (p as any).name_norm || `~${p.slug}`;
+            const key = (p as any).name_norm
+              ? `${(p as any).name_norm}|${String((p as any).price)}`
+              : `~${p.slug}`;
             const cur = repByName.get(key);
             if (!cur || better(p, cur) < 0) repByName.set(key, p);
           }
