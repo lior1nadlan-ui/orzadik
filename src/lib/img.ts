@@ -1,8 +1,8 @@
 // Supabase Storage image-transform URLs for list/card thumbnails.
 //
 // Product images live in the `product-images` bucket at their full upload size
-// (mostly 500×500 and 1000×1000 WebP). Cards render them at ~200–400 CSS px, so
-// serving the original ships 2–3× more bytes than the layout can use. The
+// (mostly 500×500 and 1000×1000 WebP). Cards render them at ~200-400 CSS px, so
+// serving the original ships 2-3× more bytes than the layout can use. The
 // storage render endpoint resizes on the fly and content-negotiates the output
 // format from the request's Accept header.
 //

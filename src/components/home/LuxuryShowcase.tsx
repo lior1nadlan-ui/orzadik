@@ -67,7 +67,7 @@ const DB_SLUGS = [FLAGSHIP_ITEM.slug, ...STACKED_ITEMS.map((s) => s.slug)];
 /**
  * Rendered width of a stacked card: ~450 CSS px at the desktop breakpoint,
  * half-width on mobile (the pair sits two-up). We ask the storage transform for
- * this size instead of the 500–1000 px original.
+ * this size instead of the 500-1000 px original.
  */
 const STACKED_THUMB_W = 600;
 

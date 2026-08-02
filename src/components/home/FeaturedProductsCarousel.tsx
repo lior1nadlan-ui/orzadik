@@ -17,7 +17,7 @@ const MIN_PRODUCTS = 4;
 /**
  * Height of the populated section, measured in-browser at the widths where the
  * fluid container changes size (max per range, so it can only ever over-reserve):
- *   <768px 744 · 768–1279px 817 · >=1280px 885
+ *   <768px 744 · 768-1279px 817 · >=1280px 885
  * Only used when the caller asks for it — see `reserveSpace`.
  */
 const RESERVED_HEIGHT = " min-h-[750px] md:min-h-[820px] xl:min-h-[890px]";

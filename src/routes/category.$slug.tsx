@@ -318,7 +318,7 @@ function isSortMode(v: unknown): v is SortMode {
 // Static price-range buckets for the client-side facet. Bounds are the price the
 // customer actually pays — getEffectivePrice(price) — so the labels match the
 // numbers shown on every card. Ranges are contiguous and non-overlapping:
-// עד ₪100 (≤100), ₪100–300 (100<x≤300), ₪300+ (>300). Pure filtering — the
+// עד ₪100 (≤100), ₪100-300 (100<x≤300), ₪300+ (>300). Pure filtering — the
 // buckets carry no sale/discount language, only the paid price.
 type PriceBucketId = "0-100" | "100-300" | "300-plus";
 
@@ -346,7 +346,7 @@ function CategoryPage() {
   // filter on one category, then use a subcategory chip or the header drawer, and
   // the next category rendered with a CLEAN url, the correct <h1>, and
   // "0 מוצרים · לא נמצאו מוצרים" — including /category/marazim-chatanim, where all
-  // eleven ₪1,150–1,800 groom boxes vanished. Reloading "fixed" it, which is
+  // eleven ₪1,150-1,800 groom boxes vanished. Reloading "fixed" it, which is
   // exactly why it stayed invisible: nobody reloads, they leave.
   //
   // Deriving costs nothing — the router already re-renders on a param change — and

@@ -207,7 +207,7 @@ const FAQ_ITEMS: { q: string; a: string }[] = [
   },
   {
     q: "כמה זמן לוקח המשלוח?",
-    a: `המשלוח מגיע תוך ${CONSUMER_POLICY.deliveryMinDays}–${CONSUMER_POLICY.deliveryMaxDays} ימי עסקים לכל רחבי הארץ. מוצרים עם רקמה אישית עשויים לקחת מעט יותר זמן. אפשר לעקוב אחר מצב ההזמנה בעמוד "מעקב הזמנה" עם מספר ההזמנה וכתובת הדוא"ל, וכאשר מתקבל מספר מעקב מחברת השילוח הוא מופיע שם.`,
+    a: `המשלוח מגיע תוך ${CONSUMER_POLICY.deliveryMinDays}-${CONSUMER_POLICY.deliveryMaxDays} ימי עסקים לכל רחבי הארץ. מוצרים עם רקמה אישית עשויים לקחת מעט יותר זמן. אפשר לעקוב אחר מצב ההזמנה בעמוד "מעקב הזמנה" עם מספר ההזמנה וכתובת הדוא"ל, וכאשר מתקבל מספר מעקב מחברת השילוח הוא מופיע שם.`,
   },
   {
     q: "האם ניתן להחזיר מוצרים?",
@@ -729,7 +729,7 @@ function HomePage() {
             {[
               {
                 title: "משלוח עד הבית",
-                desc: `אספקה משוערת ${CONSUMER_POLICY.deliveryMinDays}–${CONSUMER_POLICY.deliveryMaxDays} ימי עסקים לכל הארץ, ארוז בקפידה — עם מעקב אחר ההזמנה בכל שלב.`,
+                desc: `אספקה משוערת ${CONSUMER_POLICY.deliveryMinDays}-${CONSUMER_POLICY.deliveryMaxDays} ימי עסקים לכל הארץ, ארוז בקפידה — עם מעקב אחר ההזמנה בכל שלב.`,
                 icon: <IconTruck className="w-10 h-10 md:w-12 md:h-12" />,
               },
               {

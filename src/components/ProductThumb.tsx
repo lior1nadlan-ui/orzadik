@@ -37,7 +37,7 @@ export function ProductThumb({
   priority?: boolean;
   /** Load eagerly (an above-the-fold row). Falls back to `priority` when unset. */
   eager?: boolean;
-  /** fetchPriority="high" (only the 1–2 LCP tiles). Falls back to `priority` when unset. */
+  /** fetchPriority="high" (only the 1-2 LCP tiles). Falls back to `priority` when unset. */
   highPriority?: boolean;
   placeholderClassName?: string;
 }) {
@@ -65,7 +65,7 @@ export function ProductThumb({
       : undefined;
 
   // eager and fetchPriority are decoupled: an above-the-fold ROW can load eager
-  // while only the first 1–2 tiles claim high fetchPriority. Both default to the
+  // while only the first 1-2 tiles claim high fetchPriority. Both default to the
   // legacy `priority` flag so untouched callers keep their current behaviour.
   const isEager = eager ?? priority;
   const isHigh = highPriority ?? priority;
