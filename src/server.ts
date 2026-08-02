@@ -216,11 +216,31 @@ function renamedProductSlug(pathname: string): string | undefined {
 // Nitro's `cloudflare:scheduled` hook.
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
-    // Canonicalize host: 301-redirect www → apex so all SEO signals concentrate
-    // on https://orzadik.com and there's no crawlable duplicate host.
+    // Canonicalize the ORIGIN in one hop: scheme first, then host, then redirect
+    // once if either changed. Doing them as two separate 301s would make
+    // http://www.orzadik.com cost two round-trips and dilute the signal across
+    // an intermediate URL.
+    //
+    // The scheme half was measured missing on 2026-08-02: http://orzadik.com/
+    // answered 200, not a redirect, so every one of the ~3,900 indexable pages
+    // had a crawlable insecure twin. Cloudflare's "Always Use HTTPS" toggle is
+    // the other way to fix it and is strictly better (it never reaches the
+    // Worker at all) — this is the belt to that braces, and it keeps the
+    // guarantee in code where it is reviewable rather than in a dashboard
+    // setting nobody can see from the repo.
+    //
+    // Protocol detection: behind Cloudflare the Worker can be handed a request
+    // whose URL already says https even when the visitor used http, so the
+    // `x-forwarded-proto` header is checked as well as the URL scheme. Only an
+    // explicit "http" counts — an absent or unexpected header must never
+    // trigger a redirect, or a misconfigured edge could produce a loop.
     const reqUrl = new URL(request.url);
-    if (reqUrl.hostname === "www.orzadik.com") {
-      reqUrl.hostname = "orzadik.com";
+    const forwardedProto = request.headers.get("x-forwarded-proto")?.trim().toLowerCase();
+    const isInsecure = reqUrl.protocol === "http:" || forwardedProto === "http";
+    const isWww = reqUrl.hostname === "www.orzadik.com";
+    if (isInsecure || isWww) {
+      if (isInsecure) reqUrl.protocol = "https:";
+      if (isWww) reqUrl.hostname = "orzadik.com";
       return new Response(null, { status: 301, headers: { Location: reqUrl.toString() } });
     }
     // Renamed product slugs. Mutating only `pathname` keeps any query string

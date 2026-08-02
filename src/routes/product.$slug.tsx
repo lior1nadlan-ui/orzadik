@@ -371,7 +371,7 @@ export const Route = createFileRoute("/product/$slug")({
         // Every figure is READ from the constant the rest of the app uses and
         // is never re-typed here: SHIPPING_FLAT (lib/pricing.ts) is the fee the
         // checkout actually charges, and CONSUMER_POLICY.deliveryMin/MaxDays
-        // (lib/business.ts) is the same 3–14 business-day window published in
+        // (lib/business.ts) is the same 3-14 business-day window published in
         // /terms §6, in the delivery line on this page and in the cart. So the
         // markup cannot drift from — or promise faster than — the visible text.
         shippingDetails: {
@@ -412,7 +412,7 @@ export const Route = createFileRoute("/product/$slug")({
             },
             // The window is counted in BUSINESS days — /terms §6 excludes
             // Friday, Saturday, holiday eves and holidays — so the shipping
-            // week is Sunday–Thursday. Without this, Google reads 3–14 as
+            // week is Sunday–Thursday. Without this, Google reads 3-14 as
             // calendar days and would advertise delivery faster than promised.
             // (This does not contradict the LocalBusiness node in __root.tsx,
             // which omits opening hours on purpose: the store's counter hours
@@ -1399,7 +1399,7 @@ function ProductPage() {
           <div className="mb-5 space-y-2">
             {canBuy ? (
               // Availability only. The single binding delivery statement lives
-              // in the row below (3–14 ימי עסקים) — no speed claim here.
+              // in the row below (3-14 ימי עסקים) — no speed claim here.
               // Uses canBuy so the badge can never say "במלאי" next to a
               // disabled buy button when every size is sold out.
               <span className="inline-flex items-center gap-1.5 text-sm font-medium text-green-700">
@@ -1775,7 +1775,7 @@ function ProductPage() {
               <AccordionTrigger className="font-display text-base">משלוחים</AccordionTrigger>
               <AccordionContent>
                 <p className="text-sm text-muted-foreground leading-relaxed">
-                  משלוח עד הבית לכל רחבי הארץ, אספקה משוערת {CONSUMER_POLICY.deliveryMinDays}–{CONSUMER_POLICY.deliveryMaxDays} ימי עסקים ממועד אישור ההזמנה. פרטים מלאים ב
+                  משלוח עד הבית לכל רחבי הארץ, אספקה משוערת {CONSUMER_POLICY.deliveryMinDays}-{CONSUMER_POLICY.deliveryMaxDays} ימי עסקים ממועד אישור ההזמנה. פרטים מלאים ב
                   <Link
                     to="/shipping"
                     className="text-accent underline underline-offset-4 [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-strong"

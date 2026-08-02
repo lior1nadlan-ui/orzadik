@@ -374,7 +374,7 @@ function IconShieldCheck({ className }: { className?: string }) {
 }
 
 // Three house facts, each already asserted in FAQ_ITEMS: personal embroidery &
-// engraving, careful selection, and 3–14-day home delivery. Nothing new is
+// engraving, careful selection, and 3-14-day home delivery. Nothing new is
 // claimed here — the strip only restates truths stated in the FAQ.
 // The middle badge used to read "כשרות מהודרת עם תעודות", which asserted a
 // certificate for EVERY product — candlesticks and gold jewelry included — and
@@ -1089,7 +1089,7 @@ function RecentlyViewedRail() {
 /**
  * Height of the populated "שאר הקטגוריות" section, measured in-browser at the
  * widths where the fluid container changes size (max per range, so it can only
- * ever over-reserve): <768px 528 · 768–1279px 536 · >=1280px 589.
+ * ever over-reserve): <768px 528 · 768-1279px 536 · >=1280px 589.
  */
 const OTHER_CATS_RESERVED_HEIGHT = " min-h-[530px] md:min-h-[540px] xl:min-h-[590px]";
 
