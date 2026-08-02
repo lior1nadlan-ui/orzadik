@@ -202,7 +202,12 @@ function AccessibilityPage() {
           <li><strong>שם הרכז:</strong> רכז הנגישות, אור זרוע לצדיק</li>
           <li><strong>דוא"ל:</strong> <a href={`mailto:${BUSINESS.accessibilityEmail}`} className="text-accent underline-offset-4 [@media(hover:hover)_and_(pointer:fine)]:hover:underline">{BUSINESS.accessibilityEmail}</a></li>
           <li><strong>טלפון:</strong> <a href={`tel:${BUSINESS.phone}`} className="text-accent underline-offset-4 [@media(hover:hover)_and_(pointer:fine)]:hover:underline">{BUSINESS.phoneDisplay}</a> · ניתן גם להשאיר פנייה דרך <Link to="/contact">עמוד צור קשר</Link>.</li>
-          <li><strong>שעות מענה:</strong> ימים א'-ה', 09:00-17:00 (למעט ערבי חג וחגים).</li>
+          {/* Kept in step with /contact and with openingHoursSpecification in
+              __root.tsx — all three now state the shop's real Business Profile
+              hours. This page is a statutory accessibility declaration under
+              תקנות שוויון זכויות, so the response window it publishes has to be
+              one the business can actually keep. */}
+          <li><strong>שעות מענה:</strong> ראשון-שלישי 9:30-14:00 ו-16:00-19:00, רביעי-חמישי 9:30-12:00 ו-16:00-19:00, שישי 9:30-12:00 (למעט ערבי חג וחגים).</li>
         </ul>
         <p>
           אנו מתחייבים להגיב לפניית נגישות תוך זמן סביר ולא יאוחר מ-30 יום ממועד קבלת הפנייה,

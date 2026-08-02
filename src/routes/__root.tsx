@@ -428,11 +428,53 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           // advertise a payment method the store cannot actually accept.
           paymentAccepted: "Credit Card",
           priceRange: "₪₪",
-          // NOTE: no `openingHoursSpecification` here on purpose. Nothing in the
-          // codebase or the DB records the store's opening hours, and publishing
-          // invented hours in structured data would be a business promise the
-          // store never made — and would send real customers to a closed door.
-          // Add it only once the owner supplies real hours.
+          // Opening hours, read on 2026-08-03 from the shop's OWN Google Business
+          // Profile panel (the record Google itself serves for this business),
+          // parsed out of the hours table twice and byte-identical both times.
+          //
+          // This block was previously withheld because three different public
+          // sources disagreed and none of them was authoritative:
+          //   easy.co.il  Sun-Thu 09:30-14:00 + 16:00-19:00
+          //   Instagram   Sun-Thu 09:30-19:30 straight, Fri 09:00-12:30
+          //   this site   09:00-17:00 (phone-answering hours, a third answer)
+          // The Business Profile settles it, and shows BOTH of the others are
+          // wrong: Wednesday and Thursday close at 12:00, not 14:00, and the
+          // wider Instagram hours were an intention a pinned post itself says the
+          // war prevented. Publishing hours for a physical shop is exactly where
+          // being wrong sends a real customer to a closed door, so the rule is
+          // unchanged — hours come from the owner's own authoritative record or
+          // they do not ship. That record now exists and is readable.
+          //
+          // Sun-Tue and Wed-Thu differ, so they are separate specs rather than
+          // one dayOfWeek array. Saturday is omitted: in schema.org a day absent
+          // from openingHoursSpecification is closed, which is correct for a
+          // Judaica shop on Shabbat and is what the profile says.
+          openingHoursSpecification: [
+            {
+              "@type": "OpeningHoursSpecification",
+              dayOfWeek: ["Sunday", "Monday", "Tuesday"],
+              opens: "09:30",
+              closes: "14:00",
+            },
+            {
+              "@type": "OpeningHoursSpecification",
+              dayOfWeek: ["Wednesday", "Thursday"],
+              opens: "09:30",
+              closes: "12:00",
+            },
+            {
+              "@type": "OpeningHoursSpecification",
+              dayOfWeek: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday"],
+              opens: "16:00",
+              closes: "19:00",
+            },
+            {
+              "@type": "OpeningHoursSpecification",
+              dayOfWeek: "Friday",
+              opens: "09:30",
+              closes: "12:00",
+            },
+          ],
           //
           // The canonical Google Business Profile place URL. It replaces a
           // "maps/search/?api=1&query=<address string>" URL, which asks Google
