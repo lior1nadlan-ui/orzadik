@@ -33,7 +33,7 @@ export function categoryFaq(categoryName: string): FaqItem[] {
     },
     {
       q: `מהם זמני המשלוח למוצרים ${inCat}?`,
-      a: `אנו שולחים עד הבית בכל רחבי ישראל. זמן האספקה המשוער הוא ${CONSUMER_POLICY.deliveryMinDays}–${CONSUMER_POLICY.deliveryMaxDays} ימי עסקים ממועד אישור ההזמנה.`,
+      a: `אנו שולחים עד הבית בכל רחבי ישראל. זמן האספקה המשוער הוא ${CONSUMER_POLICY.deliveryMinDays}-${CONSUMER_POLICY.deliveryMaxDays} ימי עסקים ממועד אישור ההזמנה.`,
     },
     {
       q: `מה מדיניות ההחזרות וההחלפות?`,

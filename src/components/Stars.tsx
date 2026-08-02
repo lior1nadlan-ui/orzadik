@@ -42,7 +42,7 @@ export function Stars({
 }
 
 /**
- * Interactive 1–5 star picker for the review form.
+ * Interactive 1-5 star picker for the review form.
  *
  * CONTRAST — this is the reason the file changed. Selection state is signalled
  * ONLY by the star fill, which makes it a non-text contrast target under WCAG
