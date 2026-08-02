@@ -27,7 +27,7 @@ import { AccessibilityWidget, applySavedA11ySettings } from "@/components/Access
 // build runs without VITE_SUPABASE_URL set.
 const SUPABASE_ORIGIN =
   import.meta.env.VITE_SUPABASE_URL || "https://whtjslgrrfzehivrknuv.supabase.co";
-import { BUSINESS } from "@/lib/business";
+import { BUSINESS, SOCIAL_PROFILES, GOOGLE_PLACE_URL } from "@/lib/business";
 import appCss from "../styles.css?url";
 
 function NotFoundComponent() {
@@ -449,7 +449,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           // /g/11xt21675j and category gcid:judaica_store. Five independent
           // fields match data already in this node, so this is the right place
           // and not a lookalike.
-          hasMap: "https://maps.google.com/?cid=1527663379608737920",
+          hasMap: GOOGLE_PLACE_URL,
         }),
       },
       {

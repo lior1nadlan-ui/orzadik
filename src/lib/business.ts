@@ -6,6 +6,39 @@
 // real registered details — they render in the footer, terms, disclosures and
 // order emails. Until filled, the UI shows a neutral fallback.
 
+/**
+ * The brand's owned public profiles — ONE list, consumed by both the
+ * Organization node's `sameAs` in __root.tsx and the visible footer row.
+ *
+ * They have to come from the same place because `sameAs` is only as strong as
+ * its reciprocity: it asserts "this URL is an official identity of this
+ * entity", and a crawler weighs that far more heavily when the site visibly
+ * links to the profile and the profile links back. Before this list existed,
+ * `sameAs` declared four properties while the site linked to exactly one of
+ * them (Instagram) — so Facebook and TikTok were claimed and corroborated by
+ * nothing, which is the weakest form of the assertion.
+ *
+ * That matters here more than on a typical shop: on the brand-store query these
+ * very profiles rank ABOVE the store, so binding them to the entity is what
+ * turns them from rivals for the brand name into evidence for it.
+ *
+ * Every entry was verified live on 2026-08-02 before being trusted. Deliberately
+ * NOT listed: orzarua.co and ozl.co.il (old shopfronts the owner cannot access —
+ * declaring them official would legitimise a competitor), and the easy.co.il
+ * listing (genuinely the shop's, but it advertises סופר סת"ם work the store does
+ * not do; re-add once the owner corrects it).
+ */
+export const SOCIAL_PROFILES = [
+  { label: "אינסטגרם", url: "https://www.instagram.com/or_zarua_latzadik/" },
+  { label: "פייסבוק", url: "https://www.facebook.com/profile.php?id=61576488921081" },
+  { label: "טיקטוק", url: "https://www.tiktok.com/@or_zarua_latzadik" },
+] as const;
+
+/** The Google Business Profile place URL. Separate from SOCIAL_PROFILES because
+ *  it is an entity record rather than a profile a shopper would "follow" — it
+ *  belongs in `sameAs` and in `hasMap`, not in the footer's follow row. */
+export const GOOGLE_PLACE_URL = "https://maps.google.com/?cid=1527663379608737920";
+
 export const BUSINESS = {
   /** Registered/display name of the business. */
   name: "אור זרוע לצדיק",

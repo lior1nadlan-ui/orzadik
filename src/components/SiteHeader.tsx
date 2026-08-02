@@ -14,7 +14,7 @@ import { ClubBadge } from "@/components/ClubBadge";
 import { NewsletterSignup } from "@/components/NewsletterSignup";
 import { thumbUrl } from "@/lib/img";
 import { openCookieSettings } from "@/components/CookieConsent";
-import { BUSINESS } from "@/lib/business";
+import { BUSINESS, SOCIAL_PROFILES } from "@/lib/business";
 import { trackSearch } from "@/lib/analytics";
 import logoUrl from "@/assets/logo.webp";
 
@@ -960,6 +960,38 @@ export function SiteFooter() {
                 <a href={`mailto:${BUSINESS.email}`} className={LINK_HOVER_CLS}>{BUSINESS.email}</a>
               </div>
             </div>
+            {/* The brand's own profiles, linked visibly for the first time.
+                Until now the Organization node declared four of them in `sameAs`
+                while the site linked to exactly ONE (Instagram, from the
+                homepage strip) — so Facebook and TikTok were asserted as
+                official identities and corroborated by nothing. sameAs is an
+                identity claim, and a crawler weighs it far more heavily when the
+                site visibly links out and the profile links back.
+                It matters more here than on a typical shop: on the brand-store
+                query these profiles rank ABOVE the store, so binding them to the
+                entity is what converts them from rivals for the brand name into
+                evidence for it.
+                Same list as sameAs, from business.ts, so the two cannot drift.
+                rel="me" is the microformats convention for "another profile of
+                the same entity" and is the machine-readable half of the claim;
+                noopener is standard for target=_blank. */}
+            <nav className="mt-4" aria-label="הפרופילים שלנו ברשתות החברתיות">
+              <ul className="flex flex-wrap justify-center gap-x-3 gap-y-1 text-[15px] text-muted-foreground md:justify-start">
+                {SOCIAL_PROFILES.map((p, i) => (
+                  <li key={p.url} className="flex items-center gap-3">
+                    {i > 0 && <span aria-hidden="true" className="text-glass-line">·</span>}
+                    <a
+                      href={p.url}
+                      target="_blank"
+                      rel="me noopener noreferrer"
+                      className={LINK_HOVER_CLS}
+                    >
+                      {p.label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </nav>
           </div>
         </div>
 
