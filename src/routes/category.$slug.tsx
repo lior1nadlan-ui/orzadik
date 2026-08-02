@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { categoryFaq, faqJsonLd } from "@/lib/category-faq";
 // Same "is this category real?" predicate the /categories hub, the header
 // drawer and /sitemap.xml read — see src/routes/categories.tsx.
@@ -362,45 +362,6 @@ export const Route = createFileRoute("/category/$slug")({
     const products = (loaderData?.products ?? []) as any[];
     const parentForDesc = (loaderData?.parent ?? null) as { slug: string; name: string } | null;
 
-    const rawDesc = (cat.description || cat.long_description || "")
-      .replace(/<[^>]*>/g, "")
-      .replace(/\s+/g, " ")
-      .trim();
-    // Owner-written copy always wins. The fallback below is only for categories
-    // whose `description` is still empty — it is built from facts this page
-    // already knows (how many products it actually lists, and where it sits in
-    // the tree) so the 105 category pages don't all ship one byte-identical
-    // meta description. Deliberately states no stock / delivery / return
-    // promise: those live on the product and terms pages.
-    const count = products.length;
-    const lead =
-      count > 0
-        ? `${count} ${count === 1 ? "מוצר" : "מוצרים"} בקטגוריית ${cat.name} באתר "אור זרוע לצדיק"`
-        : `קטגוריית ${cat.name} באתר "אור זרוע לצדיק"`;
-    const placement = parentForDesc ? `, תת-קטגוריה של ${parentForDesc.name}` : "";
-    const tail =
-      count > 0
-        ? "תמונות, מחירים ופרטים מלאים לכל פריט."
-        : "רשימת המוצרים בקטגוריה מוצגת בעמוד זה.";
-    const full = rawDesc || `${lead}${placement}. ${tail}`;
-    // Trim on a word boundary — a mid-word cut is visible in the SERP snippet.
-    const desc =
-      full.length <= 160
-        ? full
-        : `${full.slice(0, 160).replace(/\s+\S*$/, "").trim() || full.slice(0, 160).trim()}…`;
-
-    // A category with nothing in it must not be advertised as a rankable
-    // landing page. Seven zero-product categories were live with the site-wide
-    // "index, follow", each shipping a CollectionPage whose ItemList was
-    // literally `numberOfItems: 0, itemListElement: []` plus a full
-    // five-question FAQPage answering "מהם זמני המשלוח למוצרים בקטגוריית …"
-    // for a category that sells nothing — textbook soft-404/thin-content
-    // signals, and crawl budget taken from the ~3,540 real product pages. The
-    // same predicate also catches the double-encoded twins of the four
-    // percent-encoded categories: those render 200 but the canonical below
-    // resolves to their natural-encoded form, which genuinely 404s.
-    const indexable = isListableCategory(params.slug, products.length);
-
     // ?page= is the crawlable half of this listing. Measured 2026-08-02 across
     // all 93 sitemap'd categories: 6,291 collapsed cards exist, 1,654 of them
     // were in the server HTML (24 per category) and the other 4,637 sat behind a
@@ -413,6 +374,11 @@ export const Route = createFileRoute("/category/$slug")({
     // head() and the grid slice the SAME collapseAndOrder() result at the SAME
     // offset, so the ItemList below cannot name a product the page does not
     // render. That is the whole fix for the schema half of this route.
+    //
+    // This block sits ABOVE the description on purpose: the description is now
+    // page-aware, and a head() that computed its snippet before it knew which
+    // page it was on is exactly how all 218 ?page= URLs came to ship the same
+    // one.
     const page = loaderData?.page ?? 1;
     const filtered = loaderData?.filtered ?? false;
     const ordered = collapseAndOrder(products as Row[]);
@@ -425,20 +391,110 @@ export const Route = createFileRoute("/category/$slug")({
     // page 2. Those URLs are reachable only from a shared link — every facet
     // control is a <button>, so none of them is a crawlable href.
     const paged = !filtered;
-    const canonical = paged && page > 1 ? `${url}?page=${page}` : url;
+    // "A page of the series" — self-canonical, index-eligible, and NOT the
+    // category's front door. One predicate, because everything that must not be
+    // repeated byte-for-byte across the 218 of them (the snippet below, the
+    // FAQPage markup, the body essay) has to agree on what a deep page is.
+    // Gated on `paged`, not on `page` alone: on a FACET url (?instock=true&page=3)
+    // canonical, og:url and the CollectionPage @id all collapse to the bare
+    // category, and a head that announced "עמוד 3" against a canonical carrying
+    // no page parameter is the page contradicting itself in the one place a
+    // searcher reads first.
+    const deep = paged && page > 1;
     // Deeper pages are canonical to themselves so their products are indexable
     // in their own right; page 1 keeps the bare, parameter-free URL the sitemap
     // lists. Same split as /shop.
-    // Gated on `paged`, not on `page` alone, so the title cannot announce a page
-    // number that the rest of the head has just discarded. On a FACET url
-    // (?in_stock=1&page=3) `paged` is false, so canonical, og:url and the
-    // CollectionPage @id all collapse to the bare category — and a title reading
-    // "— עמוד 3" against a canonical with no page parameter is the page
-    // contradicting itself in the one place a searcher reads first.
-    const title =
-      paged && page > 1
-        ? `${cat.name} — עמוד ${page} | אור זרוע לצדיק`
-        : `${cat.name} | אור זרוע לצדיק`;
+    const canonical = deep ? `${url}?page=${page}` : url;
+    const title = deep
+      ? `${cat.name} — עמוד ${page} | אור זרוע לצדיק`
+      : `${cat.name} | אור זרוע לצדיק`;
+
+    const rawDesc = (cat.description || cat.long_description || "")
+      .replace(/<[^>]*>/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    // Trim on a word boundary — a mid-word cut is visible in the SERP snippet.
+    const clip = (s: string, max: number) =>
+      s.length <= max
+        ? s
+        : `${s.slice(0, max).replace(/\s+\S*$/, "").trim() || s.slice(0, max).trim()}…`;
+    // Owner-written copy always wins. The fallback below is only for categories
+    // whose `description` is still empty — it is built from facts this page
+    // already knows (how many products it actually lists, and where it sits in
+    // the tree) so the 105 category pages don't all ship one byte-identical
+    // meta description. Deliberately states no stock / delivery / return
+    // promise: those live on the product and terms pages.
+    //
+    // The count is `ordered.length` — COLLAPSED cards — not products.length.
+    // Everything else on the page counts cards: the toolbar reads "671 מוצרים"
+    // on /category/kipot and the pager reads "מתוך 28" (= ceil(671/24)), both
+    // measured live 2026-08-03, while products.length there is 743 raw rows.
+    // A description claiming 743 named a number that appeared nowhere on the
+    // page it described. (Today only the 8 description-less categories can
+    // reach this branch and all of them are empty, so no live snippet moves —
+    // but the next category the owner leaves blank would have shipped the wrong
+    // number.)
+    const count = ordered.length;
+    // On a deep page the lead drops the count: the page marker below carries
+    // the numbers, and repeating the whole-category total in front of a
+    // 24-product slice is what made page 28 announce itself as the category.
+    const lead =
+      count > 0 && !deep
+        ? `${count} ${count === 1 ? "מוצר" : "מוצרים"} בקטגוריית ${cat.name} באתר "אור זרוע לצדיק"`
+        : `קטגוריית ${cat.name} באתר "אור זרוע לצדיק"`;
+    const placement = parentForDesc ? `, תת-קטגוריה של ${parentForDesc.name}` : "";
+    const tail =
+      count > 0
+        ? "תמונות, מחירים ופרטים מלאים לכל פריט."
+        : "רשימת המוצרים בקטגוריה מוצגת בעמוד זה.";
+    const base = rawDesc || `${lead}${placement}. ${tail}`;
+
+    // What a page-N URL owes a searcher. Measured live 2026-08-03:
+    // /category/kipot and /category/kipot?page=3 shipped a BYTE-IDENTICAL
+    // description / og:description / twitter:description — the <title> was the
+    // only thing in either head that differed. All ~218 ?page= URLs are
+    // self-canonical and index-eligible, so that was 218 pages asking to be
+    // indexed on ~93 distinct snippets.
+    //
+    // The honest differentiator is the one fact this URL owns and page 1 does
+    // not: which slice of the listing it actually renders. It is APPENDED, not
+    // prepended — a searcher scanning a SERP needs "what is this category"
+    // before "which page of it" — and the 160-char budget is therefore spent on
+    // the LEAD, never on the marker, or the one part that makes the snippet
+    // unique would be the part the cap eats.
+    //
+    // ASCII "-" in the range, never U+2013. An en dash is bidi class ON, so
+    // inside RTL text a numeric range built with one resolves BACKWARDS and the
+    // page advertises "48-25".
+    const from = pageStart + 1;
+    const to = pageStart + pageItems.length;
+    const slice =
+      pageItems.length === 0
+        ? ""
+        : pageItems.length === 1
+          ? ` — מוצר ${from} מתוך ${count}`
+          : ` — מוצרים ${from}-${to} מתוך ${count}`;
+    const marker = deep ? `עמוד ${page} מתוך ${lastPage}${slice}.` : "";
+    // 158, not 160: clip() can add one "…" and the join adds one space, so the
+    // lead's budget is the 160-char cap minus both, minus the marker. Without
+    // that arithmetic an owner description at the cap pushed the whole thing to
+    // 161 and the SERP would cut the marker back off — the exact part this is
+    // here to protect.
+    const desc = marker
+      ? `${clip(base, Math.max(0, 158 - marker.length))} ${marker}`
+      : clip(base, 160);
+
+    // A category with nothing in it must not be advertised as a rankable
+    // landing page. Seven zero-product categories were live with the site-wide
+    // "index, follow", each shipping a CollectionPage whose ItemList was
+    // literally `numberOfItems: 0, itemListElement: []` plus a full
+    // five-question FAQPage answering "מהם זמני המשלוח למוצרים בקטגוריית …"
+    // for a category that sells nothing — textbook soft-404/thin-content
+    // signals, and crawl budget taken from the ~3,540 real product pages. The
+    // same predicate also catches the double-encoded twins of the four
+    // percent-encoded categories: those render 200 but the canonical below
+    // resolves to their natural-encoded form, which genuinely 404s.
+    const indexable = isListableCategory(params.slug, products.length);
 
     const collectionLd: any = {
       "@context": "https://schema.org",
@@ -537,6 +593,18 @@ export const Route = createFileRoute("/category/$slug")({
         { property: "og:description", content: desc },
         { property: "og:type", content: "website" },
         { property: "og:url", content: canonical },
+        // og:image stays the category hero on every page of the series, and the
+        // alt stays the plain category name. That was reviewed as a third
+        // "byte-identical across 218 URLs" symptom and deliberately kept: the
+        // hero really is rendered at the top of page 28, so repeating it is a
+        // true statement, and the alternative (the first product thumbnail on
+        // this page) would ship a ~300px image into a summary_large_image card
+        // that wants ≥1200x630 — X and Facebook downgrade or drop cards below
+        // their minimums, so we would have traded a duplicate-but-correct
+        // preview for a broken one. Naming a page number in og:image:alt would
+        // be worse still: the alt describes the IMAGE, and the banner is not
+        // "page 3 of anything". The snippet is where a deep page has to earn
+        // its own identity, and that is what `desc` above now does.
         { property: "og:image", content: cat.image_url || "https://orzadik.com/og-default.jpg" },
         { property: "og:image:alt", content: cat.name },
         { name: "twitter:card", content: "summary_large_image" },
@@ -549,7 +617,7 @@ export const Route = createFileRoute("/category/$slug")({
         // The prev/next chain is what turns 93 dead-end pages into a walkable
         // series. Page 2's "prev" is the bare URL, never "?page=1" — that would
         // advertise a second address for a page that already has a canonical one.
-        ...(paged && page > 1
+        ...(deep
           ? [{ rel: "prev", href: page - 1 > 1 ? `${url}?page=${page - 1}` : url }]
           : []),
         ...(paged && page < lastPage ? [{ rel: "next", href: `${url}?page=${page + 1}` }] : []),
@@ -559,11 +627,24 @@ export const Route = createFileRoute("/category/$slug")({
       // back out). The CollectionPage and the FAQPage do NOT: an empty ItemList
       // and five shipping/returns answers about a category with no products are
       // markup claiming a storefront that isn't there.
+      //
+      // The FAQPage is additionally page-1-only. categoryFaq() is generated from
+      // the category NAME alone, so it is the same five Q&A on every page of the
+      // series — and Google's FAQ structured-data guidelines name exactly that
+      // ("the same FAQ appears on multiple pages") as a reason to withhold the
+      // markup. Page 1 is the canonical front door and keeps it; the other ~217
+      // ?page= URLs still RENDER the accordion (a shopper who lands on page 12
+      // has the same questions) but stop claiming the rich result 217 times
+      // over. The invariant the visible block was written around is unchanged
+      // and runs one way only: markup ⇒ the answers are in the server HTML.
+      // Visible copy without markup was always fine.
       scripts: indexable
         ? [
             { type: "application/ld+json", children: JSON.stringify(collectionLd) },
             { type: "application/ld+json", children: JSON.stringify(breadcrumbLd) },
-            { type: "application/ld+json", children: JSON.stringify(faqJsonLd(categoryFaq(cat.name))) },
+            ...(deep
+              ? []
+              : [{ type: "application/ld+json", children: JSON.stringify(faqJsonLd(categoryFaq(cat.name))) }]),
           ]
         : [{ type: "application/ld+json", children: JSON.stringify(breadcrumbLd) }],
     };
@@ -688,12 +769,34 @@ function CategoryPage() {
   // <a href> pagination at the bottom of this page is the only route a crawler
   // has into products 25..743, and the offset has to be honoured on the server
   // for those URLs to render anything different from page 1.
-  const [shown, setShown] = useState(PAGE_SIZE);
-  // A new sort / stock filter / page / category is a fresh window — reset it so
-  // the user starts from the top of the reordered list.
-  useEffect(() => {
-    setShown(PAGE_SIZE);
-  }, [sort, inStockOnly, priceBucket, slug, page]);
+  //
+  // The reveal count is DERIVED during render, not corrected afterwards by an
+  // effect. It used to be plain state that a useEffect keyed on
+  // [sort, inStockOnly, priceBucket, slug, page] reset to PAGE_SIZE — but an
+  // effect runs AFTER the commit, so the first render following a pagination
+  // click still sliced with the PREVIOUS window. Replayed against
+  // /category/kipot's real 671 cards (its own toolbar count, measured
+  // 2026-08-03): three "load more" clicks put shown at 96, which is what makes
+  // the "הבא" link resolve to ?page=5 — and that first commit then rendered
+  // visible.slice(96, 192), i.e. cards 97..192 under a heading reading
+  // "עמוד 5 מתוך 28", with its own "הבא" pointing at ?page=9 and the load-more
+  // chip reading (479). One commit later the effect snapped it to cards
+  // 97..120 / ?page=6 / (551). So the URL said page 5 while the grid showed
+  // four pages' worth, 72 ProductCards mounted and fired thumbnail requests
+  // only to be discarded, and the grid visibly collapsed under the shopper on
+  // the site's heaviest route. The same stale commit happens on every facet
+  // toggle, which is the far more common interaction.
+  //
+  // Keying the count to the window it was counted FOR makes the two incapable
+  // of disagreeing: when the key changes, `shown` is already PAGE_SIZE in the
+  // very same render that first sees the new page — there is no in-between
+  // commit for them to differ in, and no effect to forget to update.
+  const windowKey = `${slug}|${sort}|${inStockOnly}|${priceBucket ?? ""}|${page}`;
+  const [reveal, setReveal] = useState<{ key: string; count: number }>({
+    key: windowKey,
+    count: PAGE_SIZE,
+  });
+  const shown = reveal.key === windowKey ? reveal.count : PAGE_SIZE;
   const pageStart = (page - 1) * PAGE_SIZE;
   const windowed = visible.slice(pageStart, pageStart + shown);
   const remaining = visible.length - (pageStart + windowed.length);
@@ -1005,7 +1108,9 @@ function CategoryPage() {
             {remaining > 0 && (
               <div className="mt-10 text-center">
                 <button
-                  onClick={() => setShown((c) => c + PAGE_SIZE)}
+                  // Stamped with the window it belongs to, so a count revealed
+                  // on page 1 can never be applied to page 5 (see `windowKey`).
+                  onClick={() => setReveal({ key: windowKey, count: shown + PAGE_SIZE })}
                   className="press rounded-full bg-card/70 px-8 py-3 text-sm font-medium text-foreground hairline transition-[background-color,color,transform] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:text-background"
                 >
                   טען עוד מוצרים ({remaining})
@@ -1082,8 +1187,20 @@ function CategoryPage() {
         </section>
 
 
-        {/* SEO long description */}
-        {cat?.long_description && (
+        {/* SEO long description — page 1 only.
+            This is one essay about the whole category, and it was being shipped
+            verbatim on every ?page= URL: on /category/kipot that is the same
+            block of prose on 28 self-canonical, index-eligible pages. Its home
+            is the category's front door, which is the URL the sitemap lists and
+            the one every deeper page canonicalises TOWARDS. A deep page still
+            carries everything that identifies it (hero, H1, the one-line
+            description, breadcrumb, FAQ) and everything that differentiates it
+            (its own 24 cards, its own snippet) — it just stops re-serving the
+            essay. Gated on `page` alone rather than the head's `deep`: on a
+            facet view this is a pure UX call (the canonical already points
+            home), and a shopper 3 pages into a filtered list is not there to
+            read the intro either. */}
+        {page === 1 && cat?.long_description && (
           <section className="mt-16 max-w-3xl mx-auto text-center">
             <h2 className="font-display text-2xl font-bold mb-3">קצת על {cat.name}</h2>
             <div aria-hidden="true" className="gold-rule mx-auto mb-5 w-12" />

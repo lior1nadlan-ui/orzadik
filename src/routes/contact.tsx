@@ -29,9 +29,10 @@ export const Route = createFileRoute("/contact")({
       },
     ],
     links: [{ rel: "canonical", href: "https://orzadik.com/contact" }],
-    // ContactPage node. `about`, `publisher` and `mainEntity` all point at the
-    // canonical Organization emitted site-wide from __root.tsx by BARE @id
-    // reference — they do not restate its properties.
+    // ContactPage node. `about` and `publisher` point at the canonical
+    // Organization emitted site-wide from __root.tsx by BARE @id reference —
+    // they do not restate its properties. (`mainEntity` was also here; it is
+    // gone now, for a different reason — see the note at the property list.)
     //
     // They used to. `mainEntity` re-declared @id …/#organization inline with
     // url: BUSINESS.site, which is "https://orzadik.com" (no trailing slash),
@@ -64,7 +65,20 @@ export const Route = createFileRoute("/contact")({
           isPartOf: { "@id": "https://orzadik.com/#website" },
           about: { "@id": "https://orzadik.com/#organization" },
           publisher: { "@id": "https://orzadik.com/#organization" },
-          mainEntity: { "@id": "https://orzadik.com/#organization" },
+          // `mainEntity` DELIBERATELY absent — see the matching notes in
+          // index.tsx and about.tsx. It is documented as the inverse of
+          // Thing.mainEntityOfPage, so it is an EXCLUSIVE claim: "this is THE
+          // page this entity lives on". Only one URL can usefully make it, and
+          // which one is not a judgement call — the Organization node in
+          // __root.tsx publishes `url: "https://orzadik.com/"`, so the homepage
+          // is the page the entity itself names. Three pages asserting it (as /,
+          // /about and /contact briefly did) is three answers to a one-answer
+          // question, which is the same one-@id-two-answers contradiction this
+          // very file was repaired for when it used to re-declare #organization
+          // inline with a conflicting url and a shorter address.
+          // `about` + `publisher` already say everything true here: this page is
+          // ABOUT the business and is PUBLISHED by it. It is not where the
+          // business lives.
         }),
       },
     ],

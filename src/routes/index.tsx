@@ -188,17 +188,19 @@ function settle<T>(p: Promise<T>): Promise<T | null> {
   });
 }
 
-// Single source of truth for the homepage FAQ — feeds both the FAQPage JSON-LD
-// in head() (the SEO carrier) and the visible accordion. The fuller answers
-// (previously only in the JSON-LD) are canonical.
+// Single source of truth for the homepage FAQ — feeds both the Question nodes
+// hung off the WebPage in head() (the SEO carrier; they were a standalone
+// FAQPage until that node was merged away — see the note there) and the visible
+// accordion. The fuller answers (previously only in the JSON-LD) are canonical.
 const FAQ_ITEMS: { q: string; a: string }[] = [
   {
     q: "האם המוצרים מהודרים ובעלי כשרות?",
     // Truthful scope. The catalog holds נרתיקי מזוזה, תיקי תפילין and כיסויים —
     // NOT written klaf or sofer-made tefillin — so the previous answer ("תפילין
     // ומזוזות מגיעים עם תעודות כשרות") named products the store does not sell.
-    // This string is ALSO emitted as FAQPage JSON-LD, so it was eligible to show
-    // verbatim as a Google rich result. Part of the tzitzit/talit range does
+    // This string is ALSO emitted as JSON-LD (a Question node on the page), so
+    // it is read verbatim by machines and is in fact the ONLY copy of this
+    // answer a crawler ever sees. Part of the tzitzit/talit range does
     // carry hashgacha, which is why that is stated separately rather than dropped.
     a: "אנו בוחרים כל פריט בקפידה, בהקפדה על איכות והידור. חשוב לדעת: בחנות נמכרים נרתיקי מזוזה, תיקי תפילין וכיסויים לטלית ולתפילין — ולא קלף כתוב או תפילין מסופר סת\"ם. חלק מהטליתות והציציות מגיעות בהשגחה רבנית. לפרטים על ההכשר של פריט מסוים נשמח לענות בטלפון או בוואטסאפ.",
   },
@@ -312,6 +314,69 @@ export const Route = createFileRoute("/")({
       // ImageObject in __root.tsx carries no @id, so a "#logo" reference would
       // dangle. The reciprocal `mainEntityOfPage: "https://orzadik.com/"` on the
       // Organization node belongs in __root.tsx and is not this route's to add.
+      //
+      // ——— ONE URL, ONE PAGE NODE ———
+      // This shipped as TWO page-level nodes for one URL: a WebPage @id #webpage
+      // with url "https://orzadik.com/", and a FAQPage @id #faq with no url at
+      // all. FAQPage is a SUBTYPE of WebPage, so a consumer meeting an unnamed,
+      // url-less page node binds it to the document it was found in — meaning
+      // this page described itself twice, once as the brand's storefront and
+      // once as a list of six questions. `isPartOf: #webpage` did not scope it:
+      // isPartOf is a CreativeWork part-of edge, it cannot un-type a node, and
+      // the FAQPage stayed exactly as eligible to answer "what is this URL
+      // primarily about?" as the node above it.
+      //
+      // The FAQ collision and the `mainEntity` gap below are ONE decision, not
+      // two. FAQPage's entire contract is `mainEntity` = the Questions; the
+      // brand-entity claim's entire contract is `mainEntity` = the Organization.
+      // No single node can hold both, so keeping the FAQPage type costs this
+      // page the one property that says "this URL is the Organization's page" —
+      // which is the whole reason this node was added. The FAQ gives up nothing
+      // it was actually receiving: Google restricted FAQ rich results to
+      // government and health sites in August 2023, so this store has been
+      // ineligible for the rendering the type buys ever since, and the policy
+      // that ships WITH the type (the answers must be present on the page) is
+      // one the accordion cannot meet anyway — measured live as Googlebot
+      // 2026-08-03, five of the six answers are absent from the served HTML,
+      // because Radix unmounts closed panels (see the note at the accordion).
+      //
+      // NOT a site-wide verdict on FAQPage. category-faq.ts and
+      // collection.$slug.tsx still emit it deliberately, and should: the type
+      // still feeds passage understanding and answer engines even without the
+      // rich result, and those pages have no competing entity claim to trade it
+      // against. The trade only exists HERE, on the one URL the Organization's
+      // own `url` names. If that ever stops being true, this decision should be
+      // revisited rather than copied outward.
+      //
+      // So the page node keeps its identity properties and takes `mainEntity`,
+      // and the six Q&A pairs ride on it as `hasPart`. Question is a subtype of
+      // CreativeWork, which is precisely what hasPart ranges over, so this is a
+      // legal edge rather than a workaround. Every answer string still ships in
+      // the document byte-for-byte — which matters more than usual here, since
+      // the JSON-LD is the only place a crawler can read five of them.
+      //
+      // ——— WHY `about` AND `mainEntity`, AND ONLY HERE ———
+      //   about      — "the subject matter of this page is the Organization"
+      //   mainEntity — "the Organization is the PRIMARY entity this page
+      //                 describes" — the exclusive claim, and the one the brand
+      //                 query needs some owned page to make
+      // mainEntity is documented as the inverse of Thing.mainEntityOfPage, so
+      // every page asserting it adds another candidate for "the page this entity
+      // lives on". Measured live 2026-08-03: /about and /contact both asserted
+      // it and / did not, which inverts the intended reading exactly — two
+      // secondary pages each claimed to be the brand's page while the brand's
+      // actual home claimed only to be about it.
+      //
+      // Which page genuinely IS the entity's page is already settled by this
+      // graph and is not a matter of taste: the Organization node in __root.tsx
+      // publishes `url: "https://orzadik.com/"`. Had /about kept the exclusive
+      // claim, the entity's own `url` would name one canonical page while the
+      // inverse of AboutPage.mainEntity named another — the same one-@id,
+      // two-answers contradiction /contact was already repaired for. So / takes
+      // mainEntity and /about drops it, keeping `about` + the AboutPage type,
+      // which together already say "the about-page OF this organization" without
+      // claiming to BE its home. /contact needs the identical removal and is
+      // outside this change's files — it is the last page still competing.
       {
         type: "application/ld+json",
         children: JSON.stringify({
@@ -324,19 +389,8 @@ export const Route = createFileRoute("/")({
           inLanguage: "he-IL",
           isPartOf: { "@id": "https://orzadik.com/#website" },
           about: { "@id": "https://orzadik.com/#organization" },
-        }),
-      },
-      {
-        type: "application/ld+json",
-        children: JSON.stringify({
-          "@context": "https://schema.org",
-          "@type": "FAQPage",
-          // @id + isPartOf attach the FAQ to the page node above instead of
-          // leaving it floating: its only keys were @context/@type/mainEntity,
-          // so nothing tied these six answers to this URL or to the brand.
-          "@id": "https://orzadik.com/#faq",
-          isPartOf: { "@id": "https://orzadik.com/#webpage" },
-          mainEntity: FAQ_ITEMS.map((item) => ({
+          mainEntity: { "@id": "https://orzadik.com/#organization" },
+          hasPart: FAQ_ITEMS.map((item) => ({
             "@type": "Question",
             name: item.q,
             acceptedAnswer: { "@type": "Answer", text: item.a },
@@ -1186,8 +1240,14 @@ function HomePage() {
           <h2 className="font-display text-2xl md:text-3xl font-semibold text-center mb-8 tracking-wide">
             שאלות נפוצות
           </h2>
-          {/* The FAQPage JSON-LD in head() is the SEO carrier (Radix unmounts
-              closed panels); defaultValue keeps one answer in the initial DOM. */}
+          {/* The Question nodes in head() are the SEO carrier, because Radix
+              unmounts closed panels rather than hiding them — measured live as
+              Googlebot 2026-08-03, only the defaultValue answer (faq-0) is in
+              the served HTML and the other five exist nowhere but the JSON-LD.
+              That measurement is also why those Q&A are no longer marked up as
+              a FAQPage: the type carries a "must be present on the page" policy
+              this accordion cannot satisfy. Never delete an answer from
+              FAQ_ITEMS assuming the DOM still carries it. */}
           <div className="glass p-4 md:p-8 [--glass-radius:1.5rem]">
             <Accordion type="single" collapsible defaultValue="faq-0" className="w-full">
               {FAQ_ITEMS.map((item, i) => (

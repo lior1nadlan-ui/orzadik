@@ -125,12 +125,56 @@ function articleBodyHtml(bodyHtml: string | null | undefined, hasFaq: boolean): 
  *  it is the honest one here: these guides are house-written and no individual
  *  is credited anywhere. Naming a person would be inventing a credential.
  *  So the house label resolves to the organisation, bound by @id to the node
- *  that already publishes the article; any other stored value is a real byline
- *  and is published as a Person, as written. */
+ *  that already publishes the article; a real personal byline is published as a
+ *  Person, as written.
+ *
+ *  The house test used to be four exact strings, which made Person the FALLBACK
+ *  — every value the list had not anticipated was published as a human being.
+ *  `articles.author` is a free-text column an owner types into, so the next
+ *  house label ("מערכת אור זרוע לצדיק", "צוות המדריכים", "מנהל האתר") would have
+ *  shipped `{"@type":"Person"}` naming a person who does not exist, which is the
+ *  same fabricated-credential failure the store has already had to strip three
+ *  times elsewhere. The test is therefore structural and biased the other way,
+ *  because the two errors are not symmetric: attributing a real writer's piece
+ *  to the organisation under-credits them but states nothing false (the org did
+ *  publish it), while attributing a house label to a person invents one AND puts
+ *  the publisher back in author.name. When in doubt, the organisation. */
 const ORG_NAME = "אור זרוע לצדיק";
+
+/** Impersonal byline words, matched as whole tokens ANYWHERE in the stored
+ *  value. Deliberately not a regex with `\b`: Hebrew letters are not `\w`, so a
+ *  word boundary after "צוות" never fires and /^צוות\b/ silently matches
+ *  nothing — the exact class of bug that would make this check look present and
+ *  do nothing. */
+const COLLECTIVE_BYLINE_WORDS = new Set([
+  "צוות", "הצוות", "מערכת", "המערכת", "הנהלה", "ההנהלה", "מחלקה", "מחלקת",
+  "אתר", "האתר", "חנות", "החנות", "מערכות", "אדמין", "מנהל", "המנהל", "מנהלת",
+  "admin", "administrator", "editorial", "staff", "team", "webmaster", "the",
+]);
+
 function articleAuthor(stored: string | null | undefined) {
-  const v = String(stored ?? "").trim();
-  const isHouse = !v || v === ORG_NAME || v === "צוות" || v === `צוות ${ORG_NAME}`;
+  const v = String(stored ?? "").trim().replace(/\s+/g, " ");
+  // Strip surrounding punctuation per token so "צוות," still matches "צוות".
+  const tokens = v ? v.split(" ").map((t) => t.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "")) : [];
+  const isHouse =
+    !v ||
+    // Any label wrapping the publisher's own name IS the publisher, whatever
+    // the wrapper — this alone covers "צוות/מערכת/הנהלת אור זרוע לצדיק".
+    v.includes(ORG_NAME) ||
+    // A legal-entity suffix is an organisation, never an individual.
+    // The Hebrew half is matched as a whole TOKEN, not as a substring: the
+    // unanchored form matched "בעמ" inside ordinary words, so a real byline like
+    // "אליהו בעמק" was classified as an organisation and published under the
+    // shop's own name instead of the author's. \b does not work here — it is
+    // defined on ASCII word characters, so it never fires between two Hebrew
+    // letters — hence the explicit token test.
+    tokens.some((t) => /^בע["”׳״']?מ$/.test(t)) ||
+    /\b(?:ltd|inc|llc)\b/i.test(v) ||
+    // No personal name contains a digit.
+    /\d/.test(v) ||
+    // A byline, not a sentence: past ~5 words it is a description of a group.
+    tokens.length > 5 ||
+    tokens.some((t) => COLLECTIVE_BYLINE_WORDS.has(t.toLowerCase()));
   return isHouse
     ? { name: ORG_NAME, isOrganization: true as const }
     : { name: v, isOrganization: false as const };
