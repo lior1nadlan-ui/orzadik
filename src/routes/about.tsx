@@ -36,15 +36,35 @@ export const Route = createFileRoute("/about")({
           description:
             "על אור זרוע לצדיק — חנות תשמישי קדושה ויודאיקה מהודרת בבעלות ליאור בן עמי מקרית ביאליק, עם רקמה וחריטה אישית ומשלוח עד הבית בישראל.",
           isPartOf: { "@id": "https://orzadik.com/#website" },
+          // `about` — and DELIBERATELY not `mainEntity`. The two are not
+          // synonyms: `about` states the subject matter, while `mainEntity` is
+          // documented as the inverse of Thing.mainEntityOfPage and so asserts
+          // "this is THE page this entity lives on" — an exclusive claim that
+          // only one URL can usefully make.
+          //
+          // This page used to assert both, and the homepage asserted neither
+          // beyond `about`, so the brand's actual home made a strictly WEAKER
+          // machine-readable claim than a secondary page — with /contact making
+          // the same exclusive claim as a third rival. Three pages naming
+          // themselves the entity's page is three answers to a one-answer
+          // question, which is worth less than one page naming itself once.
+          //
+          // Which page wins is not a preference, it is already fixed by the
+          // graph: the Organization node in __root.tsx publishes
+          // `url: "https://orzadik.com/"`. Keeping mainEntity here would leave
+          // the entity's own `url` pointing at / while the inverse of this
+          // property pointed at /about — the same one-@id, two-answers
+          // contradiction contact.tsx was repaired for below. So the claim now
+          // lives on / (see the long note in index.tsx) and this node states
+          // what is true and sufficient here: an AboutPage that is `about` the
+          // organization already reads as "the about-page OF this business"
+          // without also claiming to be its home.
+          //
+          // All three references are BARE @ids; the full node ships on this page
+          // from __root.tsx and must not be restated here (restating it on
+          // /contact is what produced two conflicting `url` values for one @id —
+          // see the note in contact.tsx).
           about: { "@id": "https://orzadik.com/#organization" },
-          // `mainEntity` as well as `about`: this page is not merely ABOUT the
-          // organization, it is the page whose primary subject IS the
-          // organization — which is exactly the claim the brand query needs
-          // some owned page to make. Both are BARE @id references; the full
-          // node ships on this page from __root.tsx and must not be restated
-          // here (restating it on /contact is what produced two conflicting
-          // `url` values for one @id — see the note in contact.tsx).
-          mainEntity: { "@id": "https://orzadik.com/#organization" },
           publisher: { "@id": "https://orzadik.com/#organization" },
         }),
       },
@@ -66,7 +86,7 @@ function AboutPage() {
           </div>
           {/* The brand name belongs in THIS h1. /about exists to answer "what
               is this business", and it is the page bound to #organization via
-              AboutPage.about/mainEntity — yet its h1 named only the category
+              AboutPage.about — yet its h1 named only the category
               ("תשמישי קדושה ויודאיקה שמלווים את החיים היהודיים") and left the
               brand to a decorative eyebrow, so NO h1 anywhere on the site
               contained "אור זרוע לצדיק". The competing shopfront the brand

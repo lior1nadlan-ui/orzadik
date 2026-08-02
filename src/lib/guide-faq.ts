@@ -9,6 +9,12 @@
 //   - Grounded in general, widely-verifiable Judaica facts implied by each
 //     guide's topic — nothing store-specific (no stock / price / delivery /
 //     guarantees).
+//   - No claim about what a product will be WORTH later. An FAQPage
+//     acceptedAnswer is the exact string an answer engine quotes as fact, and
+//     resale/value-retention is not something the shop can substantiate about
+//     goods it sells; material composition, durability and care are. See the
+//     kiddush-cup materials answer, which said "ולרוב שומר על ערכו" inside the
+//     answer that steers a reader toward the dearer material.
 //   - No halachic ruling beyond widely-accepted basics; where custom varies
 //     (edah, right/left-handed, disputed shiur) the answer says so and defers
 //     to a competent rabbi rather than deciding.
@@ -29,6 +35,33 @@
 // promised. Answers moved from body_html are reproduced as written, minus
 // cross-references like "כמפורט למעלה" that do not survive extraction.
 //
+// stripInBodyFaq deletes that block WHOLESALE, so every one of its 15 stored
+// questions (3 per guide, verified against the live `articles` rows) has to be
+// accounted for here or it silently stops existing on the page. Disposition,
+// per question rather than per guide:
+//   carried  — 11 questions, one Q&A each.
+//   folded   — 4 questions whose exact phrasing is redundant but whose ANSWER
+//              carried content the kept entry lacked; that content was merged
+//              into the kept answer rather than dropped with the heading:
+//                "כל כמה זמן צריך לבדוק תפילין?" → the kept מומלץ variant, which
+//                  had no actual cadence; the body's "אחת לכמה שנים" and its
+//                  defer-to-a-scribe line are now in it.
+//                "האם אפשר להשתמש בחנוכיה חשמלית?" → the kept ידי-חובה entry,
+//                  whose answer now says "אפשר להשתמש בה" in as many words and
+//                  carries the body's "לשאול רב".
+//                "האם אפשר לקדש על כל כוס?" → the kept מכסף entry, whose answer
+//                  already opened with that exact phrase; the body's
+//                  "לפרטים ולמנהגים המדויקים יש לשאול רב" was missing and is
+//                  restored.
+//                "איזה חומר הכי מומלץ?" → the materials entry. Its "אין תשובה
+//                  אחת" is the guide's one explicit refusal to name a best
+//                  (i.e. dearest) material, so it is the last line to lose.
+// Nothing is dropped for being merely inconvenient: an earlier pass justified
+// four of these as "duplicates" and three of the strings then existed nowhere
+// on the page at all — "האם עדיף צמר או ויסקוז?" among them, which is now back
+// as its own Q&A because "which is better" and "what is the difference" are
+// different questions with different answers.
+//
 // The kiddush-cup set additionally carries three questions in the exact form
 // Search Console shows the page ALREADY ranking for (positions 12.0, 17.0 and
 // 23.0; the site's four best positions are all long-tail questions on guides,
@@ -46,9 +79,15 @@ export type { FaqItem } from "@/lib/category-faq";
 // Keyed by the article slug (see supabase/migrations/*_seed_articles.sql).
 const GUIDE_FAQ: Record<string, FaqItem[]> = {
   // בחירת טלית
-  // Body FAQ merged in: "מתי מתחילים ללבוש טלית?" and "כמה זמן מחזיקה טלית?".
-  // The body's "האם עדיף צמר או ויסקוז?" is dropped as a semantic duplicate of
-  // the material question below, which answers the same thing in more detail.
+  // All three body questions carried. "האם עדיף צמר או ויסקוז?" was previously
+  // dropped as a duplicate of the material question — it is not one. The
+  // material question is descriptive (what each fabric IS: weight, warmth,
+  // climate, kashrut) and the עדיף question is a choice question whose honest
+  // answer is that it is custom and personal preference, ending in a deferral
+  // to a rav. Different query, different answer, and the dropped one was the
+  // only place the guide said "ויסקוז" in the reader's own words. To keep the
+  // two from re-converging, the hiddur/custom framing now lives ONLY in the
+  // עדיף answer — "ונחשבות מהודרות" was removed from the material answer.
   "bechira-talit": [
     {
       q: "מתי מתחילים ללבוש טלית?",
@@ -60,7 +99,11 @@ const GUIDE_FAQ: Record<string, FaqItem[]> = {
     },
     {
       q: "מה ההבדל בין טלית צמר לטלית מבד סינתטי?",
-      a: "טליות צמר בעלות מסורת הלכתית ארוכה ונחשבות מהודרות, והן חמות וכבדות יותר. טליות מבד סינתטי או ויסקוז קלות ונוחות יותר לאקלים חם ולרוב זולות יותר. שני הסוגים יכולים להיות כשרים כאשר הציציות נעשו כהלכה.",
+      a: "טליות צמר בעלות מסורת הלכתית ארוכה, והן חמות וכבדות יותר. טליות מבד סינתטי או ויסקוז קלות ונוחות יותר לאקלים חם ולרוב זולות יותר. שני הסוגים יכולים להיות כשרים כאשר הציציות נעשו כהלכה.",
+    },
+    {
+      q: "האם עדיף צמר או ויסקוז?",
+      a: "רבים נוהגים להעדיף צמר משום הידור המצווה, בעוד אחרים בוחרים ויסקוז מטעמי נוחות ואקלים. זו שאלה של מנהג והעדפה אישית, ובמקרה של התלבטות הלכתית יש לשאול רב.",
     },
     {
       q: "כמה קשרים צריכים להיות בכל ציצית?",
@@ -78,9 +121,12 @@ const GUIDE_FAQ: Record<string, FaqItem[]> = {
 
   // תפילין
   // Body FAQ merged in: "האם אפשר להשתמש בתפילין של האב או הסבא?" and the
-  // edot-custom question. The body's "כל כמה זמן צריך לבדוק תפילין?" is dropped
-  // as a duplicate of the inspection question already here, whose answer is the
-  // fuller of the two.
+  // edot-custom question. The body's "כל כמה זמן צריך לבדוק תפילין?" is folded
+  // into the inspection question below — the two strings differ by one word
+  // (צריך / מומלץ), so keeping both would be the same question twice. But the
+  // body answer was not the poorer of the two: it was the only one that
+  // answered "how often" with an actual interval and that deferred to a
+  // scribe/rav, and this entry said only "מעת לעת". Both are now here.
   "tefillin-guide": [
     {
       q: 'מה ההבדל בין תפילין "כשרות" ל"מהדרין"?',
@@ -92,7 +138,7 @@ const GUIDE_FAQ: Record<string, FaqItem[]> = {
     },
     {
       q: "כל כמה זמן מומלץ לבדוק תפילין?",
-      a: 'נהוג להביא את התפילין לבדיקה אצל סופר סת"ם מוסמך מעת לעת, במיוחד אם הן ישנות או נחשפו ללחות ולחום. בדיקה תקופתית מסייעת לוודא שהאותיות נותרו שלמות וכשרות.',
+      a: 'רבים נוהגים להביא את התפילין לבדיקה אצל סופר סת"ם מוסמך אחת לכמה שנים, וכן בכל חשש לפגיעה — במיוחד אם הן ישנות או נחשפו ללחות ולחום. הבדיקה מוודאת שהאותיות נותרו שלמות וכשרות. יש מנהגים שונים בתדירות המדויקת, ולמעשה יש לשאול סופר או רב לפי המצב.',
     },
     {
       q: "האם אפשר להשתמש בתפילין של האב או הסבא?",
@@ -148,9 +194,31 @@ const GUIDE_FAQ: Record<string, FaqItem[]> = {
   // (23.0). Those three queries were matching body headings that are statements
   // ("סוגי חומרים וכיצד לזהות איכות", "טיפול, ניקוי ותחזוקה"), so the page
   // answered them without ever asking them. Answers are re-cut from that same
-  // prose. Body FAQ merged in: "איך יודעים שהכסף אמיתי?". The body's "האם אפשר
-  // לקדש על כל כוס?" is dropped (duplicate of the silver question) and its
-  // "איזה חומר הכי מומלץ?" is superseded by the materials question below.
+  // prose. Body FAQ merged in: "איך יודעים שהכסף אמיתי?"; "האם אפשר לקדש על כל
+  // כוס?" and "איזה חומר הכי מומלץ?" are folded (see the disposition list at
+  // the top of this file — both left content behind, and it was brought over).
+  //
+  // The three middle entries used to answer sterling-vs-plated three times in a
+  // row: the materials survey compared the two, the dedicated comparison
+  // compared them again, and "איך יודעים שהכסף אמיתי?" repeated the comparison's
+  // own first sentence (the 925 hallmark and the solid-weight cue) almost word
+  // for word. All three questions are real — two are Search Console queries and
+  // the third is what a shopper actually does holding the cup — so the fix is to
+  // give each ONE job and let it keep it:
+  //   survey     → which materials exist and on what axis you pick between them;
+  //                it now only notes that silver and plate LOOK alike and points
+  //                at the next answer for why they age differently.
+  //   comparison → what each one is made of and what that does over years.
+  //   verifying  → how to tell them apart in the hand. The hallmark and weight
+  //                cues moved out of the comparison and live only here.
+  //
+  // The survey's "כסף שטרלינג נחשב מהודר ועמיד ולרוב שומר על ערכו" is gone. It
+  // was a value-retention claim about goods the shop sells, sitting in the
+  // acceptedAnswer that pushes toward the dearer material — unsubstantiable, and
+  // shaped exactly like the string an answer engine repeats as fact. What is
+  // verifiable took its place: composition, how the finish ages, and care. The
+  // hiddur-mitzvah framing is not repeated here either; it already has its own
+  // answer two entries up ("האם חובה שגביע הקידוש יהיה מכסף?").
   "kiddush-cup-guide": [
     {
       q: "מהו הנפח המזערי הנדרש בגביע קידוש?",
@@ -158,19 +226,19 @@ const GUIDE_FAQ: Record<string, FaqItem[]> = {
     },
     {
       q: "האם חובה שגביע הקידוש יהיה מכסף?",
-      a: "לא. אפשר לקדש על כל כוס שלמה ונקייה המחזיקה את השיעור הנדרש, לרבות זכוכית או קריסטל. גביע כסף נחשב הידור מצווה ומנהג רווח, אך אינו חובה.",
+      a: "לא. אפשר לקדש על כל כוס שלמה ונקייה המחזיקה את השיעור הנדרש, לרבות זכוכית או קריסטל. גביע כסף נחשב הידור מצווה ומנהג רווח, אך אינו חובה. לפרטים ולמנהגים המדויקים יש לשאול רב.",
     },
     {
       q: "מה ההבדל בין סוגי גביעי קידוש שיש בשוק?",
-      a: "החומרים הנפוצים הם כסף שטרלינג, כסף מצופה, זכוכית וקריסטל, חרסינה וקרמיקה, ומתכת קלה בגימור מוזהב. כסף שטרלינג נחשב מהודר ועמיד ולרוב שומר על ערכו; כסף מצופה נראה דומה במחיר נגיש יותר אך שכבת הציפוי עלולה להישחק; זכוכית וקריסטל קלים לניקוי ומאפשרים לראות את צבע היין; חרסינה וקרמיקה ייחודיים ופחות נפוצים; ומתכת קלה בגימור מוזהב נוחה במשקל ובתחזוקה.",
+      a: "החומרים הנפוצים הם כסף שטרלינג, כסף מצופה, זכוכית וקריסטל, חרסינה וקרמיקה, ומתכת קלה בגימור מוזהב. כסף שטרלינג וכסף מצופה נראים דומים זה לזה ונבדלים בעיקר בהרכב ובעמידות הגימור לאורך השנים; זכוכית וקריסטל קלים לניקוי ומאפשרים לראות את צבע היין; חרסינה וקרמיקה ייחודיים ופחות נפוצים; ומתכת קלה בגימור מוזהב נוחה במשקל ובתחזוקה. אין חומר אחד שמתאים לכולם, והבחירה נעשית לפי המראה, המשקל ביד, נוחות התחזוקה, התקציב והמנהג.",
     },
     {
       q: "מה ההבדל בין גביע קידוש מכסף טהור לגביע מכסף מצופה?",
-      a: 'כסף שטרלינג הוא סגסוגת של 92.5% כסף, ולכן מסומן פעמים רבות בחותמת "925"; הוא מורגש כבד ומוצק ביד, דפנותיו אינן דקות מדי, והוא עמיד לאורך שנים. גביע מכסף מצופה הוא גוף מתכת בסיסי עם שכבת כסף דקה: המראה דומה והמחיר נגיש יותר, אך הציפוי עלול להישחק עם השנים, במיוחד באזורי אחיזה ושפשוף.',
+      a: "כסף שטרלינג הוא סגסוגת של 92.5% כסף, וגוף הגביע כולו עשוי ממנה, ולכן שריטה או שחיקה אינן חושפות מתכת אחרת. גביע מכסף מצופה הוא גוף מתכת בסיסי עם שכבת כסף דקה: המראה דומה והמחיר נגיש יותר, אך הציפוי עלול להישחק עם השנים, במיוחד באזורי אחיזה ושפשוף, ואז נחשפת המתכת שמתחתיו.",
     },
     {
       q: "איך יודעים שהכסף אמיתי?",
-      a: 'חותמת "925" מעידה על כסף שטרלינג. גם משקל מוצק ותחושת איכות מסייעים להבחין בין כסף מלא לבין ציפוי.',
+      a: 'מחפשים את חותמת "925", המוטבעת לרוב בבסיס הגביע או בשוליו — היא מציינת כסף שטרלינג. בנוסף, גביע מכסף מלא מורגש כבד ומוצק ביד ודפנותיו אינן דקות מדי. בגביע מצופה שהציפוי בו כבר נשחק אפשר להבחין בגוון מתכת שונה בשוליים ובאזורי האחיזה.',
     },
     {
       q: "האם גביע קידוש מכסף דורש תחזוקה מיוחדת?",
@@ -180,8 +248,12 @@ const GUIDE_FAQ: Record<string, FaqItem[]> = {
 
   // חנוכיה
   // Body FAQ merged in: "שמן או נרות — מה עדיף?" and the shamash-height
-  // question. The body's "האם אפשר להשתמש בחנוכיה חשמלית?" is dropped as a
-  // duplicate of the electric-menorah question already here.
+  // question. The body's "האם אפשר להשתמש בחנוכיה חשמלית?" is folded into the
+  // electric-menorah question below rather than kept alongside it — one topic,
+  // one answer. Its two missing pieces are restored: the answer now says
+  // "אפשר להשתמש בה" in the asker's own words (and, crucially, "אך לא במקומה",
+  // which the body said and this entry did not), and it defers to a rav, as
+  // this file's own honesty rule requires wherever practice varies.
   "hanukkia-guide": [
     {
       q: "כמה קנים צריכים להיות בחנוכיה כשרה?",
@@ -197,7 +269,7 @@ const GUIDE_FAQ: Record<string, FaqItem[]> = {
     },
     {
       q: "האם יוצאים ידי חובה בחנוכיה חשמלית?",
-      a: "לדעת רוב הפוסקים אין יוצאים ידי חובת ההדלקה בחנוכיה חשמלית לכתחילה, ומעדיפים נרות שמן או שעווה. חנוכיה חשמלית יכולה לשמש לקישוט או בנוסף להדלקה כשרה.",
+      a: "לדעת רוב הפוסקים אין יוצאים ידי חובת ההדלקה בחנוכיה חשמלית לכתחילה, ומעדיפים נרות שמן או שעווה. אפשר להשתמש בה לקישוט או בנוסף להדלקה כשרה, אך לא במקומה, ולמעשה יש לשאול רב.",
     },
     {
       q: "שמן או נרות — מה עדיף?", // em-dash, not a numeric range: bidi-safe here
