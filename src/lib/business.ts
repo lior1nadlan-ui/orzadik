@@ -124,7 +124,7 @@ export const CONSUMER_POLICY = {
   cancellationFeePct: 5,
   cancellationFeeCapIls: 100,
   /** Estimated delivery window shown pre-purchase (business days). Must match the
-   *  site-wide "3–14 ימי עסקים" claim (terms.tsx §6, llms.txt, product/cart/track,
+   *  site-wide "3-14 ימי עסקים" claim (terms.tsx §6, llms.txt, product/cart/track,
    *  category-faq, TrustBadges) so no surface can ever publish a window the store
    *  does not honor. */
   deliveryMinDays: 3,

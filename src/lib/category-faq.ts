@@ -8,7 +8,7 @@ import { CONSUMER_POLICY } from "@/lib/business";
 export type FaqItem = { q: string; a: string };
 
 /**
- * Build a small, factual FAQ for a category. Answers are short (≈1–3 sentences)
+ * Build a small, factual FAQ for a category. Answers are short (≈1-3 sentences)
  * so they are directly quotable as featured snippets / AI answers.
  *
  * Category names come from a supplier import and are arbitrary noun phrases
