@@ -52,7 +52,37 @@ const esc = (s: string) =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&apos;");
 
-const loc = (path: string) => `${SITE}${path.startsWith("/") ? path : "/" + path}`;
+// <loc> must carry a URL-escaped URI, not a raw IRI (sitemaps.org: "the URL
+// must be URL-escaped"). 204 of the 3,778 product URLs have Hebrew slugs and
+// were shipping raw UTF-8 bytes. That is not only a spec nit: measured on the
+// live site, a request carrying those bytes un-encoded answers 500
+// (`curl --path-as-is` -> 500; the percent-encoded form -> 200), so any client
+// that does not IRI-normalise before building the request line was being handed
+// a URL this Worker rejects. Googlebot does normalise, which is why indexing
+// never visibly broke — but nothing guarantees that of every crawler.
+//
+// Encoded per path segment rather than with encodeURI() over the whole string,
+// so "/" stays a separator and so the output is byte-identical to what feed.xml
+// already emits via `encodeURIComponent(p.slug)`. A sitemap and a Merchant feed
+// naming the same page with two different byte strings is how one URL becomes
+// two; before this they genuinely disagreed on all 204.
+//
+// Verified against the live catalogue: encodeURI and encodeURIComponent agree
+// on all 4,648 active slugs, and no active product slug (nor any category slug
+// that survives listableCategories) contains a literal "%", so nothing is
+// double-encoded. Every emitted loc decodeURI()s back to the exact string the
+// previous sitemap shipped — same 3,778 URLs, new spelling.
+//
+// NOTE: rel=canonical on the product page (src/routes/product.$slug.tsx) still
+// emits the raw IRI form. That is the same URL after the IRI->URI conversion any
+// crawler must perform, and spot-checking a Hebrew slug live returns 200 with a
+// canonical that decodes to this string — but the two should be spelled the same
+// way, and that file is the one to change.
+// esc() still runs afterwards for XML entity escaping.
+const loc = (path: string) => {
+  const p = path.startsWith("/") ? path : "/" + path;
+  return SITE + p.split("/").map(encodeURIComponent).join("/");
+};
 
 // PostgREST caps an unbounded select at 1000 rows. That was invisible while the
 // catalog was small, but after the supplier import only 1000 of 4672 products

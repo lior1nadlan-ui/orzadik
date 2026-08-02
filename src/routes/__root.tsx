@@ -289,11 +289,42 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       // the stylesheet is now a plain <link> in `links` above so the font files
       // are discovered at parse time. See the note there: injecting it from JS
       // was the direct cause of a 0.71 CLS on the product template.)
+      // ONE business, ONE node. This used to ship as TWO: Organization
+      // (@id #organization) and Store (@id #store) — both asserting the same
+      // name, the same url "https://orzadik.com/", and the same telephone,
+      // email, logo, image, address and sameAs. They differed only in which
+      // half of the facts each was given: Store held the storefront half (geo,
+      // hasMap, priceRange, currenciesAccepted, paymentAccepted) and
+      // Organization held the identity half (alternateName, founder,
+      // vatID/taxID, knowsAbout, contactPoint, slogan) — plus a
+      // `parentOrganization` edge from Store to Organization, which explicitly
+      // declares an HQ→branch relationship for a business with exactly one shop.
+      //
+      // `url` and `name` are the two strongest keys a reconciliation engine
+      // uses to bind a schema node to a web entity, so two distinct @ids
+      // asserting an identical url + name + telephone + address is the textbook
+      // shape of a DUPLICATED entity. Google will probably merge them, but
+      // "probably merges" is not what you want on the one query where three of
+      // the brand's own social profiles already outrank the store.
+      //
+      // The split also put the properties on the wrong side: `geo` lived on the
+      // Store node, making Store the node most likely matched to the Google
+      // Business Profile — and Store was precisely the node denied the Latin
+      // transliteration, the founder, the taxID and knowsAbout, i.e. every
+      // property that tells this shop apart from the Psalms 97:11 verse it is
+      // named after and from the unrelated book seller at baiitmalesfarim.co.il.
+      //
+      // Store is a subtype of LocalBusiness, which is a subtype of Organization,
+      // so multi-typing is lossless — every property below stays valid on the
+      // merged node and it now carries the union of both sets. Nothing else in
+      // the repo referenced #store (verified by grep over src/ and public/:
+      // the only hit was its own former declaration), so retiring that @id
+      // breaks no reference.
       {
         type: "application/ld+json",
         children: JSON.stringify({
           "@context": "https://schema.org",
-          "@type": "Organization",
+          "@type": ["Organization", "Store"],
           "@id": "https://orzadik.com/#organization",
           name: "אור זרוע לצדיק",
           alternateName: ["Or Zarua LaTzadik", "אור זרוע לצדיק - תשמישי קדושה"],
@@ -333,9 +364,50 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
             "מארזים לחתנים ולבר מצווה",
             "רקמה וחריטה אישית",
           ],
+          // sameAs asserts "this URL is an official identity of THIS entity".
+          // The SERP for the brand query is led by the shop's OWN Instagram,
+          // Facebook and TikTok, so sameAs is the one property that converts
+          // those profiles from rivals for the brand name into corroboration
+          // of it. Only two of them were declared here before.
+          //
+          // Every entry was verified live before being added — a URL that 404s
+          // or belongs to someone else would be a false identity claim:
+          //  • TikTok — confirmed through TikTok's own oEmbed endpoint, which
+          //    returns author_name "אור זרוע לצדיק- תשמישי קדושה" for this
+          //    handle. A plain GET is worthless as evidence here: TikTok's WAF
+          //    answers 200 for handles that do not exist (a made-up control
+          //    handle also returned 200, while its oEmbed returned 400).
+          //  • easy.co.il — the business's own listing: same street address,
+          //    same phone (0545818486), and it links out to exactly the
+          //    Instagram and Facebook URLs already declared here.
+          //  • Google Business Profile — see the hasMap note below for how the
+          //    place URL was derived and checked.
+          //
+          // DELIBERATELY ABSENT: orzarua.co and ozl.co.il. sameAs carries no
+          // directionality and no notion of preference, so listing ozl.co.il —
+          // a live (HTTP 200), brand-titled shopfront this business does not
+          // control — would declare it an official property of the entity and
+          // legitimise the competitor rather than demote it. orzarua.co does
+          // not resolve at all. Both make the entity graph worse, not better.
+          //
+          // ALSO DELIBERATELY ABSENT: the easy.co.il listing, even though it IS
+          // genuinely this business's own and matches on street address and
+          // phone. The cut is about CONTENT, not ownership: that listing files
+          // the shop under the category "סופר סת\"ם" and its description offers
+          // תפילין and ספרי תורה — a scribal trade this store does not practise,
+          // and which the site's own FAQ denies in plain Hebrew. sameAs does not
+          // merely link; it asserts official identity, which makes everything on
+          // the far side owner-endorsed evidence about this entity. Declaring it
+          // would ask Google to believe the false half too — on the exact query
+          // where the brand is trying to establish what it actually is, and while
+          // answer engines are already repeating the sofer-STaM claim back to
+          // shoppers. Re-add it the moment the owner corrects the listing; that
+          // correction is owner action #2, and this line is why it matters.
           sameAs: [
             "https://www.instagram.com/or_zarua_latzadik/",
             "https://www.facebook.com/profile.php?id=61576488921081",
+            "https://www.tiktok.com/@or_zarua_latzadik",
+            "https://maps.google.com/?cid=1527663379608737920",
           ],
           areaServed: { "@type": "Country", name: "IL" },
           contactPoint: {
@@ -346,6 +418,38 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
             areaServed: "IL",
             availableLanguage: ["he"],
           },
+          // ——— Storefront facts, merged in from the retired #store node ———
+          geo: { "@type": "GeoCoordinates", latitude: 32.84216, longitude: 35.08877 },
+          currenciesAccepted: "ILS",
+          // Card only. The single checkout path in the codebase is the Cardcom
+          // hosted card page (src/lib/cardcom.functions.ts); there is no
+          // pay-on-delivery or over-the-counter flow anywhere in the app, so
+          // the previous second value was dropped — structured data must not
+          // advertise a payment method the store cannot actually accept.
+          paymentAccepted: "Credit Card",
+          priceRange: "₪₪",
+          // NOTE: no `openingHoursSpecification` here on purpose. Nothing in the
+          // codebase or the DB records the store's opening hours, and publishing
+          // invented hours in structured data would be a business promise the
+          // store never made — and would send real customers to a closed door.
+          // Add it only once the owner supplies real hours.
+          //
+          // The canonical Google Business Profile place URL. It replaces a
+          // "maps/search/?api=1&query=<address string>" URL, which asks Google
+          // to RUN A SEARCH; this one NAMES THE PLACE, and so wires the site
+          // directly to the Knowledge Graph entity that already exists for this
+          // shop — the strongest disambiguation signal available in code.
+          //
+          // Derived and verified, not guessed. The business's easy.co.il
+          // listing links its Google reviews to cid=1527663379608737920;
+          // resolving that cid through Google's own Maps embed endpoint returns
+          // name "אור זרוע לצדיק", address "דרך עכו 190, קריית ביאליק, 2723642",
+          // phone "054-581-8486", coordinates [32.84216, 35.08877] — byte-equal
+          // to the `geo` above and to the postalCode in `address` — plus KG id
+          // /g/11xt21675j and category gcid:judaica_store. Five independent
+          // fields match data already in this node, so this is the right place
+          // and not a lookalike.
+          hasMap: "https://maps.google.com/?cid=1527663379608737920",
         }),
       },
       {
@@ -368,55 +472,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           },
         }),
       },
-      {
-        type: "application/ld+json",
-        children: JSON.stringify({
-          "@context": "https://schema.org",
-          "@type": "Store",
-          "@id": "https://orzadik.com/#store",
-          name: "אור זרוע לצדיק",
-          url: "https://orzadik.com/",
-          logo: {
-            "@type": "ImageObject",
-            url: "https://orzadik.com/logo.png",
-            width: 586,
-            height: 200,
-          },
-          image: "https://orzadik.com/og-default.jpg",
-          description:
-            "חנות תשמישי קדושה ויודאיקה — טליתות, כיסויי טלית ותפילין, נרתיקי מזוזה, גביעי קידוש, חנוכיות ומארזים לחתנים.",
-          telephone: "+972-54-581-8486",
-          email: "orzarualachatz@gmail.com",
-          address: {
-            "@type": "PostalAddress",
-            streetAddress: "דרך עכו 190",
-            addressLocality: "קרית ביאליק",
-            addressRegion: "מחוז חיפה",
-            postalCode: "2723642",
-            addressCountry: "IL",
-          },
-          geo: { "@type": "GeoCoordinates", latitude: 32.84216, longitude: 35.08877 },
-          currenciesAccepted: "ILS",
-          // Card only. The single checkout path in the codebase is the Cardcom
-          // hosted card page (src/lib/cardcom.functions.ts); there is no
-          // pay-on-delivery or over-the-counter flow anywhere in the app, so
-          // the previous second value was dropped — structured data must not
-          // advertise a payment method the store cannot actually accept.
-          paymentAccepted: "Credit Card",
-          priceRange: "₪₪",
-          // NOTE: no `openingHoursSpecification` here on purpose. Nothing in the
-          // codebase or the DB records the store's opening hours, and publishing
-          // invented hours in structured data would be a business promise the
-          // store never made. Add it only once the owner supplies real hours.
-          areaServed: { "@type": "Country", name: "IL" },
-          hasMap: "https://www.google.com/maps/search/?api=1&query=%D7%93%D7%A8%D7%9A+%D7%A2%D7%9B%D7%95+190+%D7%A7%D7%A8%D7%99%D7%AA+%D7%91%D7%99%D7%90%D7%9C%D7%99%D7%A7",
-          sameAs: [
-            "https://www.instagram.com/or_zarua_latzadik/",
-            "https://www.facebook.com/profile.php?id=61576488921081",
-          ],
-          parentOrganization: { "@id": "https://orzadik.com/#organization" },
-        }),
-      },
+      // (The separate #store node that used to sit here was merged into the
+      // #organization node above — see the note there. Its storefront-only
+      // properties moved across verbatim; everything else it declared was an
+      // exact duplicate of the Organization node's own values.)
     ],
   }),
   shellComponent: RootShell,

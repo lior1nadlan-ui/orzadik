@@ -137,15 +137,166 @@ async function fetchCategoryWithRetry(slug: string, maxRetries = 2) {
   return { cat: null, parent: null, products: [], allCats: [] as CategoryChipRow[] };
 }
 
+// Grid page size — and the stride of ?page=. ONE constant, so the server-rendered
+// window, the ItemList in head() and the crawlable page boundaries can never
+// drift apart.
+const PAGE_SIZE = 24;
+// Floodgate for a hand-typed or crawler-invented ?page=999999 — same role and
+// same value as /shop's clamp. It is NOT the end-of-listing check: the loader's
+// out-of-range redirect below is what sends a clamped page back to a real one.
+const MAX_PAGE = 500;
+
+// Page 1 is represented as `undefined` so the canonical /category/<slug> URL
+// stays parameter-free. Same parser as shop.tsx — the two listings must agree on
+// what a page number means or their canonicals disagree.
+function parsePage(v: unknown): number | undefined {
+  const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
+  if (!Number.isFinite(n)) return undefined;
+  const i = Math.floor(n);
+  if (i <= 1) return undefined;
+  return Math.min(i, MAX_PAGE);
+}
+
+type SortMode = "recommended" | "price-asc" | "price-desc" | "newest" | "oldest" | "name";
+
+function isSortMode(v: unknown): v is SortMode {
+  return v === "recommended" || v === "price-asc" || v === "price-desc" || v === "newest"
+    || v === "oldest" || v === "name";
+}
+
+// Static price-range buckets for the client-side facet. Bounds are the price the
+// customer actually pays — getEffectivePrice(price) — so the labels match the
+// numbers shown on every card. Ranges are contiguous and non-overlapping:
+// עד ₪100 (≤100), ₪100-300 (100<x≤300), ₪300+ (>300). Pure filtering — the
+// buckets carry no sale/discount language, only the paid price.
+type PriceBucketId = "0-100" | "100-300" | "300-plus";
+
+const PRICE_BUCKETS: { id: PriceBucketId; label: string; test: (eff: number) => boolean }[] = [
+  { id: "0-100", label: "עד ₪100", test: (eff) => eff <= 100 },
+  { id: "100-300", label: "₪100-300", test: (eff) => eff > 100 && eff <= 300 },
+  { id: "300-plus", label: "₪300+", test: (eff) => eff > 300 },
+];
+
+function isPriceBucketId(v: unknown): v is PriceBucketId {
+  return v === "0-100" || v === "100-300" || v === "300-plus";
+}
+
+type Row = ProductCardData & { is_active: boolean; stock_status: string; created_at: string };
+
+// THE ordering of a category — one function, called by head() and by the grid.
+//
+// This logic used to live only inside the component's useMemo, so head() had no
+// way to know what the page would actually render and built its ItemList by
+// slicing the RAW DB order instead. Measured live on 2026-08-02:
+// /category/chagim listed 48 products in JSON-LD, rendered 24 anchors, and only
+// 4 of them were the same product — with "numberOfItems": 523, a number matching
+// neither. 71 of 93 category pages disagreed like that, 1,282 products appearing
+// in structured data with no anchor on the page that claimed them. Deriving both
+// sides from this one function makes them identical by construction; the only
+// way to reintroduce the drift is to stop calling it.
+function collapseAndOrder(
+  products: Row[],
+  opts: { sort?: SortMode; inStockOnly?: boolean; priceBucket?: PriceBucketId | null } = {},
+): Row[] {
+  const { sort = "recommended", inStockOnly = false, priceBucket = null } = opts;
+  // Collapse same-name models into one tile. The supplier reuses one generic
+  // name across many distinct SKUs (43 × 'נטלה מהודרת מפולימר 14 ס"מ'), so a
+  // category renders dozens of identical-looking cards. Every row is a real
+  // product with its own SKU and photo, so nothing is dropped from the
+  // catalogue — the group is represented by one card carrying model_count,
+  // and the product page lists the rest. Done here rather than in SQL because
+  // this page already loads the whole category and sorts it client-side.
+  //
+  // Key mirrors norm_he(): lowercase, fold the quote family, collapse spaces.
+  const groupKey = (name: string) =>
+    name
+      .toLowerCase()
+      .replace(/[׳״'"`‘’“”]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  const groups = new Map<string, Row[]>();
+  for (const p of products) {
+    const k = groupKey(p.name);
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k)!.push(p);
+  }
+  // Representative: prefer one that HAS a photo (so a collapsed group never
+  // shows the placeholder while its siblings have images), then in stock,
+  // then cheapest.
+  const collapsed: Row[] = [...groups.values()].map((g) => {
+    const rep = [...g].sort(
+      (a, b) =>
+        Number(!!b.thumbnail_url) - Number(!!a.thumbnail_url) ||
+        Number(b.stock_status !== "outofstock") - Number(a.stock_status !== "outofstock") ||
+        a.price - b.price,
+    )[0];
+    return g.length > 1 ? ({ ...rep, model_count: g.length } as Row) : rep;
+  });
+
+  let list = collapsed;
+  if (inStockOnly) list = list.filter((p) => p.stock_status !== "outofstock");
+  // Price-range facet — filter on the effective (paid) price so the buckets
+  // agree with the numbers on the cards. Applied to the collapsed
+  // representatives, so a group is kept/dropped by the price of the card that
+  // actually shows (the cheapest imaged/in-stock model chosen above).
+  if (priceBucket) {
+    const bucket = PRICE_BUCKETS.find((b) => b.id === priceBucket);
+    if (bucket) list = list.filter((p) => bucket.test(getEffectivePrice(p.price)));
+  }
+  switch (sort) {
+    case "price-asc":
+      // "Call for price" items (price<=0) carry no number, so sink them to the
+      // end — otherwise their 0 would lead the cheapest-first list.
+      list.sort((a, b) => {
+        const aCall = a.price <= 0, bCall = b.price <= 0;
+        if (aCall !== bCall) return aCall ? 1 : -1;
+        return a.price - b.price;
+      });
+      break;
+    case "price-desc":
+      // Same: keep call-only items at the end rather than mixed into the run.
+      list.sort((a, b) => {
+        const aCall = a.price <= 0, bCall = b.price <= 0;
+        if (aCall !== bCall) return aCall ? 1 : -1;
+        return b.price - a.price;
+      });
+      break;
+    case "newest":
+      list.sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at));
+      break;
+    case "oldest":
+      list.sort((a, b) => +new Date(a.created_at) - +new Date(b.created_at));
+      break;
+    case "name":
+      list.sort((a, b) => a.name.localeCompare(b.name, "he"));
+      break;
+    default:
+      // recommended: more expensive items first; within same price, older items first (newer items go to the back)
+      list.sort((a, b) => (b.price - a.price) || (+new Date(a.created_at) - +new Date(b.created_at)));
+      break;
+  }
+  // Whatever the sort mode, out-of-stock items always sink to the end
+  // (stable partition — in-stock order is untouched).
+  const inStock = list.filter((p) => p.stock_status !== "outofstock");
+  const oos = list.filter((p) => p.stock_status === "outofstock");
+  return [...inStock, ...oos];
+}
+
 export const Route = createFileRoute("/category/$slug")({
-  validateSearch: (s: Record<string, unknown>): { sort?: string; instock?: boolean; price?: string } => ({
+  validateSearch: (s: Record<string, unknown>): { sort?: string; instock?: boolean; price?: string; page?: number } => ({
     sort: typeof s.sort === "string" ? s.sort : undefined,
     instock: s.instock === true || s.instock === "true" ? true : undefined,
     // Client-side price-range facet (see PRICE_BUCKETS). An unknown value narrows
     // to no filter in the component, so a hand-edited ?price= never throws.
     price: typeof s.price === "string" ? s.price : undefined,
+    page: parsePage(s.page),
   }),
-  loader: async ({ params }) => {
+  // ONLY ?page= is a loader dep. sort/instock/price are client-side view facets
+  // over a category that is already fully in memory, so keeping them out means
+  // toggling a chip still costs zero round-trips (they are read off `location`
+  // below, the same trick shop.tsx uses for its instock filter).
+  loaderDeps: ({ search }) => ({ page: search.page ?? 1 }),
+  loader: async ({ params, deps, location }) => {
     // Categories merged away in the 2026-07 dedupe: 301 old inbound links / index
     // entries to their canonical so no SEO equity or bookmark 404s. Only clean
     // ASCII slugs are mapped here (a percent-encoded target would be re-encoded by
@@ -156,7 +307,53 @@ export const Route = createFileRoute("/category/$slug")({
     }
     const result = await fetchCategoryWithRetry(params.slug);
     if (!result.cat) throw notFound(); // real HTTP 404 for non-existent categories
-    return result;
+
+    // The facets are deliberately NOT loader deps (see above), so read them off
+    // the location instead — the same trick shop.tsx uses for its instock filter.
+    const facets = location.search as { sort?: string; instock?: boolean; price?: string };
+
+    // Past the end of the listing. /shop already learned this lesson the hard
+    // way: a ?page= beyond the last real page answers HTTP 200 with zero
+    // products and a self-canonical, i.e. a crawlable soft-404, and the MAX_PAGE
+    // clamp above means ?page=999999 lands there rather than 404ing. 302 rather
+    // than 301 for the same reason as /shop: the last page moves with the
+    // catalogue on every supplier import, and a permanent redirect would be
+    // cached long after the page becomes real. Only computed past page 1 — page 1
+    // can never be out of range, and this is an extra ordering pass over up to
+    // 742 rows on the site's heaviest SSR route.
+    if (deps.page > 1) {
+      const lastPage = Math.max(
+        1,
+        Math.ceil(collapseAndOrder(result.products as Row[]).length / PAGE_SIZE),
+      );
+      if (deps.page > lastPage) {
+        throw redirect({
+          to: "/category/$slug",
+          params: { slug: params.slug },
+          // Carry the facets through, or this redirect would silently clear the
+          // shopper's sort and filters on the way back to a real page.
+          search: {
+            sort: facets.sort,
+            instock: facets.instock ? true : undefined,
+            price: facets.price,
+            page: lastPage > 1 ? lastPage : undefined,
+          },
+          statusCode: 302,
+        });
+      }
+    }
+
+    // `filtered` is computed from the URL, not from loader deps, so it is exact
+    // for every server render (the only render a crawler ever sees) and simply
+    // goes stale after a client-side chip toggle — which no crawler performs.
+    // The three predicates below are the SAME ones the component normalizes with
+    // (isSortMode / isPriceBucketId), so "?sort=garbage" is unfiltered on both
+    // sides and the ItemList stays valid.
+    const filtered =
+      (isSortMode(facets.sort) && facets.sort !== "recommended") ||
+      facets.instock === true ||
+      isPriceBucketId(facets.price);
+    return { ...result, page: deps.page, filtered };
   },
   head: ({ loaderData, params }) => {
     const url = `https://orzadik.com/category/${params.slug}`;
@@ -204,35 +401,91 @@ export const Route = createFileRoute("/category/$slug")({
     // resolves to their natural-encoded form, which genuinely 404s.
     const indexable = isListableCategory(params.slug, products.length);
 
-    // Cap the inline ItemList to roughly the first rendered window (2 × the
-    // grid's 24-item page). numberOfItems stays the TRUE category total — it may
-    // exceed the listed items, which is honest — but we no longer inline a JSON
-    // node for every one of up to ~742 products. That trimmed tens-to-~100KB of
-    // markup off the heaviest organic landing pages, for items no crawler sees
-    // above the fold anyway.
-    const LD_ITEM_LIMIT = 48;
-    const ldProducts = products.slice(0, LD_ITEM_LIMIT);
+    // ?page= is the crawlable half of this listing. Measured 2026-08-02 across
+    // all 93 sitemap'd categories: 6,291 collapsed cards exist, 1,654 of them
+    // were in the server HTML (24 per category) and the other 4,637 sat behind a
+    // JS-only "load more" with no ?page= or any other URL behind it — 51
+    // categories deeper than one page, /category/kipot showing 24 of 671. The
+    // only crawlable route to that tail was the 148-page /shop chain, i.e. crawl
+    // depth ~148 and not one topical link from the category that describes the
+    // product. Paginating adds 218 URLs and makes all 6,291 reachable at depth ≤3.
+    //
+    // head() and the grid slice the SAME collapseAndOrder() result at the SAME
+    // offset, so the ItemList below cannot name a product the page does not
+    // render. That is the whole fix for the schema half of this route.
+    const page = loaderData?.page ?? 1;
+    const filtered = loaderData?.filtered ?? false;
+    const ordered = collapseAndOrder(products as Row[]);
+    const pageStart = (page - 1) * PAGE_SIZE;
+    const pageItems = ordered.slice(pageStart, pageStart + PAGE_SIZE);
+    const lastPage = Math.max(1, Math.ceil(ordered.length / PAGE_SIZE));
+    // A sort / stock / price chip makes the URL a VIEW of the category, not a
+    // page of it: it stays canonical to the bare category (unchanged behaviour)
+    // and gets no rel=prev/next, which would otherwise point at the unfiltered
+    // page 2. Those URLs are reachable only from a shared link — every facet
+    // control is a <button>, so none of them is a crawlable href.
+    const paged = !filtered;
+    const canonical = paged && page > 1 ? `${url}?page=${page}` : url;
+    // Deeper pages are canonical to themselves so their products are indexable
+    // in their own right; page 1 keeps the bare, parameter-free URL the sitemap
+    // lists. Same split as /shop.
+    // Gated on `paged`, not on `page` alone, so the title cannot announce a page
+    // number that the rest of the head has just discarded. On a FACET url
+    // (?in_stock=1&page=3) `paged` is false, so canonical, og:url and the
+    // CollectionPage @id all collapse to the bare category — and a title reading
+    // "— עמוד 3" against a canonical with no page parameter is the page
+    // contradicting itself in the one place a searcher reads first.
+    const title =
+      paged && page > 1
+        ? `${cat.name} — עמוד ${page} | אור זרוע לצדיק`
+        : `${cat.name} | אור זרוע לצדיק`;
+
     const collectionLd: any = {
       "@context": "https://schema.org",
       "@type": "CollectionPage",
-      "@id": url,
-      url,
-      name: `${cat.name} | אור זרוע לצדיק`,
+      "@id": canonical,
+      url: canonical,
+      name: title,
       description: desc,
       inLanguage: "he-IL",
       isPartOf: { "@id": "https://orzadik.com/#website" },
       ...(cat.image_url ? { image: cat.image_url } : {}),
-      mainEntity: {
-        "@type": "ItemList",
-        numberOfItems: products.length,
-        itemListElement: ldProducts.map((p: any, i: number) => ({
-          "@type": "ListItem",
-          position: i + 1,
-          url: `https://orzadik.com/product/${p.slug}`,
-          name: p.name,
-          ...(p.thumbnail_url ? { image: p.thumbnail_url } : {}),
-        })),
-      },
+      // The ItemList is this page's own ≤24 items, and numberOfItems is that
+      // array's length. It used to be the whole-category count (523 on
+      // /category/chagim, 743 on /category/kipot) over a 48-item slice of the
+      // RAW DB order, which the grid never renders — so the count matched
+      // neither the list nor the page, and the list was mostly products that
+      // were not there. Measured live 2026-08-02: 71 of 93 categories
+      // disagreed, 1,282 products were claimed by a page carrying no anchor to
+      // them, /category/talit-tefilin listed 48 of which exactly 1 was on the
+      // page. Positions are global (pageStart + i + 1) so the paginated series
+      // reads as one list rather than 28 lists that all start at 1.
+      //
+      // On a facet view the loader cannot know the rendered order, so we emit no
+      // list rather than a wrong one. Silence is honest; a mismatched list is
+      // the same class of defect as an invented rating.
+      ...(paged
+        ? {
+            mainEntity: {
+              "@type": "ItemList",
+              // numberOfItems and position must describe the SAME list. Counting
+              // this page's items (24) while numbering them globally (25-48 on
+              // page 2) declares a 24-item list whose members sit at positions
+              // 25-48 — which is not a coherent list at all. The list this node
+              // describes is "the products rendered on THIS page", so the
+              // positions are local to it; the page's place in the wider set is
+              // already carried by rel=prev/next and the canonical.
+              numberOfItems: pageItems.length,
+              itemListElement: pageItems.map((p, i) => ({
+                "@type": "ListItem",
+                position: i + 1,
+                url: `https://orzadik.com/product/${p.slug}`,
+                name: p.name,
+                ...(p.thumbnail_url ? { image: p.thumbnail_url } : {}),
+              })),
+            },
+          }
+        : {}),
     };
     // Surface the parent-category level on subcategory pages so the trail is
     // בית / מוצרים / parent / cat — positions stay consecutive either way.
@@ -273,25 +526,35 @@ export const Route = createFileRoute("/category/$slug")({
 
     return {
       meta: [
-        { title: `${cat.name} | אור זרוע לצדיק` },
+        { title },
         // "follow", not "nofollow": the page is empty but its breadcrumb and
         // "לכל המוצרים בחנות" links are legitimate routes back into the
         // catalog. Meta is merged leaf→root with first-seen winning (see
         // __root.tsx), so this overrides the site-wide "index, follow".
         ...(indexable ? [] : [{ name: "robots", content: "noindex, follow" }]),
         { name: "description", content: desc },
-        { property: "og:title", content: `${cat.name} | אור זרוע לצדיק` },
+        { property: "og:title", content: title },
         { property: "og:description", content: desc },
         { property: "og:type", content: "website" },
-        { property: "og:url", content: url },
+        { property: "og:url", content: canonical },
         { property: "og:image", content: cat.image_url || "https://orzadik.com/og-default.jpg" },
         { property: "og:image:alt", content: cat.name },
         { name: "twitter:card", content: "summary_large_image" },
-        { name: "twitter:title", content: `${cat.name} | אור זרוע לצדיק` },
+        { name: "twitter:title", content: title },
         { name: "twitter:description", content: desc },
         { name: "twitter:image", content: cat.image_url || "https://orzadik.com/og-default.jpg" },
       ],
-      links: [{ rel: "canonical", href: url }, ...heroPreload],
+      links: [
+        { rel: "canonical", href: canonical },
+        // The prev/next chain is what turns 93 dead-end pages into a walkable
+        // series. Page 2's "prev" is the bare URL, never "?page=1" — that would
+        // advertise a second address for a page that already has a canonical one.
+        ...(paged && page > 1
+          ? [{ rel: "prev", href: page - 1 > 1 ? `${url}?page=${page - 1}` : url }]
+          : []),
+        ...(paged && page < lastPage ? [{ rel: "next", href: `${url}?page=${page + 1}` }] : []),
+        ...heroPreload,
+      ],
       // The breadcrumb stays on a noindex page (it is true, and it is the trail
       // back out). The CollectionPage and the FAQPage do NOT: an empty ItemList
       // and five shipping/returns answers about a category with no products are
@@ -308,36 +571,15 @@ export const Route = createFileRoute("/category/$slug")({
   component: CategoryPage,
 });
 
-type SortMode = "recommended" | "price-asc" | "price-desc" | "newest" | "oldest" | "name";
-
-function isSortMode(v: unknown): v is SortMode {
-  return v === "recommended" || v === "price-asc" || v === "price-desc" || v === "newest"
-    || v === "oldest" || v === "name";
-}
-
-// Static price-range buckets for the client-side facet. Bounds are the price the
-// customer actually pays — getEffectivePrice(price) — so the labels match the
-// numbers shown on every card. Ranges are contiguous and non-overlapping:
-// עד ₪100 (≤100), ₪100-300 (100<x≤300), ₪300+ (>300). Pure filtering — the
-// buckets carry no sale/discount language, only the paid price.
-type PriceBucketId = "0-100" | "100-300" | "300-plus";
-
-const PRICE_BUCKETS: { id: PriceBucketId; label: string; test: (eff: number) => boolean }[] = [
-  { id: "0-100", label: "עד ₪100", test: (eff) => eff <= 100 },
-  { id: "100-300", label: "₪100-300", test: (eff) => eff > 100 && eff <= 300 },
-  { id: "300-plus", label: "₪300+", test: (eff) => eff > 300 },
-];
-
-function isPriceBucketId(v: unknown): v is PriceBucketId {
-  return v === "0-100" || v === "100-300" || v === "300-plus";
-}
-
-type Row = ProductCardData & { is_active: boolean; stock_status: string; created_at: string };
-
 function CategoryPage() {
   const { slug } = Route.useParams();
   const { cat: initialCat, products: initialProducts, parent, allCats } = Route.useLoaderData();
-  const { sort: sortFromUrl, instock: instockFromUrl, price: priceFromUrl } = Route.useSearch();
+  const {
+    sort: sortFromUrl,
+    instock: instockFromUrl,
+    price: priceFromUrl,
+    page: pageFromUrl,
+  } = Route.useSearch();
   const navigate = Route.useNavigate();
   // DERIVED from the URL, deliberately NOT held in useState.
   //
@@ -358,9 +600,14 @@ function CategoryPage() {
     ? priceFromUrl
     : null;
 
+  const page = pageFromUrl ?? 1;
+
+  // Every facet change drops ?page=: a different order or filter means a
+  // different page 1, and keeping the old offset would strand the shopper in the
+  // middle of a list they just reshuffled. Same rule /shop applies on re-sort.
   const changeSort = (v: SortMode) => {
     navigate({
-      search: (prev) => ({ ...prev, sort: v === "recommended" ? undefined : v }),
+      search: (prev) => ({ ...prev, sort: v === "recommended" ? undefined : v, page: undefined }),
       replace: true,
       resetScroll: false,
     });
@@ -368,7 +615,7 @@ function CategoryPage() {
 
   const changeInStockOnly = (v: boolean) => {
     navigate({
-      search: (prev) => ({ ...prev, instock: v ? true : undefined }),
+      search: (prev) => ({ ...prev, instock: v ? true : undefined, page: undefined }),
       replace: true,
       resetScroll: false,
     });
@@ -377,7 +624,7 @@ function CategoryPage() {
   // Single-select facet: tapping the active bucket clears it (null → no ?price=).
   const changePriceBucket = (v: PriceBucketId | null) => {
     navigate({
-      search: (prev) => ({ ...prev, price: v ?? undefined }),
+      search: (prev) => ({ ...prev, price: v ?? undefined, page: undefined }),
       replace: true,
       resetScroll: false,
     });
@@ -423,104 +670,53 @@ function CategoryPage() {
     initialData: (initialProducts as Row[] | undefined)?.length ? (initialProducts as Row[]) : undefined,
   });
 
-  const visible = useMemo(() => {
-    // Collapse same-name models into one tile. The supplier reuses one generic
-    // name across many distinct SKUs (43 × 'נטלה מהודרת מפולימר 14 ס"מ'), so a
-    // category renders dozens of identical-looking cards. Every row is a real
-    // product with its own SKU and photo, so nothing is dropped from the
-    // catalogue — the group is represented by one card carrying model_count,
-    // and the product page lists the rest. Done here rather than in SQL because
-    // this page already loads the whole category and sorts it client-side.
-    //
-    // Key mirrors norm_he(): lowercase, fold the quote family, collapse spaces.
-    const groupKey = (name: string) =>
-      name
-        .toLowerCase()
-        .replace(/[׳״'"`‘’“”]/g, " ")
-        .replace(/\s+/g, " ")
-        .trim();
-    const groups = new Map<string, Row[]>();
-    for (const p of products) {
-      const k = groupKey(p.name);
-      if (!groups.has(k)) groups.set(k, []);
-      groups.get(k)!.push(p);
-    }
-    // Representative: prefer one that HAS a photo (so a collapsed group never
-    // shows the placeholder while its siblings have images), then in stock,
-    // then cheapest.
-    const collapsed: Row[] = [...groups.values()].map((g) => {
-      const rep = [...g].sort(
-        (a, b) =>
-          Number(!!b.thumbnail_url) - Number(!!a.thumbnail_url) ||
-          Number(b.stock_status !== "outofstock") - Number(a.stock_status !== "outofstock") ||
-          a.price - b.price,
-      )[0];
-      return g.length > 1 ? ({ ...rep, model_count: g.length } as Row) : rep;
-    });
-
-    let list = collapsed;
-    if (inStockOnly) list = list.filter((p) => p.stock_status !== "outofstock");
-    // Price-range facet — filter on the effective (paid) price so the buckets
-    // agree with the numbers on the cards. Applied to the collapsed
-    // representatives, so a group is kept/dropped by the price of the card that
-    // actually shows (the cheapest imaged/in-stock model chosen above).
-    if (priceBucket) {
-      const bucket = PRICE_BUCKETS.find((b) => b.id === priceBucket);
-      if (bucket) list = list.filter((p) => bucket.test(getEffectivePrice(p.price)));
-    }
-    switch (sort) {
-      case "price-asc":
-        // "Call for price" items (price<=0) carry no number, so sink them to the
-        // end — otherwise their 0 would lead the cheapest-first list.
-        list.sort((a, b) => {
-          const aCall = a.price <= 0, bCall = b.price <= 0;
-          if (aCall !== bCall) return aCall ? 1 : -1;
-          return a.price - b.price;
-        });
-        break;
-      case "price-desc":
-        // Same: keep call-only items at the end rather than mixed into the run.
-        list.sort((a, b) => {
-          const aCall = a.price <= 0, bCall = b.price <= 0;
-          if (aCall !== bCall) return aCall ? 1 : -1;
-          return b.price - a.price;
-        });
-        break;
-      case "newest":
-        list.sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at));
-        break;
-      case "oldest":
-        list.sort((a, b) => +new Date(a.created_at) - +new Date(b.created_at));
-        break;
-      case "name":
-        list.sort((a, b) => a.name.localeCompare(b.name, "he"));
-        break;
-      default:
-        // recommended: more expensive items first; within same price, older items first (newer items go to the back)
-        list.sort((a, b) => (b.price - a.price) || (+new Date(a.created_at) - +new Date(b.created_at)));
-        break;
-    }
-    // Whatever the sort mode, out-of-stock items always sink to the end
-    // (stable partition — in-stock order is untouched).
-    const inStock = list.filter((p) => p.stock_status !== "outofstock");
-    const oos = list.filter((p) => p.stock_status === "outofstock");
-    return [...inStock, ...oos];
-  }, [products, sort, inStockOnly, priceBucket]);
+  // The SAME function head() uses to build the ItemList. Both slice this array
+  // at the same offset, so the JSON-LD and the grid are one list by construction
+  // — see the comment on collapseAndOrder for what the two used to disagree by.
+  const visible = useMemo(
+    () => collapseAndOrder(products, { sort, inStockOnly, priceBucket }),
+    [products, sort, inStockOnly, priceBucket],
+  );
 
   // Client-side windowing. This page loads its whole category into memory (the
   // largest is 742 rows) and sorts/filters it there, but mounting every card at
   // once is wasteful; slice the fully sorted+filtered list to a growing window
   // and reveal +24 per click, mirroring /shop's "load more".
-  const PAGE_SIZE = 24;
+  //
+  // The window now STARTS at the ?page= offset instead of always at 0. That is
+  // what makes the deep half of a category exist in the server HTML: the
+  // <a href> pagination at the bottom of this page is the only route a crawler
+  // has into products 25..743, and the offset has to be honoured on the server
+  // for those URLs to render anything different from page 1.
   const [shown, setShown] = useState(PAGE_SIZE);
-  // A new sort / stock filter / category is a fresh "page 1" — reset the window
-  // so the user starts from the top of the reordered list, matching /shop
-  // dropping ?page= on re-sort.
+  // A new sort / stock filter / page / category is a fresh window — reset it so
+  // the user starts from the top of the reordered list.
   useEffect(() => {
     setShown(PAGE_SIZE);
-  }, [sort, inStockOnly, priceBucket, slug]);
-  const windowed = visible.slice(0, shown);
-  const remaining = visible.length - windowed.length;
+  }, [sort, inStockOnly, priceBucket, slug, page]);
+  const pageStart = (page - 1) * PAGE_SIZE;
+  const windowed = visible.slice(pageStart, pageStart + shown);
+  const remaining = visible.length - (pageStart + windowed.length);
+  const lastPage = Math.max(1, Math.ceil(visible.length / PAGE_SIZE), page);
+  // "Next" skips past everything already revealed, so a visitor who pressed
+  // "load more" twice is not offered a link back to products they can see.
+  const nextPage = Math.min(MAX_PAGE, Math.floor((pageStart + windowed.length) / PAGE_SIZE) + 1);
+  const hasMorePages = pageStart + windowed.length < visible.length;
+  // Page links carry the active facets so a shopper paging through
+  // "במלאי בלבד · ₪100-300" stays inside that view.
+  const pageSearch = (n: number): { sort?: string; instock?: boolean; price?: string; page?: number } => ({
+    sort: sort === "recommended" ? undefined : sort,
+    instock: inStockOnly ? true : undefined,
+    price: priceBucket ?? undefined,
+    page: n <= 1 ? undefined : n,
+  });
+  // Byte-identical to the "load more" chip below it, minus the wider padding:
+  // the two controls do the same job (more products) and sit in the same band,
+  // so they must read as one family. Ink on a 70% white pane, hover swaps to
+  // background-on-foreground — no gold, which on this page is reserved for the
+  // hero rule and the active price chip.
+  const pageLinkClass =
+    "press rounded-full bg-card/70 px-6 py-2.5 text-sm font-medium text-foreground hairline transition-[background-color,color,transform] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:text-background";
 
   return (
     <div className="pb-12">
@@ -746,7 +942,7 @@ function CategoryPage() {
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
               {windowed.map((p, i) => <ProductCard key={p.id} p={p} eager={i < 4} highPriority={!heroImage && i < 2} />)}
             </div>
-            {visible.length === 0 && (
+            {windowed.length === 0 && (
               // Same designed glass empty state as /shop (gold-free), so the two
               // discovery pages read consistently. When the in-stock filter is
               // what emptied the grid, offer a one-tap way back to the full list.
@@ -756,14 +952,30 @@ function CategoryPage() {
                 </div>
                 <h2 className="font-display text-2xl md:text-3xl font-bold mb-3">לא נמצאו מוצרים</h2>
                 <p className="text-muted-foreground leading-relaxed">
-                  {inStockOnly || priceBucket
-                    ? "אין כרגע מוצרים שתואמים את הסינון בקטגוריה הזו."
-                    : "אין כרגע מוצרים בקטגוריה הזו."}
+                  {visible.length > 0
+                    // The loader 302s a ?page= past the end of the UNFILTERED
+                    // listing, but a facet shortens the list further, so a shared
+                    // "?instock=true&page=9" can still land past the end. Say so
+                    // and offer the way back rather than showing a blank grid.
+                    ? "אין מוצרים בעמוד הזה."
+                    : inStockOnly || priceBucket
+                      ? "אין כרגע מוצרים שתואמים את הסינון בקטגוריה הזו."
+                      : "אין כרגע מוצרים בקטגוריה הזו."}
                 </p>
+                {visible.length > 0 && (
+                  <Link
+                    to="/category/$slug"
+                    params={{ slug }}
+                    search={pageSearch(1)}
+                    className="press mt-6 inline-block rounded-full bg-card/70 px-6 py-2.5 text-sm font-medium text-foreground hairline transition-[background-color,color,transform] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:text-background"
+                  >
+                    חזרה לעמוד הראשון
+                  </Link>
+                )}
                 {/* A genuinely-empty category (no filter active) previously rendered
                     NO link at all — the shopper had to reach for the browser's back
                     button. Always offer a way onward. */}
-                {!inStockOnly && !priceBucket && (
+                {visible.length === 0 && !inStockOnly && !priceBucket && (
                   <Link
                     to="/shop"
                     className="press mt-6 inline-block rounded-full bg-card/70 px-6 py-2.5 text-sm font-medium text-foreground hairline transition-[background-color,color,transform] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:text-background"
@@ -771,11 +983,11 @@ function CategoryPage() {
                     לכל המוצרים בחנות
                   </Link>
                 )}
-                {(inStockOnly || priceBucket) && (
+                {visible.length === 0 && (inStockOnly || priceBucket) && (
                   <button
                     onClick={() => {
                       navigate({
-                        search: (prev) => ({ ...prev, instock: undefined, price: undefined }),
+                        search: (prev) => ({ ...prev, instock: undefined, price: undefined, page: undefined }),
                         replace: true,
                         resetScroll: false,
                       });
@@ -799,6 +1011,47 @@ function CategoryPage() {
                   טען עוד מוצרים ({remaining})
                 </button>
               </div>
+            )}
+
+            {/* Real <a href> pagination beside the "load more" button — the same
+                pairing /shop uses. "Load more" stays the primary human
+                affordance (instant, no navigation, the whole category is already
+                in memory and nothing about that changed); these anchors are what
+                give the rest of the category an address at all. Before them, 51
+                of 93 categories hid 4,637 of their 6,291 cards behind that
+                button with no URL of any kind behind it. */}
+            {(page > 1 || hasMorePages) && (
+              <nav aria-label="ניווט בין עמודי הקטגוריה" className="mt-10 flex items-center justify-between gap-4">
+                {page > 1 ? (
+                  <Link
+                    to="/category/$slug"
+                    params={{ slug }}
+                    search={pageSearch(page - 1)}
+                    rel="prev"
+                    className={pageLinkClass}
+                  >
+                    הקודם
+                  </Link>
+                ) : (
+                  <span />
+                )}
+                <span className="text-sm text-muted-foreground">
+                  עמוד {page} מתוך {lastPage}
+                </span>
+                {hasMorePages ? (
+                  <Link
+                    to="/category/$slug"
+                    params={{ slug }}
+                    search={pageSearch(nextPage)}
+                    rel="next"
+                    className={pageLinkClass}
+                  >
+                    הבא
+                  </Link>
+                ) : (
+                  <span />
+                )}
+              </nav>
             )}
           </>
         )}

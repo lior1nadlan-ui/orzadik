@@ -21,6 +21,121 @@ import { toast } from "sonner";
 import { sanitizeHtml } from "@/lib/sanitize-html";
 import { guideFaq, faqJsonLd } from "@/lib/guide-faq";
 
+// Named/numeric HTML entities present in stored article HTML. Measured across
+// the five live guides: kiddush-cup-guide's body_html carries 11 literal
+// `&quot;` and ZERO real quote characters, so the `articleBody` handed to answer
+// engines read 'שיעור רביעית (86 מ&quot;ל' while the DOM correctly showed
+// 'מ"ל'. Hebrew uses gershayim constantly (ס"מ, מ"ל, סת"ם), so the corruption
+// lands exactly on the technical vocabulary that makes a guide quotable. Kept as
+// a table rather than a DOM decode because this module is evaluated in the
+// Cloudflare Workers runtime too, where there is no document.
+const HTML_ENTITIES: Record<string, string> = {
+  quot: '"', apos: "'", amp: "&", lt: "<", gt: ">", nbsp: " ",
+  ldquo: "“", rdquo: "”", lsquo: "‘", rsquo: "’",
+  hellip: "…", middot: "·", deg: "°", shy: "",
+};
+
+/** Decodes HTML entities in ALREADY tag-stripped text. Single pass, so a stored
+ *  `&amp;quot;` correctly yields the literal `&quot;` rather than a quote. */
+function decodeEntities(s: string): string {
+  return s.replace(/&(#\d+|#[xX][0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]*);/g, (whole, ref: string) => {
+    if (ref[0] === "#") {
+      const cp =
+        ref[1] === "x" || ref[1] === "X" ? parseInt(ref.slice(2), 16) : parseInt(ref.slice(1), 10);
+      // Reject surrogates and out-of-range values; String.fromCodePoint throws on them.
+      if (!Number.isFinite(cp) || cp <= 0 || cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff)) {
+        return whole;
+      }
+      return String.fromCodePoint(cp);
+    }
+    const named = HTML_ENTITIES[ref];
+    return named === undefined ? whole : named;
+  });
+}
+
+/** Tag-free, entity-free plain text from stored rich-text HTML. Tags are
+ *  replaced with a SPACE (not "") so words on either side of a tag boundary —
+ *  e.g. `</p><p>` — never fuse into one token. Entities are decoded AFTER the
+ *  tags are gone, so a stored `&lt;p&gt;` can never be decoded into a live tag;
+ *  whitespace is collapsed last so a decoded `&nbsp;` collapses too. */
+function toPlainText(html: string | null | undefined): string {
+  return decodeEntities(String(html ?? "").replace(/<[^>]*>/g, " "))
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** JSON-LD serialiser that rewrites every "<" to its JSON unicode escape.
+ *  Required now that `articleBody` is entity-DECODED: a stored `&lt;/script&gt;`
+ *  would otherwise decode into a real closing tag inside this <script> block and
+ *  truncate every node after it. The escape is plain JSON — byte-identical value
+ *  to a consumer, inert to an HTML parser. (Verified this route emits script
+ *  children RAW: the live page ships a literal `&quot;`, not `&amp;quot;`, so
+ *  nothing downstream is escaping this string for us.) */
+const ldJson = (node: unknown): string => JSON.stringify(node).replace(/</g, "\\u003c");
+
+/** Removes the `<h2>שאלות נפוצות</h2>` block that every stored guide body also
+ *  carries, so the page shows ONE FAQ section instead of two. Measured live:
+ *  /articles/kiddush-cup-guide rendered two "שאלות נפוצות" headings, and the
+ *  FAQPage schema described only the accordion — while the body set answered
+ *  some of the same questions ~200 words earlier. Those questions now live in
+ *  guide-faq.ts, which drives BOTH the accordion and the schema, so nothing is
+ *  lost. Stops at the next <h2> or at the guide's category-link paragraph
+ *  (kiddush-cup-guide's FAQ is its last section, and that link must survive).
+ *  Runs on the RAW body_html because the sanitiser strips data-* attributes.
+ *  Applied only when a curated FAQ exists to replace it — see call sites. */
+const IN_BODY_FAQ =
+  /<h2[^>]*>\s*שאלות נפוצות\s*<\/h2>[\s\S]*?(?=<h2\b|<p[^>]*\bdata-guide-cat-link\b|$)/;
+function stripInBodyFaq(bodyHtml: string | null | undefined): string {
+  return String(bodyHtml ?? "").replace(IN_BODY_FAQ, "");
+}
+
+/** The single body-HTML pipeline. Both call sites — the rendered DOM and
+ *  head()'s `articleBody` — MUST go through this, or schema and page drift. */
+function articleBodyHtml(bodyHtml: string | null | undefined, hasFaq: boolean): string {
+  const html = hasFaq ? stripInBodyFaq(bodyHtml) : String(bodyHtml ?? "");
+  // U+2013 between digits renders the range BACKWARDS in an RTL paragraph:
+  // it is bidi class ON, which UBA rule N1 resolves to R and splits the two
+  // numbers into separate runs, so "24–36" displays as "36-24". U+002D is class
+  // ES, which binds two European Numbers into one LTR run and displays
+  // correctly. Five stored ranges hit this — bechira-talit "24–36" and "45–50",
+  // tefillin-guide "27–31", kiddush-cup-guide "100–150" and "200–400" — and the
+  // rest of the site (about, PDPs, llms.txt) already serves ASCII, so the guides
+  // were the last surface contradicting it. Fixed at render because body_html is
+  // DB content: the stored rows still need the same one-line correction.
+  // U+00D7 MULTIPLICATION SIGN is in the same class as the dashes and fails the
+  // same way: it is bidi class ON, so in an RTL paragraph N1 hands it the
+  // paragraph level and the two number runs around it swap — a guide that reads
+  // "מידה 30×40 ס\"מ" paints as "40×30", silently transposing a dimension a
+  // shopper is using to decide whether an item fits. The guides are the site's
+  // best-ranking content, so this is also the text answer engines quote.
+  // Replaced with ASCII "x", which is bidi class L and never reorders.
+  return html
+    .replace(/(\d)\s*[–—]\s*(\d)/g, "$1-$2")
+    .replace(/(\d)\s*×\s*(\d)/g, "$1x$2");
+}
+
+/** The article's author, for BOTH the JSON-LD and the visible byline.
+ *
+ *  All five guides store "צוות אור זרוע לצדיק". Google's Article guidance says
+ *  `author.name` must hold the author's name and nothing else — explicitly
+ *  "don't add the name of the publisher, use the publisher property" — and that
+ *  string is a generic staff label wrapped around the publisher's own name, so
+ *  it breaks both halves of that rule at once. `Organization` itself is a
+ *  legitimate author type (Google's own example is an organisation author), and
+ *  it is the honest one here: these guides are house-written and no individual
+ *  is credited anywhere. Naming a person would be inventing a credential.
+ *  So the house label resolves to the organisation, bound by @id to the node
+ *  that already publishes the article; any other stored value is a real byline
+ *  and is published as a Person, as written. */
+const ORG_NAME = "אור זרוע לצדיק";
+function articleAuthor(stored: string | null | undefined) {
+  const v = String(stored ?? "").trim();
+  const isHouse = !v || v === ORG_NAME || v === "צוות" || v === `צוות ${ORG_NAME}`;
+  return isHouse
+    ? { name: ORG_NAME, isOrganization: true as const }
+    : { name: v, isOrganization: false as const };
+}
+
 /** In-stock, imaged products from an article's category — a live rail so a
  *  guide sends real link equity to the shop AND never points at a hidden SKU
  *  (a hardcoded product slug in article HTML would 404 once the item is
@@ -90,24 +205,36 @@ export const Route = createFileRoute("/articles/$slug")({
       return { meta: [{ title: "מאמר | אור זרוע לצדיק" }], links: [{ rel: "canonical", href: url }] };
     }
 
-    const plainDesc = (a.description || "").replace(/<[^>]*>/g, "").trim();
-    // Tag-free article text. Tags are replaced with a SPACE (not "") so words on
-    // either side of a tag boundary — e.g. </p><p> — never fuse into one token;
-    // whitespace is then collapsed. Reused for BOTH `articleBody` and an honest
-    // `wordCount` (the old count split raw HTML, so every tag inflated the total).
-    const plainBody = (a.body_html || "")
-      .replace(/<[^>]*>/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
+    // Curated, honest Q&A for this guide (undefined for non-guide slugs). The
+    // SAME source renders the visible accordion in the component, so the
+    // FAQPage schema and the on-page text are guaranteed to match. Read before
+    // the body text because it also decides whether the body's own duplicate FAQ
+    // section is stripped — head() and the component must strip identically.
+    const faq = guideFaq(params.slug);
+
+    const plainDesc = toPlainText(a.description);
+    // Tag-free, entity-free article text — see toPlainText. Reused for BOTH
+    // `articleBody` and an honest `wordCount` (the old count split raw HTML, so
+    // every tag inflated the total).
+    //
+    // Built to be a faithful transcript of what the page renders, in DOM order:
+    // the body with its duplicate in-body FAQ removed (the component removes the
+    // same block), then the curated Q&A the accordion renders in its place. Both
+    // halves matter — dropping the second would make articleBody describe less
+    // than the page shows, and keeping the body's stripped block would make it
+    // describe text that is no longer there. Q&A also appears in the FAQPage
+    // node; that is the same page quoting its own content twice for two
+    // different consumers, not a claim about anything the page lacks.
+    const faqText = faq ? faq.map((f) => `${f.q} ${f.a}`).join(" ") : "";
+    const plainBody = [toPlainText(articleBodyHtml(a.body_html, !!faq)), faqText]
+      .filter(Boolean)
+      .join(" ");
     // og:image / Article image fallback. `featured_image` is null for every
     // seeded article; without a fallback the card had no image and the Article
     // schema omitted `image` entirely. og-default.jpg is the real 1200×630 brand
     // card used site-wide, so the fallback is truthful.
     const ogImage = a.featured_image || "https://orzadik.com/og-default.jpg";
-    // Curated, honest Q&A for this guide (undefined for non-guide slugs). The
-    // SAME source renders the visible accordion in the component, so the
-    // FAQPage schema and the on-page text are guaranteed to match.
-    const faq = guideFaq(params.slug);
+    const author = articleAuthor(a.author);
 
     return {
       meta: [
@@ -129,7 +256,7 @@ export const Route = createFileRoute("/articles/$slug")({
       scripts: [
         {
           type: "application/ld+json",
-          children: JSON.stringify({
+          children: ldJson({
             "@context": "https://schema.org",
             "@type": "Article",
             "@id": url,
@@ -140,7 +267,21 @@ export const Route = createFileRoute("/articles/$slug")({
             inLanguage: "he-IL",
             datePublished: a.published_at,
             dateModified: a.updated_at || a.published_at,
-            author: { "@type": "Organization", name: a.author || "אור זרוע לצדיק" },
+            // See articleAuthor: the organisation is the author of the house
+            // guides, so it is bound by @id to the publisher node rather than
+            // re-declared as a second, nameless Organization. `url` and `name`
+            // are repeated (not a bare @id) because that node ships from a
+            // DIFFERENT <script> block, and cross-block @id merging is not
+            // something Google's parser guarantees — both values are byte-equal
+            // to the ones it declares, so nothing can contradict.
+            author: author.isOrganization
+              ? {
+                  "@type": "Organization",
+                  "@id": "https://orzadik.com/#organization",
+                  name: author.name,
+                  url: "https://orzadik.com/",
+                }
+              : { "@type": "Person", name: author.name },
             publisher: {
               "@type": "Organization",
               "@id": "https://orzadik.com/#organization",
@@ -164,7 +305,7 @@ export const Route = createFileRoute("/articles/$slug")({
         },
         {
           type: "application/ld+json",
-          children: JSON.stringify({
+          children: ldJson({
             "@context": "https://schema.org",
             "@type": "BreadcrumbList",
             itemListElement: [
@@ -177,11 +318,14 @@ export const Route = createFileRoute("/articles/$slug")({
         // FAQPage — only when this guide has curated Q&A. The visible accordion
         // in the component renders from the same `guideFaq(slug)` source, so the
         // structured data and the on-page text are identical (Google's policy).
+        // It is now the page's ONLY FAQ: the competing in-body block is stripped
+        // above and below, so no question on the page is left unschema'd and no
+        // question is answered twice.
         ...(faq
           ? [
               {
                 type: "application/ld+json",
-                children: JSON.stringify(faqJsonLd(faq)),
+                children: ldJson(faqJsonLd(faq)),
               },
             ]
           : []),
@@ -320,7 +464,9 @@ function ArticleDetailPage() {
             </div>
             <div className="flex items-center gap-1">
               <User className="w-4 h-4" aria-hidden="true" />
-              {a.author || "אור זרוע לצדיק"}
+              {/* Same normalisation as the Article schema's `author`, so the
+                  visible byline and the structured data name one author. */}
+              {articleAuthor(a.author).name}
             </div>
             <button
               type="button"
@@ -350,7 +496,12 @@ function ArticleDetailPage() {
             [&_img]:rounded-xl [&_img]:max-w-full [&_img]:h-auto
             [&_blockquote]:pr-5 [&_blockquote]:border-r-2 [&_blockquote]:border-glass-line [&_blockquote]:text-muted-foreground
             [&_hr]:my-10 [&_hr]:border-0 [&_hr]:h-px [&_hr]:bg-glass-line"
-          dangerouslySetInnerHTML={{ __html: sanitizeHtml(a.body_html) }}
+          /* Same pipeline head() feeds `articleBody` from, so DOM and schema can
+             never drift: the stored body's own "שאלות נפוצות" block is dropped
+             when this guide has a curated FAQ (otherwise the page shows the
+             heading twice — measured live on every guide — and answers some
+             questions twice), and RTL-reversing numeric ranges are repaired. */
+          dangerouslySetInnerHTML={{ __html: sanitizeHtml(articleBodyHtml(a.body_html, !!faq)) }}
         />
 
         {/* FAQ — AEO surface (voice, "People also ask", AI answer engines).

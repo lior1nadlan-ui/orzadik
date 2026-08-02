@@ -29,11 +29,26 @@ export const Route = createFileRoute("/contact")({
       },
     ],
     links: [{ rel: "canonical", href: "https://orzadik.com/contact" }],
-    // ContactPage node, merged by @id into the canonical Organization emitted
-    // site-wide from __root.tsx. Every value is real business data from
-    // src/lib/business.ts (name/site/phone/email) plus the Kiryat Bialik locale
-    // already published in the root node — nothing invented, no opening hours
-    // (none are recorded anywhere in the codebase).
+    // ContactPage node. `about`, `publisher` and `mainEntity` all point at the
+    // canonical Organization emitted site-wide from __root.tsx by BARE @id
+    // reference — they do not restate its properties.
+    //
+    // They used to. `mainEntity` re-declared @id …/#organization inline with
+    // url: BUSINESS.site, which is "https://orzadik.com" (no trailing slash),
+    // while the root node on this very same page says "https://orzadik.com/" —
+    // and it restated a PostalAddress carrying only streetAddress /
+    // addressLocality / addressCountry, dropping the addressRegion and
+    // postalCode the root node publishes. Any consumer that merges by @id (the
+    // entire point of using @id) therefore built one entity holding two `url`
+    // values and two contradictory addresses, from a single document. `url` is
+    // a top-tier reconciliation key and NAP consistency is the primary local
+    // signal, so the page whose whole job is to state the name-address-phone
+    // was the one page contradicting itself about it.
+    //
+    // Referencing instead of restating loses nothing — the full node already
+    // ships on this page from the root route — and it is the pattern the
+    // AboutPage node and the article/product templates already use correctly
+    // for isPartOf, publisher and seller.
     scripts: [
       {
         type: "application/ld+json",
@@ -49,28 +64,7 @@ export const Route = createFileRoute("/contact")({
           isPartOf: { "@id": "https://orzadik.com/#website" },
           about: { "@id": "https://orzadik.com/#organization" },
           publisher: { "@id": "https://orzadik.com/#organization" },
-          mainEntity: {
-            "@type": "Organization",
-            "@id": "https://orzadik.com/#organization",
-            name: BUSINESS.name,
-            url: BUSINESS.site,
-            telephone: BUSINESS.phone,
-            email: BUSINESS.email,
-            address: {
-              "@type": "PostalAddress",
-              streetAddress: "דרך עכו 190",
-              addressLocality: "קרית ביאליק",
-              addressCountry: "IL",
-            },
-            contactPoint: {
-              "@type": "ContactPoint",
-              telephone: BUSINESS.phone,
-              email: BUSINESS.email,
-              contactType: "customer service",
-              areaServed: "IL",
-              availableLanguage: ["he"],
-            },
-          },
+          mainEntity: { "@id": "https://orzadik.com/#organization" },
         }),
       },
     ],

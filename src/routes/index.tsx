@@ -14,6 +14,7 @@ import { HomeReviews, fetchHomeReviews } from "@/components/content/HomeReviews"
 import { SectionHeader } from "@/components/home/SectionHeader";
 import { Reveal } from "@/components/Reveal";
 import { OCCASION_COLLECTIONS } from "@/lib/collections";
+import { GUIDES } from "@/lib/guide-links";
 import { CONSUMER_POLICY } from "@/lib/business";
 import { formatILS, getEffectivePrice } from "@/lib/cart";
 import {
@@ -224,6 +225,31 @@ const FAQ_ITEMS: { q: string; a: string }[] = [
   },
 ];
 
+// Single source of truth for the page's own name and snippet: the <title>, the
+// og/twitter titles and the WebPage node below all read these, so the string a
+// human sees in the SERP and the string a machine reads can no longer drift.
+//
+// Why "חנות" is in the title now. GSC: "אור זרוע לצדיק חנות" is the one brand
+// query with volume — 43 impressions / 3 clicks / position 5.5 — and Google
+// bolds matched terms in BOTH SERP elements. Until now the title carried the
+// brand without "חנות" and the description carried "חנות" without the brand, so
+// neither element ever showed both query words, while the store's own Instagram
+// and Facebook results directly above literally read "אור זרוע לצדיק". Nothing
+// new is claimed: both strings mirror the colophon h2 further down this page
+// ("אור זרוע לצדיק — חנות תשמישי קדושה ויודאיקה מהודרת") verbatim. The token
+// stays OUT of the h1 (measured: the identical h1 ranks #1 on the
+// city-qualified brand query and #4 on the "חנות" one, so it is not the
+// discriminator) and out of the other 3,895 pages — repeating it sitewide was
+// rejected as keyword stuffing. Homepage title + description only.
+//
+// Measured at Arial against the desktop SERP budget: title 436px of ~600px
+// (was 393px); description 151 chars / 861px of ~920px. The previous
+// description was 165 chars / 949px — it truncated TODAY, so leading with the
+// brand also buys back the tail of the sentence.
+const HOME_TITLE = "אור זרוע לצדיק | חנות תשמישי קדושה ויודאיקה מהודרת";
+const HOME_DESCRIPTION =
+  "אור זרוע לצדיק — חנות תשמישי קדושה ויודאיקה: טליתות, כיסויי טלית ותפילין, נרתיקי מזוזה, גביעי קידוש, חנוכיות ומארזים לחתנים. רקמה אישית ומשלוח עד הבית.";
+
 export const Route = createFileRoute("/")({
   component: HomePage,
   // Everything below the hero used to be fetched only after hydration, which
@@ -242,16 +268,19 @@ export const Route = createFileRoute("/")({
   },
   head: () => ({
     meta: [
-      { title: "אור זרוע לצדיק | תשמישי קדושה ויודאיקה מהודרת" },
+      { title: HOME_TITLE },
+      { name: "description", content: HOME_DESCRIPTION },
+      { property: "og:title", content: HOME_TITLE },
       // "נבחרים בהקפדה על כשרות והידור" — a selection claim, matching llms.txt
       // and FAQ item 1. The previous "כשרות מהודרת" asserted certification for
-      // every SKU (candlesticks and gold jewelry included) in the SERP snippet.
-      { name: "description", content: "חנות תשמישי קדושה ויודאיקה: טליתות, כיסויי טלית ותפילין, נרתיקי מזוזה, גביעי קידוש, חנוכיות ומארזים לחתנים. נבחרים בהקפדה על כשרות והידור, רקמה אישית ומשלוח עד הבית." },
-      { property: "og:title", content: "אור זרוע לצדיק | תשמישי קדושה ויודאיקה מהודרת" },
+      // every SKU (candlesticks and gold jewelry included). The clause lives on
+      // here, on the share cards, which have no 920px budget to respect; the
+      // SERP description above gave it up to make room for the brand token.
+      // Dropping a claim is always safe — this is the honest version, kept.
       { property: "og:description", content: "טליתות, כיסויי טלית ותפילין, נרתיקי מזוזה, גביעי קידוש ומארזים לחתנים — נבחרים בהקפדה על כשרות והידור. רקמה אישית ומשלוח עד הבית." },
       { property: "og:url", content: "https://orzadik.com/" },
       { property: "og:type", content: "website" },
-      { name: "twitter:title", content: "אור זרוע לצדיק | תשמישי קדושה ויודאיקה מהודרת" },
+      { name: "twitter:title", content: HOME_TITLE },
       { name: "twitter:description", content: "טליתות, כיסויי טלית ותפילין, נרתיקי מזוזה, גביעי קידוש ומארזים לחתנים — נבחרים בהקפדה על כשרות והידור." },
     ],
     links: [
@@ -260,11 +289,53 @@ export const Route = createFileRoute("/")({
       { rel: "preload", as: "image", href: "/media/hero-poster.webp", fetchpriority: "high" },
     ],
     scripts: [
+      // The homepage is the page the brand name should resolve to, and it was
+      // the only owned page that never said so. Measured live as Googlebot: the
+      // four JSON-LD nodes on / were Organization, WebSite, Store and FAQPage —
+      // zero WebPage nodes, zero `about`, zero `mainEntityOfPage` anywhere on
+      // the page — while /about emits AboutPage.about → #organization and
+      // /contact emits ContactPage.about + mainEntity → #organization. So the
+      // two pages that DO claim the entity are the two you do not want ranking
+      // for "חנות".
+      //
+      // Why that costs a position: "אור זרוע לצדיק קריית ביאליק" is decided by
+      // the Store node's geo + address + the Business Profile (site ranks #1),
+      // but "אור זרוע לצדיק חנות" has no local anchor, so it falls to whichever
+      // property most explicitly presents itself as the brand's home. An
+      // Instagram or Facebook profile IS structurally a brand page; this
+      // homepage made no such claim in any machine-readable form (and the brand
+      // is deliberately absent from the h1, so JSON-LD is the only place left to
+      // assert it). Three properties, no copy change, no visual change.
+      //
+      // Both @ids referenced here already ship on this page from __root.tsx —
+      // verified live. `primaryImageOfPage` is deliberately omitted: the logo
+      // ImageObject in __root.tsx carries no @id, so a "#logo" reference would
+      // dangle. The reciprocal `mainEntityOfPage: "https://orzadik.com/"` on the
+      // Organization node belongs in __root.tsx and is not this route's to add.
+      {
+        type: "application/ld+json",
+        children: JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "WebPage",
+          "@id": "https://orzadik.com/#webpage",
+          url: "https://orzadik.com/",
+          name: HOME_TITLE,
+          description: HOME_DESCRIPTION,
+          inLanguage: "he-IL",
+          isPartOf: { "@id": "https://orzadik.com/#website" },
+          about: { "@id": "https://orzadik.com/#organization" },
+        }),
+      },
       {
         type: "application/ld+json",
         children: JSON.stringify({
           "@context": "https://schema.org",
           "@type": "FAQPage",
+          // @id + isPartOf attach the FAQ to the page node above instead of
+          // leaving it floating: its only keys were @context/@type/mainEntity,
+          // so nothing tied these six answers to this URL or to the brand.
+          "@id": "https://orzadik.com/#faq",
+          isPartOf: { "@id": "https://orzadik.com/#webpage" },
           mainEntity: FAQ_ITEMS.map((item) => ({
             "@type": "Question",
             name: item.q,
@@ -385,6 +456,60 @@ const DIFFERENTIATORS = [
   { title: "פריטים נבחרים בקפידה", icon: <IconShieldCheck className="w-8 h-8 md:w-9 md:h-9" /> },
   { title: "משלוח עד הבית 3-14 ימים", icon: <IconTruck className="w-8 h-8 md:w-9 md:h-9" /> },
 ];
+
+/**
+ * RTL "forward" arrow — points to the reading start (right→left), and slides
+ * further on hover where the caller wraps it in a `group`. Decorative: every
+ * use sits inside a link whose own text says where it goes. Extracted so the
+ * occasion rail and the guides rail below it share one glyph instead of two
+ * byte-identical inline copies.
+ */
+function IconArrowStart({ className }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <path d="M19 12H5" />
+      <path d="M12 19l-7-7 7-7" />
+    </svg>
+  );
+}
+
+/**
+ * The five published guides, as homepage links.
+ *
+ * Measured with a Googlebot UA: the homepage emitted 29 /category links, 8
+ * /collection links and 16 product links — and ZERO /articles/<slug> links.
+ * Meanwhile Search Console says the guides are the site's best-ranking surface
+ * by a wide margin (positions 12.0 / 17.0 / 22.0 / 23.0, against page 3-9 for
+ * every commercial head term), and each guide holds only 9-29 inbound internal
+ * links, all from nav and footer boilerplate. With zero external links to the
+ * domain, internal linking is the only PageRank distribution mechanism that
+ * exists, and this is the most-linked page on the site: it was giving its own
+ * best content nothing.
+ *
+ * Ordered by measured performance rather than by the GUIDES insertion order:
+ * the kiddush-cup guide owns the two best positions on the site (12.0 and
+ * 17.0), the tallit guide the next (22.0), and the חנוכיה guide goes last
+ * because it is the one seasonal subject in the set. Pure config + a static
+ * grid, so the anchors are in the server HTML — a link a crawler never sees
+ * passes no authority.
+ */
+const HOME_GUIDES = [
+  "kiddush-cup-guide",
+  "bechira-talit",
+  "mezuza-guide",
+  "tefillin-guide",
+  "hanukkia-guide",
+].map((slug) => GUIDES[slug]).filter(Boolean);
 
 // SSR-safe prefers-reduced-motion check — only ever called from effects/handlers.
 function prefersReducedMotion() {
@@ -851,22 +976,7 @@ function HomePage() {
                   </div>
                   <span className="inline-flex items-center gap-1.5 text-sm text-accent">
                     לצפייה
-                    {/* RTL "forward" arrow — points to the reading start, and slides
-                        further on hover (motion-safe + hover-gated). Decorative. */}
-                    <svg
-                      aria-hidden="true"
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className="w-4 h-4 transition-transform duration-200 ease-out motion-safe:[@media(hover:hover)_and_(pointer:fine)]:group-hover:-translate-x-1"
-                    >
-                      <path d="M19 12H5" />
-                      <path d="M12 19l-7-7 7-7" />
-                    </svg>
+                    <IconArrowStart className="w-4 h-4 transition-transform duration-200 ease-out motion-safe:[@media(hover:hover)_and_(pointer:fine)]:group-hover:-translate-x-1" />
                   </span>
                 </div>
               </Link>
@@ -974,6 +1084,62 @@ function HomePage() {
           </div>
 
           <StoreGallery />
+        </Reveal>
+      </section>
+
+      {/* 12.5. מדריכי קנייה — the homepage's first links into /articles. See
+          HOME_GUIDES above for the measurement that motivates it (0 guide links
+          from the site's most-linked page, while the guides hold its four best
+          Search Console positions). Placed here, directly above the newsletter
+          block that already promises "מדריכים ותוכן", so the reading order goes
+          content → sign-up rather than interrupting the shopping rails. Same
+          card as the occasion rail (glass-soft + glass-lift + one arrow glyph)
+          so the page keeps a single card language; the GuideLinks component is
+          the category/PDP density and would not carry blurbs at this width. */}
+      <section>
+        <Reveal className="container mx-auto px-4 py-14 md:py-20">
+          <SectionHeader
+            eyebrow="לפני שקונים"
+            title="מדריכי הקנייה שלנו"
+            sub="חומרים, מידות ומנהגים — מה שכדאי לדעת לפני שבוחרים."
+          />
+          {/* basis-[68%] on mobile: one card fills the rail and the next peeks
+              past the edge, exactly as the occasion rail above. */}
+          <MobileCarousel
+            basis="basis-[68%]"
+            mdGrid="md:grid-cols-3"
+            mdGap="md:gap-5"
+            className="max-w-6xl mx-auto"
+          >
+            {HOME_GUIDES.map((g) => (
+              <Link
+                key={g.slug}
+                to="/articles/$slug"
+                params={{ slug: g.slug }}
+                className="group block h-full"
+              >
+                <div className="glass-soft glass-lift flex h-full flex-col justify-between gap-6 p-6 md:p-7 [--glass-radius:1rem]">
+                  <div>
+                    <h3 className="font-display text-lg md:text-xl text-foreground leading-tight">
+                      {g.title}
+                    </h3>
+                    <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
+                      {g.blurb}
+                    </p>
+                  </div>
+                  <span className="inline-flex items-center gap-1.5 text-sm text-accent">
+                    לקריאה
+                    <IconArrowStart className="w-4 h-4 transition-transform duration-200 ease-out motion-safe:[@media(hover:hover)_and_(pointer:fine)]:group-hover:-translate-x-1" />
+                  </span>
+                </div>
+              </Link>
+            ))}
+          </MobileCarousel>
+          <div className="mt-10 text-center">
+            <Link to="/articles" className={BTN_OUTLINE}>
+              לכל המדריכים
+            </Link>
+          </div>
         </Reveal>
       </section>
 
