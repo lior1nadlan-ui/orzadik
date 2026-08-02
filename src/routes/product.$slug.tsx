@@ -61,7 +61,11 @@ async function fetchProductWithRetry(slug: string, maxRetries = 2) {
       const { data, error } = await supabase
         .from("products")
         .select(
-          "id, slug, name, description, short_description, price, sale_price, sku, stock_status, thumbnail_url, product_images(url, sort_order), product_categories(categories(id, slug, name, parent_slug))",
+          // name_norm is the supplier-collision key: it is what the canonical
+          // election and the duplicate-title guard below group on, and what
+          // sitemap[.]xml.ts groups on. Kept byte-identical in both copies of
+          // this select so the SSR seed and the client refetch stay one shape.
+          "id, slug, name, name_norm, description, short_description, price, sale_price, sku, stock_status, thumbnail_url, product_images(url, sort_order), product_categories(categories(id, slug, name, parent_slug))",
         )
         .eq("slug", slug)
         .eq("is_active", true)
@@ -115,6 +119,47 @@ async function fetchReviews(productId: string): Promise<PublicReview[]> {
   }
 }
 
+// One indexable URL per (name, price) — the same election src/routes/
+// sitemap[.]xml.ts runs when it picks its single <loc> for a name group: has an
+// image, then in stock, then cheapest (inert inside a single-price group, kept
+// for shape parity), then stable by id. It is duplicated here rather than
+// imported because over there it is a local const inside the route handler, and
+// the two MUST stay behaviourally identical — the entire point of the canonical
+// block below is that the set of self-canonical product pages and the set of
+// sitemap entries are the SAME set. Verified against the full prod catalogue on
+// 2026-08-02 (4,648 active rows): both sets come out at exactly 3,778 URLs with
+// nothing in either one only.
+function betterRepresentative(a: any, b: any) {
+  const img = (x: any) => ((x.thumbnail_url ?? "") !== "" ? 0 : 1);
+  const stock = (x: any) => (x.stock_status !== "outofstock" ? 0 : 1);
+  if (img(a) !== img(b)) return img(a) - img(b);
+  if (stock(a) !== stock(b)) return stock(a) - stock(b);
+  const pa = Number(a.price ?? 0), pb = Number(b.price ?? 0);
+  if (pa !== pb) return pa - pb;
+  return String(a.id ?? "").localeCompare(String(b.id ?? ""));
+}
+
+// Every active row sharing this product's normalised name. Bounded and indexed:
+// 4,648 active rows carry 3,540 distinct name_norm values, 528 names hold more
+// than one row and the largest family is 43 (measured 2026-08-02), and
+// products_name_norm_active_idx serves the lookup. Returns [] on any failure so
+// the caller falls back to self-canonical rather than declaring the page a
+// duplicate of a row it could not read.
+async function fetchNameFamily(nameNorm: string | null | undefined) {
+  if (!nameNorm) return [] as any[];
+  try {
+    const { data, error } = await supabase
+      .from("products")
+      .select("slug, price, thumbnail_url, stock_status, id")
+      .eq("name_norm", nameNorm)
+      .eq("is_active", true);
+    if (error) throw error;
+    return (data ?? []) as any[];
+  } catch {
+    return [] as any[];
+  }
+}
+
 export const Route = createFileRoute("/product/$slug")({
   loader: async ({ params }) => {
     const product = await fetchProductWithRetry(params.slug);
@@ -122,67 +167,63 @@ export const Route = createFileRoute("/product/$slug")({
     // Summary (accurate full-count, for head()/JSON-LD/star-link) and the
     // approved-review list (SSR-seed for ProductReviews) are independent public
     // reads — run them together.
-    const [reviewSummary, initialReviews, canonicalSlugRes] = product.id
+    const [reviewSummary, initialReviews, nameFamily] = product.id
       ? await Promise.all([
           fetchReviewSummary(product.id as string),
           fetchReviews(product.id as string),
-          // 528 supplier name-collisions cover 1,636 active products (largest
-          // family: 43). Self-canonicalising all of them offered Google 1,108
-          // duplicate URLs. This nominates the one representative per name
-          // group — the same row the listings show. It is only a CANDIDATE:
-          // 190 of those families turn out to hold more than one price, so the
-          // block below still has to check before trusting it.
-          // Cast: the generated Supabase types are checked in and must not be
-          // hand-edited, and they predate this function. The shape is a plain
-          // `text` return, handled defensively below.
-          (supabase.rpc as any)("canonical_product_slug", { p_slug: params.slug }),
+          // One indexed round trip that answers BOTH questions below: which row
+          // of this name+price group is the canonical, and whether the name is
+          // shared across more than one price (which is what makes the <title>
+          // collide with a sibling's). It replaces the canonical_product_slug
+          // RPC call this used to make — see the block underneath.
+          fetchNameFamily((product as any).name_norm as string | null),
         ])
-      : [{ average: 0, count: 0 }, [] as PublicReview[], null];
-    const canonicalCandidate =
-      (canonicalSlugRes as any)?.data && !(canonicalSlugRes as any)?.error
-        ? String((canonicalSlugRes as any).data)
-        : params.slug; // fail open: a lookup problem must never break the page
-    // A rel=canonical asserts "this page is a duplicate of that one". That is
-    // true for the photo-only twins the name grouping was built for — and FALSE
-    // the moment the two rows carry different prices. Measured on prod today:
-    // the 528 name families cover 1,636 active products, but 190 of those
-    // families (753 products) hold MORE THAN ONE catalogue price, spread up to
-    // ₪432 apart, and the RPC deliberately elects the CHEAPEST row. Result: 466
-    // pages told Google they were duplicates of a cheaper page — e.g.
-    // /polymer-washing-cup-14-cm-83321 (₪202 → ₪141 shown) canonicalising onto
-    // …-40594 (₪134 → ₪94) — so the model the shopper searched for could never
-    // be indexed at all. Differently-priced rows are different products, not
-    // duplicates, so the canonical is only accepted when the target charges the
-    // same effective price; otherwise the page stays self-canonical.
+      : [{ average: 0, count: 0 }, [] as PublicReview[], [] as any[]];
+    // A rel=canonical asserts "this page is a duplicate of that one". The
+    // supplier's name collisions make that true only WITHIN one price: 528 names
+    // cover 1,636 active rows (largest family 43), but 190 of those names hold
+    // more than one catalogue price, spread up to ₪432 apart. So the grouping key
+    // is (name_norm, price) and the winner inside a group is the row the sitemap
+    // submits — same helper, same ordering, see betterRepresentative above.
     //
-    // The check is a single indexed slug lookup and runs ONLY when the RPC
-    // actually nominates another row (1,108 of 4,648 pages today), so the 3,540
-    // pages that are already their own canonical pay nothing. It also keeps
-    // this route correct on its own while supabase/migrations/
-    // 20260801120000_canonical_product_slug_price_aware.sql — which moves the
-    // same rule into the RPC's grouping key, so same-priced twins still collapse
-    // — is waiting to be applied by hand.
+    // This used to call canonical_product_slug, which groups by name_norm ALONE
+    // and elects the cheapest row, and then refuse any candidate whose price
+    // differed. That guard did stop the page claiming to be a duplicate of a
+    // cheaper one, but its only fallback was self, so every row at a
+    // non-cheapest price stayed indexable — including rows the sitemap had
+    // already collapsed away. Measured against prod on 2026-08-02, with the RPC
+    // in its live (still name-only) form — it answers
+    // "polymer-washing-cup-14-cm-40594" ₪134 for the ₪185 row …-41134, i.e.
+    // migration 20260801120000 has NOT been applied: 4,006 self-canonical pages,
+    // 233 of which were indexable duplicates of a same-named, same-priced
+    // sitemap URL and were themselves in no sitemap and reachable from no
+    // internal link. Electing the representative here instead makes the
+    // self-canonical set and the sitemap set the same set BY CONSTRUCTION —
+    // recomputed over all 4,648 active rows: 3,778 each way, 0 on either side
+    // only — and it holds whether or not that migration is ever applied.
+    //
+    // Grouping on the catalogue price (what the sitemap keys on) and not on the
+    // charged one is safe and deliberate: getEffectivePrice is a pure function
+    // of price, so equal catalogue price implies equal charged price, and only
+    // the catalogue value keeps this route's grouping identical to the
+    // sitemap's. sale_price plays no part — it is the recorded FORMER price used
+    // for the strike-through, never what is charged.
+    const myPrice = Number((product as any).price);
+    const samePriced = nameFamily.filter((r: any) => Number(r.price) === myPrice);
     let canonicalSlug = params.slug;
-    if (canonicalCandidate && canonicalCandidate !== params.slug) {
-      try {
-        const { data: canonRow } = await supabase
-          .from("products")
-          .select("slug, price")
-          .eq("slug", canonicalCandidate)
-          .eq("is_active", true)
-          .maybeSingle();
-        if (
-          canonRow &&
-          getEffectivePrice(Number((canonRow as any).price)) ===
-            getEffectivePrice(Number((product as any).price))
-        ) {
-          canonicalSlug = canonicalCandidate;
-        }
-      } catch {
-        // Fail closed onto self-canonical: a lookup problem must never make the
-        // page declare itself a duplicate of a row we could not read.
-      }
+    if (samePriced.length > 1) {
+      const rep = samePriced.reduce((best: any, r: any) =>
+        betterRepresentative(r, best) < 0 ? r : best,
+      );
+      // Fail closed onto self-canonical on anything unexpected: an unreadable
+      // family must never make the page declare itself a duplicate.
+      if (rep && typeof rep.slug === "string" && rep.slug) canonicalSlug = rep.slug;
     }
+    // Does this NAME appear at more than one price? When it does, the sitemap
+    // carries one URL per price and those URLs would otherwise ship a
+    // byte-identical <title>; head() uses this to tell them apart.
+    const nameHasMultiplePrices =
+      new Set(nameFamily.map((r: any) => Number(r.price))).size > 1;
     // Which category this product's breadcrumb should lead through. Taking
     // index 0 of the join — as this did — is not a rule, it is row order: 3,297
     // of the 4,648 active products sit in BOTH a top-level category and one of
@@ -222,17 +263,29 @@ export const Route = createFileRoute("/product/$slug")({
         }
       }
     }
-    return { product, reviewSummary, initialReviews, parentCat, leafCat, canonicalSlug };
+    return { product, reviewSummary, initialReviews, parentCat, leafCat, canonicalSlug, nameHasMultiplePrices };
   },
   head: ({ loaderData, params }) => {
-    const url = `https://orzadik.com/product/${params.slug}`;
-    // Canonical points at the representative of this product's name group, which
-    // for a unique name is the product itself. Siblings that differ only by photo
-    // AND cost the same therefore consolidate onto one indexable URL instead of
-    // competing; the loader refuses any candidate at a different price, so this
-    // never claims a page is a duplicate of a cheaper one.
+    // Percent-encode the slug segment, exactly as sitemap[.]xml.ts's loc() and
+    // feed[.]xml.ts's g:link already do. 216 active products carry Hebrew slugs
+    // (…/product/מזוזה-סמנט-בטון-רחבה-גוון-לבן-24810), and a <loc> must be a
+    // URL-escaped URI per sitemaps.org — so the sitemap encodes. If this route
+    // kept emitting the raw form in rel=canonical, og:url and the Product node,
+    // the encoding fix would only have MOVED the disagreement instead of
+    // removing it: Google would still see two byte strings for one page, which
+    // is precisely how one URL becomes two. All three surfaces must agree.
+    // Safe on the ASCII slugs too: encodeURIComponent leaves [a-z0-9-] untouched.
+    const productUrl = (slug: string) =>
+      `https://orzadik.com/product/${encodeURIComponent(slug)}`;
+    const url = productUrl(params.slug);
+    // Canonical points at the representative of this product's (name, price)
+    // group, which for a unique name is the product itself. Siblings that differ
+    // only by photo AND cost the same therefore consolidate onto one indexable
+    // URL instead of competing, while a differently-priced row keeps its own —
+    // the loader groups on price, so this never claims a page is a duplicate of
+    // a cheaper one, and the URL it names is always the one in the sitemap.
     const canonicalSlug = (loaderData as any)?.canonicalSlug || params.slug;
-    const canonicalUrl = `https://orzadik.com/product/${canonicalSlug}`;
+    const canonicalUrl = productUrl(canonicalSlug);
     // Everything the markup asserts about the ITEM has to be said about the URL
     // Google is being pointed at, not about this one — otherwise the page hands
     // Google a rel=canonical and a Product node that contradict each other.
@@ -325,23 +378,39 @@ export const Route = createFileRoute("/product/$slug")({
       name: p.name,
       image: images,
       description: plainDesc || p.name,
-      // Row-level identifiers are emitted only by the page that IS the canonical.
-      // On a duplicate this node describes canonicalUrl, and stamping THIS row's
-      // SKU onto that URL would give Google two SKUs for one merged entity —
-      // exactly the inconsistency merchant listings are rejected for.
-      // sku/mpn are emitted UNCONDITIONALLY, including on the ~870 pages that
-      // canonicalise elsewhere. Suppressing them on duplicates was tempting but
+      // sku is emitted UNCONDITIONALLY, including on the 870 pages that
+      // canonicalise elsewhere. Suppressing it on duplicates was tempting but
       // wrong on two counts: this node still carries THIS row's image,
       // description, category and aggregateRating, so hiding only the identifier
       // does not make it describe the twin; and src/routes/feed[.]xml.ts submits
-      // every active product to Merchant Center under its OWN URL with its own
-      // <g:mpn>, so a landing page that omits the identifier its own feed item
-      // declares is the actual inconsistency a merchant listing gets rejected
-      // for. Google ignores rel=canonical often enough that these pages do get
-      // indexed on their own; when they do, they must not present a Product with
-      // no identifier at all.
+      // every active product to Merchant Center under its OWN URL, so a landing
+      // page that omits the identifier its own feed item declares is the actual
+      // inconsistency a merchant listing gets rejected for. Google ignores
+      // rel=canonical often enough that these pages do get indexed on their own;
+      // when they do, they must not present a Product with no identifier at all.
       sku: p.sku || undefined,
-      mpn: p.sku || undefined,
+      // No `mpn`. It was set to p.sku — the same string, on every product page.
+      // MPN means Manufacturer Part Number: schema.org defines it as the
+      // manufacturer's number for the product, and Google Merchant Center is
+      // explicit that the value must be "assigned by the manufacturer" and that
+      // "unless you're the manufacturer, don't use a value that you've created",
+      // with a dedicated "Incorrect MPN" disapproval reason for exactly this.
+      // What this store has is a supplier-import shelf code: 4,432 of the 4,648
+      // active rows carry the "UK" import prefix and the remaining 216 have no
+      // SKU at all (measured 2026-08-02), and `products` has no
+      // manufacturer-part-number column, so there is no truthful value to put
+      // here — restating the shelf code as an MPN was a false product identifier
+      // on ~4,400 pages. Nothing is lost by dropping it: Google accepts `sku` as
+      // a product identifier in its own right for goods with no GTIN, and it is
+      // still emitted above.
+      //
+      // DONE, outside this file: src/routes/feed[.]xml.ts used to send the same
+      // value as <g:mpn> on every feed item. It no longer emits g:mpn at all and
+      // now sends <g:identifier_exists>no</g:identifier_exists> unconditionally.
+      // The two MUST stay in step: Merchant crawls this landing page and compares
+      // it against the feed item, so a page dropping mpn while the feed still
+      // declared one would turn an honesty fix into a "mismatched value"
+      // disapproval.
       brand: { "@type": "Brand", name: "אור זרוע לצדיק" },
       category: leafCat?.name,
       url: canonicalUrl,
@@ -525,12 +594,57 @@ export const Route = createFileRoute("/product/$slug")({
       descBase.length <= 160
         ? descBase
         : `${descBase.slice(0, 160).replace(/\s+\S*$/, "").trim() || descBase.slice(0, 160).trim()}…`;
+    // Duplicate-title guard. 186 name groups put two or more URLs in the sitemap
+    // at different prices — 226 URLs beyond the 3,540 distinct names, measured
+    // 2026-08-02 — and each of them shipped a byte-identical <title> with its
+    // siblings. That is the same "stop competing with ourselves" pattern the
+    // SERP-snippet work already fixed elsewhere: Google keeps one of a set of
+    // identical pages and discounts the rest.
+    //
+    // Price is not decoration here, it is the exact axis the sitemap splits
+    // those URLs on, so it is the one differentiator guaranteed to separate
+    // them — and it is data the catalogue actually holds. Nothing else is: these
+    // rows differ by design and photo, but there is no colour or finish column,
+    // and the whole 43-row נטלה family carries the identical spec block
+    // ("חומר: פולימר | מידות: אורך 14 ס\"מ"), so any descriptive label would
+    // have to be invented. The number shown is the CHARGED price — the same
+    // getEffectivePrice the buy box and the Offer node use — never the
+    // pre-discount catalogue price, which would overstate it by 1/0.7.
+    //
+    // Applied only to the 753 rows whose name genuinely carries more than one
+    // price; the other 3,895 titles are untouched. Replayed over the full
+    // catalogue against the live sitemap, sitemap URLs sharing a <title> drop
+    // 226 → 3. Those 3 remaining pairs are families where two catalogue tiers
+    // round to the same charged price, and there is nothing honest left to
+    // separate them with — the alternative, printing the catalogue price, would
+    // advertise a number 1/0.7 above what the store charges.
+    //
+    // Hebrew/bidi: "ב-" uses the ASCII hyphen (U+002D), and formatILS emits the
+    // RLM marks Intl adds, so the number and ₪ render in reading order in RTL.
+    // Verified through the Unicode bidi algorithm at base_dir=R.
+    //
+    // og:title and twitter:title deliberately stay the plain product name. This
+    // fixes an index problem, and search fetches the <title> live; OG cards are
+    // scraped once and cached by the platforms for a long time, so a price baked
+    // into one can go on advertising a number the store no longer charges.
+    const socialTitle = `${p.name} | אור זרוע לצדיק`;
+    // `!isCallOnly` guard: esh-sheli-gold items are priced by the daily gold
+    // rate, so the page renders "המחיר משתנה לפי שער הזהב היומי" and NO number,
+    // and the Product node deliberately omits `offers` for the same reason.
+    // Baking p.price into their <title> would put a figure in the SERP that the
+    // landing page never shows and the shop does not honour — the one place a
+    // price mismatch is both a broken promise to a shopper and a Merchant
+    // "mismatched value" disapproval.
+    const pageTitle =
+      !isCallOnly && (loaderData as any)?.nameHasMultiplePrices === true
+        ? `${p.name} ב-${formatILS(getEffectivePrice(Number(p.price)))} | אור זרוע לצדיק`
+        : socialTitle;
     return {
       meta: [
-        { title: `${p.name} | אור זרוע לצדיק` },
+        { title: pageTitle },
         { name: "description", content: metaDesc },
-        { property: "og:title", content: `${p.name} | אור זרוע לצדיק` },
-        { name: "twitter:title", content: `${p.name} | אור זרוע לצדיק` },
+        { property: "og:title", content: socialTitle },
+        { name: "twitter:title", content: socialTitle },
         { property: "og:description", content: desc },
         { property: "og:type", content: "product" },
         // og:url deliberately stays THIS page, unlike rel=canonical/Product.url.
@@ -771,7 +885,11 @@ function ProductPage() {
       const { data, error } = await supabase
         .from("products")
         .select(
-          "id, slug, name, description, short_description, price, sale_price, sku, stock_status, thumbnail_url, product_images(url, sort_order), product_categories(categories(id, slug, name, parent_slug))",
+          // name_norm is the supplier-collision key: it is what the canonical
+          // election and the duplicate-title guard below group on, and what
+          // sitemap[.]xml.ts groups on. Kept byte-identical in both copies of
+          // this select so the SSR seed and the client refetch stay one shape.
+          "id, slug, name, name_norm, description, short_description, price, sale_price, sku, stock_status, thumbnail_url, product_images(url, sort_order), product_categories(categories(id, slug, name, parent_slug))",
         )
         .eq("slug", slug)
         .eq("is_active", true)
@@ -1359,6 +1477,16 @@ function ProductPage() {
 
         {/* Details */}
         <div>
+          {/* Stays the bare product name, deliberately. head() appends the
+              charged price to the <title> of the 753 rows whose name is shared
+              across several prices, so those SERP entries are distinct — the h1
+              must NOT copy it: the price block renders a few lines below this,
+              and printing the same number twice on one screen reads as a
+              rendering bug. Within a single price the name twins are collapsed
+              by rel=canonical, so only one is indexable; across prices the pages
+              stay separately indexable and do still share an h1, and the
+              differentiation lives in the <title> instead, which is the string
+              the SERP actually shows. */}
           <h1 className="font-display text-3xl md:text-4xl font-bold mb-3">{product.name}</h1>
           {reviewSummary && reviewSummary.count > 0 && (
             <a href="#reviews" className="mb-3 inline-flex items-center gap-2 text-sm">
