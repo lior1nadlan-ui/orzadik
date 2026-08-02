@@ -128,10 +128,28 @@ function ContactPage() {
         <div className="flex items-start gap-3">
           <Clock className="mt-0.5 h-5 w-5 shrink-0 text-accent" aria-hidden="true" />
           <div className="text-[15px] leading-relaxed text-foreground">
-            <p className="font-medium">זמני מענה</p>
+            {/* The shop's real hours, from its own Google Business Profile (read
+                2026-08-03), replacing a generic "09:00-17:00 phone hours" line
+                that was a THIRD answer competing with the Business Profile and
+                the easy.co.il listing. Google cross-checks a business's hours
+                across its listings when deciding how confident it is that they
+                describe one business, so three answers actively weakened the
+                entity. These are also the hours now published in
+                openingHoursSpecification on the Organization node — the visible
+                text and the structured data have to agree or the markup is
+                describing a page that does not say that.
+                Wednesday and Thursday genuinely differ from Sunday-Tuesday
+                (morning ends at 12:00), which is why they are listed separately
+                rather than collapsed into one tidy range. */}
+            <p className="font-medium">שעות פתיחת החנות</p>
+            <p className="mt-1 text-muted-foreground">
+              ראשון-שלישי: 9:30-14:00 ו-16:00-19:00 · רביעי-חמישי: 9:30-12:00 ו-16:00-19:00 ·
+              שישי: 9:30-12:00 · שבת: סגור.
+            </p>
+            <p className="mt-3 font-medium">זמני מענה</p>
             <p className="mt-1 text-muted-foreground">
               נשתדל להשיב לכל פנייה בהקדם, בדרך כלל תוך יום עסקים אחד.
-              שעות המענה הטלפוני: ימים א'-ה', 09:00-17:00 (למעט ערבי חג וחגים).
+              המענה הטלפוני זמין בשעות פתיחת החנות (למעט ערבי חג וחגים).
               לפניות בדוא"ל ובוואטסאפ ניתן לכתוב בכל שעה ונחזור אליכם בשעות הפעילות.
             </p>
           </div>
