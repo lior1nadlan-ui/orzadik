@@ -1,6 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { FeaturedProductsCarousel } from "@/components/home/FeaturedProductsCarousel";
+import {
+  BUSINESS,
+  GOOGLE_PLACE_URL,
+  OPENING_HOURS,
+  openingHoursLabel,
+} from "@/lib/business";
 
 export const Route = createFileRoute("/about")({
   component: AboutPage,
@@ -152,6 +158,83 @@ function AboutPage() {
             </a>,
             בוואטסאפ או במייל — נשמח לסייע בבחירה ובהתאמה אישית.
           </p>
+        </div>
+      </section>
+
+      {/* The physical shop. /about is the page bound to #organization, and it
+          was the page most likely to be read by someone deciding whether this is
+          a real business — yet it said "פועלת מקרית ביאליק (דרך עכו 190)" in
+          running prose and stopped there. The address was a sentence, the hours
+          existed only inside __root.tsx's JSON-LD, and GOOGLE_PLACE_URL — the
+          shop's own record on Google's map, and the ONLY third-party proof this
+          business has — was referenced nowhere a human could click.
+
+          Every line below is checkable. Hours read from OPENING_HOURS, the same
+          constant the Store node emits, so the visible table and the structured
+          data are one fact. NO rating and NO review count: the 6 Google reviews
+          are real but they are Google's, and marking them up as aggregateRating
+          would be a review claim the site is not entitled to make. The link
+          sends the reader to read them at the source instead.
+
+          OWNER TODO — the empty frame below is a slot for a PHOTOGRAPH OF THE
+          ACTUAL SHOPFRONT at דרך עכו 190. It is the single highest-value asset
+          missing from this page: a picture of the real place does more for a
+          stranger's confidence than any sentence here. Drop the file in
+          public/ and replace the placeholder div with an <img> (keep width/
+          height so it reserves its box). Until that photo exists the frame
+          renders as a labelled, honest empty state rather than a stock image of
+          somebody else's shop. */}
+      <section className="container mx-auto px-4 pb-14 max-w-3xl">
+        <div className="glass px-6 py-8 md:px-12 md:py-10 [--glass-radius:1.25rem]">
+          <h2 className="font-display text-2xl md:text-3xl font-bold text-foreground mb-5">
+            החנות עצמה
+          </h2>
+
+          <div className="grid gap-8 md:grid-cols-2 md:items-start">
+            <div>
+              <p className="text-foreground leading-relaxed">
+                {BUSINESS.name} · {BUSINESS.legalId}
+              </p>
+              <p className="mt-1 text-muted-foreground leading-relaxed">{BUSINESS.address}</p>
+
+              <h3 className="font-display text-lg text-foreground mt-6 mb-3">שעות פתיחה</h3>
+              {/* ASCII hyphen in every range — see openingHoursLabel. */}
+              <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm text-muted-foreground">
+                {OPENING_HOURS.map((h) => (
+                  <div key={h.he} className="contents">
+                    <dt className="text-foreground">{h.he}</dt>
+                    <dd>{openingHoursLabel(h)}</dd>
+                  </div>
+                ))}
+                <dt className="text-foreground">שבת</dt>
+                <dd>סגור</dd>
+              </dl>
+
+              <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2">
+                <a
+                  href={GOOGLE_PLACE_URL}
+                  target="_blank"
+                  rel="noopener"
+                  className="text-sm text-accent underline underline-offset-4 transition-colors duration-200 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-strong"
+                >
+                  הפרופיל שלנו בגוגל מפות
+                </a>
+                <a
+                  href={`tel:${BUSINESS.phone}`}
+                  className="text-sm text-accent underline underline-offset-4 transition-colors duration-200 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-strong"
+                >
+                  {BUSINESS.phoneDisplay}
+                </a>
+              </div>
+            </div>
+
+            {/* Photo slot — see the OWNER TODO above. */}
+            <div className="relative aspect-[4/3] overflow-hidden rounded-lg bg-secondary hairline flex items-center justify-center">
+              <p className="px-6 text-center text-sm text-muted-foreground leading-relaxed">
+                תמונה של החנות בדרך עכו 190 תתווסף כאן בקרוב.
+              </p>
+            </div>
+          </div>
         </div>
       </section>
 

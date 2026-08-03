@@ -27,7 +27,7 @@ import { AccessibilityWidget, applySavedA11ySettings } from "@/components/Access
 // build runs without VITE_SUPABASE_URL set.
 const SUPABASE_ORIGIN =
   import.meta.env.VITE_SUPABASE_URL || "https://whtjslgrrfzehivrknuv.supabase.co";
-import { BUSINESS, SOCIAL_PROFILES, GOOGLE_PLACE_URL } from "@/lib/business";
+import { BUSINESS, SOCIAL_PROFILES, GOOGLE_PLACE_URL, OPENING_HOURS } from "@/lib/business";
 import appCss from "../styles.css?url";
 
 function NotFoundComponent() {
@@ -449,32 +449,19 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           // one dayOfWeek array. Saturday is omitted: in schema.org a day absent
           // from openingHoursSpecification is closed, which is correct for a
           // Judaica shop on Shabbat and is what the profile says.
-          openingHoursSpecification: [
-            {
-              "@type": "OpeningHoursSpecification",
-              dayOfWeek: ["Sunday", "Monday", "Tuesday"],
-              opens: "09:30",
-              closes: "14:00",
-            },
-            {
-              "@type": "OpeningHoursSpecification",
-              dayOfWeek: ["Wednesday", "Thursday"],
-              opens: "09:30",
-              closes: "12:00",
-            },
-            {
-              "@type": "OpeningHoursSpecification",
-              dayOfWeek: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday"],
-              opens: "16:00",
-              closes: "19:00",
-            },
-            {
-              "@type": "OpeningHoursSpecification",
-              dayOfWeek: "Friday",
-              opens: "09:30",
-              closes: "12:00",
-            },
-          ],
+          //
+          // The rows themselves moved to business.ts (OPENING_HOURS) and are
+          // built from there. They were literals here while the site showed the
+          // hours to NOBODY — no page rendered them, so this node was the only
+          // consumer and there was nothing to drift from. / and /about now show
+          // them to humans, and a visible table that could disagree with this
+          // one is exactly the failure the note above warns about.
+          openingHoursSpecification: OPENING_HOURS.map((h) => ({
+            "@type": "OpeningHoursSpecification",
+            dayOfWeek: [...h.days],
+            opens: h.opens,
+            closes: h.closes,
+          })),
           //
           // The canonical Google Business Profile place URL. It replaces a
           // "maps/search/?api=1&query=<address string>" URL, which asks Google

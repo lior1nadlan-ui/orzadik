@@ -36,8 +36,56 @@ export const SOCIAL_PROFILES = [
 
 /** The Google Business Profile place URL. Separate from SOCIAL_PROFILES because
  *  it is an entity record rather than a profile a shopper would "follow" — it
- *  belongs in `sameAs` and in `hasMap`, not in the footer's follow row. */
+ *  belongs in `sameAs` and in `hasMap`, not in the footer's follow row.
+ *
+ *  It is ALSO the only third-party proof this business has that a shopper can
+ *  check: a real place, on Google's own map, with reviews Google collected.
+ *  Until 2026-08-03 it was referenced in exactly one place in the whole
+ *  codebase — __root.tsx's `hasMap` — i.e. it was visible to crawlers and to
+ *  nobody else. It is now rendered on / and /about as a link a human can
+ *  follow.
+ *
+ *  ⚠️ Linking the profile is honest. Marking its 6 reviews up as
+ *  `aggregateRating` is NOT, and must stay out: Google permits review markup
+ *  only for reviews the site itself collects. The first-party review system
+ *  already in this codebase is the honest route to a rating. */
 export const GOOGLE_PLACE_URL = "https://maps.google.com/?cid=1527663379608737920";
+
+/**
+ * Shop opening hours — ONE list, consumed by the Store node's
+ * `openingHoursSpecification` in __root.tsx AND by the visible hours on / and
+ * /about. They have to come from the same place for the reason the long note in
+ * __root.tsx spells out: three different public sources disagreed about these
+ * hours, publishing the wrong ones sends a real customer to a closed door, and a
+ * visible table that could drift from the structured data would recreate exactly
+ * that failure inside our own codebase.
+ *
+ * Read on 2026-08-03 from the shop's OWN Google Business Profile panel (the
+ * record Google itself serves for this business), parsed twice, byte-identical
+ * both times. Saturday is deliberately absent: in schema.org a day missing from
+ * openingHoursSpecification is closed, which is correct for a Judaica shop on
+ * Shabbat and is what the profile says.
+ *
+ * `days` are schema.org DayOfWeek tokens; `he` is the Hebrew label for the
+ * visible row. Ranges are written with an ASCII hyphen, never U+2013 — an en
+ * dash has bidi class ON and visually REVERSES a numeric range in RTL.
+ */
+export const OPENING_HOURS = [
+  { days: ["Sunday", "Monday", "Tuesday"], he: "ראשון - שלישי", opens: "09:30", closes: "14:00" },
+  { days: ["Wednesday", "Thursday"], he: "רביעי - חמישי", opens: "09:30", closes: "12:00" },
+  {
+    days: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday"],
+    he: "ראשון - חמישי (אחר הצהריים)",
+    opens: "16:00",
+    closes: "19:00",
+  },
+  { days: ["Friday"], he: "שישי", opens: "09:30", closes: "12:00" },
+] as const;
+
+/** The visible "09:30 - 14:00" label for an hours row. ASCII hyphen only. */
+export function openingHoursLabel(row: { opens: string; closes: string }): string {
+  return `${row.opens} - ${row.closes}`;
+}
 
 export const BUSINESS = {
   /** Registered/display name of the business. */

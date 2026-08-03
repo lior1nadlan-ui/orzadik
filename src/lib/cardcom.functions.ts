@@ -39,6 +39,60 @@ const capEmail = (s: unknown): string | undefined => {
   return v && v.length <= 50 ? v : undefined;
 };
 
+/**
+ * Maximum number of instalments (תשלומים) the payment page may offer.
+ *
+ * Why this exists: the LowProfile payload sent no AdvancedDefinition at all, so
+ * CardCom silently applied its default of MaxNumOfPayments: 1 — every buyer was
+ * offered exactly one payment. 914 of the 4,648 active products are ≥ ₪200
+ * effective (measured 2026-08-03 against the live catalogue), which is precisely
+ * the range where "אפשר בתשלומים?" decides the sale in this category.
+ *
+ * Why an env var and not a constant: what the page may offer is a property of
+ * the OWNER'S TERMINAL, not of this code. Printing "12 תשלומים" that CardCom
+ * then refuses to show is worse than saying nothing, so the number ships empty
+ * and only becomes real once the owner confirms what the terminal clears.
+ *
+ * Why VITE_ rather than a server-only secret: it is not a secret, and the number
+ * the buyer is PROMISED must be the number CardCom is TOLD. Vite inlines
+ * `import.meta.env.VITE_*` as a literal into both the SSR and the client bundle,
+ * so this value and the one TrustBadges.tsx prints are the same literal by
+ * construction and cannot drift.
+ *
+ * CreditType is deliberately NOT sent: omitting it is CardCom's documented
+ * instruction for plain תשלומים (the shop carries the fee), whereas naming a
+ * credit type would switch the buyer into an interest-bearing קרדיט plan we have
+ * made no claim about.
+ *
+ * ⚠️ DO NOT SET THIS ENV VAR UNTIL TWO THINGS ARE CONFIRMED IN THE CARDCOM PANEL.
+ * The feature is dormant by design — unset, maxNumOfPayments() returns 1 and
+ * instalmentsLine() returns null, so nothing is sent and nothing is promised.
+ * Arming it against a mis-set terminal is genuinely destructive, so verify:
+ *
+ *   1. תשלומים is actually APPROVED on the terminal (אישור מסוף סולק), and to
+ *      how many payments. Promising a split CardCom then refuses to display is
+ *      worse than saying nothing.
+ *   2. "עמלה על חשבון הלקוח" is OFF (רשימת מסופים → ☰ → עמלות תשלומים).
+ *
+ * If (2) is ON, CardCom charges the buyer MORE than order.total, and the
+ * settlement guard rejects the mismatch: AMOUNT_EPSILON is 0.01 × nPayments
+ * (₪0.36 even at CardCom's 36-payment ceiling) while a 1% fee on a ₪500 order is
+ * ₪5. cardcom-settle.server.ts then writes payment_status='failed' WITH
+ * cardcom_tranzaction_id persisted, and createCardcomPayment permanently refuses
+ * any retry on an order that already has one. Net effect of flipping one env var:
+ * the card IS charged, the order reads failed, the buyer cannot pay again, and
+ * the site advertised a fee-free split it did not deliver.
+ *
+ * If a customer-borne fee is ever unavoidable, instalmentsLine() must name the
+ * cost — an unqualified "עד N תשלומים" would then be a false price claim.
+ */
+function maxNumOfPayments(): number {
+  const n = Number(import.meta.env.VITE_CARDCOM_MAX_PAYMENTS);
+  if (!Number.isInteger(n) || n < 2) return 1;
+  // 36 is CardCom's own ceiling; anything above it would be rejected outright.
+  return Math.min(n, 36);
+}
+
 const InputSchema = z.object({
   order_id: z.string().uuid(),
 });
@@ -186,6 +240,11 @@ export const createCardcomPayment = createServerFn({ method: "POST" })
       products = singleLine;
     }
 
+    // Hoisted so UIDefinition below can require the email field only when we
+    // actually prefilled one — see IsCardOwnerEmailRequired.
+    const cappedEmail = capEmail(order.customer_email);
+    const maxPayments = maxNumOfPayments();
+
     const payload = {
       TerminalNumber: Number(terminal),
       ApiName: apiName,
@@ -202,22 +261,31 @@ export const createCardcomPayment = createServerFn({ method: "POST" })
       WebHookUrl: `${origin}/api/public/cardcom-webhook`,
       Language: "he",
       ISOCoinId: 1, // ILS
+      // Instalments. Sent only when the owner has configured a real ceiling —
+      // omitting the object entirely reproduces exactly the behaviour that
+      // shipped before, so an unset env var cannot change what CardCom does.
+      ...(maxPayments > 1 ? { AdvancedDefinition: { MaxNumOfPayments: maxPayments } } : {}),
       UIDefinition: {
         CardOwnerNameValue: cap(order.customer_name),
         CardOwnerPhoneValue: cap(order.customer_phone),
-        CardOwnerEmailValue: capEmail(order.customer_email),
+        CardOwnerEmailValue: cappedEmail,
         // CardCom's own Apple Pay guidance: phone and email should be required on
         // the payment page, because those are what lets a transaction be located
         // in their reports later. We prefill both, so requiring them costs the
         // buyer nothing.
         IsCardOwnerPhoneRequired: true,
-        IsCardOwnerEmailRequired: true,
+        // ...but ONLY when we actually prefilled it. capEmail returns undefined
+        // above 50 chars (truncating an address is worse than omitting it — see
+        // its doc comment), so a hard-coded `true` meant a buyer with a long
+        // address landed on a payment page demanding a field we had left empty,
+        // at the last step before paying. Track the value, not a constant.
+        IsCardOwnerEmailRequired: !!cappedEmail,
       },
       Document: {
         DocumentTypeToCreate: "Auto",
         IsAllowEditDocument: true,
         Name: cap(order.customer_name) ?? "לקוח",
-        Email: capEmail(order.customer_email),
+        Email: cappedEmail,
         AddressLine1: cap(order.customer_address),
         City: cap(order.customer_city),
         Mobile: cap(order.customer_phone),

@@ -234,5 +234,17 @@ export const placeOrder = createServerFn({ method: "POST" })
       console.error("[placeOrder] created-order alert failed (non-fatal):", e);
     }
 
+    // NOTE: no customer email at order CREATION, deliberately. There IS a real
+    // gap here — a card declined at 23:40 leaves the buyer with no order number
+    // and no way back, and their only recovery is to re-checkout, which mints a
+    // second unpaid order and burns one of the five per hour the cap above
+    // allows. An attempt to close it by mailing every buyer at creation was
+    // reverted before shipping: it fires seconds BEFORE most buyers pay, so a
+    // successful buyer receives "ההזמנה ממתינה לתשלום" immediately followed by
+    // "התקבל תשלום"; and its /order/{id} link throws for any order carrying
+    // user_id, i.e. every signed-in member. The correct shape is a DELAYED send
+    // from the unpaid sweep — mail only orders still unpaid after N minutes —
+    // which changes what real customers receive and belongs with the owner.
+
     return { id: order.id as string };
   });

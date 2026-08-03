@@ -9,7 +9,10 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { requireAdmin } from "@/lib/admin-authz.server";
-import { sendOrderShippedEmail } from "@/lib/order-emails.server";
+import {
+  sendOrderShippedEmail,
+  sendOrderConfirmationEmails,
+} from "@/lib/order-emails.server";
 
 const PAGE_SIZE = 25;
 // PostgREST caps unbounded selects at 1000 — the same silent cap that hid 79%
@@ -521,7 +524,11 @@ export const exportOrdersCsv = createServerFn({ method: "POST" })
       let query = supabaseAdmin
         .from("orders")
         .select(
-          "order_number, created_at, customer_name, customer_phone, customer_email, customer_address, customer_city, subtotal, shipping, total, status, payment_status, tracking_number, shipping_carrier, notes, is_gift, gift_note, gift_wrap, order_items(product_name, quantity, line_total)",
+          // variant_label + custom_text are in the select because the CSV is the
+          // sheet the owner packs and engraves from. Without them the export said
+          // "טלית x1" for a line whose whole value is the size and the wording —
+          // the two fields that make the order non-returnable once produced.
+          "order_number, created_at, customer_name, customer_phone, customer_email, customer_address, customer_city, subtotal, shipping, total, status, payment_status, tracking_number, shipping_carrier, notes, is_gift, gift_note, gift_wrap, order_items(product_name, quantity, line_total, variant_label, custom_text)",
         );
       query = applyOrderFilters(query, f);
       const { data, error } = await query
@@ -545,7 +552,17 @@ export const exportOrdersCsv = createServerFn({ method: "POST" })
         o.customer_address, o.customer_city ?? "",
         o.subtotal, o.shipping, o.total, o.status, o.payment_status,
         o.tracking_number ?? "", o.shipping_carrier ?? "",
-        (o.order_items ?? []).map((it: any) => `${it.product_name} x${it.quantity}`).join(" | "),
+        (o.order_items ?? [])
+          .map((it: any) =>
+            [
+              `${it.product_name} x${it.quantity}`,
+              it.variant_label ? `גודל: ${it.variant_label}` : "",
+              it.custom_text ? `כיתוב: ${it.custom_text}` : "",
+            ]
+              .filter(Boolean)
+              .join(" · "),
+          )
+          .join(" | "),
         o.notes ?? "",
         o.is_gift ? "כן" : "לא",
         o.gift_note ?? "",
@@ -849,6 +866,99 @@ export const markOrderShipped = createServerFn({ method: "POST" })
       }
     }
     return { ok: true, emailSent };
+  });
+
+/**
+ * Move a paid order into "בהכנה".
+ *
+ * orders.shipping_status has always carried a 'preparing' value that NOTHING
+ * could write: markOrderShipped jumps straight from the 'pending' default to
+ * 'shipped'. So every paid buyer read "ממתין לטיפול" on /account and an
+ * unlit step on /track for the entire fulfilment window — the store looked
+ * asleep while the owner was actually making the thing. This is the write that
+ * was missing; the value itself needs no migration (shipping_status is plain
+ * text with a 'pending' default and no CHECK constraint).
+ *
+ * Deliberately does NOT touch `status`, `shipped_at` or send any email: it is a
+ * progress signal, not a fulfilment milestone, and markOrderShipped stays the
+ * one place that decides an order has left the building.
+ */
+export const markOrderPreparing = createServerFn({ method: "POST" })
+  .inputValidator((i: unknown) => z.object({ order_id: z.string().uuid() }).parse(i))
+  .handler(async ({ data }) => {
+    await requireAdmin();
+    const { data: order, error } = await supabaseAdmin
+      .from("orders")
+      .select("id, shipping_status, shipped_at")
+      .eq("id", data.order_id)
+      .maybeSingle();
+    if (error || !order) throw new Error("הזמנה לא נמצאה.");
+    // Never walk an order backwards: once it has shipped, "בהכנה" is a lie the
+    // customer can see on /track.
+    if (order.shipped_at || order.shipping_status === "shipped") {
+      throw new Error("ההזמנה כבר סומנה כנשלחה — לא ניתן להחזיר אותה למצב בהכנה.");
+    }
+    const { error: uErr } = await supabaseAdmin
+      .from("orders")
+      .update({ shipping_status: "preparing" })
+      .eq("id", order.id);
+    if (uErr) {
+      console.error("[markOrderPreparing]:", uErr);
+      throw new Error("שגיאה בעדכון מצב ההכנה.");
+    }
+    return { ok: true };
+  });
+
+/**
+ * Manually re-send the paid-order confirmation (the §14ג(ב) written
+ * confirmation) for one order.
+ *
+ * This is the human escape hatch behind the confirmation_email_sent_at latch in
+ * cardcom-settle.server.ts. That latch now releases on a transport failure, so
+ * the sweep can re-claim it — but the sweep only revisits orders inside its
+ * 72-hour lookback, and Resend can fail for reasons no retry fixes (a bounced
+ * address the customer then corrects by phone). Without a manual path the owner's
+ * only option was to have no receipt at all.
+ *
+ * Idempotency is intentionally NOT enforced here: the whole point is to send a
+ * receipt the customer says they never got, and a duplicate receipt is harmless
+ * where a missing one is a legal defect. The stamp is refreshed only on success,
+ * so the admin dialog keeps showing the truth.
+ */
+export const resendOrderConfirmation = createServerFn({ method: "POST" })
+  .inputValidator((i: unknown) => z.object({ order_id: z.string().uuid() }).parse(i))
+  .handler(async ({ data }) => {
+    await requireAdmin();
+    const { data: order, error } = await supabaseAdmin
+      .from("orders")
+      .select("id, order_number, payment_status")
+      .eq("id", data.order_id)
+      .maybeSingle();
+    if (error || !order) throw new Error("הזמנה לא נמצאה.");
+    // The template says "קיבלנו את התשלום" — sending it for an unpaid order
+    // would tell the customer money moved when it did not.
+    if (order.payment_status !== "paid") {
+      throw new Error("אישור הזמנה נשלח רק להזמנה ששולמה.");
+    }
+
+    const sent = await sendOrderConfirmationEmails(order.id);
+    if (!sent) {
+      // Leave the stamp exactly as it was: reporting a send that did not happen
+      // is the failure mode this whole change exists to remove.
+      throw new Error(
+        "שליחת האישור נכשלה. בדקו שכתובת הדוא\"ל של הלקוח תקינה ושהגדרות הדוא\"ל של האתר פעילות.",
+      );
+    }
+    const { error: stampErr } = await supabaseAdmin
+      .from("orders")
+      .update({ confirmation_email_sent_at: new Date().toISOString() })
+      .eq("id", order.id);
+    if (stampErr) {
+      // The mail went out; only the bookkeeping failed. Say so rather than
+      // implying the customer got nothing.
+      console.error("[resendOrderConfirmation] stamp failed for order:", order.id, stampErr);
+    }
+    return { ok: true, sentAt: new Date().toISOString() };
   });
 
 // ---- Stock restore on refund / cancel -------------------------------------

@@ -24,7 +24,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { PrivacyNotice } from "@/components/PrivacyNotice";
-import { TrustBadges } from "@/components/cart/TrustBadges";
+import { TrustBadges, instalmentsLine } from "@/components/cart/TrustBadges";
 import { Lock } from "lucide-react";
 import { toast } from "sonner";
 
@@ -97,6 +97,13 @@ function CheckoutPage() {
     // strict format check that could reject a valid number.
     else if (form.phone.replace(/\D/g, "").length < 9) e.phone = "מספר הטלפון אינו תקין";
     if (!form.address.trim()) e.address = "יש להזין כתובת מלאה למשלוח";
+    // עיר is now required HERE, not in CheckoutSchema. The server keeps accepting
+    // a null city on purpose: tightening the zod schema would make a stale cached
+    // bundle fail with a raw ZodError and no Hebrew message, at the pay button, on
+    // the one path that has to work. Client-required is what the parcel actually
+    // needs — the shipping company gets an address with no city otherwise, and the
+    // only person who can fix that afterwards is the owner, by phone.
+    if (!form.city.trim()) e.city = "יש להזין עיר";
     return e;
   };
 
@@ -246,27 +253,28 @@ function CheckoutPage() {
     if (submitting || redirecting) return;
     // A retry starts clean: drop any prior persistent failure banner.
     setSubmitError(null);
-    // 1) Inline field validation — surface Hebrew errors and jump to the first.
+    // Inline validation for EVERY required control, consent included.
+    //
+    // The required consent used to fail as a disappearing toast while all four
+    // required text fields got a persistent inline role="alert". So the one
+    // blocker that is a legal precondition of the order was also the one a
+    // shopper could scroll past and never see again. It is now just another key
+    // in the same errors map, rendered by the same treatment.
     const fieldErrors = validate();
+    if (!contactConsent) fieldErrors.consent = "יש לאשר יצירת קשר לצורך טיפול בהזמנה";
     setErrors(fieldErrors);
     if (Object.keys(fieldErrors).length > 0) {
-      const firstKey = (["name", "email", "phone", "address"] as const).find(
+      // Same order as the form itself, so "jump to the first problem" means the
+      // topmost one. The consent checkbox is last and is a Radix <button>, so it
+      // is reached through its ref rather than by id.
+      const firstKey = (["name", "email", "phone", "city", "address"] as const).find(
         (k) => fieldErrors[k],
       );
-      if (firstKey) {
-        const el = document.getElementById(firstKey);
-        el?.scrollIntoView({ behavior: "smooth", block: "center" });
-        (el as HTMLElement | null)?.focus();
-      }
-      return;
-    }
-    // 2) Required operational consent. The pay button stays ENABLED so this path
-    // is reachable — fire the toast AND bring the checkbox into view + focus it,
-    // instead of leaving the button silently disabled far below the form.
-    if (!contactConsent) {
-      toast.error("יש לאשר יצירת קשר לצורך טיפול בהזמנה");
-      consentRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-      consentRef.current?.focus();
+      const el: HTMLElement | null = firstKey
+        ? document.getElementById(firstKey)
+        : consentRef.current;
+      el?.scrollIntoView({ behavior: "smooth", block: "center" });
+      el?.focus();
       return;
     }
     // A stale line that placeOrder() would reject (out of stock / inactive).
@@ -350,6 +358,28 @@ function CheckoutPage() {
     <div className="container mx-auto px-4 py-10 grid lg:grid-cols-3 gap-8">
       <form onSubmit={onSubmit} noValidate className="lg:col-span-2 space-y-4">
         <h1 className="font-display text-3xl font-bold mb-4">פרטי הזמנה</h1>
+        {/* Mobile-only amount strip. Below `lg` the summary column sits AFTER the
+            whole form, so a phone shopper filled six fields and two consents
+            without the total ever on screen — the single most common "wait, how
+            much am I about to pay?" moment. It reads the identical
+            itemsTotal / shipping / finalTotal the summary below renders; there is
+            no second money calculation anywhere in this file.
+
+            Placed INSIDE the form, after the <h1>, deliberately: the page still
+            opens on its heading, the three grid children keep their DOM order,
+            and the strip holds nothing focusable, so the documented
+            visual = DOM = focus order property is untouched. lg:hidden, so the
+            desktop layout is byte-identical to before. */}
+        {!nothingOrderable && (
+          <div className="lg:hidden mb-4 rounded-xl hairline bg-muted/40 px-4 py-3">
+            <div className="flex items-baseline justify-between gap-3 text-sm">
+              <span className="text-muted-foreground">
+                {items.length === 1 ? "פריט אחד" : `${items.length} פריטים`} · משלוח {formatILS(shipping)}
+              </span>
+              <span className="font-bold text-accent whitespace-nowrap">{formatILS(finalTotal)}</span>
+            </div>
+          </div>
+        )}
         <div className="grid md:grid-cols-2 gap-4">
           <div>
             <Label htmlFor="name">שם מלא *</Label>
@@ -370,8 +400,9 @@ function CheckoutPage() {
             {errors.phone && <p id="phone-error" role="alert" className="mt-1 text-xs text-destructive">{errors.phone}</p>}
           </div>
           <div>
-            <Label htmlFor="city">עיר</Label>
-            <Input id="city" maxLength={200} enterKeyHint="next" autoComplete="address-level2" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
+            <Label htmlFor="city">עיר *</Label>
+            <Input id="city" required maxLength={200} enterKeyHint="next" autoComplete="address-level2" aria-invalid={!!errors.city} aria-describedby={errors.city ? "city-error" : undefined} value={form.city} onChange={(e) => setField("city", e.target.value)} />
+            {errors.city && <p id="city-error" role="alert" className="mt-1 text-xs text-destructive">{errors.city}</p>}
           </div>
           <div className="md:col-span-2">
             <Label htmlFor="address">כתובת מלאה *</Label>
@@ -447,9 +478,16 @@ function CheckoutPage() {
           <Checkbox
             ref={consentRef}
             checked={contactConsent}
-            onCheckedChange={(v) => setContactConsent(v === true)}
+            onCheckedChange={(v) => {
+              setContactConsent(v === true);
+              // Clear as the shopper corrects it, exactly like setField does for
+              // the text inputs.
+              if (v === true) setErrors((prev) => (prev.consent ? { ...prev, consent: "" } : prev));
+            }}
             className="mt-0.5"
             required
+            aria-invalid={!!errors.consent}
+            aria-describedby={errors.consent ? "consent-error" : undefined}
             aria-labelledby="cb-consent-label"
           />
           <span id="cb-consent-label" className="text-xs leading-relaxed text-foreground/90">
@@ -458,6 +496,11 @@ function CheckoutPage() {
             ללא הסכמה נפרדת.
           </span>
         </label>
+        {errors.consent && (
+          <p id="consent-error" role="alert" className="-mt-2 text-xs text-destructive">
+            {errors.consent}
+          </p>
+        )}
         {/* Marketing consent — lighter, optional, and visually secondary to the
             required consent above so the two can't be mistaken for one. */}
         <label className="flex items-start gap-2 rounded-xl hairline bg-muted/40 p-4 cursor-pointer">
@@ -525,6 +568,13 @@ function CheckoutPage() {
           <Lock className="h-3.5 w-3.5 text-accent" />
           תשלום מאובטח בסליקת Cardcom · תקן PCI
         </p>
+        {/* "אפשר בתשלומים?" at the CTA, where it is actually being asked — and
+            only when the owner has confirmed the terminal offers it. Same
+            literal that reaches CardCom's AdvancedDefinition, so the page cannot
+            promise a split the payment screen then refuses. */}
+        {instalmentsLine() && (
+          <p className="text-center text-[11px] text-accent">{instalmentsLine()}</p>
+        )}
         {/* Guest checkout is real and completely unguarded — placeOrder never
             requires a session — but nothing on the site ever said so, and
             "do I have to open an account?" is one of the most documented reasons a

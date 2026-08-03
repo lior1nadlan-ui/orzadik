@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { thumbUrl } from "@/lib/img";
+import { localProductPhoto } from "@/lib/product-photos";
 
 /**
  * Product thumbnail with a two-stage fallback.
@@ -11,9 +12,18 @@ import { thumbUrl } from "@/lib/img";
  * The middle stage is the point: image transforms are a storage feature that
  * can be turned off or fail per-object, and without it a single bad transform
  * would show the placeholder for an image that exists perfectly well.
+ *
+ * Before stage 2 the component consults src/lib/product-photos.ts for a
+ * bundled local photograph, which is how the groom sets (the only products in
+ * the catalogue with no `thumbnail_url`) can show a real picture. That map is
+ * owner-confirmed-only and currently empty, so today this path is inert by
+ * design — see the comment in product-photos.ts for why an empty map is the
+ * correct state and not an oversight. Wiring it now means confirming a pairing
+ * is a one-line edit in that file with no component change.
  */
 export function ProductThumb({
   url,
+  slug,
   alt,
   width = 400,
   className = "",
@@ -24,6 +34,11 @@ export function ProductThumb({
   placeholderClassName = "flex h-full items-center justify-center text-muted-foreground text-sm",
 }: {
   url: string | null | undefined;
+  /**
+   * Product slug. Optional: only used to look up a bundled local photograph
+   * when `url` is empty, so every existing caller keeps its exact behaviour.
+   */
+  slug?: string | null;
   alt: string;
   width?: number;
   className?: string;
@@ -44,6 +59,27 @@ export function ProductThumb({
   const [stage, setStage] = useState(0);
 
   if (!url || stage >= 2) {
+    // No catalogue image (or both remote stages failed): a bundled photograph
+    // is better than the placeholder, and it is a local static asset so there
+    // is no third failure mode to fall back FROM.
+    const local = localProductPhoto(slug);
+    if (local) {
+      return (
+        <img
+          src={local.src}
+          alt={alt}
+          // Real decoded dimensions, not the square `width` the remote stages
+          // assume — these photographs are 3:4 portrait. The container's
+          // object-fit still drives display size; these only reserve the box.
+          width={local.width}
+          height={local.height}
+          loading={(eager ?? priority) ? "eager" : "lazy"}
+          fetchPriority={(highPriority ?? priority) ? "high" : "auto"}
+          decoding="async"
+          className={className}
+        />
+      );
+    }
     return <div className={placeholderClassName}>אין תמונה</div>;
   }
 

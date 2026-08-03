@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { EmptyCartSuggestions } from "@/components/cart/EmptyCartSuggestions";
 import { CartCrossSell } from "@/components/cart/CartCrossSell";
-import { TrustBadges } from "@/components/cart/TrustBadges";
+import { TrustBadges, instalmentsLine } from "@/components/cart/TrustBadges";
 import { Trash2, Minus, Plus } from "lucide-react";
 
 export const Route = createFileRoute("/cart")({
@@ -314,6 +314,14 @@ function CartPage() {
             <p className="text-xs text-muted-foreground mt-2 mb-3">
               זמן אספקה משוער: 3-14 ימי עסקים
             </p>
+            {/* "אפשר בתשלומים?" answered where the amount is, not three
+                scrolls away in the trust list — and only when the owner has
+                confirmed what the terminal clears (instalmentsLine returns null
+                otherwise). Same literal that reaches CardCom's
+                AdvancedDefinition. */}
+            {instalmentsLine() && (
+              <p className="-mt-2 mb-3 text-xs text-accent">{instalmentsLine()}</p>
+            )}
             {/* Decorative gold hairline — the rule is a gradient image, never text. */}
             <div className="gold-rule my-4" aria-hidden="true" />
             <div className="flex justify-between text-lg mb-4">

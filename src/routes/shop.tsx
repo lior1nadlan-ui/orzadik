@@ -15,6 +15,9 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { ProductGridSkeleton } from "@/components/Skeletons";
+import { QueryErrorState } from "@/components/QueryErrorState";
+import { OCCASION_COLLECTIONS } from "@/lib/collections";
+import { BUSINESS } from "@/lib/business";
 
 // "recommended" is the default. It used to be "newest", but 4,184 of the 4,641
 // active products were bulk-imported inside a single minute, so created_at
@@ -70,6 +73,82 @@ export function sanitizeTerm(raw: string): string {
     .trim();
 }
 
+/**
+ * Fold Hebrew spelling variants that the catalogue does not contain into the
+ * ones it does, BEFORE the term reaches list_products_collapsed.
+ *
+ * The search backend is already good at Hebrew MORPHOLOGY — he_variants()
+ * expands plurals to singular stems, which is what the 20260730 migration was
+ * for. What it cannot bridge is ORTHOGRAPHY: כתיב חסר and כתיב מלא are both in
+ * everyday Israeli use, the supplier wrote the catalogue in one of them, and
+ * trigram similarity does not span a missing ו. Measured live on the RPC
+ * 2026-08-03 (result-set sizes, and set-difference against the rewritten term):
+ *
+ *     בר מצוה     8   →  בר מצווה   105   (loses 1: an unrelated fuzzy hit)
+ *     בת מצוה     6   →  בת מצווה    43   (loses 1: the same fuzzy hit)
+ *     מצוה        8   →  מצווה      122   (loses 1)
+ *     סדור        3   →  סידור      110   (loses 2: "סדר קידוש" ברכונים)
+ *     סדורים      1   →  סידורים     81   (loses 0)
+ *     בר-מצווה    3   →  בר מצווה   105   (loses 0 — pure maqaf damage)
+ *     חנוכיה    111   →  חנוכיות    119   (loses 0)
+ *
+ * bar mitzvah is the highest-intent query in Judaica and it was returning 8
+ * results out of 105 for half the country's spelling of it.
+ *
+ * WHY חנוכיה MAPS TO A PLURAL AND NOT TO חנוכייה. Both spellings genuinely
+ * occur in the product names (the he_variants migration says so in as many
+ * words), so rewriting one singular to the other TRADES results instead of
+ * adding them — measured, חנוכייה→חנוכיות gains 4 and loses 3. The plural is
+ * the one form the DB function already expands to BOTH spellings, so routing
+ * the singular through it is strictly additive and uses the mechanism that is
+ * already deployed rather than inventing a second one. חנוכייה is left alone:
+ * at 118 results it is not broken, and rewriting it is a net wash.
+ *
+ * DELIBERATELY NOT a general plural→singular rewrite. ברכונים (52) → ברכון (89)
+ * would look like a win, but that gap is the documented, intentional cost of
+ * matching variants against name_norm instead of search_blob — undoing it here
+ * would silently reverse a migration-level decision from the wrong layer.
+ *
+ * Applied to the RPC path AND the ILIKE fallback, so a search cannot mean two
+ * different things depending on whether the search function is available.
+ *
+ * ⚠️ The header's search dropdown (SiteHeader.tsx) calls the same RPC with its
+ * own raw `debounced` term and so does NOT get this treatment — its preview
+ * will still under-report for these spellings until it routes through here.
+ * That file was outside this change's scope; the export exists for it.
+ */
+const HE_SPELLING_SYNONYMS: Record<string, string> = {
+  // כתיב חסר → כתיב מלא, as the catalogue spells it.
+  מצוה: "מצווה",
+  סדור: "סידור",
+  סדורים: "סידורים", // measured 1 → 81
+  // Singular ־יה → the plural the DB expands to BOTH spellings (see above).
+  חנוכיה: "חנוכיות",
+};
+
+// ⚠️ DO NOT add מצות → מצוות here, however tempting the symmetry looks. It is
+// the one word in this family that is genuinely ambiguous, and the catalogue
+// uses it in the OTHER sense: measured live, מצות returns 38 rows led by
+// "קופסת פח למצות" and "כיסוי מצות" — Passover matzah goods — while מצוות
+// returns 44 rows led by "ספר ראשית מצוות הסידור הראשון שלי", a children's
+// book. Folding them would take a Passover shopper off matzah tins and onto
+// mitzvah books. Every other entry above was checked for exactly this and has
+// no second meaning in a Judaica catalogue.
+
+export function normalizeSearchTerm(raw: string): string {
+  return raw
+    // Maqaf / hyphen / dash between letters → a space. The RPC splits the term
+    // on spaces and bool_ands the words, so "בר-מצווה" arrives as ONE token and
+    // matched 3 rows; as two tokens it matches 105. Any dash the shopper types
+    // is a word separator here, never part of a Hebrew word.
+    .replace(/[-‐-―־]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(" ")
+    .map((w) => HE_SPELLING_SYNONYMS[w] ?? w)
+    .join(" ");
+}
+
 type ShopPageData = { rows: ProductCardData[]; total: number; next: number };
 
 // Single source of truth for a page of /shop results, shared by the SSR route
@@ -81,7 +160,10 @@ async function fetchShopPage(opts: {
   offset: number;
 }): Promise<ShopPageData> {
   const { rawQ, sort, offset } = opts;
-  const term = sanitizeTerm(rawQ);
+  // Spelling normalisation runs FIRST, so both search paths below (the RPC and
+  // the ILIKE fallback) look for the same words — see normalizeSearchTerm.
+  const normalizedQ = normalizeSearchTerm(rawQ);
+  const term = sanitizeTerm(normalizedQ);
 
   // "recommended" is the right default for BROWSING, but it must not survive a
   // search term. Its ordering is in-stock → has-photo → has-copy → price DESC, and
@@ -110,7 +192,7 @@ async function fetchShopPage(opts: {
   // and "load more".
   {
     const { data: rpcRows, error: rpcErr } = await supabase.rpc("list_products_collapsed", {
-      p_term: rawQ.trim().slice(0, 100),
+      p_term: normalizedQ.slice(0, 100),
       p_limit: PAGE,
       p_offset: offset,
       p_sort: rpcSort,
@@ -615,15 +697,11 @@ const activeQ = debouncedQ.trim();
         // prefers-reduced-motion (keep opacity, drop movement).
         <ProductGridSkeleton count={8} />
       ) : isError ? (
-        <div className="py-20 text-center space-y-3">
-          <p className="text-muted-foreground">אירעה שגיאה בטעינת המוצרים. בדקו את החיבור ונסו שוב.</p>
-          <button
-            onClick={() => refetch()}
-            className="press rounded-full bg-card/70 px-6 py-2.5 text-sm font-medium text-foreground hairline transition-[background-color,color,transform] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary"
-          >
-            נסו שוב
-          </button>
-        </div>
+        // Lifted into a shared component: /category/$slug had no error branch at
+        // all and rendered its "אין כרגע מוצרים בקטגוריה הזו" empty state for a
+        // failed query. One component, so the two discovery pages cannot drift
+        // again — see QueryErrorState.
+        <QueryErrorState onRetry={() => refetch()} retrying={isFetching} />
       ) : products.length === 0 ? (
         // Designed glass empty state (icon + display heading + body), kept
         // gold-free per the /shop invariant. /category renders the same card so
@@ -641,14 +719,60 @@ const activeQ = debouncedQ.trim();
               "לא נמצאו מוצרים תואמים כרגע. נסו שוב מאוחר יותר."
             )}
           </p>
-          {term && (
-            <button
-              onClick={clearSearch}
-              className="press mt-6 rounded-full bg-card/70 px-6 py-2.5 text-sm font-medium text-foreground hairline transition-[background-color,color,transform] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:text-background"
+          {/* A dead end used to be the whole experience here: one "נקה חיפוש"
+              chip, which returns the shopper to the same 4,648-item grid they
+              could not find anything in. Give them the two things that actually
+              resolve a failed search — somewhere to browse, and a human to ask.
+              Both are already on this page in other forms (the occasion hubs are
+              a homepage rail, the WhatsApp FAB floats over every route); this
+              only puts them where the shopper has just been stopped. */}
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+            {term && (
+              <button
+                onClick={clearSearch}
+                className="press rounded-full bg-card/70 px-6 py-2.5 text-sm font-medium text-foreground hairline transition-[background-color,color,transform] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:text-background"
+              >
+                נקה חיפוש
+              </button>
+            )}
+            {/* Pre-filled with the term they searched for, so the shop owner
+                opens a conversation that already says what they were after. */}
+            <a
+              href={`https://wa.me/${BUSINESS.whatsapp}?text=${encodeURIComponent(
+                term ? `שלום, חיפשתי באתר "${rawTerm}" ולא מצאתי. אפשר עזרה?` : "שלום, אשמח לעזרה במציאת מוצר",
+              )}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="press rounded-full bg-accent px-6 py-2.5 text-sm font-medium text-accent-foreground transition-[background-color,transform] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-accent-strong"
             >
-              נקה חיפוש
-            </button>
-          )}
+              שאלו אותנו בוואטסאפ
+            </a>
+          </div>
+
+          {/* Occasion hubs — pure module-scope data (no fetch, so this renders
+              server-side too) and the closest thing this catalogue has to
+              "start here". */}
+          <div className="mt-8 pt-8 border-t border-glass-line">
+            <p className="text-sm text-muted-foreground mb-4">או התחילו מאחת מאלה:</p>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              {OCCASION_COLLECTIONS.slice(0, 6).map((c) => (
+                <Link
+                  key={c.slug}
+                  to={"/collection/$slug" as never}
+                  params={{ slug: c.slug } as never}
+                  className="press rounded-full bg-card/70 px-4 py-2 text-sm text-foreground hairline transition-[background-color,color,transform] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:text-background"
+                >
+                  {c.title}
+                </Link>
+              ))}
+              <Link
+                to="/categories"
+                className="press rounded-full bg-card/70 px-4 py-2 text-sm text-foreground hairline transition-[background-color,color,transform] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:text-background"
+              >
+                כל הקטגוריות
+              </Link>
+            </div>
+          </div>
         </div>
       ) : (
         <>

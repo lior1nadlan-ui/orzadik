@@ -297,6 +297,21 @@ export async function settleCardcomOrder(
   // zero rows and skips. On a send failure the latch is RELEASED so a later attempt
   // can re-claim — a one-off provider blip must not permanently suppress the
   // confirmation.
+  //
+  // The release used to fire ONLY inside catch, which released almost nothing:
+  // sendEmail() returns false and never rethrows on a missing API key, a non-2xx
+  // from Resend, a network error, or its own 8s timeout. Every one of those left
+  // the latch stamped forever — the buyer's only receipt permanently suppressed —
+  // while order-emails.server.ts logged "order confirmation sent" unconditionally.
+  // sendOrderConfirmationEmails now RETURNS whether the customer's receipt went
+  // out, and a falsy result releases the latch exactly like a throw does.
+  //
+  // This deliberately does NOT copy review-request.functions.ts:212-224's
+  // "stamp on attempt, never release" trade-off. That one is correct for what it
+  // is: a marketing follow-up whose signed link is derived from the stamp, so
+  // releasing it would invalidate a link already in flight. Here the trade runs
+  // the other way — a duplicate receipt is a mild annoyance, a missing one is the
+  // §14ג(ב) written confirmation never arriving.
   try {
     const { data: claimed, error: claimErr } = await supabaseAdmin
       .from("orders")
@@ -307,17 +322,22 @@ export async function settleCardcomOrder(
     if (claimErr) {
       console.error(`${tag} confirmation email claim failed:`, claimErr);
     } else if (claimed && claimed.length > 0) {
-      try {
-        await sendOrderConfirmationEmails(updated.id);
-      } catch (sendErr) {
+      const releaseLatch = async (why: string, detail?: unknown) => {
         console.error(
-          `${tag} confirmation send failed for order ${updated.id}, releasing latch for retry:`,
-          sendErr,
+          `${tag} HIGH: confirmation NOT sent for order ${updated.id} (${why}) — releasing latch so the reconciliation sweep or an admin resend can re-claim it.`,
+          detail ?? "",
         );
-        await supabaseAdmin
+        const { error: relErr } = await supabaseAdmin
           .from("orders")
           .update({ confirmation_email_sent_at: null })
           .eq("id", updated.id);
+        if (relErr) console.error(`${tag} latch release failed for order ${updated.id}:`, relErr);
+      };
+      try {
+        const sent = await sendOrderConfirmationEmails(updated.id);
+        if (!sent) await releaseLatch("transport reported failure");
+      } catch (sendErr) {
+        await releaseLatch("send threw", sendErr);
       }
     } else {
       console.log(`${tag} confirmation email already claimed for order ${updated.id}, skipping`);

@@ -3,13 +3,21 @@ import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { trackOrder } from "@/lib/order.functions";
-import { BUSINESS } from "@/lib/business";
+import { BUSINESS, CONSUMER_POLICY } from "@/lib/business";
 import { waMessage } from "@/lib/wa-templates";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PageHeader } from "@/components/PageHeader";
-import { Check, Package, CreditCard, ClipboardList, Home, MessageCircle } from "lucide-react";
+import {
+  Check,
+  Package,
+  PackageOpen,
+  CreditCard,
+  ClipboardList,
+  Home,
+  MessageCircle,
+} from "lucide-react";
 
 export const Route = createFileRoute("/track")({
   component: TrackPage,
@@ -58,8 +66,30 @@ function TrackPage() {
       )
     : null;
 
-  // Four ordered milestones. `done` drives the gold ✓; the timeline renders
+  // Same store WhatsApp, but for the one thing that becomes unfixable once
+  // production starts: a typo in an engraving/embroidery line. Mirrors the
+  // prefilled pattern order.$id.tsx uses.
+  const textWaHref = order
+    ? waMessage(
+        BUSINESS.whatsapp,
+        `שלום, יש טעות בכיתוב שהזמנתי בהזמנה ${order.order_number}`,
+      )
+    : null;
+
+  // Any personalised line in this order? Only then is the "wrong wording?"
+  // affordance meaningful — showing it on a plain order is noise.
+  const hasPersonalisation = (order?.order_items ?? []).some(
+    (it) => !!it.custom_text || !!it.variant_label,
+  );
+
+  // Five ordered milestones. `done` drives the gold ✓; the timeline renders
   // top-to-bottom with the connector on the RTL start (right) edge.
+  //
+  // "בהכנה" exists because orders.shipping_status has a 'preparing' value that
+  // nothing could ever write, so a paid buyer read "ממתין לטיפול" on /account
+  // for the entire fulfilment window. The admin can now set it (markOrderPreparing
+  // in admin-crm.functions.ts) and this is where the buyer sees it land.
+  const shipStatus = String(order?.shipping_status ?? "");
   const steps = order
     ? [
         {
@@ -75,6 +105,16 @@ function TrackPage() {
           label: "התשלום אושר",
           at: dt(order.paid_at),
           done: isPaid,
+        },
+        {
+          key: "preparing",
+          icon: PackageOpen,
+          label: "ההזמנה בהכנה",
+          at: null,
+          // Shipped implies prepared, so a later stage never leaves this one
+          // blank behind it.
+          done:
+            ["preparing", "shipped", "delivered"].includes(shipStatus) || !!order.shipped_at,
         },
         {
           key: "shipped",
@@ -172,19 +212,39 @@ function TrackPage() {
                 <CreditCard className="h-4 w-4 shrink-0 mt-0.5 text-accent" aria-hidden="true" />
                 <p className="leading-relaxed">
                   <span className="font-semibold text-accent">ההזמנה ממתינה לתשלום.</span>{" "}
-                  אם ביטלתם בטעות, אפשר לחזור לעגלה ולהשלים את התשלום, או לפנות אלינו
-                  בוואטסאפ ונשמח לעזור.
+                  אם ביטלתם בטעות, אפשר להשלים את התשלום על אותה הזמנה בדיוק — בלי למלא
+                  שוב את הפרטים — או לפנות אלינו בוואטסאפ ונשמח לעזור.
                 </p>
               </div>
-              {/* Turn the notice into an action, not a dead end: resume payment
-                  via the cart (the app's only checkout path, same as the unpaid
-                  state on /order/$id) plus a pre-filled WhatsApp to the store. */}
+              {/* Turn the notice into an action, not a dead end.
+                  This USED to point at /cart, with a comment claiming that was
+                  "the same as the unpaid state on /order/$id". It is the
+                  opposite: /order/$id re-opens CardCom for THIS order and says in
+                  writing why (order.$id.tsx:69-76) — sending the buyer to /cart
+                  runs placeOrder again, mints a second unpaid order and burns one
+                  of the five orders/hour the cap allows, which can lock them out
+                  mid-purchase. The link needs order.id, which is why it is now in
+                  trackOrder's column allowlist. */}
               {/* asChild so each control is a SINGLE focusable anchor carrying the
                   button styling — no <button> nested inside <a> (invalid HTML +
                   double focus stop), matching the cart.tsx remedy in this batch. */}
               <div className="mt-3 flex flex-wrap gap-2.5 pr-[26px]">
+                {/* Gated on is_guest_order (derived server-side in trackOrder;
+                    the raw user_id is never sent here). /order/$id is
+                    owner-checked — getOrderConfirmation throws for any order
+                    carrying user_id when the caller is not that user — and
+                    /track is by definition the no-session surface, so for a
+                    member's order this link would render a page that retries
+                    forever. They keep the /cart route, which is worse UX but
+                    reaches somewhere real. */}
                 <Button asChild size="sm" className="press">
-                  <Link to="/cart">חזרה לעגלה להשלמת התשלום</Link>
+                  {(order as any).is_guest_order ? (
+                    <Link to="/order/$id" params={{ id: order.id }}>
+                      להשלמת התשלום המאובטח
+                    </Link>
+                  ) : (
+                    <Link to="/cart">להשלמת התשלום המאובטח</Link>
+                  )}
                 </Button>
                 {payWaHref && (
                   <Button asChild size="sm" variant="outline" className="press gap-1.5">
@@ -235,16 +295,54 @@ function TrackPage() {
 
           <div className="mt-6 border-t border-glass-line pt-4">
             <div className="text-sm font-medium mb-2 text-foreground">פריטים בהזמנה</div>
-            <ul className="space-y-1 text-sm text-muted-foreground">
+            {/* Size and engraving/embroidery text are printed here, not just the
+                name × qty. These are the two fields that become non-returnable
+                the moment production starts (§14ג carve-out for personalised
+                goods), so the buyer has to be able to re-read exactly what was
+                ordered — the same treatment checkout.tsx gives them before
+                paying. */}
+            <ul className="space-y-1.5 text-sm text-muted-foreground">
               {(order.order_items ?? []).map((it, i) => (
                 <li key={i}>
-                  {it.product_name} × {it.quantity}
+                  <span>
+                    {it.product_name} × {it.quantity}
+                  </span>
+                  {it.variant_label && (
+                    <div className="text-xs text-muted-foreground">גודל: {it.variant_label}</div>
+                  )}
+                  {it.custom_text && (
+                    <div className="text-xs text-accent">✦ {it.custom_text}</div>
+                  )}
                 </li>
               ))}
             </ul>
+            {hasPersonalisation && textWaHref && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                טעות בכיתוב?{" "}
+                <a
+                  href={textWaHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-accent underline underline-offset-2"
+                >
+                  כתבו לנו בוואטסאפ
+                </a>{" "}
+                — נתקן לפני שמתחילים בייצור.
+              </p>
+            )}
             {order.customer_city && (
               <div className="mt-3 text-sm text-muted-foreground">
                 יעד המשלוח: {order.customer_city}
+              </div>
+            )}
+            {/* The delivery window, from the same CONSUMER_POLICY constants
+                /shipping, TrustBadges and the confirmation email render, so no
+                surface can publish a window the store does not honour. ASCII
+                hyphen only: U+2013 is bidi class ON and visually REVERSES a
+                numeric range in RTL. */}
+            {isPaid && !order.shipped_at && (
+              <div className="mt-1 text-sm text-muted-foreground">
+                <span>זמן אספקה משוער: {CONSUMER_POLICY.deliveryMinDays}-{CONSUMER_POLICY.deliveryMaxDays} ימי עסקים ממועד התשלום.</span>
               </div>
             )}
           </div>

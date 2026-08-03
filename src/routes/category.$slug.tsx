@@ -6,6 +6,7 @@ import { ProductCard, ProductCardData } from "@/components/ProductCard";
 import { SubcategoryChips, type CategoryChipRow } from "@/components/catalog/SubcategoryChips";
 import { NewsletterSignup } from "@/components/NewsletterSignup";
 import { Breadcrumb } from "@/components/Breadcrumb";
+import { QueryErrorState } from "@/components/QueryErrorState";
 import {
   Select,
   SelectContent,
@@ -279,7 +280,23 @@ function collapseAndOrder(
   // (stable partition — in-stock order is untouched).
   const inStock = list.filter((p) => p.stock_status !== "outofstock");
   const oos = list.filter((p) => p.stock_status === "outofstock");
-  return [...inStock, ...oos];
+  const stockOrdered = [...inStock, ...oos];
+
+  // ...and, by the same stable-partition move, a row with no photograph sinks
+  // below one that has one. The default "recommended" sort above is
+  // `b.price - a.price` with no photo tiebreaker, so the catalogue's seven
+  // image-less rows — which are the GROOM SETS, the store's most expensive line
+  // at ₪1,150-1,800 — sort to the very TOP of their categories and open them
+  // with a placeholder. The RPC that powers /shop's "recommended" has ordered
+  // by has_image since the collapse migration; this is /category catching up, so
+  // the two discovery pages mean the same thing by "מומלץ".
+  //
+  // SINK, never hide: a product with no photo is still a product a shopper may
+  // want, still has a real description and price, and hiding it would make the
+  // page's own count wrong. The fix is that it stops being the first thing seen.
+  const withPhoto = stockOrdered.filter((p) => (p.thumbnail_url ?? "") !== "");
+  const withoutPhoto = stockOrdered.filter((p) => (p.thumbnail_url ?? "") === "");
+  return [...withPhoto, ...withoutPhoto];
 }
 
 export const Route = createFileRoute("/category/$slug")({
@@ -740,7 +757,18 @@ function CategoryPage() {
   // exactly (identical widths/quality) or the browser double-downloads the LCP.
   const heroImageSrcSet = buildHeroSrcSet(heroImage);
 
-  const { data: products = [] } = useQuery({
+  // isError/refetch were NOT destructured here until 2026-08-03, so a failed
+  // product query left `products` at its `= []` default and the page rendered
+  // the designed "לא נמצאו מוצרים / אין כרגע מוצרים בקטגוריה הזו" empty state —
+  // a false statement about a 4,648-item shop, with no retry and nothing to say
+  // the network had failed. /shop already handled the identical case correctly;
+  // both now render the shared QueryErrorState.
+  const {
+    data: products = [],
+    isError: productsFailed,
+    isFetching: productsFetching,
+    refetch: refetchProducts,
+  } = useQuery({
     queryKey: ["cat-products", cat?.id],
     enabled: !!cat?.id,
     // Page like the loader (shared fetchCategoryProducts) so this stays correct
@@ -1045,7 +1073,13 @@ function CategoryPage() {
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
               {windowed.map((p, i) => <ProductCard key={p.id} p={p} eager={i < 4} highPriority={!heroImage && i < 2} />)}
             </div>
-            {windowed.length === 0 && (
+            {/* A failed query is NOT an empty category — say which one happened.
+                Checked before the empty state below so the two can never both
+                be true at once. */}
+            {productsFailed && windowed.length === 0 && (
+              <QueryErrorState onRetry={() => refetchProducts()} retrying={productsFetching} />
+            )}
+            {!productsFailed && windowed.length === 0 && (
               // Same designed glass empty state as /shop (gold-free), so the two
               // discovery pages read consistently. When the in-stock filter is
               // what emptied the grid, offer a one-tap way back to the full list.

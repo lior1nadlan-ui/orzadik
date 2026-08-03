@@ -45,7 +45,19 @@ function giftBlock(order: any, prominent = false): string {
     </div>`;
 }
 
-export async function sendOrderConfirmationEmails(orderId: string) {
+/**
+ * Paid-order confirmation (customer receipt + owner alert).
+ *
+ * RETURNS whether the CUSTOMER's receipt actually went out, and that return
+ * value is load-bearing: cardcom-settle.server.ts claims
+ * confirmation_email_sent_at atomically BEFORE calling this, and releases the
+ * claim when the send did not happen. sendEmail() returns false — it does not
+ * throw — on a missing key, a non-2xx from Resend, a network error, or its own
+ * 8s timeout, so a `void` return here meant any of those permanently suppressed
+ * the buyer's only receipt while this function logged "order confirmation sent".
+ * Every exit path below therefore reports honestly.
+ */
+export async function sendOrderConfirmationEmails(orderId: string): Promise<boolean> {
   const ownerEmail = process.env.SHOP_OWNER_EMAIL;
 
   const { data: order } = await supabaseAdmin
@@ -57,11 +69,11 @@ export async function sendOrderConfirmationEmails(orderId: string) {
     .single();
   if (!order) {
     console.error(`[email] order ${orderId} not found — cannot send confirmation`);
-    return;
+    return false;
   }
   if (!isEmailConfigured()) {
     console.log("[email] not configured — skipping confirmation for order", order.order_number);
-    return;
+    return false;
   }
 
   const items = (order.order_items as any[]) ?? [];
@@ -100,6 +112,13 @@ export async function sendOrderConfirmationEmails(orderId: string) {
     <p class="oz-muted" style="font-size:13px;color:#666;margin-top:16px;">
       כתובת למשלוח: ${esc(order.customer_address)}${order.customer_city ? ", " + esc(order.customer_city) : ""}
     </p>
+    <!-- Delivery window from CONSUMER_POLICY — the same two numbers /shipping,
+         TrustBadges and /track render, so this document cannot promise a window
+         the store does not honour. ASCII hyphen: U+2013 is bidi class ON and
+         visually reverses a numeric range in RTL. -->
+    <p class="oz-muted" style="font-size:13px;color:#666;margin-top:4px;">
+      זמן אספקה משוער: ${CONSUMER_POLICY.deliveryMinDays}-${CONSUMER_POLICY.deliveryMaxDays} ימי עסקים.
+    </p>
     <p class="oz-muted" style="font-size:12px;color:#888;margin-top:4px;">כל המחירים בשקלים (₪) וכוללים מע"מ.</p>
 
     <!-- §14ג(ב) written confirmation: seller identity + cancellation rights -->
@@ -116,7 +135,7 @@ export async function sendOrderConfirmationEmails(orderId: string) {
       </div>
     </div>
   `, `אישור הזמנה ${order.order_number} — פירוט הפריטים והסכום ששולם.`);
-  await sendEmail({
+  const customerSent = await sendEmail({
     to: order.customer_email,
     subject: `אישור הזמנה ${order.order_number} — אור זרוע לצדיק`,
     html: customerHtml,
@@ -146,7 +165,17 @@ export async function sendOrderConfirmationEmails(orderId: string) {
     });
   }
 
-  console.log("[email] order confirmation sent for", order.order_number);
+  // Report the CUSTOMER send only. The owner alert is a nice-to-have; the
+  // receipt is the §14ג(ב) written confirmation, and it is the one whose failure
+  // must be able to release the latch and be retried.
+  if (customerSent) {
+    console.log("[email] order confirmation sent for", order.order_number);
+  } else {
+    console.error(
+      `[email] HIGH: customer confirmation for order ${order.order_number} was NOT delivered (sendEmail returned false — missing key, non-2xx, network error or timeout).`,
+    );
+  }
+  return customerSent;
 }
 
 /**
@@ -241,12 +270,17 @@ export async function sendOrderShippedEmail(orderId: string) {
       ? `הזמנה ${order.order_number} נשלחה — מספר מעקב ${order.tracking_number}.`
       : `הזמנה ${order.order_number} נמסרה למשלוח.`);
 
-  await sendEmail({
+  // Return what sendEmail actually reported, not an unconditional true: the
+  // admin toast reads this value and used to say "מייל נשלח ללקוח 📦" even when
+  // Resend had refused the message. The shipped_at latch is untouched — it is
+  // deliberate and documented in markOrderShipped.
+  const sent = await sendEmail({
     to: order.customer_email,
     subject: `ההזמנה ${order.order_number} נשלחה אליך 📦 — אור זרוע לצדיק`,
     html,
     replyTo: process.env.SHOP_OWNER_EMAIL,
   });
-  console.log("[email] shipped email sent for", order.order_number);
-  return true;
+  if (sent) console.log("[email] shipped email sent for", order.order_number);
+  else console.error(`[email] HIGH: shipped email for order ${order.order_number} was NOT delivered.`);
+  return sent;
 }
