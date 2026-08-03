@@ -287,14 +287,48 @@ function OrderConfirmationPage() {
       </div>
       <div className="glass p-6">
         <h2 className="font-display text-xl font-bold mb-4">פירוט ההזמנה</h2>
+        {/* Size and engraving/embroidery text, not just "name × qty".
+            getOrderConfirmation has always SELECTed custom_text and
+            variant_label and this page threw both away — on exactly the two
+            fields that stop being changeable once production starts (they are
+            what triggers the §14ג personalised-goods carve-out the product page
+            spells out), on the one artifact the buyer definitely opens.
+            checkout.tsx:566-575 already has this treatment; this is the same
+            one, so the wording a buyer approved before paying is the wording
+            they can re-read after. */}
         <div className="space-y-2 mb-4">
           {order.order_items.map((it: any) => (
-            <div key={it.id} className="flex justify-between text-sm">
-              <span>{it.product_name} × {it.quantity}</span>
-              <span className="font-medium">{formatILS(Number(it.line_total))}</span>
+            <div key={it.id} className="flex justify-between gap-3 text-sm">
+              <span className="min-w-0">
+                {it.product_name} × {it.quantity}
+                {it.variant_label && (
+                  <span className="block text-xs text-muted-foreground">גודל: {it.variant_label}</span>
+                )}
+                {it.custom_text && (
+                  <span className="block text-xs text-accent break-words">✦ {it.custom_text}</span>
+                )}
+              </span>
+              <span className="font-medium whitespace-nowrap">{formatILS(Number(it.line_total))}</span>
             </div>
           ))}
         </div>
+        {/* A typo in an engraving is unfixable after production and NOT
+            cancellable under §14ג(ד)(4), so the moment to catch it is now.
+            Reuses the prefilled store WhatsApp already built above. */}
+        {order.order_items.some((it: any) => it.custom_text || it.variant_label) && (
+          <p className="-mt-2 mb-4 text-xs text-muted-foreground">
+            טעות בכיתוב?{" "}
+            <a
+              href={waHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-accent underline underline-offset-2"
+            >
+              כתבו לנו בוואטסאפ
+            </a>{" "}
+            — נתקן לפני שמתחילים בייצור.
+          </p>
+        )}
         {order.is_gift && (
           /* Inset well inside the glass panel: a gold hairline chip, no second
              shadow stacking on the panel it sits in. */

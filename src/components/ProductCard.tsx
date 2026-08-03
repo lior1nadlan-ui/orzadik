@@ -103,6 +103,9 @@ export function ProductCard({ p, priority = false, eager, highPriority }: { p: P
       >
         <ProductThumb
           url={p.thumbnail_url}
+          // Lets a row with no thumbnail_url fall back to a bundled photograph
+          // instead of "אין תמונה" — the groom sets are the only such rows.
+          slug={p.slug}
           alt={p.name}
           width={400}
           priority={priority}

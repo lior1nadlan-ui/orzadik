@@ -10,6 +10,8 @@ import {
   listCustomerNotes,
   addCustomerNote,
   updateOrderStatus,
+  markOrderPreparing,
+  resendOrderConfirmation,
 } from "@/lib/admin-crm.functions";
 import { waThankYou, waShipped, waFollowUpUnpaid } from "@/lib/wa-templates";
 import { useEffect, useState } from "react";
@@ -101,6 +103,8 @@ function AdminOrders() {
   const exportCsv = useServerFn(exportOrdersCsv);
   const shipOrder = useServerFn(markOrderShipped);
   const setOrderStatus = useServerFn(updateOrderStatus);
+  const setPreparingFn = useServerFn(markOrderPreparing);
+  const resendConfirmation = useServerFn(resendOrderConfirmation);
   const custNotesFn = useServerFn(listCustomerNotes);
   const addNoteFn = useServerFn(addCustomerNote);
 
@@ -122,6 +126,8 @@ function AdminOrders() {
   const [tracking, setTracking] = useState("");
   const [carrier, setCarrier] = useState("");
   const [shipping, setShipping] = useState(false);
+  const [preparing, setPreparing] = useState(false);
+  const [resending, setResending] = useState(false);
   const [noteText, setNoteText] = useState("");
   useEffect(() => {
     setTracking(selected?.tracking_number ?? "");
@@ -236,6 +242,34 @@ function AdminOrders() {
       toast.error(e?.message ?? "שגיאה בעדכון המשלוח");
     } finally {
       setShipping(false);
+    }
+  };
+
+  const doPreparing = async () => {
+    setPreparing(true);
+    try {
+      await setPreparingFn({ data: { order_id: selected.id } });
+      toast.success("סומנה כבהכנה — הלקוח רואה זאת במעקב ובחשבון");
+      setSelected(null);
+      refresh();
+    } catch (e: any) {
+      toast.error(e?.message ?? "שגיאה בעדכון מצב ההכנה");
+    } finally {
+      setPreparing(false);
+    }
+  };
+
+  const doResendConfirmation = async () => {
+    setResending(true);
+    try {
+      await resendConfirmation({ data: { order_id: selected.id } });
+      toast.success("אישור ההזמנה נשלח שוב ללקוח ✉️");
+      setSelected(null);
+      refresh();
+    } catch (e: any) {
+      toast.error(e?.message ?? "שליחת האישור נכשלה");
+    } finally {
+      setResending(false);
     }
   };
 
@@ -454,12 +488,59 @@ function AdminOrders() {
                   <span>סך הכל</span><span className="text-primary">{formatILS(Number(selected.total))}</span>
                 </div>
 
+                {/* Confirmation receipt — the §14ג(ב) written confirmation.
+                    Rendered because the send can now FAIL without throwing:
+                    cardcom-settle claims confirmation_email_sent_at before
+                    dispatch and releases it when the transport reports failure,
+                    so a NULL stamp on a paid order means the buyer has no
+                    receipt. That used to be invisible here while the log said
+                    "order confirmation sent". */}
+                {selected.payment_status === "paid" && (
+                  <div className="border-t pt-3 flex flex-wrap items-center justify-between gap-2">
+                    <div className="text-xs">
+                      {selected.confirmation_email_sent_at ? (
+                        <span className="text-emerald-700">
+                          ✓ אישור הזמנה נשלח ללקוח ב-
+                          {new Date(selected.confirmation_email_sent_at).toLocaleString("he-IL")}
+                        </span>
+                      ) : (
+                        <span className="text-destructive">
+                          ⚠ אישור ההזמנה טרם נשלח ללקוח — שלחו אותו ידנית.
+                        </span>
+                      )}
+                    </div>
+                    <Button size="sm" variant="outline" disabled={resending} onClick={doResendConfirmation}>
+                      {resending
+                        ? "שולח..."
+                        : selected.confirmation_email_sent_at
+                          ? "שלח אישור שוב ✉️"
+                          : "שלח אישור ללקוח ✉️"}
+                    </Button>
+                  </div>
+                )}
+
                 {/* Shipping */}
                 <div className="border-t pt-3 space-y-2">
                   <div className="font-semibold">משלוח</div>
                   {selected.shipped_at && (
                     <div className="text-xs text-emerald-700">
                       ✓ סומנה כנשלחה ללקוח ב-{new Date(selected.shipped_at).toLocaleDateString("he-IL")}
+                    </div>
+                  )}
+                  {/* "בהכנה" — the write that makes orders.shipping_status
+                      ='preparing' reachable at all. Without it a paid buyer read
+                      "ממתין לטיפול" on /account for the whole fulfilment window,
+                      which is what a forgotten order looks like. Offered only
+                      before the order ships and only once paid. */}
+                  {selected.payment_status === "paid" && !selected.shipped_at && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      {selected.shipping_status === "preparing" ? (
+                        <span className="text-xs text-emerald-700">✓ מסומנת כבהכנה — הלקוח רואה זאת במעקב</span>
+                      ) : (
+                        <Button size="sm" variant="outline" disabled={preparing} onClick={doPreparing}>
+                          {preparing ? "מעדכן..." : "סמן כבהכנה 🛠"}
+                        </Button>
+                      )}
                     </div>
                   )}
                   <div className="flex flex-wrap gap-2">

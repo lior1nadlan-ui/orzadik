@@ -77,6 +77,19 @@ const TrackSchema = z.object({
  *  - The column list is an explicit allowlist of progress fields. Address,
  *    phone, notes, totals and every cardcom_* column stay server-side; the
  *    matching email is dropped before the row is returned.
+ *
+ * `id` IS in the allowlist, deliberately. Without it /track could not link an
+ * unpaid order to /order/{id} — the ONLY surface that re-opens CardCom for the
+ * same order (see the rationale block at order.$id.tsx:69) — so its "finish
+ * paying" CTA had to send the buyer to /cart, which mints a second unpaid order
+ * and burns one of the five placeOrder allows per hour. The id is no more
+ * sensitive than the order_number the caller has already proven they know: this
+ * endpoint is IP-rate-limited and answers "not found" and "wrong email" with the
+ * same string, so it cannot be used to discover either value.
+ *
+ * custom_text / variant_label are here for the same reason they are on the
+ * confirmation page: they are the two fields that stop being changeable once
+ * production starts, so the buyer must be able to re-read them.
  */
 export const trackOrder = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => TrackSchema.parse(input))
@@ -92,7 +105,7 @@ export const trackOrder = createServerFn({ method: "POST" })
     const { data: order, error } = await supabaseAdmin
       .from("orders")
       .select(
-        "order_number, status, payment_status, shipping_status, created_at, paid_at, shipped_at, shipping_notified_at, tracking_number, shipping_carrier, customer_email, customer_city, is_gift, order_items(product_name, quantity)",
+        "id, order_number, status, payment_status, shipping_status, created_at, paid_at, shipped_at, shipping_notified_at, tracking_number, shipping_carrier, customer_email, customer_city, user_id, is_gift, order_items(product_name, quantity, custom_text, variant_label)",
       )
       .eq("order_number", data.order_number.trim())
       .maybeSingle();
@@ -109,6 +122,19 @@ export const trackOrder = createServerFn({ method: "POST" })
       throw new Error(NOT_FOUND);
     }
 
-    const { customer_email: _omitEmail, ...safe } = order;
-    return safe;
+    // user_id is fetched only to DERIVE the flag below and is then stripped — it
+    // is never returned. /track is the one order surface that requires no
+    // session at all, so it must not hand an account identifier to a caller who
+    // proved only an order number and an email.
+    //
+    // Why the flag exists: /track's "complete the payment" CTA links to
+    // /order/$id, and getOrderConfirmation THROWS "אין הרשאה לצפות בהזמנה זו"
+    // whenever order.user_id is set and the caller is not that user. A member
+    // who ordered while signed in and then tracked from a phone — or after the
+    // session expired — landed on a page that retries forever and can never
+    // succeed, and createCardcomPayment applies the same owner check, so even
+    // the pay button behind it would have failed. The client now renders that
+    // CTA only for guest orders and keeps the old /cart route otherwise.
+    const { customer_email: _omitEmail, user_id: ownerId, ...rest } = order;
+    return { ...rest, is_guest_order: ownerId == null };
   });

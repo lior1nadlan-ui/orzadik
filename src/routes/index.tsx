@@ -3,7 +3,10 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   FeaturedProductsCarousel,
+  ProductRail,
+  diversifyRail,
   fetchHomeFeaturedProducts,
+  rotateDaily,
 } from "@/components/home/FeaturedProductsCarousel";
 import { MobileCarousel } from "@/components/MobileCarousel";
 import { ProductCard, type ProductCardData } from "@/components/ProductCard";
@@ -15,8 +18,14 @@ import { SectionHeader } from "@/components/home/SectionHeader";
 import { Reveal } from "@/components/Reveal";
 import { OCCASION_COLLECTIONS } from "@/lib/collections";
 import { GUIDES } from "@/lib/guide-links";
-import { CONSUMER_POLICY } from "@/lib/business";
-import { formatILS, getEffectivePrice } from "@/lib/cart";
+import {
+  BUSINESS,
+  CONSUMER_POLICY,
+  GOOGLE_PLACE_URL,
+  OPENING_HOURS,
+  openingHoursLabel,
+} from "@/lib/business";
+import { formatILS, getEffectivePrice, SHIPPING_FLAT, SITE_DISCOUNT } from "@/lib/cart";
 import {
   Carousel,
   CarouselContent,
@@ -121,6 +130,70 @@ const OTHER_CAT_IMG_SIZE = 760;
 /** Every public/groom-sets/*.jpeg used on this page is 1440×1920. */
 const GROOM_IMG_W = 1440;
 const GROOM_IMG_H = 1920;
+
+/**
+ * "מתנות עד ₪150" — the homepage's low-risk entry point.
+ *
+ * WHY THIS RAIL EXISTS. Measured on the live anon REST 2026-08-03, all figures
+ * as the PAID price getEffectivePrice() returns: of 4,648 active products, 3,233
+ * cost ≤ ₪150 AND are presentable (in stock, thumbnail, real description), while
+ * exactly 60 cost ≥ ₪756. Yet every ₪ figure the homepage rendered came from the
+ * set {756, 1100, 1216, 1400, 1800} — that is, from those 60. The page sold the
+ * top 1.3% of the catalogue and nothing else, because the featured pool is
+ * ordered price DESC (deliberate — the premium pieces should surface, and that
+ * stays) and the luxury showcase is premium by definition. A stranger arriving
+ * from a Google result or a WhatsApp share met a ₪1,400 box as their first
+ * price. This rail is the other half: something they can afford to risk on a
+ * shop they have never bought from.
+ *
+ * THE ₪150 IS ENFORCED BY getEffectivePrice, NOT BY THE FILTER. The `.lte` below
+ * is only a coarse prefilter so PostgREST does not stream the whole catalogue;
+ * the ceiling that the heading promises is applied in JS by the one pricing
+ * function, so the number on the tile and the number in the heading cannot
+ * disagree. (getEffectivePrice is Math.round(price * (1 - SITE_DISCOUNT)), so
+ * the raw ceiling is derived from SITE_DISCOUNT rather than typed as 214.)
+ *
+ * The caps are TIGHTER than the premium rail's (1 per family / 2 per head noun,
+ * against 2 / 3). Measured on the live band: with the premium rail's caps the
+ * pool spanned ₪137-148 and repeated נטלות and גביעים; tightened it spans
+ * ₪135-148 and reaches מזוזות, כיסוי חלה, תיקי טלית, פמוטים, קופות צדקה and a
+ * children's puzzle — which is what "gifts" has to look like to work at all.
+ * The head cap is what removes the third נטלה: "נטלה אקריליק", "נטלה מהודרת"
+ * and "נטלה פולימר" are three families and one washing cup.
+ */
+const GIFT_CEILING = 150;
+const GIFT_RAW_FETCH = 400;
+const GIFT_POOL = 36;
+const GIFT_SHOW = 10;
+
+async function fetchGiftPicks(): Promise<ProductCardData[]> {
+  const { data, error } = await supabase
+    .from("products")
+    .select("id, slug, name, price, sale_price, thumbnail_url, stock_status")
+    .eq("is_active", true)
+    .neq("stock_status", "outofstock")
+    .not("thumbnail_url", "is", null)
+    .not("description", "is", null)
+    .neq("description", "")
+    .gt("price", 0)
+    // Same presentability gate the featured pool uses. Ordered price DESC so the
+    // rail leads with the most substantial thing you can get under the cap — a
+    // ₪148 gift reads as a gift, a ₪19 one reads as a keyring.
+    .lte("price", Math.ceil(GIFT_CEILING / (1 - SITE_DISCOUNT)) + 1)
+    .order("price", { ascending: false })
+    .order("id", { ascending: true }) // stable tiebreaker so the pool is deterministic
+    .limit(GIFT_RAW_FETCH);
+  if (error) throw error;
+  const withinCeiling = ((data ?? []) as ProductCardData[]).filter(
+    (p) => getEffectivePrice(p.price) <= GIFT_CEILING,
+  );
+  const pool = diversifyRail(withinCeiling, {
+    maxPerFamily: 1,
+    maxPerHead: 2,
+    limit: GIFT_POOL,
+  });
+  return rotateDaily(pool, GIFT_SHOW);
+}
 
 /**
  * Categories that are not in FEATURED but do have a tile image. Runs in the
@@ -259,14 +332,16 @@ export const Route = createFileRoute("/")({
   // rest down. Resolving them here puts them in the server-rendered HTML.
   // Each fetch is independently fault-tolerant — see settle().
   loader: async () => {
-    const [otherCats, featuredProducts, luxuryCards, reviews, groomPrices] = await Promise.all([
-      settle(fetchOtherCategories()),
-      settle(fetchHomeFeaturedProducts()),
-      settle(fetchLuxuryShowcaseCards()),
-      settle(fetchHomeReviews()),
-      settle(fetchGroomThumbPrices()),
-    ]);
-    return { otherCats, featuredProducts, luxuryCards, reviews, groomPrices };
+    const [otherCats, featuredProducts, luxuryCards, reviews, groomPrices, giftPicks] =
+      await Promise.all([
+        settle(fetchOtherCategories()),
+        settle(fetchHomeFeaturedProducts()),
+        settle(fetchLuxuryShowcaseCards()),
+        settle(fetchHomeReviews()),
+        settle(fetchGroomThumbPrices()),
+        settle(fetchGiftPicks()),
+      ]);
+    return { otherCats, featuredProducts, luxuryCards, reviews, groomPrices, giftPicks };
   },
   head: () => ({
     meta: [
@@ -572,7 +647,8 @@ function prefersReducedMotion() {
 
 function HomePage() {
   const heroVideoRef = useRef<HTMLVideoElement | null>(null);
-  const { otherCats, featuredProducts, luxuryCards, reviews, groomPrices } = Route.useLoaderData();
+  const { otherCats, featuredProducts, luxuryCards, reviews, groomPrices, giftPicks } =
+    Route.useLoaderData();
 
   // Defer the hero video off the mobile critical path. The poster is the LCP
   // paint; with the <source> children present at first render, autoPlay would
@@ -890,7 +966,16 @@ function HomePage() {
           is not an act boundary, so the ground stays continuous white. */}
       <section>
         <Reveal className="container mx-auto px-4 py-14 md:py-20">
-          <SectionHeader eyebrow="ההבטחה שלנו" title="למה לקוחות בוחרים בנו" />
+          {/* Heading was "למה לקוחות בוחרים בנו". The three cards under it are
+              each defensible (see the block comment below), but the heading
+              itself asserted an existing body of customers who choose this shop
+              — and the store has taken zero orders. It was the only unbacked
+              claim left in this band. "מה מובטח לכם כאן" says the same thing as
+              a promise the store makes rather than a fact about people who do
+              not yet exist, and it matches the "ההבטחה שלנו" eyebrow that was
+              already above it. Change it back only when there is something real
+              to count. */}
+          <SectionHeader eyebrow="ההבטחה שלנו" title="מה מובטח לכם כאן" />
 
           <div className="grid grid-cols-1 md:grid-cols-3 max-w-6xl mx-auto divide-y md:divide-y-0 md:divide-x md:divide-x-reverse divide-border">
             {/* Every claim here has to be one the store can actually stand
@@ -942,6 +1027,96 @@ function HomePage() {
           </div>
         </Reveal>
       </section>
+
+      {/* 5.5. חנות אמיתית — the one piece of third-party proof this business
+          has, finally rendered for humans.
+          GOOGLE_PLACE_URL has existed in src/lib/business.ts since the entity
+          work and was referenced in exactly ONE place in the codebase:
+          __root.tsx's JSON-LD `hasMap`. So a crawler could see that this brand
+          is a real place on Google's map and a shopper could not — and the
+          opening hours were in the same position, present only in structured
+          data. For a store with zero orders, whose whole problem is whether a
+          stranger believes it is a real shop, that is the wrong way round.
+          The address, the hours and the profile link are all verifiable facts;
+          nothing here is a claim. Deliberately NOT here: any rating or review
+          count. The 6 Google reviews are real but they are Google's, and review
+          markup is only permitted for reviews a site collects itself — see the
+          note on GOOGLE_PLACE_URL. The link lets a shopper go read them at the
+          source, which is the honest version of the same reassurance.
+          Hours come from OPENING_HOURS, the same constant the Store node reads,
+          so the visible table and the structured data cannot drift. */}
+      <section>
+        <Reveal className="container mx-auto px-4 pb-14 md:pb-20 max-w-6xl">
+          <div className="glass glass-gold [--glass-radius:1.5rem] px-6 py-7 md:px-10 md:py-8 grid gap-6 md:grid-cols-[1fr_auto] md:items-center">
+            <div>
+              <div className="flex items-center gap-3 mb-3" aria-hidden="true">
+                <span className="gold-rule w-8 shrink-0" />
+                <span className="text-accent text-sm">✦</span>
+              </div>
+              <h2 className="font-display text-2xl md:text-3xl text-foreground leading-tight">
+                יש לנו גם חנות פיזית — אפשר לבוא לראות
+              </h2>
+              <p className="mt-2 text-sm md:text-base text-muted-foreground leading-7">
+                {BUSINESS.address} · {BUSINESS.legalId}
+              </p>
+              {/* A real <dl> rather than a table: two-column rows of day → hours,
+                  with the numeric range written with an ASCII hyphen (see
+                  openingHoursLabel — U+2013 has bidi class ON and reverses a
+                  range in RTL). */}
+              <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm text-muted-foreground max-w-sm">
+                {OPENING_HOURS.map((h) => (
+                  <div key={h.he} className="contents">
+                    <dt className="text-foreground">{h.he}</dt>
+                    <dd>{openingHoursLabel(h)}</dd>
+                  </div>
+                ))}
+                <dt className="text-foreground">שבת</dt>
+                <dd>סגור</dd>
+              </dl>
+            </div>
+            <div className="flex flex-col items-start gap-3 md:items-end">
+              {/* rel="noopener": external target. No `nofollow` — this is our own
+                  Business Profile and the outbound link corroborates the sameAs
+                  claim rather than passing equity to a third party. */}
+              <a
+                href={GOOGLE_PLACE_URL}
+                target="_blank"
+                rel="noopener"
+                className={BTN_SOLID}
+              >
+                הפרופיל שלנו בגוגל מפות
+              </a>
+              <a
+                href={`tel:${BUSINESS.phone}`}
+                className="text-sm text-accent underline underline-offset-4 transition-colors duration-200 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-strong"
+              >
+                {BUSINESS.phoneDisplay}
+              </a>
+            </div>
+          </div>
+        </Reveal>
+      </section>
+
+      {/* 5.6. מתנות עד ₪150 — the low-risk entry point. See fetchGiftPicks for
+          the measurement that motivates it. Rendered from loader data so the
+          tiles are in the server HTML like every other rail on this page; on the
+          rare loader failure the rail simply does not exist rather than
+          injecting itself mid-page after hydration.
+          The shipping line is on the RAIL, not the cart: a shopper who commits
+          to a ₪106 item and first meets ₪37 of shipping at checkout has been
+          surprised, and this is the one rail whose whole promise is "no
+          surprise". SHIPPING_FLAT is read from the pricing module, so it cannot
+          drift from what checkout charges. */}
+      {giftPicks && giftPicks.length >= 4 && (
+        <ProductRail
+          eyebrow="בלי להתחייב בגדול"
+          title={`מתנות עד ${formatILS(GIFT_CEILING)}`}
+          sub={`כל המחירים כאן הם המחיר הסופי לפריט. משלוח עד הבית ${formatILS(SHIPPING_FLAT)} לכל הארץ, לכל הזמנה.`}
+          products={giftPicks}
+          moreLabel="לכל המוצרים, מהזול ליקר ←"
+          moreSearch={{ sort: "price-asc" }}
+        />
+      )}
 
       {/* 6. Featured categories */}
       <section>

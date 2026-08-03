@@ -40,8 +40,15 @@ import { Breadcrumb, type BreadcrumbItemData } from "@/components/Breadcrumb";
 import { CardSkeleton } from "@/components/Skeletons";
 import { CROSS_SELL_MAP, DEFAULT_CROSS_SELL_CATEGORY } from "@/lib/cross-sells";
 import { thumbUrl } from "@/lib/img";
+// Owned by the images workstream — imported READ-ONLY, never edited from here.
+// It returns a bundled public/ photograph only for owner-CONFIRMED slug↔file
+// pairings and null for everything else, so a confirmed photo silently wins and
+// the "no photo yet" panel below is only ever the fallback. All seven groom-set
+// pairings are still commented out in that file pending owner confirmation, so
+// today it returns null for all 4,648 products and nothing on this page changes.
+import { localProductPhoto } from "@/lib/product-photos";
 import { ShoppingCart, Minus, Plus, Check, Truck, RotateCcw, ZoomIn, Heart, Lock, ShieldCheck } from "lucide-react";
-import { sellerIdentityLine, CONSUMER_POLICY } from "@/lib/business";
+import { sellerIdentityLine, BUSINESS, CONSUMER_POLICY } from "@/lib/business";
 import { useFavorites } from "@/components/engagement/favorites";
 import { readRecent, recordRecent } from "@/components/engagement/recently-viewed";
 import { useState, useEffect, useRef } from "react";
@@ -1159,6 +1166,14 @@ function ProductPage() {
         .sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
         .map((i: any) => i.url)
         .filter(Boolean)),
+      // Last resort, and only for owner-confirmed pairings: a photograph
+      // bundled in public/ rather than stored in Supabase. Appended (not
+      // prepended) so it can never displace a real DB image, and deduped by the
+      // Set like everything else. Returns null for every slug today, so the
+      // honest "no photo yet" panel in the gallery below still renders for all
+      // 7 image-less groom sets — it retires by itself the moment the images
+      // workstream's owner confirms a pairing, with no change needed here.
+      ...(localProductPhoto(product.slug)?.src ? [localProductPhoto(product.slug)!.src] : []),
     ]),
   );
   // If an in-place size variant is selected, use its price as the base.
@@ -1194,6 +1209,57 @@ function ProductPage() {
   const isCallOnly = (product.product_categories ?? []).some(
     (pc: any) => pc?.categories?.slug === "esh-sheli-gold"
   );
+
+  // ── Three "the page asks for a decision it gives no control for" gates ──
+  //
+  // (1) COLOUR. 11 active products carry "במגוון צבעים" in the NAME (measured
+  //     on the live anon REST, 2026-08-03) and 3 of them additionally tell the
+  //     reader "בחרו מתוך מגוון צבעים" / "בחרו את הצבע המועדף עליכם" in the body
+  //     copy. The page renders ZERO colour controls for any of them, because
+  //     `product_variants` is EMPTY catalogue-wide — Content-Range */0 on the
+  //     live REST, which is also why the whole "בחר גודל" fieldset below is
+  //     currently dead code. There is no variant mechanism to lean on and the
+  //     cart carries no free field but `customText` (which is personalization
+  //     and would wrongly flip this page to "no returns"), so we do NOT fake a
+  //     control. We say plainly where the choice actually happens. Note these
+  //     11 are all in `talitot`, which is deliberately NOT personalizable
+  //     (personalization.ts:42-47), so the "ניצור איתכם קשר לאחר ההזמנה"
+  //     promise the personalization block makes does NOT cover them — hence
+  //     "לפני ההזמנה", which asks rather than promises.
+  const colourCopy = `${product.name} ${product.description ?? ""} ${product.short_description ?? ""}`;
+  const advertisesColourChoice =
+    /במגוון צבעים/.test(product.name) || /בחרו (?:מתוך )?(?:את ה)?(?:מגוון )?צבע/.test(colourCopy);
+
+  // (2) SIZE. /category/talitot promises "בחרו את הטלית והמידה המתאימות לכם"
+  //     (verified live) and /articles/bechira-talit teaches מידה 50/60/70 — but
+  //     of the 55 active products in `talitot`, exactly 5 state a size anywhere
+  //     in name + description + short_description, all of them the "מופת" line
+  //     ("גודל 60 - 185x140 ס\"מ"). The other 50, ₪336-₪1,572 (median ₪1,286),
+  //     say nothing. We never invent a size: where the name carries one we lift
+  //     it out of the supplier string into a labelled row (in the h1 it is
+  //     buried mid-sentence); where it does not, we say so and route to a human.
+  //     Scoped to the garment category only — a mezuzah case has no fit.
+  const isTallitGarment = (product.product_categories ?? []).some(
+    (pc: any) => pc?.categories?.slug === "talitot"
+  );
+  const sizeFromName =
+    product.name.match(/גודל\s*\d+\s*-\s*(\d+\s*[xX×]\s*\d+\s*ס["״]?מ)/)?.[1] ??
+    product.name.match(/(\d+\s*[xX×]\s*\d+\s*ס["״]?מ)/)?.[1] ??
+    null;
+  const sizeLabel = product.name.match(/גודל\s*(\d+)/)?.[1] ?? null;
+
+  // (3) PHOTO. 7 active products have neither a thumbnail nor a single
+  //     product_images row — verified on the live REST, 2026-08-03: every one
+  //     is a groom set (`groom-set-*`), ₪1,643-₪2,000 catalogue, the store's
+  //     most expensive line. A bare "אין תמונה" box on a ₪2,000 page is a dead
+  //     end; the shop is real and 5 minutes from קריית ביאליק, so offer the
+  //     three ways to actually see the thing.
+  //     Reads `gallery`, which already folds in localProductPhoto() — so a
+  //     confirmed bundled photograph beats this panel automatically and no
+  //     coordination between the two workstreams is needed. All seven pairings
+  //     in product-photos.ts are still awaiting owner confirmation, so all
+  //     seven pages show the panel today.
+  const hasNoPhoto = gallery.length === 0;
 
   // Favorites heart — rendered in every branch (regular, call-only and
   // out-of-stock), since wishlisting an unavailable item is the feature's
@@ -1238,6 +1304,22 @@ function ProductPage() {
     (presaleDetails.length ? `\n${presaleDetails.join("\n")}` : "");
   // No restock date, no "we'll email you" — only an invitation to ask.
   const RESTOCK_WA_TEXT = `שלום, המוצר "${product.name}" מופיע כאזל באתר. אשמח לבדוק אפשרות לחידוש מלאי או מוצר חלופי.`;
+  // The two asks the page cannot answer on its own: a photo for the 7 image-less
+  // groom sets, and a shade for the 11 products whose own name advertises a
+  // colour range the site offers no control for. Both pre-fill the exact SKU so
+  // the reply lands on the right row.
+  const PHOTO_WA_TEXT = `שלום, אשמח לקבל תמונות של: ${product.name}`;
+  const COLOUR_WA_TEXT = `שלום, אשמח לדעת אילו גוונים זמינים עבור: ${product.name}`;
+
+  // The delivery window as ONE string, not as JSX children `{min}-{max}`.
+  // Identical construct to src/routes/shipping.tsx:12, and that one is verified
+  // in BUILT output: curl of the live /shipping (2026-08-03) renders "3-14" in
+  // three places with the dash at codepoint 0x2d — ASCII hyphen. This matters
+  // because a U+2013 here is bidi class ON and visually REVERSES the range in
+  // RTL ("14-3"); the bug has been reintroduced three times. Building the range
+  // as a single text node also removes the question of what React's SSR text
+  // separators do to a bidi run, since there is now only one run.
+  const DELIVERY_WINDOW = `${CONSUMER_POLICY.deliveryMinDays}-${CONSUMER_POLICY.deliveryMaxDays}`;
   const contactCtas = (waText: string, compact = false) => (
     <>
       <a
@@ -1346,8 +1428,23 @@ function ProductPage() {
         <Breadcrumb items={breadcrumbItems} />
       </div>
 
-      {/* Club promo — visible to guests at the top of every product page */}
-      <ClubBadge className="mb-6" />
+      {/* Club promo — visible to guests at the top of every product page.
+          Desktop only. Measured on the live page at 375x812
+          (/product/leatherette-talit-tefilin-set-38-31-cm-67354, 2026-08-03,
+          scrollY 0): the sticky mobile action bar occupies y 744-812 and the h1
+          spans y 664-772, so the bar covers the last 28px of the product's own
+          title at rest — elementFromPoint(180, 760) returns the add-to-cart
+          BUTTON, not the heading. A phone visitor's first view of the page has
+          the product name partly buried under a toolbar.
+          The bar itself is not the thing to change: the comment on it explains
+          why it is `sticky` rather than `fixed` (so it can never cover the
+          footer) and that reasoning is sound and stays. What does not belong is
+          this card — SiteHeader already renders <ClubBadge variant="strip" />
+          at y 0-36 on the very same screen, so the route was carrying the same
+          "join the club, it's free" message twice above the h1, 68px of it
+          here. Dropping the duplicate below lg lifts the h1 clear of the bar
+          with ~64px to spare and costs the message nothing. */}
+      <ClubBadge className="mb-6 hidden lg:flex" />
 
       <div className="grid md:grid-cols-2 gap-10">
         {/* Gallery */}
@@ -1445,11 +1542,38 @@ function ProductPage() {
               </DialogContent>
             </Dialog>
           ) : (
-            // No image on file: the same branded "אין תמונה" placeholder
-            // ProductThumb renders (centered muted label), inside the gallery's
-            // glass-gold square — so it reads as "no photo yet", not a broken box.
-            <div className="glass glass-gold aspect-square w-full flex items-center justify-center text-muted-foreground text-sm">
-              אין תמונה
+            // No image on file. This used to be the same bare "אין תמונה" label
+            // ProductThumb renders in a grid tile — which is right for a 200px
+            // tile in a list of 40, and wrong here: all 7 image-less products in
+            // the catalogue are groom sets at ₪1,643-₪2,000 (measured on the
+            // live REST, 2026-08-03), i.e. the single most considered purchase
+            // on the site, and the page was asking for two thousand shekels
+            // while showing nothing at all. Nobody buys that. So the square
+            // becomes the three honest ways to see the item — WhatsApp, phone,
+            // and the physical shop, which is real and open. It promises no
+            // photo will arrive and invents no description.
+            <div className="glass glass-gold aspect-square w-full flex flex-col items-center justify-center gap-3 p-6 text-center">
+              <span className="text-sm font-semibold text-accent">עדיין אין צילום של הדגם הזה באתר</span>
+              <p className="text-xs leading-relaxed text-foreground/85">
+                נשמח לשלוח לכם תמונות של הדגם בוואטסאפ, או להראות לכם אותו בחנות
+                ב{BUSINESS.address}.
+              </p>
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <a
+                  href={`https://wa.me/${CONTACT_WA}?text=${encodeURIComponent(PHOTO_WA_TEXT)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="press inline-flex items-center justify-center gap-2 rounded-md border-2 border-[#25D366] px-4 py-2.5 text-sm font-semibold text-[#075E54] [@media(hover:hover)_and_(pointer:fine)]:hover:bg-[#25D366]/10"
+                >
+                  💬 בקשו תמונות בוואטסאפ
+                </a>
+                <a
+                  href={`tel:${CONTACT_TEL}`}
+                  className="press inline-flex items-center justify-center gap-2 rounded-md bg-accent px-4 py-2.5 text-sm font-semibold text-accent-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:bg-accent-strong"
+                >
+                  ☎ {BUSINESS.phoneDisplay}
+                </a>
+              </div>
             </div>
           )}
           {gallery.length > 1 && (
@@ -1542,14 +1666,104 @@ function ProductPage() {
                 utilities — a chip wants a tight radius and a shallow shadow.
                 (A literal `none` cannot be one item of a box-shadow LIST; it
                 would invalidate the whole declaration and drop the hairline.) */}
-            <div className="glass inline-flex items-center gap-1.5 text-sm text-foreground px-2.5 py-1 [--glass-radius:0.625rem] [--glass-shadow:0_1px_2px_rgba(22,24,29,0.05)]">
-              <Truck className="h-4 w-4 text-accent" />
+            {/* The window was the literal string "3-14" while the returns
+                accordion below and /shipping both interpolate CONSUMER_POLICY —
+                three surfaces, one of them unable to follow the other two.
+                Reads DELIVERY_WINDOW now so the delivery claim cannot drift. */}
+            <div className="glass inline-flex items-start gap-1.5 text-sm text-foreground px-2.5 py-1 [--glass-radius:0.625rem] [--glass-shadow:0_1px_2px_rgba(22,24,29,0.05)]">
+              <Truck className="h-4 w-4 shrink-0 text-accent mt-0.5" />
               <span>
-                דמי משלוח {formatILS(SHIPPING_FLAT)} (מתווספים בעגלה) • <span className="font-semibold text-accent">זמן אספקה 3-14 ימי עסקים</span>
+                דמי משלוח {formatILS(SHIPPING_FLAT)} (מתווספים בעגלה) • <span className="font-semibold text-accent">זמן אספקה {DELIVERY_WINDOW} ימי עסקים</span>
+                {/* Personalization is bought for weddings and bar mitzvahs —
+                    dated events — so a buyer who has typed a name needs to know
+                    the clock does not start at checkout. This is not a new
+                    promise: /shipping §"זמני אספקה" ¶3 already commits to
+                    "פרטי ההתאמה מתואמים איתכם לאחר ההזמנה, וההכנה מתחילה לאחר
+                    אישור הפרטים מולכם". Stated here so it is read BEFORE the
+                    card is charged rather than after. */}
+                {customText.trim() && (
+                  <span className="block text-xs text-muted-foreground mt-0.5">
+                    ההכנה מתחילה לאחר תיאום פרטי ההתאמה איתכם — חשוב לתאריך יעד? דברו איתנו לפני ההזמנה.
+                  </span>
+                )}
               </span>
 
             </div>
           </div>
+
+          {/* ── Size, for tallit garments only ──────────────────────────────
+              A tallit is worn. /category/talitot tells the shopper "בחרו את
+              הטלית והמידה המתאימות לכם" and /articles/bechira-talit spends a
+              section on מידה 50/60/70 — and then 50 of the 55 products in that
+              category state no size anywhere at all, at a median ₪1,286. Both
+              branches below are honest: lift the size out of the supplier's
+              run-on name when it is there (5 products), and admit it is not on
+              file when it is not. No size is ever invented. */}
+          {isTallitGarment && (
+            <div className="glass mb-5 flex flex-wrap items-baseline gap-x-2 gap-y-1 px-3 py-2 text-sm [--glass-radius:0.625rem] [--glass-shadow:0_1px_2px_rgba(22,24,29,0.05)]">
+              <span className="font-semibold text-accent">מידה:</span>
+              {sizeFromName ? (
+                <span className="text-foreground">
+                  {sizeLabel ? `גודל ${sizeLabel} · ` : ""}
+                  {sizeFromName}
+                </span>
+              ) : (
+                <span className="text-foreground/85">
+                  המידה אינה רשומה אצלנו לדגם הזה — נתאם אותה איתכם.{" "}
+                  <a
+                    href={`https://wa.me/${CONTACT_WA}?text=${encodeURIComponent(PRESALE_WA_TEXT)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-semibold text-[#075E54] underline underline-offset-4"
+                  >
+                    שאלו בוואטסאפ
+                  </a>{" "}
+                  או{" "}
+                  <a href={`tel:${CONTACT_TEL}`} className="font-semibold text-accent underline underline-offset-4">
+                    התקשרו {BUSINESS.phoneDisplay}
+                  </a>
+                  .
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* ── Colour, where the product's own name promises a choice ──────
+              "במגוון צבעים" is in the NAME of 11 active products and three of
+              them additionally instruct "בחרו מתוך מגוון צבעים" in the body —
+              on pages that render no colour control, because product_variants
+              is empty catalogue-wide. Being told to choose and given nothing to
+              choose with is worse than not being offered the choice, so this
+              says where the choice really happens. It is a request to talk
+              before ordering, NOT a promise of a post-order call: `talitot` is
+              deliberately outside the personalization gate, so the "ניצור
+              איתכם קשר" language used by the personalization block does not
+              apply to these SKUs. */}
+          {advertisesColourChoice && (
+            <div className="glass mb-5 px-4 py-3 text-sm">
+              <strong className="block text-accent mb-1">הדגם קיים בכמה גוונים</strong>
+              <p className="text-foreground/85 leading-relaxed">
+                בחירת הגוון אינה מתבצעת באתר. כתבו לנו בוואטסאפ או התקשרו לפני ההזמנה, נאמר לכם מה
+                זמין עכשיו ונסגור איתכם את הגוון.
+              </p>
+              <div className="mt-2.5 flex flex-wrap gap-2">
+                <a
+                  href={`https://wa.me/${CONTACT_WA}?text=${encodeURIComponent(COLOUR_WA_TEXT)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="press inline-flex items-center justify-center gap-2 rounded-md border-2 border-[#25D366] px-4 py-2 text-sm font-semibold text-[#075E54] [@media(hover:hover)_and_(pointer:fine)]:hover:bg-[#25D366]/10"
+                >
+                  💬 אילו גוונים יש?
+                </a>
+                <a
+                  href={`tel:${CONTACT_TEL}`}
+                  className="press inline-flex items-center justify-center gap-2 rounded-md border border-input px-4 py-2 text-sm font-semibold text-accent [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"
+                >
+                  ☎ {BUSINESS.phoneDisplay}
+                </a>
+              </div>
+            </div>
+          )}
 
 
           {/* short_description carries NO markup on any of the 4,648 active
@@ -1718,6 +1932,17 @@ function ProductPage() {
             </fieldset>
           )}
 
+          {/* Photo-less products: demote the buy path rather than remove it.
+              The buyer keeps every option, but "קנה עכשיו" stops being the one
+              gold button on a page that has shown them nothing — see the
+              gallery panel for why. Buying blind at ₪2,000 is a refund waiting
+              to happen, and §14ג gives them 14 days to send it back. */}
+          {hasNoPhoto && !isCallOnly && canBuy && (
+            <p className="mb-3 text-sm text-foreground/85">
+              אפשר להזמין גם ככה — אבל שווה לבקש תמונות קודם. הקישורים נמצאים במקום התמונה למעלה.
+            </p>
+          )}
+
           {/* Qty + actions */}
           {isCallOnly ? (
             <div className="mb-3 space-y-3">
@@ -1759,6 +1984,10 @@ function ProductPage() {
               </Button>
               <Button
                 size="lg"
+                // The only page state that demotes this from the page's primary
+                // action: no photograph on file. Everything still works; it just
+                // stops out-shouting the "ask for photos" route above it.
+                variant={hasNoPhoto ? "outline" : "default"}
                 disabled={!canBuy}
                 onClick={() => {
                   // "Buy now" goes straight to checkout, so suppress the drawer
@@ -1801,8 +2030,10 @@ function ProductPage() {
                   (personalized items are excluded) so the two never contradict. */}
               <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <RotateCcw className="h-3.5 w-3.5 shrink-0 text-accent" />
+                {/* Same correction as the trust-block bullet below: the
+                    exclusion starts at production, not at checkout. */}
                 {customText.trim()
-                  ? "פריט בהתאמה אישית אינו ניתן להחזרה לפי חוק הגנת הצרכן"
+                  ? "פריט בהתאמה אישית — זכות הביטול מסתיימת עם תחילת הייצור"
                   : `החזרה תוך ${CONSUMER_POLICY.cancellationDays} יום לפי חוק הגנת הצרכן`}
               </p>
 
@@ -1842,9 +2073,32 @@ function ProductPage() {
                 <Lock className="h-4 w-4 shrink-0 text-accent" />
                 תשלום מאובטח בסליקת Cardcom · תקן PCI
               </li>
+              {/* Gated on the SAME condition as the inline return line ~60 lines
+                  up, whose comment already required that the two "never
+                  contradict" — this bullet was rendering unconditionally, so
+                  the moment a name was typed the page said both "זכות ביטול 14
+                  יום" and "אינו ניתן להחזרה" on one screen. Measured live on
+                  2026-08-03 (/product/leatherette-talit-tefilin-set-38-31-cm-67354,
+                  "יוסי" in the personalization field): body text contained both
+                  strings simultaneously. When personalized we point at the
+                  carve-out instead of restating a window that does not apply —
+                  same rule the JSON-LD already uses to omit
+                  hasMerchantReturnPolicy, same §14ג(ד) citation as /terms §7 ¶7. */}
               <li className="flex items-center gap-2">
                 <RotateCcw className="h-4 w-4 shrink-0 text-accent" />
-                זכות ביטול {CONSUMER_POLICY.cancellationDays} יום לפי חוק הגנת הצרכן
+                {/* Matches /terms §7 ¶7 WORD FOR WORD in substance: the
+                    exclusion bites only "לאחר תחילת תהליך הייצור או ההתאמה
+                    האישית", and the same paragraph expressly preserves the right
+                    on a defective item. An earlier draft here read "ללא זכות
+                    ביטול", which denied — before purchase, in the most
+                    authoritative-looking block on the page — a right the store's
+                    own binding terms grant between order placement and the start
+                    of production. A PDP may restate the terms; it may never be
+                    stricter than them. "סעיף" not "§" to match every other
+                    customer-facing string in the codebase. */}
+                {customText.trim()
+                  ? "פריט בהתאמה אישית — זכות הביטול מסתיימת עם תחילת הייצור (סעיף 14ג(ד))"
+                  : `זכות ביטול ${CONSUMER_POLICY.cancellationDays} יום לפי חוק הגנת הצרכן`}
               </li>
               <li className="flex items-center gap-2">
                 <Truck className="h-4 w-4 shrink-0 text-accent" />
@@ -1903,7 +2157,13 @@ function ProductPage() {
               <AccordionTrigger className="font-display text-base">משלוחים</AccordionTrigger>
               <AccordionContent>
                 <p className="text-sm text-muted-foreground leading-relaxed">
-                  משלוח עד הבית לכל רחבי הארץ, אספקה משוערת {CONSUMER_POLICY.deliveryMinDays}-{CONSUMER_POLICY.deliveryMaxDays} ימי עסקים ממועד אישור ההזמנה. פרטים מלאים ב
+                  {/* Same single-string DELIVERY_WINDOW as the chip above: this
+                      was the JSX-children form `{min}-{max}`, which is three
+                      adjacent text nodes rather than one, and the built-output
+                      proof I have (live /shipping) only covers the one-node
+                      form. Both surfaces on this page now use the construct
+                      that is actually verified. */}
+                  משלוח עד הבית לכל רחבי הארץ, אספקה משוערת {DELIVERY_WINDOW} ימי עסקים ממועד אישור ההזמנה. פרטים מלאים ב
                   <Link
                     to="/shipping"
                     className="text-accent underline underline-offset-4 [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-strong"
@@ -1949,15 +2209,87 @@ function ProductPage() {
       </div>
 
       {/* Other models under the same supplier name — the counterpart to the
-          "N דגמים" tile in the listings. */}
-      {models.length > 0 && (
-        <ProductCarousel
-          eyebrow="אותו פריט, גוונים ודגמים נוספים"
-          heading={`עוד ${models.length} דגמים`}
-          items={models}
-          itemClassName="basis-1/2 md:basis-1/4 lg:basis-1/5"
-        />
-      )}
+          "N דגמים" tile in the listings.
+          One rail became two. `list_product_models` returns every active row
+          sharing this product's name_norm REGARDLESS of price, and the single
+          eyebrow "אותו פריט, גוונים ודגמים נוספים" was asserting sameness over
+          both halves at once. Measured on the live catalogue, 2026-08-03
+          (4,648 active rows): 528 name families have >1 member; 338 of them are
+          single-price and 190 are NOT, spanning 753 products with a median
+          spread of ₪43 and a maximum of ₪432. Live example
+          /product/polymer-washing-cup-14-cm-83321 (catalogue ₪202): 24 tiles,
+          18 at ₪185 and 6 at ₪134, not one of them at the page's own price and
+          nothing on screen saying why.
+          20260801120000_canonical_product_slug_price_aware.sql recorded that
+          spread and scoped itself to crawlers ("The list/browse side is
+          deliberately untouched … This function only governs what is told to
+          crawlers") — so the shopper-facing half was left for later, and this
+          is later.
+          Split by EFFECTIVE price (getEffectivePrice, per pricing.ts being the
+          single source of truth for money): equal price keeps the "same item,
+          another shade" claim; different price is relabelled as a series and
+          the span is stated under it so the shopper is not left to discover a
+          ₪43 jump by hovering tiles.
+          NOT done: blanket-suppressing the rail whenever a model shares this
+          product's name and price. That was proposed, and the catalogue says it
+          is wrong — of the 338 single-price families, ZERO have all members
+          sharing one thumbnail, i.e. every same-name same-price sibling is a
+          genuinely different-looking colourway and the rail is the only place a
+          shopper can reach it (that is exactly what the comment on the query
+          above claims, and it checks out). The guard below is the honest
+          version: drop a tile only when it is indistinguishable on all three
+          things a card actually shows — name, effective price AND photo. Zero
+          tiles match today; it costs nothing and closes the degenerate
+          "עוד 1 דגמים" case for good. */}
+      {(() => {
+        const distinct = models.filter(
+          (m) =>
+            !(
+              m.name === product.name &&
+              getEffectivePrice(Number(m.price)) === effective &&
+              (m.thumbnail_url ?? "") === (product.thumbnail_url ?? "")
+            ),
+        );
+        const sameShade = distinct.filter((m) => getEffectivePrice(Number(m.price)) === effective);
+        const otherPriced = distinct.filter((m) => getEffectivePrice(Number(m.price)) !== effective);
+        const otherPrices = otherPriced.map((m) => getEffectivePrice(Number(m.price)));
+        return (
+          <>
+            {sameShade.length > 0 && (
+              <ProductCarousel
+                eyebrow="אותו פריט, גוונים נוספים"
+                heading={`עוד ${sameShade.length} גוונים באותו מחיר`}
+                items={sameShade}
+                itemClassName="basis-1/2 md:basis-1/4 lg:basis-1/5"
+              />
+            )}
+            {otherPriced.length > 0 && (
+              <>
+                <ProductCarousel
+                  eyebrow="דגמים נוספים בסדרה"
+                  heading={`עוד ${otherPriced.length} דגמים במחיר אחר`}
+                  items={otherPriced}
+                  itemClassName="basis-1/2 md:basis-1/4 lg:basis-1/5"
+                />
+                {/* "בין X ל-Y", never "X-Y": a dash BETWEEN two numbers in RTL
+                    is the bidi trap that has flipped ranges on this site three
+                    times. The word "בין" cannot flip, and the "ל-" prefix
+                    hyphen is a different construct entirely — letter-then-digit,
+                    not digit-then-digit — and is already proven in built output
+                    by head()'s `ב-${formatILS(...)}` at line 640, which renders
+                    as "ב-‏137 ‏₪" in the live browser tab. */}
+                <p className="mt-3 text-center text-xs text-muted-foreground">
+                  {otherPrices.length > 1
+                    ? `הדגמים האלה נעים בין ${formatILS(Math.min(...otherPrices))} ל-${formatILS(Math.max(...otherPrices))}`
+                    : `הדגם הזה עולה ${formatILS(otherPrices[0])}`}
+                  {" · "}הפריט בעמוד זה: {formatILS(effective)}. ההבדל בין הדגמים לא תמיד כתוב בשם
+                  שהספק נתן להם — אם זה משנה לכם, שאלו אותנו לפני ההזמנה.
+                </p>
+              </>
+            )}
+          </>
+        );
+      })()}
 
       {/* Cross-sells — one carousel showing every fetched companion */}
       {related.length > 0 && (
