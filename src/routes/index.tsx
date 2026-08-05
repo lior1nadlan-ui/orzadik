@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
+import { ChevronLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   FeaturedProductsCarousel,
@@ -504,10 +505,34 @@ const FEATURED: { id: string; slug: string; name: string; img: string; w: number
 // styles.css, beats a Tailwind transition-* utility at equal specificity. The
 // hover tint therefore lands instantly — correct anyway for a control in the
 // "done constantly" frequency band.
+// Hero CTAs. Measured on a real phone (390x844) before this was rewritten: the
+// row rendered as two near-identical 290px pills stacked 12px apart, carrying
+// 14px labels — and "לחנות" is a FIVE-character word, so most of a 290px pill
+// was empty. That emptiness is what read as unfinished, more than any colour
+// choice. Three things were wrong and all three are fixed here:
+//   • 14px type on a 43px target is under-set. Both are now 16px.
+//   • The outline button was weight 400 against the solid's 600, so the
+//     flagship groom-set link read as the disabled one. Both are 600 now.
+//   • bg-white/60 over moving video let the secondary wash out to nothing on
+//     the brighter frames. 85% holds it against every frame in the reel.
+// A chevron gives each one a direction to go in — the single cheapest signal
+// that a control is navigation rather than decoration.
+//
+// Deliberately NOT done: no gold gradient behind the primary. --gradient-gold
+// is marked DECORATIVE ONLY / "never behind white text" at its token, and the
+// white label needs the flat --accent fill to hold 5.81:1.
+// No colour transition either: .press owns transition-property (transform), so
+// pairing one with it would be a lie about what actually animates.
+//
+// min-h in rem, not px, so the control still grows with the accessibility
+// widget's font-size zoom — 3.25rem is 52px at the default root, comfortably
+// past the 44px floor.
+const BTN_BASE =
+  "press inline-flex items-center justify-center gap-2 rounded-full min-h-[3.25rem] px-8 text-base font-semibold";
 const BTN_SOLID =
-  "press inline-block rounded-full bg-accent text-white px-8 py-3 text-sm md:text-base font-semibold [@media(hover:hover)_and_(pointer:fine)]:hover:bg-accent-strong";
+  `${BTN_BASE} bg-accent text-white shadow-[var(--glass-shadow)] [@media(hover:hover)_and_(pointer:fine)]:hover:bg-accent-strong`;
 const BTN_OUTLINE =
-  "press inline-block rounded-full border border-accent bg-white/60 text-accent px-8 py-3 text-sm md:text-base [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary";
+  `${BTN_BASE} border border-accent bg-white/85 text-accent [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary`;
 
 // Curated groom-set thumbs under the flagship banner image.
 // להחלפת פריטים: החליפו את `img` לכל קובץ תחת public/groom-sets/ (groom-01..17.jpeg)
@@ -779,9 +804,15 @@ function HomePage() {
             <p className="text-muted-foreground text-sm md:text-lg">
               טליתות, כיסויי טלית ותפילין, נרתיקי מזוזה ומארזי חתן — עם רקמה וחריטה אישית
             </p>
+            {/* ChevronLeft, not Right: the document is dir=rtl, so "forward"
+                points LEFT — the same convention the RTL carousel uses when it
+                puts "previous" on the right edge. aria-hidden because the link
+                text already names the destination; the icon is affordance, not
+                information. */}
             <div className="mt-6 flex flex-col sm:flex-row justify-center gap-3">
               <Link to="/shop" className={`${BTN_SOLID} w-full sm:w-auto`}>
                 לחנות
+                <ChevronLeft className="h-4 w-4 shrink-0" aria-hidden="true" />
               </Link>
               <Link
                 to="/category/$slug"
@@ -789,6 +820,7 @@ function HomePage() {
                 className={`${BTN_OUTLINE} w-full sm:w-auto`}
               >
                 למארזי החתן
+                <ChevronLeft className="h-4 w-4 shrink-0" aria-hidden="true" />
               </Link>
             </div>
           </div>
