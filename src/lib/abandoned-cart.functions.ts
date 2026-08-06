@@ -49,7 +49,10 @@ export const saveAbandonedCart = createServerFn({ method: "POST" })
       req?.headers.get("cf-connecting-ip") ??
       req?.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
       "unknown";
-    const { limited } = await checkOrderRateLimitByIp(ip);
+    // "cart", not the default "order": this fires ~2s after a valid email is
+    // typed on /checkout, so sharing the order bucket meant every visit to the
+    // checkout page silently spent the shopper's own purchase quota.
+    const { limited } = await checkOrderRateLimitByIp(ip, 15, 60 * 60, "cart");
     if (limited) throw new Error("יותר מדי בקשות מהכתובת הזו. אנא נסו מאוחר יותר.");
 
     const authed = await getOptionalAuthInfo();

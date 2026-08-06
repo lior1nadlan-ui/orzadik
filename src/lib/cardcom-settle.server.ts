@@ -384,8 +384,22 @@ export async function runCardcomReconciliation() {
     // only ever re-take the same branch. Sweeping it would be 72 hours of pointless
     // CardCom calls per order.
     .not("payment_status", "in", '("paid","refunded","pending_charge")')
+    // Upper bound stays on created_at — it is the "we only just sent them to
+    // CardCom, give the webhook a chance" grace, and that is a property of when
+    // the order was placed.
     .lt("created_at", notAfter)
-    .gt("created_at", notBefore)
+    // Lower bound is updated_at, NOT created_at. Keyed on created_at, the sweep
+    // had a blind spot with no backstop at all: an order placed on Sunday and
+    // paid on Thursday falls outside a 72-hour window measured from its creation,
+    // so if that payment's webhook is lost, nothing ever recovers it — the buyer
+    // is charged and the shop has no record. And this is not a hypothetical
+    // flow: /track invites exactly it, telling a buyer with an unpaid order
+    // "אפשר להשלים את התשלום על אותה הזמנה בדיוק".
+    // updated_at is maintained by the orders_updated_at trigger and is bumped
+    // whenever cardcom_low_profile_id is written — i.e. every time a payment page
+    // is opened for the order. So the window now tracks the last PAYMENT ATTEMPT
+    // rather than the order's age, which is what it was always trying to mean.
+    .gt("updated_at", notBefore)
     .order("created_at", { ascending: true })
     .limit(50);
 
