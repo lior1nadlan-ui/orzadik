@@ -52,15 +52,36 @@ export async function checkOrderRateLimit(
  * The IP cap makes automated order-spam far more expensive.
  * Uses the rate_limits table via the increment_rate_limit RPC.
  */
+/**
+ * `namespace` exists because this counter was being spent by things that are
+ * NOT orders. saveAbandonedCart fires ~2s after a valid email is typed on
+ * /checkout, and submitReview fires on any review — and both called this
+ * function, so both incremented the very bucket placeOrder's cap reads. A
+ * shopper who opened checkout, changed their mind, and came back was quietly
+ * burning their own order quota; behind a shared IP (an office, a household, a
+ * mobile-carrier NAT) unrelated people were burning each other's.
+ *
+ * The failure is invisible from both sides: the shopper is told only that too
+ * many orders were placed from their address, and the owner sees nothing at all
+ * — a purchase silently REFUSED looks exactly like a shop nobody wanted to buy
+ * from, which is the worst possible failure for a store with no orders yet.
+ *
+ * The pattern was already here and these two just missed it: the tracking form
+ * and the contact form each carry their own key namespace, with a comment on
+ * each saying "Deliberately a SEPARATE key namespace from `order:`". This makes
+ * that separation available to callers instead of requiring a new function per
+ * surface. `order` stays the default so placeOrder is unchanged.
+ */
 export async function checkOrderRateLimitByIp(
   ip: string,
   maxPerWindow = 15,
   windowSeconds = 60 * 60, // 1 hour
+  namespace: "order" | "cart" | "review" = "order",
 ): Promise<{ limited: boolean }> {
   if (!ip || ip === "unknown") return { limited: false };
   try {
     const bucket = Math.floor(Date.now() / (windowSeconds * 1000));
-    const key = `order:${ip}:${bucket}`;
+    const key = `${namespace}:${ip}:${bucket}`;
     const { data, error } = await supabaseAdmin
       .rpc("increment_rate_limit", { p_key: key, p_ttl_seconds: windowSeconds * 2 });
     if (error) return { limited: false };

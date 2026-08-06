@@ -5,6 +5,9 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { getOptionalUserId } from "@/integrations/supabase/optional-auth";
 import { restoreOrderStock } from "@/lib/admin-crm.functions";
+// Used by the unsettled-session guard in createCardcomPayment: before opening a
+// second payment page, ask CardCom whether the first one was already completed.
+import { getLpResult, settleCardcomOrder } from "@/lib/cardcom-settle.server";
 
 const CARDCOM_BASE = "https://secure.cardcom.solutions/api/v11";
 
@@ -163,7 +166,10 @@ export const createCardcomPayment = createServerFn({ method: "POST" })
     const { data: order, error } = await supabaseAdmin
       .from("orders")
       .select(
-        "id, user_id, order_number, subtotal, shipping, total, customer_name, customer_email, customer_phone, customer_address, customer_city, payment_status, cardcom_tranzaction_id, order_items(product_name, variant_label, custom_text, unit_price, quantity, line_total)",
+        // cardcom_low_profile_id is in this select for the unsettled-session guard
+        // below — without it this function could not see that it had already opened
+        // a payment page for this order.
+        "id, user_id, order_number, subtotal, shipping, total, customer_name, customer_email, customer_phone, customer_address, customer_city, payment_status, cardcom_tranzaction_id, cardcom_low_profile_id, order_items(product_name, variant_label, custom_text, unit_price, quantity, line_total)",
       )
       .eq("id", data.order_id)
       .maybeSingle();
@@ -198,6 +204,60 @@ export const createCardcomPayment = createServerFn({ method: "POST" })
       throw new Error(
         "קיים חיוב שבוצע להזמנה זו אך טרם אושר במערכת. אנא צרו איתנו קשר לפני ביצוע תשלום נוסף — לא נרצה שתחויבו פעמיים.",
       );
+    }
+
+    // SECOND DOUBLE-CHARGE GUARD — the window the one above cannot see.
+    //
+    // Every condition checked so far (payment_status, cardcom_tranzaction_id) is
+    // written ONLY by settleCardcomOrder. So between the moment CardCom captures
+    // the card and the moment a webhook or the reconciliation sweep lands, the
+    // order still reads unpaid with a NULL transaction id and all three refusals
+    // above pass. That window is not theoretical: the sweep's own grace is 15
+    // minutes on top of a 10-minute cron, so it can run to ~25 minutes.
+    //
+    // And the site walks the buyer straight into it. /track sees payment_status
+    // 'unpaid', tells them "אפשר להשלים את התשלום על אותה הזמנה בדיוק" and links
+    // to /order/{id} — a URL with no ?paid parameter, so the pay button renders
+    // and calls this function. The buyer is charged a SECOND time.
+    //
+    // The aftermath is worse than the double charge. Minting a new session
+    // overwrites cardcom_low_profile_id, so when the FIRST session's webhook
+    // finally arrives its lookup misses and it recovers via ReturnValue —
+    // settling the order against the first TranzactionId. The second charge is
+    // then recorded nowhere: orders holds one transaction id, so
+    // refundCardcomOrder can never reach it and the owner has no row showing it.
+    //
+    // So: ask CardCom about the session we already opened before opening another.
+    // ResponseCode 0 means that page was completed. Settle it (which writes the
+    // transaction id, so every future call is refused by the guard above) and
+    // refuse this one. Any other response — abandoned, declined, expired, or an
+    // API failure — falls through and a new session is minted, which is the
+    // pre-existing behaviour and the common case.
+    //
+    // Fails OPEN on a getLpResult error, deliberately: CardCom being unreachable
+    // must not block a buyer who has not paid. The cost of that choice is bounded
+    // by the guard above, which still catches the settled case.
+    if (order.cardcom_low_profile_id) {
+      try {
+        const priorLp = await getLpResult(String(order.cardcom_low_profile_id));
+        if (priorLp && Number(priorLp.ResponseCode) === 0) {
+          console.error(
+            `[cardcom] HIGH: refused a second payment page for order ${order.id} (${order.order_number}) — LowProfile ${order.cardcom_low_profile_id} was already COMPLETED at CardCom but has not settled here yet. Settling it now instead of charging again.`,
+          );
+          try {
+            await settleCardcomOrder(order, priorLp, "reconcile");
+          } catch (settleErr) {
+            console.error(`[cardcom] settle-on-refuse failed for order ${order.id}:`, settleErr);
+          }
+          throw new Error(
+            "התשלום עבור הזמנה זו כבר בוצע והוא בתהליך אישור. אין צורך לשלם שוב — רעננו את העמוד בעוד רגע.",
+          );
+        }
+      } catch (lpErr: any) {
+        // Re-throw our own refusal; swallow only a genuine getLpResult failure.
+        if (typeof lpErr?.message === "string" && lpErr.message.includes("כבר בוצע")) throw lpErr;
+        console.error(`[cardcom] prior-session check failed for order ${order.id}:`, lpErr);
+      }
     }
 
     // Authorization: owned orders require the owner; guest orders (user_id null)

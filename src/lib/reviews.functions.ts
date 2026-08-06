@@ -47,7 +47,7 @@ export const submitReview = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     // Throttle by IP (reuse the order IP limiter table): max 15/hour.
     const ip = getClientIp(getRequest());
-    const { limited } = await checkOrderRateLimitByIp(ip);
+    const { limited } = await checkOrderRateLimitByIp(ip, 15, 60 * 60, "review");
     if (limited) throw new Error("יותר מדי חוות דעת נשלחו מהכתובת הזו. אנא נסו מאוחר יותר.");
 
     // Product must exist and be active.
@@ -188,7 +188,7 @@ export const submitVerifiedReview = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) => SubmitVerifiedSchema.parse(i))
   .handler(async ({ data }) => {
     const ip = getClientIp(getRequest());
-    const { limited } = await checkOrderRateLimitByIp(ip);
+    const { limited } = await checkOrderRateLimitByIp(ip, 15, 60 * 60, "review");
     if (limited) throw new Error("יותר מדי חוות דעת נשלחו מהכתובת הזו. אנא נסו מאוחר יותר.");
 
     const ok = await verifyReviewToken(data.order, data.token);
