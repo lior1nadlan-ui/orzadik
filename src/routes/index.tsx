@@ -77,7 +77,6 @@ import oc_talitTefillinSet from "@/assets/other-cats/talit-tefillin-set.webp";
 import oc_talitTefillinSets from "@/assets/other-cats/talit-tefillin-sets.webp";
 import oc_liqueurSets from "@/assets/other-cats/liqueur-sets.webp";
 import oc_atara from "@/assets/other-cats/atara.webp";
-import oc_polyrasin from "@/assets/other-cats/polyrasin-stone.webp";
 import oc_purim from "@/assets/other-cats/purim.webp";
 import oc_plastic from "@/assets/other-cats/plastic.webp";
 import oc_candlesticks from "@/assets/other-cats/candlesticks.webp";
@@ -111,7 +110,13 @@ const OTHER_CATS_IMAGES: Record<string, string> = {
   "talit-tefillin-sets": oc_talitTefillinSets,
   "liqueur-sets": oc_liqueurSets,
   "atara": oc_atara,
-  "polyrasin-stone": oc_polyrasin,
+  // "polyrasin-stone" is deliberately absent. The artwork that sat here was an
+  // AI-generated robed figure with hands clasped in prayer — Marian iconography
+  // with pseudo-Hebrew glyphs painted on the robe. A figurative devotional
+  // statue is the one image a תשמישי קדושה shop can never show, and this map is
+  // what puts a tile on the homepage, so the key is the removal. The category
+  // itself is real (12 polymer/stone mezuza cases with genuine supplier photos)
+  // and still lives at /category/polyrasin-stone.
   "purim": oc_purim,
   "plastic": oc_mezuzot,
   "candlesticks": oc_candlesticks,
