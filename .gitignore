@@ -50,3 +50,15 @@ __pycache__/
 
 # Local dev-server config written by tooling — contains machine-absolute paths.
 .claude/launch.json
+
+# Throwaway REST/API response dumps written into the repo root while probing the
+# live catalogue (body.txt, k.json, m.txt, pv.json …). They are single-query
+# captures with no lasting value, but they sit next to real files in the root and
+# have repeatedly shown up as "untracked changes" that need re-triaging. Ignored
+# by name rather than by pattern so a real root-level .json or .txt is not hidden.
+/body.txt
+/k.json
+/k.txt
+/m.json
+/m.txt
+/pv.json
