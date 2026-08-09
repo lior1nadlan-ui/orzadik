@@ -542,7 +542,15 @@ export function SiteHeader() {
             : "[--glass-shadow-lift:0_20px_56px_-20px_rgba(22,24,29,0)]"
         }`}
       >
-      <div className="container mx-auto grid h-20 grid-cols-3 items-center px-4">
+      {/* h-16, down from h-20. Measured on the live site 2026-08-09 at 1440x900:
+          the header was 161px and sticky — 17.9% of the viewport following the
+          shopper down every page — made of a 36px club strip, an 80px logo bar
+          and a 44px nav row. The nav row is already at the 44px touch floor and
+          the strip scrolls away under `sticky -top-9`, so the logo bar was the
+          only band with slack in it: 80px of chrome around a 64px image.
+          64px around a 48px logo keeps the same 8px of breathing room and takes
+          16px off every route. */}
+      <div className="container mx-auto grid h-16 grid-cols-3 items-center px-4">
         {/* RTL start (right): menu + search */}
         <div className="flex items-center gap-1 justify-self-start">
           <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
@@ -677,12 +685,23 @@ export function SiteHeader() {
         </div>
 
 
-        {/* Center: logo */}
+        {/* Center: logo.
+            h-11/h-12, down from h-14/h-16. The lockup is three stacked parts —
+            wordmark, tagline "תשמישי קדושה בעיצוב אישי", ornament rule — and it
+            was rendered at each candidate height before this was chosen: 48px
+            is the floor at which the tagline still reads. 44px tightens it and
+            40px loses it, so this is as small as the mark goes without becoming
+            a different mark. Anything shorter would need a compact logo asset
+            (wordmark only), which is a brand decision, not a CSS one.
+            The 8px it gives back at each breakpoint is doubled by the bar's own
+            h-20 -> h-16 above. */}
         <Link to="/" className="justify-self-center flex items-center" aria-label="אור זרוע לצדיק">
           <img
             src={logoUrl}
             alt="אור זרוע לצדיק"
-            className="h-14 md:h-16 w-auto object-contain"
+            width={586}
+            height={200}
+            className="h-11 md:h-12 w-auto object-contain"
           />
         </Link>
 
