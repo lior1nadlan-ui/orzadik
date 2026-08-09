@@ -74,6 +74,100 @@
   --ease-in: cubic-bezier(0.77, 0, 0.175, 1);
 }
 
+/* =============================================================================
+   TYPE SCALE — the last empty slot in the token layer.
+   -----------------------------------------------------------------------------
+   Colour, glass, motion, radius and shadow all had names. Size did not, and the
+   result is measurable: the homepage alone renders TWELVE unnamed font sizes
+   between 10px and 36px (text-[10px], text-[11px], text-xs … text-4xl plus four
+   arbitrary values), and NINE h2/h3 elements come out identically at 30px/400 —
+   nine "section headings" that a reader cannot rank because nothing about them
+   differs.
+
+   THE RULE THIS SCALE ENCODES: eight steps, and hierarchy below `--text-page`
+   is bought with WEIGHT, COLOUR and SPACE, never with another size. That is why
+   there is exactly ONE heading step (`--text-section`) for every h2 and h3 on
+   the site: an h2 is `text-section font-bold text-foreground` with a large
+   space above it, an h3 is `text-section font-semibold text-muted-foreground`
+   with a small one. Adding a ninth step to separate them would reproduce the
+   nine-identical-headings problem one size lower.
+
+   `@theme static`, and the `static` is load-bearing. Plain `@theme` TREE-SHAKES
+   a variable no utility references, which would mean the two reserved steps
+   below — the whole point of reserving them — silently did not exist in :root
+   until someone happened to use them. Verified against the dev-served CSS on
+   2026-08-09: without `static`, `--text-price` was absent from :root while the
+   other seven were present. The motion block above works around the same
+   pruning by hand-copying its values into :root; `static` is that fix without
+   the duplication. It also means hand-written CSS in this file and arbitrary
+   values in components can always read `var(--text-lead)` directly, not only
+   the generated `text-lead` utility.
+
+   NO FONT-WEIGHT IS BAKED IN. Tailwind v4 would emit `font-weight` inside the
+   same `text-*` rule, and it would then race with a sibling `font-bold`
+   utility — the size token would silently be deciding weight. Weight stays an
+   explicit, separate decision, which is the whole point of the rule above.
+
+   RTL / Hebrew note: no positive tracking anywhere, and the only negative
+   tracking is -0.01em on the two figure steps, where the text is always a
+   currency amount in tabular digits. Hebrew has no inter-letter connection to
+   damage there, and Latin/Hebrew mixed prose is left at 0 — letter-spacing on
+   Hebrew body copy reads as a defect, not as refinement.
+   ========================================================================== */
+@theme static {
+  /* 11px — legal lines, badge text, counters. The floor: nothing smaller ships. */
+  --text-micro: 0.6875rem;
+  --text-micro--line-height: 1.45;
+
+  /* 12px — the tile's attribute line (חומר · צבע · מידה), summary sub-rows.
+     Metadata that is READ, not scanned; it may be quiet but never illegible. */
+  --text-meta: 0.75rem;
+  --text-meta--line-height: 1.4;
+
+  /* 15px — running text and every control label. Matches the 15px the button
+     primitive already used as a hand-written arbitrary value. */
+  --text-body: 0.9375rem;
+  --text-body--line-height: 1.6;
+
+  /* 17px — a product name on a tile, a cart line, a lead paragraph. The step
+     that says "this is the thing itself", one notch above its description. */
+  --text-lead: 1.0625rem;
+  --text-lead--line-height: 1.35;
+
+  /* 22px — THE heading step. Every h2 and every h3, differentiated by weight,
+     colour and the space above them. See the rule at the top of this block. */
+  --text-section: 1.375rem;
+  --text-section--line-height: 1.25;
+
+  /* 28px — the one h1 a page is allowed. */
+  --text-page: 1.75rem;
+  --text-page--line-height: 1.2;
+
+  /* ---- THE TWO FIGURE STEPS, RESERVED -------------------------------------
+     Reserved means reserved: these two exist for the two numbers a shopper
+     actually stops to read, and using them anywhere else re-flattens the scale
+     by making 34px an ordinary size.
+
+       --text-total  34px  the cart / mini-cart GRAND TOTAL — the last number
+                           before card details. Applied in src/routes/cart.tsx
+                           and src/components/cart/CartDrawer.tsx.
+       --text-price  40px  the PDP price. NOT applied by this change: the PDP's
+                           first two screens carry recorded measurements and are
+                           frozen. The token is here so the owner of that screen
+                           has a named step to move to rather than inventing a
+                           thirteenth arbitrary value.
+
+     34 before 40 is deliberate. The cart total sits inside a ~370px summary
+     column beside a label; 40px there starts wrapping four-digit amounts. */
+  --text-total: 2.125rem;
+  --text-total--line-height: 1.1;
+  --text-total--letter-spacing: -0.01em;
+
+  --text-price: 2.5rem;
+  --text-price--line-height: 1.05;
+  --text-price--letter-spacing: -0.01em;
+}
+
 :root {
   --radius: 0.75rem;                /* xl=16 lg=12 md=10 sm=8 — "generous radius" */
 
@@ -580,18 +674,28 @@ html:has(#app-root.a11y-grayscale) body::before { filter: grayscale(100%); }
    must outrank Tailwind's layered `bottom-5` utility. The max-width guard
    matches `lg`, so desktop is untouched even though :has() still matches the
    lg:hidden bar there. rem units so this scales with the a11y font-size zoom
-   exactly as the bar does. */
+   exactly as the bar does.
+
+   RE-MEASURED 2026-08-09, and all three numbers below moved by exactly +0.5rem.
+   The bar is `py-3` around one `size="lg"` Button, and `lg` went from 44px to
+   52px in src/components/ui/button.tsx (the 44px touch floor became the DEFAULT
+   size, so `lg` had to move up to stay a distinct step — it now equals the 52px
+   the homepage's BTN_BASE had been hand-rolling). So the bar is 12 + 52 + 12 =
+   76px (4.75rem), not the 12 + 44 + 12 = 68px (4.25rem) these offsets were cut
+   against. Each clearance below is preserved exactly, not re-invented:
+   the FABs kept their 24px gap above the bar, the panel kept its 84px, and the
+   cookie band kept the 4px that stopped it being half-covered. */
 @media (max-width: 1023px) {
-  body:has([data-mobile-actionbar]) .fab-float { bottom: 5.75rem; }
-  body:has([data-mobile-actionbar]) .fab-float-panel { bottom: 9.5rem; }
+  body:has([data-mobile-actionbar]) .fab-float { bottom: 6.25rem; }
+  body:has([data-mobile-actionbar]) .fab-float-panel { bottom: 10rem; }
   /* The cookie-consent band is the same class of problem as the FABs above, and
      it is worse: it sits at bottom:0, is ~44% of a 375x667 viewport, and opens
      itself 600ms into every first visit. Measured on the live PDP at 375x667,
      document.elementFromPoint() at the centre of "הוסף לעגלה" returned the
      band's "שמירת בחירה" button — the first tap of the money path, on the
      device most of this store's traffic uses. It starts at bottom:0 rather than
-     bottom:1.25rem like the FABs, so it clears the ~4.25rem bar with 4.5rem. */
-  body:has([data-mobile-actionbar]) [data-cookie-consent] { bottom: 4.5rem; }
+     bottom:1.25rem like the FABs, so it clears the ~4.75rem bar with 5rem. */
+  body:has([data-mobile-actionbar]) [data-cookie-consent] { bottom: 5rem; }
 }
 
 /* Respect a system "reduce motion" preference by default.

@@ -99,6 +99,51 @@ export function listableCategories<T extends CountedCategory>(rows: T[]): T[] {
   return rows.filter((c) => isListableCategory(c.slug, directProductCount(c)));
 }
 
+/**
+ * The hub's doors, grouped parent → children and ORDERED BY SHELF DEPTH.
+ *
+ * WHY NOT sort_order. The rows arrive `.order("sort_order").order("name")`, and
+ * sort_order is not an order: measured on prod 2026-08-09 it holds 53 DISTINCT
+ * values across 102 categories, i.e. it is mostly a per-row id that nobody has
+ * curated. What it produced here was a 9.9-phone-screen wall in which a
+ * 383-product shelf and a 1-product stub were visually identical and arbitrarily
+ * interleaved — so the page answered "what does this shop have?" with noise.
+ *
+ * Depth is the honest ranking and it is the one the page is missing: the six
+ * deepest shelves hold 2,772 of the 4,648 active products between them. The
+ * count is rendered beside every door for the same reason, so the ordering is
+ * legible rather than mysterious.
+ *
+ * TIEBREAK IS THE SLUG, not the name. Equal counts are common in the long tail,
+ * and localeCompare on Hebrew names depends on the ICU data the runtime ships —
+ * which is not the same in the Cloudflare Workers SSR pass and in the browser.
+ * A slug is ASCII, so this ordering is byte-identical on both sides of
+ * hydration, which is what keeps the rendered grid and the ItemList in head()
+ * describing the same page.
+ *
+ * Returns EVERY listable row exactly once. A child whose parent is not itself
+ * listable (its parent holds no direct products, or is hidden) is promoted to
+ * its own card rather than dropped: this hub is the fallback for any occasion
+ * the shop has not curated, so completeness is the property it exists for.
+ * Measured 2026-08-09: 47 tops + 46 children = all 93 listable rows, 0 orphans —
+ * the promotion is a guarantee, not a fix for something visible today.
+ */
+export function groupCategoriesByDepth<T extends CountedCategory>(
+  rows: T[],
+): Array<{ parent: T; children: T[] }> {
+  const listed = listableCategories(rows);
+  const byDepth = (a: T, b: T) =>
+    directProductCount(b) - directProductCount(a) || a.slug.localeCompare(b.slug);
+  const topSlugs = new Set(listed.filter((c) => !c.parent_slug).map((c) => c.slug));
+  const roots = listed
+    .filter((c) => !c.parent_slug || !topSlugs.has(c.parent_slug))
+    .sort(byDepth);
+  return roots.map((parent) => ({
+    parent,
+    children: listed.filter((c) => c.parent_slug === parent.slug).sort(byDepth),
+  }));
+}
+
 // /categories is the only hub that links the whole category graph. Fetching it
 // in a route loader (rather than only in useQuery) is what puts those links into
 // the server-rendered HTML — a client-only useQuery renders an empty grid for
@@ -140,7 +185,14 @@ export const Route = createFileRoute("/categories")({
     // answer 404, so the same predicate that filters the visible grid below has
     // to filter the markup too. numberOfItems is the genuine listed count (no
     // image nodes — categories carry no image here — so the markup stays lean).
-    const cats = listableCategories((loaderData?.categories ?? []) as CategoryRow[]);
+    //
+    // Built from the SAME grouping function the grid renders from, and flattened
+    // in the grid's own DOM order (each parent followed by its children), so
+    // `position` is the position a reader actually sees. Filtering alone was not
+    // enough for that once the grid stopped following the query's sort_order.
+    const cats = groupCategoriesByDepth((loaderData?.categories ?? []) as CategoryRow[]).flatMap(
+      (g) => [g.parent, ...g.children],
+    );
     const collectionLd = {
       "@context": "https://schema.org",
       "@type": "CollectionPage",
@@ -207,24 +259,25 @@ function CategoriesPage() {
   });
 
   // Render one card per top-level category with its subcategories inside it.
-  // A flat list would interleave the 25 parents and 47 children alphabetically,
-  // which reads as noise once the full supplier catalog is loaded.
+  // A flat list would interleave the 47 parents and 46 children, which reads as
+  // noise once the full supplier catalog is loaded.
   //
-  // Filtered FIRST, and once, so parents and child chips are held to the same
-  // test: this hub was rendering all 102 rows with no product-count filter, so
-  // a shopper on the store's main browse page could tap "מוצרי חגים" or
+  // Filtered and ORDERED in one place — see groupCategoriesByDepth. Filtering
+  // first, and once, is what holds parents and child chips to the same test:
+  // this hub was rendering all 102 rows with no product-count filter, so a
+  // shopper on the store's main browse page could tap "מוצרי חגים" or
   // "סט טלית תפילין" — headline categories for this exact store — and get a
   // 404 or an empty "לא נמצאו מוצרים" page.
-  const listed = listableCategories(data);
-  const tops = listed.filter((c) => !c.parent_slug);
-  const childrenOf = (slug: string) => listed.filter((c) => c.parent_slug === slug);
+  const groups = groupCategoriesByDepth(data);
 
   return (
     <div className="container mx-auto px-4 py-10">
       <PageHeader
         eyebrow="קטגוריות"
         title="כל תשמישי הקדושה והיודאיקה, לפי קטגוריה"
-        sub="טליתות, כיסויי טלית ותפילין, נרתיקי מזוזה, גביעי קידוש, חנוכיות, פמוטים, מארזים לחתנים, סטי חלאקה ותכשיטי זהב — בחרו עולם תוכן והתחילו לקנות."
+        // The last clause is the legend for the numbers, said ONCE here rather
+        // than repeated as a unit beside each of the 93 doors.
+        sub="טליתות, כיסויי טלית ותפילין, נרתיקי מזוזה, גביעי קידוש, חנוכיות, פמוטים, מארזים לחתנים, סטי חלאקה ותכשיטי זהב. המספר לצד כל קטגוריה הוא מספר הפריטים שבה, והרשימה מסודרת מהגדולה לקטנה."
       />
 
       {/* Shop-by-occasion — Judaica is calendar- and lifecycle-driven, so surface
@@ -244,8 +297,8 @@ function CategoriesPage() {
             // literal path union being regenerated before type-check.
             <Link
               key={c.slug}
-              to={"/collection/$slug" as any}
-              params={{ slug: c.slug } as any}
+              to="/collection/$slug"
+              params={{ slug: c.slug }}
               className="press inline-flex min-h-[44px] items-center rounded-full bg-card/70 px-4 text-sm text-foreground hairline transition-[background-color,color,transform] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
             >
               {c.title}
@@ -270,8 +323,7 @@ function CategoriesPage() {
           cards' ongoing interaction feedback is worth more than a one-shot
           flourish; .stagger belongs on rows that are not pressable. */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-        {tops.map((c) => {
-          const kids = childrenOf(c.slug);
+        {groups.map(({ parent: c, children: kids }) => {
           return (
             // .glass owns background/radius/shadow. The hover raise is a plain
             // gated transform rather than .glass-lift, because glass-lift swaps
@@ -282,12 +334,19 @@ function CategoriesPage() {
               key={c.id}
               className="glass press p-5 motion-safe:[@media(hover:hover)_and_(pointer:fine)]:hover:-translate-y-0.5"
             >
+              {/* The count lives INSIDE the link, so it is part of the
+                  accessible name ("כיפות 743") — the only way the number means
+                  anything to a screen-reader user. tabular-nums keeps the
+                  column of them optically aligned down the grid. */}
               <Link
                 to="/category/$slug"
                 params={{ slug: c.slug }}
                 className="font-medium transition-[color] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
               >
                 {c.name}
+                <span className="ms-2 text-xs text-muted-foreground tabular-nums">
+                  {directProductCount(c)}
+                </span>
               </Link>
               {c.description && <div className="text-xs text-muted-foreground mt-1 line-clamp-2">{c.description}</div>}
               {kids.length > 0 && (
@@ -304,6 +363,9 @@ function CategoriesPage() {
                       className="inline-flex min-h-[44px] items-center rounded-full px-3 text-sm text-muted-foreground transition-[color,background-color] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-accent/10 [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
                     >
                       {k.name}
+                      <span className="ms-1.5 text-xs opacity-70 tabular-nums">
+                        {directProductCount(k)}
+                      </span>
                     </Link>
                   ))}
                 </div>

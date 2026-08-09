@@ -13,7 +13,7 @@ import { MobileCarousel } from "@/components/MobileCarousel";
 import { ProductCard, type ProductCardData } from "@/components/ProductCard";
 import { readRecent } from "@/components/engagement/recently-viewed";
 import { NewsletterSignup } from "@/components/NewsletterSignup";
-import { LuxuryShowcase, fetchLuxuryShowcaseCards } from "@/components/home/LuxuryShowcase";
+import { ShelfDirectory, fetchShelfStats } from "@/components/home/LuxuryShowcase";
 import { HomeReviews, fetchHomeReviews } from "@/components/content/HomeReviews";
 import { SectionHeader } from "@/components/home/SectionHeader";
 import { Reveal } from "@/components/Reveal";
@@ -338,16 +338,16 @@ export const Route = createFileRoute("/")({
   // rest down. Resolving them here puts them in the server-rendered HTML.
   // Each fetch is independently fault-tolerant — see settle().
   loader: async () => {
-    const [otherCats, featuredProducts, luxuryCards, reviews, groomPrices, giftPicks] =
+    const [otherCats, featuredProducts, shelfStats, reviews, groomPrices, giftPicks] =
       await Promise.all([
         settle(fetchOtherCategories()),
         settle(fetchHomeFeaturedProducts()),
-        settle(fetchLuxuryShowcaseCards()),
+        settle(fetchShelfStats()),
         settle(fetchHomeReviews()),
         settle(fetchGroomThumbPrices()),
         settle(fetchGiftPicks()),
       ]);
-    return { otherCats, featuredProducts, luxuryCards, reviews, groomPrices, giftPicks };
+    return { otherCats, featuredProducts, shelfStats, reviews, groomPrices, giftPicks };
   },
   head: () => ({
     meta: [
@@ -491,7 +491,15 @@ type CatTile = { slug: string; name: string; img: string; w: number; h: number }
 // the section renders at SSR — no client round-trip, no post-hydration CLS.
 const FEATURED: { id: string; slug: string; name: string; img: string; w: number; h: number }[] = [
   { id: "ac72c907-8981-404d-b776-642467e43110", slug: "talitot", name: "טליתות", img: imgTallit, w: 800, h: 1000 },
-  { id: "51fd0522-192a-4ec2-bfc3-abf891b2e35e", slug: "marazim-chatanim", name: "מארזים לחתנים", img: imgChatan, w: 800, h: 1067 },
+  // Was marazim-chatanim. 7 of that category's 11 active products carry a null
+  // thumbnail (measured 2026-08-09), so a homepage tile opened a grid that is
+  // majority placeholder — a blocking owner input (photographs), not something
+  // markup fixes. The groom sets keep their flagship band above, which uses the
+  // real local photographs in public/groom-sets/, and the three product links
+  // in that band still land on the photographed SKUs. This tile now opens the
+  // wider חתן וכלה shelf: 45 active products, floor ₪28 effective, and its own
+  // 7 image-less rows sink to the back under the shared shelf ordering.
+  { id: "d2954417-843b-48fa-bf00-92a6dcf87d03", slug: "chatan-kala", name: "חתן וכלה", img: imgChatan, w: 800, h: 1067 },
   { id: "f48e44e3-eab6-4281-a09d-cac9a96a8e96", slug: "talit-tefillin-sets", name: "כיסויים לטלית ותפילין", img: imgTallitTefillinCovers, w: 800, h: 1067 },
   { id: "3109eed6-32e3-40eb-9fe4-874029b8ab4d", slug: "chalaka-set", name: "סט חלאקה", img: imgChalaka, w: 800, h: 1067 },
   { id: "c78aea58-8a38-43ee-a236-3aa2f1942225", slug: "yehudaika", name: "מוצרי יודאיקה", img: imgJudaica, w: 800, h: 800 },
@@ -677,7 +685,7 @@ function prefersReducedMotion() {
 
 function HomePage() {
   const heroVideoRef = useRef<HTMLVideoElement | null>(null);
-  const { otherCats, featuredProducts, luxuryCards, reviews, groomPrices, giftPicks } =
+  const { otherCats, featuredProducts, shelfStats, reviews, groomPrices, giftPicks } =
     Route.useLoaderData();
 
   // Defer the hero video off the mobile critical path. The poster is the LCP
@@ -819,12 +827,22 @@ function HomePage() {
                 לחנות
                 <ChevronLeft className="h-4 w-4 shrink-0" aria-hidden="true" />
               </Link>
+              {/* Was /category/marazim-chatanim. Same button, same geometry —
+                  only the destination moved, and only because 7 of that
+                  category's 11 products have no photograph, so the hero's
+                  second door opened on a wall of placeholders. /collection/
+                  chatan-kala unions חתן כלה, חתונה, מארזים לחתנים, כיסויים
+                  לטלית and ברכונים, so the groom boxes are still in there —
+                  they are simply no longer the first thing a stranger meets,
+                  and the shared shelf ordering sinks the image-less rows last.
+                  The label moved with the destination: a CTA must name where it
+                  goes. */}
               <Link
-                to="/category/$slug"
-                params={{ slug: "marazim-chatanim" }}
+                to="/collection/$slug"
+                params={{ slug: "chatan-kala" }}
                 className={`${BTN_OUTLINE} w-full sm:w-auto`}
               >
-                למארזי החתן
+                לחתן ולכלה
                 <ChevronLeft className="h-4 w-4 shrink-0" aria-hidden="true" />
               </Link>
             </div>
@@ -869,8 +887,17 @@ function HomePage() {
                 טלית מהודרת, עטרה וכלי קודש נבחרים — מוגשים במארז מעוצב. אפשר להוסיף רקמה או חריטה אישית בשם החתן.
               </p>
               <div className="flex flex-wrap items-center gap-x-6 gap-y-4">
-                <Link to="/category/$slug" params={{ slug: "marazim-chatanim" }} className={BTN_SOLID}>
-                  לצפייה במארזי החתן
+                {/* The band's own CTA also leaves /category/marazim-chatanim —
+                    see the hero note above for the measurement. The three thumb
+                    links below still go straight to the photographed groom sets,
+                    so a shopper who wants a groom box is one tap away; what is
+                    gone is the door that opened on 7 placeholders. */}
+                <Link
+                  to="/collection/$slug"
+                  params={{ slug: "chatan-kala" }}
+                  className={BTN_SOLID}
+                >
+                  לכל מתנות החתן והכלה
                 </Link>
                 <Link
                   to="/category/$slug"
@@ -1155,6 +1182,63 @@ function HomePage() {
         />
       )}
 
+      {/* 5.7. קונים לפי אירוע — the occasion/holiday hubs (/collection/<slug>).
+          Judaica is calendar- and lifecycle-driven, so shopping by occasion
+          (בר מצווה, חתונה, בית חדש) and by holiday (ראש השנה, חנוכה, פסח) is a
+          primary path. Text-only glass cards — no imagery to fetch — with the
+          eyebrow in --accent (the only gold) and the shared .glass-lift hover
+          motion. Swipeable on a phone via MobileCarousel, a grid from md up.
+          SSR-safe: OCCASION_COLLECTIONS is pure data imported at module scope,
+          so the rail is in the server HTML.
+
+          MOVED UP, above both category rails. It used to sit between them, in
+          third place among three browse blocks, which put the shop's only
+          rankable gift-guide surfaces behind two grids of category tiles. A
+          stranger arriving here rarely wants "a category" — they want a present
+          for a specific simcha, and this is the one rail on the page that is
+          organised the way they are thinking. The two category rails below are
+          the fallback for everything the shop has not curated an occasion for,
+          which is the right order of specificity. */}
+      <section>
+        <Reveal className="container mx-auto px-4 py-14 md:py-20">
+          <SectionHeader eyebrow="מתנה לכל שמחה" title="קונים לפי אירוע" />
+          {/* basis-[68%] on mobile: one card fills the rail and the next peeks past
+              the edge so it reads as swipeable. md:/lg: layout is owned by MobileCarousel. */}
+          <MobileCarousel
+            basis="basis-[68%]"
+            mdGrid="md:grid-cols-3 lg:grid-cols-4"
+            mdGap="md:gap-5"
+            className="max-w-6xl mx-auto"
+          >
+            {OCCASION_COLLECTIONS.map((c) => (
+              // /collection/$slug — `to`/`params` cast as categories.tsx does, so the
+              // link does not depend on the router's path union being regenerated.
+              <Link
+                key={c.slug}
+                to="/collection/$slug"
+                params={{ slug: c.slug }}
+                className="group block h-full"
+              >
+                <div className="glass-soft glass-lift flex h-full flex-col justify-between gap-6 p-6 md:p-7 [--glass-radius:1rem]">
+                  <div>
+                    <p className="mb-2 text-[10px] md:text-xs tracking-[0.22em] text-accent">
+                      {c.eyebrow}
+                    </p>
+                    <h3 className="font-display text-lg md:text-xl text-foreground leading-tight">
+                      {c.title}
+                    </h3>
+                  </div>
+                  <span className="inline-flex items-center gap-1.5 text-sm text-accent">
+                    לצפייה
+                    <IconArrowStart className="w-4 h-4 transition-transform duration-200 ease-out motion-safe:[@media(hover:hover)_and_(pointer:fine)]:group-hover:-translate-x-1" />
+                  </span>
+                </div>
+              </Link>
+            ))}
+          </MobileCarousel>
+        </Reveal>
+      </section>
+
       {/* 6. Featured categories */}
       <section>
         <Reveal className="container mx-auto px-4 py-14 md:py-20">
@@ -1203,54 +1287,6 @@ function HomePage() {
         </Reveal>
       </section>
 
-      {/* 7. קונים לפי אירוע — the occasion/holiday hubs (/collection/<slug>) as
-          first-screen discovery, right after the featured categories. Judaica is
-          calendar- and lifecycle-driven, so shopping by occasion (בר מצווה, חתונה,
-          בית חדש) and by holiday (ראש השנה, חנוכה, פסח) is a primary path. Text-only
-          glass cards — no imagery to fetch — with the eyebrow in --accent (the only
-          gold) and the shared .glass-lift hover motion. Swipeable on a phone via
-          MobileCarousel, a grid from md up. SSR-safe: OCCASION_COLLECTIONS is pure
-          data imported at module scope, so the rail is in the server HTML. */}
-      <section>
-        <Reveal className="container mx-auto px-4 py-14 md:py-20">
-          <SectionHeader eyebrow="מתנה לכל שמחה" title="קונים לפי אירוע" />
-          {/* basis-[68%] on mobile: one card fills the rail and the next peeks past
-              the edge so it reads as swipeable. md:/lg: layout is owned by MobileCarousel. */}
-          <MobileCarousel
-            basis="basis-[68%]"
-            mdGrid="md:grid-cols-3 lg:grid-cols-4"
-            mdGap="md:gap-5"
-            className="max-w-6xl mx-auto"
-          >
-            {OCCASION_COLLECTIONS.map((c) => (
-              // /collection/$slug — `to`/`params` cast as categories.tsx does, so the
-              // link does not depend on the router's path union being regenerated.
-              <Link
-                key={c.slug}
-                to={"/collection/$slug" as any}
-                params={{ slug: c.slug } as any}
-                className="group block h-full"
-              >
-                <div className="glass-soft glass-lift flex h-full flex-col justify-between gap-6 p-6 md:p-7 [--glass-radius:1rem]">
-                  <div>
-                    <p className="mb-2 text-[10px] md:text-xs tracking-[0.22em] text-accent">
-                      {c.eyebrow}
-                    </p>
-                    <h3 className="font-display text-lg md:text-xl text-foreground leading-tight">
-                      {c.title}
-                    </h3>
-                  </div>
-                  <span className="inline-flex items-center gap-1.5 text-sm text-accent">
-                    לצפייה
-                    <IconArrowStart className="w-4 h-4 transition-transform duration-200 ease-out motion-safe:[@media(hover:hover)_and_(pointer:fine)]:group-hover:-translate-x-1" />
-                  </span>
-                </div>
-              </Link>
-            ))}
-          </MobileCarousel>
-        </Reveal>
-      </section>
-
       {/* 7.5. שאר הקטגוריות — the remaining categories that have artwork, grouped
           with the two browse rails above it. A crawlable strip of internal
           /category/$slug links plus a browse-everything path to /categories.
@@ -1264,8 +1300,12 @@ function HomePage() {
         reserveSpace={featuredProducts === null}
       />
 
-      {/* 9. פריטי יוקרה — curated luxury showcase */}
-      <LuxuryShowcase initialCards={luxuryCards ?? undefined} />
+      {/* 9. המדפים הגדולים — the shelf directory that replaced "פריטי יוקרה
+          נבחרים" in this slot. Six doors with live depth and an honest floor;
+          see the header comment in components/home/LuxuryShowcase.tsx for what
+          the luxury showcase was measuring and why three products from the top
+          0.6% of the catalogue were the wrong thing for this page to carry. */}
+      <ShelfDirectory initialStats={shelfStats ?? undefined} />
 
       {/* 10. חלאקה — promo band. The argaman half is now a glass panel beside the
           photo rather than a wine fill behind cream text. */}

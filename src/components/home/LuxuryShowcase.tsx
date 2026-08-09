@@ -1,250 +1,216 @@
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { thumbUrl } from "@/lib/img";
 import { formatILS, getEffectivePrice } from "@/lib/cart";
 import { SectionHeader } from "@/components/home/SectionHeader";
+import { CATEGORY_COUNT_EMBED } from "@/routes/categories";
+
+// FILE NAME IS STALE, ON PURPOSE. This module used to render "פריטי יוקרה
+// נבחרים" — one flagship card and two stacked premium cards. It now renders the
+// shelf directory that replaced that slot. The path is unchanged because moving
+// it is a rename in a tree several agents are editing at once; the exports are
+// renamed instead, which is what any caller actually reads.
+//
+// ---------------------------------------------------------------------------
+// WHY THE LUXURY SHOWCASE WENT
+//
+// It was three products from the top 0.6% of the catalogue — a ₪1,216 acrylic
+// blessing, a ₪1,100 tallit and a ₪1,800 groom box — on the page whose recorded
+// failure is that "every ₪ figure the homepage rendered came from the set
+// {756, 1100, 1216, 1400, 1800}", i.e. from the 60 products of 4,648 that cost
+// ₪756 or more (see fetchGiftPicks in src/routes/index.tsx for that
+// measurement). The ₪150 gift rail was added as the other half of the fix; this
+// section was the half still pulling the other way, and it was curation — three
+// hand-picked slugs — where the page needed navigation.
+//
+// Two concrete defects died with it:
+//   • FLAGSHIP_ITEM.name carried "90×59" with U+00D7 MULTIPLICATION SIGN. That
+//     is bidi class ON, UAX#9 rule N1 resolves it to R between two European
+//     numbers, and the live homepage therefore painted the dimensions REVERSED,
+//     as "59x90". Nothing in the replacement uses anything but ASCII "x" and
+//     ASCII "-".
+//   • one of the three cards routed to a groom set, and 7 of the 11 products in
+//     marazim-chatanim have a null thumbnail (measured 2026-08-09). Groom sets
+//     keep their flagship band further up the page, which uses real local
+//     photographs; they are no longer a door from here.
+//
+// WHAT REPLACES IT
+//
+// The same six shelves the header now carries, as six text doors: name, depth,
+// and the shelf's own honest floor. No photography — 66-72% of masters are
+// 500x500 and this section does not need to be a gallery to be a door.
+//
+// EVERY NUMBER IS READ FROM THE DATABASE AT SSR, NEVER TYPED. That rule is
+// inherited verbatim from the section this replaces, whose own header comment
+// recorded why: prices were hardcoded here until 2026-07-28 and every one was
+// the CATALOGUE list price, i.e. 1/0.7 of what the store charges, because a
+// literal cannot pass through getEffectivePrice(). The floor below is a real
+// row's price run through that same function, so the number here, the number on
+// the tile and the number in the cart are one function apart. Do not
+// reintroduce a price string. The counts are read live for the same reason.
+// (The HEADER hardcodes its six counts — see the note in SiteHeader.tsx — but
+// the header has no route loader to read them in; this page does.)
+// ---------------------------------------------------------------------------
 
 /**
- * "פריטי יוקרה" — asymmetric curated showcase: one large flagship card and two
- * stacked premium cards, all linking to real products.
+ * The six deepest shelves in the catalogue. Slugs and labels are kept in step
+ * with CURATED_CATEGORIES in src/components/SiteHeader.tsx by hand, and
+ * deliberately so: the header needs static labels (no loader) while this
+ * section needs live numbers, and one shared constant would have forced one of
+ * the two to be wrong. The SLUGS are the contract; if you retarget a door,
+ * retarget it in both places.
  *
- * להחלפת פריטים (owner note): ערכו את FLAGSHIP_ITEM / STACKED_ITEMS למטה.
- * `slug` חייב להיות slug אמיתי של מוצר קיים באתר, ו-name הוא הכיתוב שיוצג על
- * הכרטיס. **אין לכתוב כאן מחיר** — המחיר נמשך מהמאגר לפי ה-slug ומחושב חי,
- * בדיוק כמו בעמוד המוצר. כרטיס שאין לו `img` מקומי מושך אוטומטית גם את תמונת
- * המוצר מהמאגר (הדרך המומלצת — התמונה תמיד תואמת למוצר). כרטיס עם `img` (כמו
- * מארז החתן, המשתמש בצילום מעוצב מ-public/groom-sets/) מציג את התמונה המקומית
- * כפי שהיא.
- *
- * Prices were hardcoded here until 2026-07-28 and every one of them was the
- * CATALOGUE list price — i.e. exactly 1/0.7 of what the store actually charges,
- * because they never passed through getEffectivePrice() and so never had
- * SITE_DISCOUNT applied. The flagship advertised ₪1,737 for an item whose own
- * page sold it for ₪1,216. A literal here cannot track pricing.ts, so the only
- * safe design is to read the row and run it through the same function the PDP
- * uses. Do not reintroduce a price string.
+ * The label for brachot-chamsot-segulot is shortened from the DB name
+ * "ברכות חמסות וסגולות" to fit a two-up card on a 390px phone.
  */
-const FLAGSHIP_ITEM = {
-  slug: "acrilic-blessing-90x59-cm-gold-white-83127",
-  name: "ברכת הבית אקריליק ענק 90×59 זהב-לבן",
-};
-
-type StackedItem = {
-  slug: string;
-  name: string;
-  // When present, a bundled local image (public/…) shown as-is. Otherwise the
-  // card pulls the product's own thumbnail from the catalogue by `slug`.
-  img?: string;
-  imgW?: number;
-  imgH?: number;
-};
-
-const STACKED_ITEMS: StackedItem[] = [
-  { slug: "talit-2871971", name: "טלית פלטניום תשבץ 100% צמר" },
-  {
-    slug: "groom-set-linen-look-premium",
-    // Until 2026-07-31 this read "מארז חתן — ליאם שלום גולי": the PERSONAL NAME
-    // of the customer whose bespoke box was photographed, rendered as the card
-    // label AND as this image's alt text, on the most-crawled page of the site.
-    // A card label must describe the product, never the person who ordered one.
-    name: "מארז לחתן — דמוי פשתן, דגם פרימיום",
-    // Styled local photo (every public/groom-sets/*.jpeg is 1440×1920).
-    img: "/groom-sets/groom-02.jpeg",
-    imgW: 1440,
-    imgH: 1920,
-  },
+const SHELVES: { slug: string; label: string }[] = [
+  { slug: "kipot", label: "כיפות" },
+  { slug: "chagim", label: "חגים" },
+  { slug: "talit-tefilin", label: "טלית ותפילין" },
+  { slug: "plastic", label: "נרתיקי מזוזה" },
+  { slug: "shabbat", label: "שבת" },
+  { slug: "brachot-chamsot-segulot", label: "ברכות וחמסות" },
 ];
 
-/**
- * Every slug on the board. This is ALL of them, not just the ones needing a
- * photo: a card with a bundled local image still needs its row for the PRICE.
- * Fetched together so the SSR loader seeds them in one round-trip and both the
- * flagship photo and every price are in the initial HTML.
- */
-const DB_SLUGS = [FLAGSHIP_ITEM.slug, ...STACKED_ITEMS.map((s) => s.slug)];
+const SHELF_SLUGS = SHELVES.map((s) => s.slug);
+
+/** Per-shelf depth and raw floor price, keyed by category slug. */
+export type ShelfStats = Record<string, { count: number; floorRaw: number | null }>;
 
 /**
- * Rendered width of a stacked card: ~450 CSS px at the desktop breakpoint,
- * half-width on mobile (the pair sits two-up). We ask the storage transform for
- * this size instead of the 500-1000 px original.
- */
-const STACKED_THUMB_W = 600;
-
-/** The flagship card is up to 3/5 of a max-w-6xl grid — ask for a larger box. */
-const FLAGSHIP_THUMB_W = 1000;
-
-/** Per-slug catalogue row behind a card: its photo and its raw list price. */
-export type LuxuryCards = Record<string, { thumb: string | null; price: number | null }>;
-
-/**
- * The query behind the cards. Exported so a route loader can run it on the
- * server and hand the result back as `initialCards` — same function, same
- * shape, so the SSR HTML and the client refetch can never disagree.
+ * Depth + floor for the six shelves, in two round-trips.
  *
- * `price` is the RAW catalogue price straight from the row. It is deliberately
- * NOT discounted here: getEffectivePrice() is applied at the render site, so
- * this component runs the identical function the PDP and the cart run and the
- * three can never drift.
+ * TWO and not one, because the two figures need DIFFERENT embedded filters and
+ * PostgREST applies an embedded filter to the aggregate itself: the count must
+ * include every active product, while the floor must exclude the price<=0
+ * "call for price" rows — a ₪0 floor would be a lie, since those items have no
+ * price at all until the gold rate is quoted. (A single `products(price.min())`
+ * would collapse it to one request, but aggregate functions are disabled on
+ * this project's PostgREST — verified 2026-08-09, PGRST123.)
+ *
+ * The floor query is an ORDERED, LIMIT-1 embed rather than a full column pull:
+ * these six shelves hold 2,772 products between them and PostgREST caps an
+ * unbounded select at 1,000 rows, so reading them all would silently return a
+ * WRONG floor for whichever shelf fell past the cap.
+ *
+ * Exported so the route loader can run it on the server and hand the result
+ * back as `initialStats` — same function, same shape, so the SSR HTML and any
+ * client refetch cannot disagree.
  */
-export async function fetchLuxuryShowcaseCards(): Promise<LuxuryCards> {
-  const { data, error } = await supabase
-    .from("products")
-    .select("slug, thumbnail_url, price")
-    .in("slug", DB_SLUGS);
-  if (error) throw error;
-  return Object.fromEntries(
-    (data ?? []).map((p) => [
-      p.slug,
-      { thumb: p.thumbnail_url, price: p.price === null ? null : Number(p.price) },
-    ]),
+export async function fetchShelfStats(): Promise<ShelfStats> {
+  const [counts, floors] = await Promise.all([
+    supabase
+      .from("categories")
+      .select(`slug, ${CATEGORY_COUNT_EMBED}`)
+      .in("slug", SHELF_SLUGS)
+      .eq("products.is_active", true),
+    supabase
+      .from("categories")
+      .select("slug, products(price)")
+      .in("slug", SHELF_SLUGS)
+      .eq("products.is_active", true)
+      .gt("products.price", 0)
+      .order("price", { referencedTable: "products", ascending: true })
+      .limit(1, { referencedTable: "products" }),
+  ]);
+  if (counts.error) throw counts.error;
+  if (floors.error) throw floors.error;
+
+  const floorBySlug = new Map(
+    (floors.data ?? []).map((row: any) => {
+      const raw = Number(row.products?.[0]?.price);
+      return [row.slug as string, Number.isFinite(raw) && raw > 0 ? raw : null];
+    }),
   );
+
+  const out: ShelfStats = {};
+  for (const row of (counts.data ?? []) as any[]) {
+    out[row.slug] = {
+      count: Number(row.products?.[0]?.count ?? 0),
+      floorRaw: floorBySlug.get(row.slug) ?? null,
+    };
+  }
+  return out;
 }
 
-/** Live price for a card, or null when the row hasn't loaded / has no price.
- *  A missing price renders NOTHING — a placeholder number would be a lie. */
-function cardPrice(cards: LuxuryCards | undefined, slug: string): string | null {
-  const raw = cards?.[slug]?.price;
-  if (raw === null || raw === undefined || !Number.isFinite(raw) || raw <= 0) return null;
-  return formatILS(getEffectivePrice(raw));
-}
-
-export function LuxuryShowcase({ initialCards }: { initialCards?: LuxuryCards }) {
-  // Same query pattern as the featured-products carousel — pull each product's
-  // own thumbnail and price so the card always matches the real item.
-  const { data: cards } = useQuery({
-    queryKey: ["home-luxury-showcase-cards", DB_SLUGS],
+export function ShelfDirectory({ initialStats }: { initialStats?: ShelfStats }) {
+  const { data: stats } = useQuery({
+    queryKey: ["home-shelf-stats", SHELF_SLUGS],
     staleTime: 5 * 60_000,
-    // Seeded from the SSR loader when the caller has it, so the photos and
-    // prices are in the initial HTML instead of appearing only after hydration.
-    initialData: initialCards,
-    queryFn: fetchLuxuryShowcaseCards,
+    // Seeded from the SSR loader when the caller has it, so the counts and
+    // floors are in the initial HTML rather than appearing after hydration.
+    initialData: initialStats,
+    queryFn: fetchShelfStats,
   });
 
-  // Flagship photo — right-sized transform of the catalogue original, same
-  // rewrite-detection as the stacked cards below.
-  const flagThumb = cards?.[FLAGSHIP_ITEM.slug]?.thumb ?? null;
-  const flagSrc = thumbUrl(flagThumb, FLAGSHIP_THUMB_W);
-  const flagSrcSet =
-    flagSrc && flagSrc !== flagThumb
-      ? [600, FLAGSHIP_THUMB_W, 1400]
-          .map((w) => `${thumbUrl(flagThumb, w)} ${w}w`)
-          .join(", ")
-      : undefined;
-
   return (
-    // The cream fill + border-y band is gone: the ground is the page's own white
-    // mesh, structured by two 1px gold rules (same 2px of chrome as the old
-    // border-y, so the section's height is unchanged).
+    // Same two gold rules the luxury band used, so the section's chrome — and
+    // therefore the page's rhythm at this point — is unchanged.
     <section>
       <span aria-hidden="true" className="gold-rule block w-full" />
       <div className="container mx-auto px-4 py-14 md:py-20">
         <SectionHeader
-          eyebrow="אוסף היוקרה"
-          title="פריטי יוקרה נבחרים"
-          sub="הפריטים המוקפדים והמרשימים ביותר בקטלוג שלנו"
+          eyebrow="לפי עומק"
+          title="המדפים הגדולים בחנות"
+          sub="שש הקטגוריות שיש בהן הכי הרבה לבחור מתוכו. המספר הוא מספר הפריטים במדף, והמחיר הוא הפריט הזול שיש בו."
         />
 
-        <div className="max-w-6xl mx-auto grid md:grid-cols-5 gap-6">
-          {/* Large flagship card — a signature wall piece, photo from the DB */}
-          <Link
-            to="/product/$slug"
-            params={{ slug: FLAGSHIP_ITEM.slug }}
-            className="group glass-lift relative block md:col-span-3 aspect-[4/3] overflow-hidden rounded-lg border border-gold/40 bg-muted"
-          >
-            {flagSrc && (
-              <img
-                src={flagSrc}
-                srcSet={flagSrcSet}
-                // Three of five columns inside a max-w-6xl grid on desktop,
-                // full-bleed below it.
-                sizes={flagSrcSet ? "(min-width: 768px) 58vw, 100vw" : undefined}
-                alt={FLAGSHIP_ITEM.name}
-                loading="lazy"
-                decoding="async"
-                // Catalogue thumbnails are square; the card's aspect classes
-                // drive the layout regardless.
-                width={FLAGSHIP_THUMB_W}
-                height={FLAGSHIP_THUMB_W}
-                className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 ease-out motion-safe:[@media(hover:hover)_and_(pointer:fine)]:group-hover:scale-[1.04]"
-              />
-            )}
-            {/* Decorative frost only — the caption no longer depends on a scrim
-                for contrast, because it rides on its own glass-strong plate. */}
-            <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-white/45 via-transparent to-transparent" />
-            {/* glass-strong is mandatory here: this plate sits on a photograph, so
-                the backing is unknown. At 94% white the worst case is #F0F0F0 —
-                foreground ink 15.8:1, --accent 5.10:1. A cream name or a
-                gold-bright price on this plate would be 1.1:1 / 1.8:1. */}
-            <div className="glass-strong absolute inset-x-4 bottom-4 p-5 [--glass-radius:1rem]">
-              <span className="block font-display text-2xl text-foreground">{FLAGSHIP_ITEM.name}</span>
-              {/* Live price, or nothing at all. Never a placeholder number. */}
-              {cardPrice(cards, FLAGSHIP_ITEM.slug) && (
-                <span className="mt-1 block text-accent text-xl font-bold">
-                  {cardPrice(cards, FLAGSHIP_ITEM.slug)}
-                </span>
-              )}
-            </div>
-          </Link>
-
-          {/* Two stacked cards — a pair, two-up on mobile, stacked on desktop */}
-          <div className="md:col-span-2 grid grid-cols-2 md:grid-cols-1 gap-6 md:grid-rows-2">
-            {STACKED_ITEMS.map((s) => {
-              const localImg = s.img;
-              const thumb = localImg ? null : cards?.[s.slug]?.thumb ?? null;
-              const price = cardPrice(cards, s.slug);
-              // Right-sized transform of the catalog original. thumbUrl returns
-              // the input untouched for anything that is not a Supabase public
-              // object URL, so only offer a srcset when it actually rewrote it.
-              const src = localImg ?? thumbUrl(thumb, STACKED_THUMB_W);
-              const srcSet =
-                !localImg && src && src !== thumb
-                  ? [400, STACKED_THUMB_W, 900]
-                      .map((w) => `${thumbUrl(thumb, w)} ${w}w`)
-                      .join(", ")
-                  : undefined;
-              return (
-                <Link
-                  key={s.slug}
-                  to="/product/$slug"
-                  params={{ slug: s.slug }}
-                  className="group glass-lift relative block aspect-[4/3] md:aspect-auto overflow-hidden rounded-lg border border-gold/40 bg-muted"
-                >
-                  {src && (
-                    <img
-                      src={src}
-                      srcSet={srcSet}
-                      // Half-width on mobile (the pair is two-up), two of five
-                      // columns inside the max-w-6xl grid on desktop.
-                      sizes={srcSet ? "(min-width: 768px) 40vw, 50vw" : undefined}
-                      alt={s.name}
-                      loading="lazy"
-                      decoding="async"
-                      // Local images carry their real dimensions; DB thumbnails
-                      // are square. The card's aspect classes drive the layout.
-                      width={localImg ? s.imgW ?? STACKED_THUMB_W : STACKED_THUMB_W}
-                      height={localImg ? s.imgH ?? STACKED_THUMB_W : STACKED_THUMB_W}
-                      className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 ease-out motion-safe:[@media(hover:hover)_and_(pointer:fine)]:group-hover:scale-[1.04]"
-                    />
-                  )}
-                  {/* Decorative frost only — see the flagship card above. */}
-                  <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-white/45 via-transparent to-transparent" />
-                  <div className="glass-strong absolute inset-x-3 bottom-3 p-4 [--glass-radius:1rem]">
-                    <span className="block font-display text-lg text-foreground leading-snug">{s.name}</span>
-                    {price && <span className="mt-1 block text-accent text-lg font-bold">{price}</span>}
+        {/* Two-up on a phone, three-up from md. Text doors, not tiles: nothing
+            here loads an image, so the section costs no bytes and cannot show a
+            centre-cropped 500x500 master as if it were photography. */}
+        <div className="mx-auto grid max-w-5xl grid-cols-2 gap-3 md:grid-cols-3 md:gap-5">
+          {SHELVES.map((s) => {
+            const stat = stats?.[s.slug];
+            const count = stat?.count ?? 0;
+            // A missing row renders NO number rather than a placeholder — the
+            // same rule the luxury cards' cardPrice() enforced for prices.
+            const floor =
+              stat?.floorRaw != null ? formatILS(getEffectivePrice(stat.floorRaw)) : null;
+            return (
+              <Link
+                key={s.slug}
+                to="/category/$slug"
+                params={{ slug: s.slug }}
+                className="group block h-full"
+              >
+                <div className="glass-soft glass-lift flex h-full flex-col justify-between gap-4 p-4 md:p-6 [--glass-radius:1rem]">
+                  <h3 className="font-display text-lg leading-tight text-foreground md:text-xl">
+                    {s.label}
+                  </h3>
+                  <div className="text-sm text-muted-foreground">
+                    {count > 0 && (
+                      <span className="block tabular-nums">{`${count} פריטים`}</span>
+                    )}
+                    {/* ASCII hyphen U+002D, never U+2013. The hyphen sits
+                        between the Hebrew "מ" and the RLM that formatILS's
+                        Intl output opens with, so it is a neutral between two
+                        strong-R runs: U+002D is class ES, W6 hands it to ON and
+                        N1 then resolves it to R, which is why "החל מ-4 ₪" paints
+                        in reading order. U+2013 is class ON from the start and
+                        offers N1 nothing to absorb it — the bug this site has
+                        shipped three times.
+                        Built as ONE template string rather than two JSX
+                        children for the reason recorded at DELIVERY_WINDOW in
+                        product.$slug.tsx: one text node leaves no question about
+                        what React's SSR separators do to a bidi run. */}
+                    {floor && (
+                      <span className="mt-0.5 block font-semibold text-accent">
+                        {`החל מ-${floor}`}
+                      </span>
+                    )}
                   </div>
-                </Link>
-              );
-            })}
-          </div>
+                </div>
+              </Link>
+            );
+          })}
         </div>
 
-        <div className="text-center mt-8 md:mt-10">
+        <div className="mt-8 text-center md:mt-10">
           <Link
-            to="/shop"
-            className="text-sm md:text-base text-accent underline-offset-4 transition-colors duration-200 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-strong [@media(hover:hover)_and_(pointer:fine)]:hover:underline"
+            to="/categories"
+            className="text-sm text-accent underline-offset-4 transition-colors duration-200 ease-out md:text-base [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-strong [@media(hover:hover)_and_(pointer:fine)]:hover:underline"
           >
-            לכל פריטי היוקרה בחנות ←
+            לכל הקטגוריות ←
           </Link>
         </div>
       </div>

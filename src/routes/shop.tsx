@@ -12,12 +12,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { ProductGridSkeleton } from "@/components/Skeletons";
 import { QueryErrorState } from "@/components/QueryErrorState";
 import { OCCASION_COLLECTIONS } from "@/lib/collections";
 import { BUSINESS } from "@/lib/business";
+import { SITE_DISCOUNT } from "@/lib/pricing";
+import {
+  derivePriceRungs,
+  parsePriceRung,
+  SHIPPING_NOTE,
+  type PriceRung,
+} from "@/lib/facets";
+import { cn } from "@/lib/utils";
 
 // "recommended" is the default. It used to be "newest", but 4,184 of the 4,641
 // active products were bulk-imported inside a single minute, so created_at
@@ -32,6 +39,55 @@ function isShopSort(v: unknown): v is ShopSort {
   return v === "recommended" || v === "newest" || v === "price-asc"
     || v === "price-desc" || v === "name";
 }
+
+const SHOP_SORT_LABELS: Array<{ value: ShopSort; label: string }> = [
+  { value: "recommended", label: "מומלץ" },
+  { value: "newest", label: "תאריך: מהחדש לישן" },
+  { value: "price-asc", label: "מחיר: מהנמוך לגבוה" },
+  { value: "price-desc", label: "מחיר: מהגבוה לנמוך" },
+  { value: "name", label: "א-ב" },
+];
+
+/**
+ * The orders that survive a price rung, and why the others cannot.
+ *
+ * A rung is served by asking list_products_collapsed for the WHOLE collapsed
+ * listing and letting PostgREST filter and window it (see fetchShopPage). A
+ * subquery's ORDER BY is not guaranteed to survive the outer query, so the
+ * order has to be restated as a PostgREST .order() — which can only name a
+ * column the function actually RETURNS. `price` and `name` are returned;
+ * `created_at` and the recommended sort's in-stock / has-photo / has-copy keys
+ * are not, so "newest" and "מומלץ" are inexpressible inside a rung.
+ *
+ * Rather than let the sort control claim an order the page is not in, picking a
+ * rung switches an inexpressible sort to price-asc AND WRITES THAT INTO THE
+ * URL, and the select then offers only these three. The control never says one
+ * thing while the grid does another.
+ */
+const RANGE_SORTS: ShopSort[] = ["price-asc", "price-desc", "name"];
+
+/**
+ * How many collapsed rows the RPC is asked to produce when a price rung is
+ * active, or when the ladder is being derived. The collapsed catalogue is 3,540
+ * rows; the headroom is for catalogue growth, and the function already pays for
+ * a full scan on every call because its total_count is a `count(*) OVER ()`.
+ * Only the 24 windowed rows (or the bare price column) cross the network.
+ */
+const RPC_SCAN_LIMIT = 8000;
+
+/**
+ * A rung bound on the EFFECTIVE (paid) price, translated into a bound on the
+ * raw `products.price` column the DB can filter.
+ *
+ * getEffectivePrice is Math.round(price * (1 - SITE_DISCOUNT)) — monotonic, so
+ * the translation is exact rather than approximate, and JS rounds .5 upward:
+ *   round(kp) >  lo  ⇔  kp >= lo + 0.5  ⇔  p >= (lo + 0.5) / k
+ *   round(kp) <= hi  ⇔  kp <  hi + 0.5  ⇔  p <  (hi + 0.5) / k
+ * which is why the low bound is .gte and the high bound is .lt below. Getting
+ * this wrong by one comparison would put the cards on a rung's boundary in the
+ * wrong bucket, and the four counts would stop summing to the catalogue.
+ */
+const rawPriceBound = (effective: number) => (effective + 0.5) / (1 - SITE_DISCOUNT);
 
 // Fetch a page at a time rather than the whole catalog. This used to pull a
 // flat .limit(500) and slice it client-side, which capped /shop at 500 of the
@@ -158,8 +214,9 @@ async function fetchShopPage(opts: {
   rawQ: string;
   sort: ShopSort;
   offset: number;
+  rung?: { lo: number; hi: number } | null;
 }): Promise<ShopPageData> {
-  const { rawQ, sort, offset } = opts;
+  const { rawQ, sort, offset, rung = null } = opts;
   // Spelling normalisation runs FIRST, so both search paths below (the RPC and
   // the ILIKE fallback) look for the same words — see normalizeSearchTerm.
   const normalizedQ = normalizeSearchTerm(rawQ);
@@ -190,7 +247,53 @@ async function fetchShopPage(opts: {
   // instead of 43 identical-looking ones. Collapsing must happen in the DB —
   // doing it on a fetched page would turn 24 tiles into 3 and break the count
   // and "load more".
-  {
+  if (rung) {
+    // THE PRICE RUNG, SERVED WITHOUT LOSING THE COLLAPSE.
+    //
+    // The RPC takes no price argument and cannot be given one from here (the
+    // owner applies migrations by hand). But list_products_collapsed is
+    // LANGUAGE sql STABLE, so PostgREST will filter, shape, count and window
+    // its RESULT the same way it does a table: ask the function for the whole
+    // collapsed listing, then let PostgREST apply the price range and hand back
+    // one 24-row page. The function already scans everything to compute its
+    // count(*) OVER (), and only the page crosses the wire.
+    //
+    // The alternative — filtering on the raw `products` table — was rejected:
+    // that path does not collapse, so a filtered page could be 24 tiles of the
+    // same 43-SKU נטלה. It survives below as the failure fallback only.
+    let q = supabase
+      .rpc(
+        "list_products_collapsed",
+        {
+          p_term: normalizedQ.slice(0, 100),
+          p_limit: RPC_SCAN_LIMIT,
+          p_offset: 0,
+          p_sort: rpcSort,
+        },
+        { count: "exact" },
+      )
+      .select("id, slug, name, price, sale_price, thumbnail_url, stock_status, model_count");
+    if (Number.isFinite(rung.lo)) q = q.gte("price", rawPriceBound(rung.lo));
+    if (Number.isFinite(rung.hi)) q = q.lt("price", rawPriceBound(rung.hi));
+    // Restated ordering: see RANGE_SORTS for why only these are offered while a
+    // rung is on. `id` is the deterministic tiebreak — thousands of rows share
+    // a price, and .range() paging needs a total order or pages overlap.
+    q =
+      sort === "name"
+        ? q.order("name", { ascending: true })
+        : q.order("price", { ascending: sort !== "price-desc" });
+    const { data, error, count } = await q.order("id", { ascending: true }).range(offset, offset + PAGE - 1);
+    if (!error) {
+      return {
+        rows: (data ?? []) as unknown as ProductCardData[],
+        // PostgREST's exact count is the count of the FILTERED set, which is
+        // what the header and the pager must report while a rung is on.
+        total: count ?? 0,
+        next: offset + PAGE,
+      };
+    }
+    console.warn("[shop] price-range RPC read failed, using fallback:", error);
+  } else {
     const { data: rpcRows, error: rpcErr } = await supabase.rpc("list_products_collapsed", {
       p_term: normalizedQ.slice(0, 100),
       p_limit: PAGE,
@@ -215,6 +318,14 @@ async function fetchShopPage(opts: {
     .from("products")
     .select("id, slug, name, price, sale_price, thumbnail_url, stock_status", { count: "exact" })
     .eq("is_active", true);
+
+  // The rung applies on the fallback path too — a degraded listing may lose the
+  // collapse, but it must never lose the filter the shopper actually asked for
+  // and go on showing the chip as active over an unfiltered grid.
+  if (rung) {
+    if (Number.isFinite(rung.lo)) query = query.gte("price", rawPriceBound(rung.lo));
+    if (Number.isFinite(rung.hi)) query = query.lt("price", rawPriceBound(rung.hi));
+  }
 
   // Server-side (DB) search across the whole catalog — name, both
   // description fields and SKU — not just the names already loaded.
@@ -258,35 +369,97 @@ async function fetchShopPage(opts: {
   return { rows: (data ?? []) as ProductCardData[], total: count ?? 0, next: offset + PAGE };
 }
 
+/**
+ * The four price rungs /shop offers, cut at the COLLAPSED catalogue's own
+ * quartiles — and at the quartiles of the current search when there is one, so
+ * the ladder describes the result set the shopper is looking at.
+ *
+ * The prices come from the same function that builds the listing, asked for the
+ * bare `price` column of every collapsed row. That is the only way to get the
+ * distribution the page is actually paged over: quartiles of the raw 4,648
+ * products are quartiles of a different set from the 3,540 rows /shop renders,
+ * and a chip whose count disagrees with the grid is the defect this whole
+ * change exists to remove.
+ *
+ * COST, RECORDED: one extra RPC per /shop load, returning ~3,540 numbers
+ * (~6KB gzipped) and no other column. It is the price of a ladder whose four
+ * labels and four counts are true.
+ *
+ * FAILS CLOSED. On any error this returns [] and NO ladder is rendered.
+ * derivePriceRungs does the same when a distribution collapses into fewer than
+ * two live rungs. A price control that cannot be trusted to filter is worse
+ * than no price control, which is exactly what the three global buckets it
+ * replaces were.
+ */
+async function fetchShopLadder(rawQ: string): Promise<PriceRung[]> {
+  const normalizedQ = normalizeSearchTerm(rawQ);
+  const { data, error } = await supabase
+    .rpc("list_products_collapsed", {
+      p_term: normalizedQ.slice(0, 100),
+      p_limit: RPC_SCAN_LIMIT,
+      p_offset: 0,
+      p_sort: "price-asc",
+    })
+    .select("price");
+  if (error) {
+    console.warn("[shop] price ladder unavailable, hiding the control:", error);
+    return [];
+  }
+  return derivePriceRungs((data ?? []).map((r: any) => Number(r.price)).filter(Number.isFinite));
+}
+
 export const Route = createFileRoute("/shop")({
   component: ShopPage,
-  validateSearch: (s: Record<string, unknown>): { q?: string; sort?: ShopSort; page?: number; instock?: boolean } => ({
+  // ?instock= IS GONE. It drove a "במלאי בלבד" checkbox that filtered only the
+  // pages already loaded (this listing is server-paged and the collapse RPC
+  // takes no stock argument) — and it could not have changed a result set even
+  // if it had reached the DB: 0 of the 4,648 active products carry
+  // stock_status 'outofstock' and track_stock is false. Dropping it from the
+  // schema means a stale "?instock=true" link simply loses the parameter.
+  validateSearch: (s: Record<string, unknown>): { q?: string; sort?: ShopSort; price?: string; page?: number } => ({
     q: typeof s.q === "string" ? s.q : undefined,
     // Unknown values narrow to undefined and render as the default ("recommended").
     sort: isShopSort(s.sort) ? s.sort : undefined,
+    // "<lo>-<hi>", "*" for an open end. Read as a STRING and parsed by
+    // parsePriceRung, which returns null for anything it cannot read — so a
+    // hand-edited ?price= narrows to no filter instead of emptying the grid.
+    price: typeof s.price === "string" ? s.price : undefined,
     page: parsePage(s.page),
-    // Client-side view filter only (see displayProducts) — deliberately kept OUT
-    // of loaderDeps, so toggling it never re-runs the SSR loader or refetches.
-    instock: s.instock === true || s.instock === "true" ? true : undefined,
   }),
   loaderDeps: ({ search }) => ({
     q: search.q ?? "",
     sort: search.sort ?? ("recommended" as ShopSort),
+    // Unlike sort and q, this one HAS to be a loader dep: the rung is applied
+    // in the database, so a different rung is a different server page.
+    price: search.price ?? "",
     page: search.page ?? 1,
   }),
   // Server-render the first (or requested) page. Without this the route emitted
   // nothing but a skeleton grid, so the non-JS crawlers robots.txt explicitly
   // welcomes saw zero product links on a page advertised at sitemap priority 0.9.
-  loader: async ({ deps, location }) => {
+  // `location` is no longer read here: the only search value that was not a
+  // loader dep was ?instock=, and it is gone. Every facet /shop still has is a
+  // dep, so `deps` is the whole story.
+  loader: async ({ deps }) => {
     const offset = (deps.page - 1) * PAGE;
-    // A search term or a non-default sort makes the URL a facet of /shop, not a
-    // page of it: those views stay canonical to the bare /shop (unchanged from
-    // before) and get no rel=prev/next, which would otherwise point at the
-    // unfiltered page 2.
-    const filtered = deps.q.trim().length > 0 || deps.sort !== "recommended";
+    const rung = parsePriceRung(deps.price);
+    // A search term, a non-default sort or a price rung makes the URL a facet
+    // of /shop, not a page of it: those views stay canonical to the bare /shop
+    // (unchanged from before) and get no rel=prev/next, which would otherwise
+    // point at the unfiltered page 2.
+    const filtered = deps.q.trim().length > 0 || deps.sort !== "recommended" || rung !== null;
+    // The ladder is a separate, non-fatal read: it must never be able to take
+    // the listing down, so it resolves to [] and the control simply is not
+    // rendered. Fetched alongside the page rather than after it.
     let first: ShopPageData;
+    let ladder: PriceRung[] = [];
     try {
-      first = await fetchShopPage({ rawQ: deps.q, sort: deps.sort, offset });
+      const [page, rungs] = await Promise.all([
+        fetchShopPage({ rawQ: deps.q, sort: deps.sort, offset, rung }),
+        fetchShopLadder(deps.q).catch(() => [] as PriceRung[]),
+      ]);
+      first = page;
+      ladder = rungs;
     } catch (err) {
       // Degrade to the client-side query + its existing retry UI rather than
       // blowing the whole route into the error boundary on a transient DB blip.
@@ -294,7 +467,14 @@ export const Route = createFileRoute("/shop")({
       // out-of-range branch that follows sits outside this catch — a thrown
       // redirect must never be swallowed and turned into "first: null".
       console.warn("[shop] loader failed, falling back to client fetch:", err);
-      return { page: deps.page, offset, filtered, q: deps.q, first: null as ShopPageData | null };
+      return {
+        page: deps.page,
+        offset,
+        filtered,
+        q: deps.q,
+        first: null as ShopPageData | null,
+        ladder: [] as PriceRung[],
+      };
     }
 
     // Past the end of the listing. The collapsed catalog is 3,540 rows, so page 148
@@ -318,7 +498,10 @@ export const Route = createFileRoute("/shop")({
       // The extra round trip only ever runs on a page that had nothing to show.
       let lastPage = 1;
       try {
-        const probe = await fetchShopPage({ rawQ: deps.q, sort: deps.sort, offset: 0 });
+        // Probed with the SAME rung: the end of the listing moves when a price
+        // range is on, and probing the unfiltered listing would send a shopper
+        // past the end of their own filtered one.
+        const probe = await fetchShopPage({ rawQ: deps.q, sort: deps.sort, offset: 0, rung });
         lastPage = Math.max(1, Math.ceil(probe.total / PAGE));
       } catch (err) {
         console.warn("[shop] out-of-range probe failed, redirecting to page 1:", err);
@@ -332,11 +515,10 @@ export const Route = createFileRoute("/shop")({
         search: {
           q: deps.q.trim() || undefined,
           sort: deps.sort === "recommended" ? undefined : deps.sort,
+          // Carry the rung through, or the redirect would silently clear the
+          // shopper's price range on the way back to a real page.
+          price: deps.price || undefined,
           page: target > 1 ? target : undefined,
-          // instock is a client-side view filter and is deliberately kept out of
-          // loaderDeps, so read it off the location — otherwise the redirect would
-          // silently clear the shopper's "במלאי בלבד" checkbox.
-          instock: (location.search as { instock?: boolean }).instock ? true : undefined,
         },
         statusCode: 302,
       });
@@ -349,6 +531,7 @@ export const Route = createFileRoute("/shop")({
       // Echoed for head() so the doc title can reflect an active search term.
       q: deps.q,
       first,
+      ladder,
     };
   },
   head: ({ loaderData }) => {
@@ -443,17 +626,24 @@ export const Route = createFileRoute("/shop")({
 });
 
 function ShopPage() {
-  const { q: qFromUrl, sort: sortFromUrl, page: pageFromUrl, instock: instockFromUrl } = Route.useSearch();
+  const { q: qFromUrl, sort: sortFromUrl, price: priceFromUrl, page: pageFromUrl } = Route.useSearch();
   const loaderData = Route.useLoaderData();
   const navigate = Route.useNavigate();
   const [q, setQ] = useState(qFromUrl || "");
   const [debouncedQ, setDebouncedQ] = useState(qFromUrl || "");
-  // "In stock only" is a client-side view filter over the loaded pages, seeded
-  // from the URL so it survives reload/share (mirrors /category's instock).
-  const [inStockOnly, setInStockOnly] = useState(instockFromUrl ?? false);
   // Sort is read straight off the URL (not mirrored into state) so the route
-  // loader, the head tags and the query key can never disagree about it.
+  // loader, the head tags and the query key can never disagree about it. The
+  // price rung is read the same way, for the same reason — and because it is
+  // applied in the DB, so a mirrored copy would be a second source of truth for
+  // something only the server can answer.
   const sort: ShopSort = sortFromUrl ?? "recommended";
+  const rung = parsePriceRung(priceFromUrl);
+  const ladder = (loaderData?.ladder ?? []) as PriceRung[];
+  // While a rung is on, only the orders PostgREST can restate over the
+  // function's result are offered — see RANGE_SORTS.
+  const sortOptions = rung
+    ? SHOP_SORT_LABELS.filter((o) => RANGE_SORTS.includes(o.value))
+    : SHOP_SORT_LABELS;
 
   // Keep the box and the effective term in step with the URL, including
   // back/forward and the pagination links below.
@@ -461,11 +651,6 @@ function ShopPage() {
     setQ(qFromUrl || "");
     setDebouncedQ(qFromUrl || "");
   }, [qFromUrl]);
-
-  // Keep the checkbox in step with the URL on back/forward.
-  useEffect(() => {
-    setInStockOnly(instockFromUrl ?? false);
-  }, [instockFromUrl]);
 
   const changeSort = (v: ShopSort) => {
     navigate({
@@ -477,10 +662,22 @@ function ShopPage() {
     });
   };
 
-  const changeInStockOnly = (v: boolean) => {
-    setInStockOnly(v);
+  // Single-select: tapping the active rung clears it back to the whole
+  // catalogue. Turning one ON also writes a compatible sort into the URL when
+  // the current one cannot be honoured inside a range, so the select and the
+  // grid never disagree about what order the page is in.
+  const toggleRung = (id: string) => {
+    const clearing = priceFromUrl === id;
     navigate({
-      search: (prev) => ({ ...prev, instock: v ? true : undefined }),
+      search: (prev) => ({
+        ...prev,
+        price: clearing ? undefined : id,
+        sort:
+          clearing || RANGE_SORTS.includes(sort)
+            ? prev.sort
+            : ("price-asc" as ShopSort),
+        page: undefined,
+      }),
       replace: true,
       resetScroll: false,
     });
@@ -535,10 +732,12 @@ const activeQ = debouncedQ.trim();
     data, isLoading, isFetching, isError, refetch,
     fetchNextPage, hasNextPage, isFetchingNextPage,
   } = useInfiniteQuery({
-    queryKey: ["shop-products", term, sort, pageStart],
+    // The rung is part of the key: it is applied in the database, so two rungs
+    // are two different result sets and must not share a cache entry.
+    queryKey: ["shop-products", term, sort, pageStart, priceFromUrl ?? ""],
     placeholderData: keepPreviousData,
     initialPageParam: pageStart,
-    queryFn: ({ pageParam }) => fetchShopPage({ rawQ: debouncedQ, sort, offset: pageParam }),
+    queryFn: ({ pageParam }) => fetchShopPage({ rawQ: debouncedQ, sort, offset: pageParam, rung }),
     getNextPageParam: (last) => (last.next < last.total ? last.next : undefined),
     // Hand the SSR loader's page to react-query so the server HTML and the
     // hydrated app render the same 24 cards with no extra round-trip. Returns
@@ -551,14 +750,6 @@ const activeQ = debouncedQ.trim();
   });
 
   const products = data?.pages.flatMap((p) => p.rows) ?? [];
-  // Client-side "in stock only" view filter. /shop is server-paged — the
-  // collapse RPC hands back 24 rows at a time with its own total and takes no
-  // stock argument — so this can only hide out-of-stock tiles from the pages
-  // already loaded. The catalog total and the load-more math below stay keyed
-  // off the unfiltered server result on purpose.
-  const displayProducts = inStockOnly
-    ? products.filter((p) => p.stock_status !== "outofstock")
-    : products;
   // Total across the whole result set, not just what has been loaded.
   const total = data?.pages[0]?.total ?? 0;
   // Echo the user's raw input in copy — the sanitized term may contain
@@ -569,7 +760,7 @@ const activeQ = debouncedQ.trim();
   // including a zero-result term (the highest-signal input: unmet demand or a
   // naming gap). activeQ already tracks the debounced box, so this is debounced;
   // the ref keys on term::total so it fires once per settled result set and not
-  // on unrelated re-renders (e.g. the in-stock view toggle).
+  // on unrelated re-renders.
   const lastTrackedSearchRef = useRef<string | null>(null);
   useEffect(() => {
     if (!activeQ) {
@@ -594,11 +785,13 @@ const activeQ = debouncedQ.trim();
   // "load more" twice does not get a link back to products they can see.
   const nextPage = Math.min(MAX_PAGE, Math.floor((pageStart + products.length) / PAGE) + 1);
   const hasMorePages = pageStart + products.length < total;
-  const pageSearch = (n: number): { q?: string; sort?: ShopSort; page?: number; instock?: boolean } => ({
+  const pageSearch = (n: number): { q?: string; sort?: ShopSort; price?: string; page?: number } => ({
     q: activeQ || undefined,
     sort: sort === "recommended" ? undefined : sort,
+    // Page links carry the rung, so paging stays inside the range the shopper
+    // chose instead of dropping them back into the whole catalogue.
+    price: rung ? (priceFromUrl as string) : undefined,
     page: n <= 1 ? undefined : n,
-    instock: inStockOnly ? true : undefined,
   });
   // Glass-era pagination chip. No gold anywhere on /shop by design — this page
   // scores Lighthouse Accessibility 100 precisely because it contains none, and
@@ -606,8 +799,10 @@ const activeQ = debouncedQ.trim();
   // chip is foreground on a 70% white pane (~17:1), the hover swap is
   // background-on-foreground (16.7:1). The hairline is an inset ring, so it adds
   // no layout size and cannot shift the row the way the old 1px border did.
+  // min-h-11 rather than py-2.5: the old padding put these at ~38px, under the
+  // 44px touch floor every control on this page now holds.
   const pageLinkClass =
-    "press rounded-full bg-card/70 px-6 py-2.5 text-sm font-medium text-foreground hairline transition-[background-color,color,transform] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:text-background";
+    "press inline-flex min-h-11 items-center rounded-full bg-card/70 px-6 text-sm font-medium text-foreground hairline transition-[background-color,color,transform] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:text-background";
 
   return (
     <div className="container mx-auto px-4 py-10">
@@ -630,65 +825,129 @@ const activeQ = debouncedQ.trim();
             ? "המוצרים התואמים את החיפוש שלכם."
             : "כל תשמישי הקדושה והיודאיקה של אור זרוע לצדיק במקום אחד."}
         </p>
+        {/* The one basket fact this shop has. SHIPPING_FLAT is 37 and
+            FREE_SHIPPING_THRESHOLD is Infinity, so there is nothing to progress
+            toward and nothing to count down — only the useful consequence of a
+            flat per-order fee. ASCII hyphen; see SHIPPING_NOTE. */}
+        <p className="mt-2 text-xs md:text-sm text-muted-foreground">{SHIPPING_NOTE}</p>
       </div>
 
       {/* Toolbar as a single glass pane over the light ground. .glass owns
           background-color, border-radius and box-shadow (see the override
           contract in styles.css) — retune it through its variables, not through
-          background or radius utilities, which it outranks. Controls mirror
-          /category: result count, then search + 'במלאי בלבד' + sort. */}
-      <div className="glass mb-8 flex flex-wrap items-center justify-between gap-4 p-5 md:p-6 [--glass-radius:1.25rem]">
-        <p className="text-sm text-muted-foreground" role="status" aria-live="polite">
-          {term ? `${total} תוצאות עבור "${rawTerm}"` : `${total} מוצרים`}
-        </p>
-        <div className="flex flex-wrap items-center gap-4">
-          {/* A real <form>: without one the input had no ancestor form, so pressing
-              Enter did nothing at all. Submitting commits the term immediately
-              instead of waiting out the 300ms debounce. */}
-          <form
-            role="search"
-            onSubmit={(e) => {
-              e.preventDefault();
-              setDebouncedQ(q);
-            }}
-          >
-            <Input
-              placeholder="חיפוש מוצר..."
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              aria-label="חיפוש מוצר בקטלוג"
-              className="max-w-xs"
-            />
-          </form>
-          {/* Default (ink --primary) checkbox — no accent override, so /shop
-              stays gold-free. */}
-          <label className="flex items-center gap-2 text-sm cursor-pointer">
-            <Checkbox
-              checked={inStockOnly}
-              onCheckedChange={(v) => changeInStockOnly(!!v)}
-              aria-label="הצגת מוצרים במלאי בלבד"
-            />
-            במלאי בלבד
-          </label>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">מיון:</span>
-            <Select value={sort} onValueChange={(v) => changeSort(v as ShopSort)}>
-              {/* Radix renders a <button role="combobox"> whose only content is
-                  the current value, which axe reports as a button with no
-                  accessible name. */}
-              <SelectTrigger className="w-[200px]" aria-label="מיון תוצאות">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="recommended">מומלץ</SelectItem>
-                <SelectItem value="newest">תאריך: מהחדש לישן</SelectItem>
-                <SelectItem value="price-asc">מחיר: מהנמוך לגבוה</SelectItem>
-                <SelectItem value="price-desc">מחיר: מהגבוה לנמוך</SelectItem>
-                <SelectItem value="name">א-ב</SelectItem>
-              </SelectContent>
-            </Select>
+          background or radius utilities, which it outranks.
+
+          The 'במלאי בלבד' checkbox that used to sit here is GONE — see the note
+          on validateSearch. In its place is the one control this page never had
+          and could actually use: a price ladder cut at the catalogue's own
+          quartiles, filtered in the database rather than over the 24 rows that
+          happen to be loaded.
+
+          NO GOLD, still. This page scores Lighthouse Accessibility 100 precisely
+          because it contains none, so the active rung takes the opaque ink fill
+          (background on foreground, 16.7:1) rather than --accent. Every control
+          in the pane is at least 44px tall. */}
+      <div className="glass mb-8 flex flex-col gap-4 p-5 md:p-6 [--glass-radius:1.25rem]">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <p className="text-sm text-muted-foreground" role="status" aria-live="polite">
+            {term ? `${total} תוצאות עבור "${rawTerm}"` : `${total} מוצרים`}
+          </p>
+          <div className="flex flex-wrap items-center gap-4">
+            {/* A real <form>: without one the input had no ancestor form, so pressing
+                Enter did nothing at all. Submitting commits the term immediately
+                instead of waiting out the 300ms debounce. */}
+            <form
+              role="search"
+              onSubmit={(e) => {
+                e.preventDefault();
+                setDebouncedQ(q);
+              }}
+            >
+              <Input
+                placeholder="חיפוש מוצר..."
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                aria-label="חיפוש מוצר בקטלוג"
+                className="h-11 max-w-xs"
+              />
+            </form>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">מיון:</span>
+              <Select value={sort} onValueChange={(v) => changeSort(v as ShopSort)}>
+                {/* Radix renders a <button role="combobox"> whose only content is
+                    the current value, which axe reports as a button with no
+                    accessible name. */}
+                <SelectTrigger className="h-11 w-[200px]" aria-label="מיון תוצאות">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {sortOptions.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
+
+        {/* The price ladder. Rendered only when fetchShopLadder produced at
+            least two live rungs — a ladder that cannot be trusted to filter, or
+            one whose rungs collapsed into each other, is simply absent. */}
+        {ladder.length > 0 && (
+          <div
+            className="flex flex-wrap items-center gap-2 border-t border-glass-line pt-4"
+            role="group"
+            aria-label="סינון לפי טווח מחיר"
+          >
+            <span className="text-sm text-muted-foreground">מחיר:</span>
+            <button
+              type="button"
+              onClick={() => rung && toggleRung(priceFromUrl as string)}
+              aria-pressed={!rung}
+              className={cn(
+                "press inline-flex min-h-11 items-center rounded-full px-4 text-sm font-medium transition-[background-color,color,transform] duration-150 ease-out",
+                !rung
+                  ? "bg-foreground text-background"
+                  : "bg-card/70 text-foreground hairline [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary",
+              )}
+            >
+              הכל
+            </button>
+            {ladder.map((r) => {
+              const active = priceFromUrl === r.id;
+              return (
+                <button
+                  key={r.id}
+                  type="button"
+                  // Tap the active rung again to clear it back to "הכל".
+                  onClick={() => toggleRung(r.id)}
+                  aria-pressed={active}
+                  className={cn(
+                    "press inline-flex min-h-11 items-center gap-1.5 rounded-full px-4 text-sm font-medium transition-[background-color,color,transform] duration-150 ease-out",
+                    active
+                      ? "bg-foreground text-background"
+                      : "bg-card/70 text-foreground hairline [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary",
+                  )}
+                >
+                  <span>{r.label}</span>
+                  <span className={cn("text-xs tabular-nums", active ? "opacity-80" : "opacity-60")}>
+                    {r.count}
+                  </span>
+                </button>
+              );
+            })}
+            {rung && (
+              // Said plainly rather than left for the shopper to notice: inside
+              // a range the sort control offers only the orders the database can
+              // actually produce over the filtered set.
+              <p className="w-full text-xs text-muted-foreground">
+                בתוך טווח מחיר אפשר למיין לפי מחיר או לפי א-ב.
+              </p>
+            )}
+          </div>
+        )}
       </div>
       {isLoading ? (
         // Shared product-grid skeleton: same columns + tile height as the real
@@ -714,7 +973,11 @@ const activeQ = debouncedQ.trim();
           <h2 className="font-display text-2xl md:text-3xl font-bold mb-3">לא נמצאו מוצרים</h2>
           <p className="text-muted-foreground leading-relaxed">
             {term ? (
-              <>לא מצאנו תוצאות עבור <span className="font-semibold text-foreground">"{rawTerm}"</span>. נסו מונח חיפוש אחר.</>
+              <>לא מצאנו תוצאות עבור <span className="font-semibold text-foreground">"{rawTerm}"</span>{rung ? " בטווח המחיר הזה" : ""}. נסו מונח חיפוש אחר.</>
+            ) : rung ? (
+              // A rung is filtered in the DB, so an empty result here really is
+              // empty — say which control emptied it and offer the way back.
+              "אין מוצרים בטווח המחיר הזה."
             ) : (
               "לא נמצאו מוצרים תואמים כרגע. נסו שוב מאוחר יותר."
             )}
@@ -728,11 +991,17 @@ const activeQ = debouncedQ.trim();
               only puts them where the shopper has just been stopped. */}
           <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
             {term && (
-              <button
-                onClick={clearSearch}
-                className="press rounded-full bg-card/70 px-6 py-2.5 text-sm font-medium text-foreground hairline transition-[background-color,color,transform] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:text-background"
-              >
+              <button type="button" onClick={clearSearch} className={pageLinkClass}>
                 נקה חיפוש
+              </button>
+            )}
+            {rung && (
+              <button
+                type="button"
+                onClick={() => toggleRung(priceFromUrl as string)}
+                className={pageLinkClass}
+              >
+                נקה טווח מחיר
               </button>
             )}
             {/* Pre-filled with the term they searched for, so the shop owner
@@ -777,17 +1046,16 @@ const activeQ = debouncedQ.trim();
       ) : (
         <>
           <div className={`grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 transition-opacity duration-200 ease-out ${isFetching ? "opacity-60" : ""}`}>
-            {displayProducts.map((p, i) => (
+            {products.map((p, i) => (
               <ProductCard key={p.id} p={p} eager={i < 4} highPriority={i < 2} />
             ))}
           </div>
-          {/* The in-stock view filter hides tiles from the loaded pages; if it
-              empties them all, say so rather than showing a blank grid. */}
-          {inStockOnly && displayProducts.length === 0 && (
-            <p className="py-10 text-center text-muted-foreground">
-              אין מוצרים במלאי בין התוצאות שנטענו.
-            </p>
-          )}
+          {/* The "no in-stock tiles among the loaded pages" message that used to
+              sit here went with the checkbox that caused it. Nothing replaces
+              it: the price rung filters in the DATABASE, so an empty result is
+              a genuinely empty result and the designed empty state above says
+              so — there is no longer a state where the server found rows and
+              the client hid all of them. */}
           {hasNextPage && (
             <div className="mt-10 text-center">
               <button
