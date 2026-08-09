@@ -95,17 +95,17 @@ export function CartDrawer() {
         {/* Header — ps-11 clears the built-in close button in the top corner. */}
         <div className="flex items-center gap-2 border-b border-glass-line ps-11 pe-5 py-5">
           <ShoppingBag className="h-5 w-5 text-accent" aria-hidden="true" />
-          <SheetTitle className="font-display text-lg text-foreground">העגלה שלי</SheetTitle>
+          <SheetTitle className="font-display text-section text-foreground">העגלה שלי</SheetTitle>
           {count > 0 && (
-            <span className="text-sm font-semibold text-muted-foreground">({count})</span>
+            <span className="text-body font-semibold text-muted-foreground">({count})</span>
           )}
         </div>
 
         {items.length === 0 ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
             <ShoppingBag className="h-10 w-10 text-muted-foreground/40" aria-hidden="true" />
-            <p className="font-display text-lg text-foreground">העגלה ריקה</p>
-            <p className="text-sm text-muted-foreground">עדיין לא הוספת מוצרים לעגלה.</p>
+            <p className="font-display text-section text-foreground">העגלה ריקה</p>
+            <p className="text-body text-muted-foreground">עדיין לא הוספת מוצרים לעגלה.</p>
             <Button asChild className="press mt-2">
               <Link to="/shop" onClick={closeCart}>התחל לקנות</Link>
             </Button>
@@ -146,7 +146,7 @@ export function CartDrawer() {
                           to="/product/$slug"
                           params={{ slug: item.slug }}
                           onClick={closeCart}
-                          className="line-clamp-2 text-sm font-medium transition-[color] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
+                          className="line-clamp-2 text-body font-medium transition-[color] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
                         >
                           {item.name}
                         </Link>
@@ -166,10 +166,10 @@ export function CartDrawer() {
                       </div>
 
                       {item.variantLabel && (
-                        <div className="mt-0.5 text-xs text-muted-foreground">גודל: {item.variantLabel}</div>
+                        <div className="mt-0.5 text-meta text-muted-foreground">גודל: {item.variantLabel}</div>
                       )}
                       {item.customText && (
-                        <div className="mt-0.5 text-xs text-accent">
+                        <div className="mt-0.5 text-meta text-accent">
                           ✦ {item.customMethod === "laser" ? "חריטת לייזר" : "רקמה"}: {item.customText}
                         </div>
                       )}
@@ -197,7 +197,7 @@ export function CartDrawer() {
                           >
                             <Minus className="h-3.5 w-3.5" />
                           </button>
-                          <span className="px-3 text-sm font-medium tabular-nums">{item.quantity}</span>
+                          <span className="px-3 text-body font-medium tabular-nums">{item.quantity}</span>
                           <button
                             onClick={() => handleSetQty(k, item.quantity + 1)}
                             className="press relative rounded-e-full px-2.5 py-1.5 before:absolute before:-inset-x-1.5 before:-inset-y-2.5 before:content-[''] [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary"
@@ -206,7 +206,7 @@ export function CartDrawer() {
                             <Plus className="h-3.5 w-3.5" />
                           </button>
                         </div>
-                        <div className="text-sm font-bold text-accent">{formatILS(effective * item.quantity)}</div>
+                        <div className="text-body font-bold text-accent">{formatILS(effective * item.quantity)}</div>
                       </div>
                     </div>
                   </div>
@@ -216,23 +216,60 @@ export function CartDrawer() {
 
             {/* Summary + CTAs — pinned below the scroll area. Reconciles as
                 סכום פריטים + משלוח = סך הכל, using the same flat ₪37 shipping the
-                cart page and checkout charge. The label matches the cart and
-                checkout summaries so the wording can't drift between surfaces. */}
+                cart page and checkout charge.
+                LABEL PARITY, STATED HONESTLY: this drawer and /cart now both say
+                "משלוח" with the flat-rate sentence underneath, while
+                src/routes/checkout.tsx:652 and src/routes/order.$id.tsx:372 still
+                carry the older "משלוח (תעריף אחיד לכל הזמנה)" parenthetical. The
+                NUMBER cannot drift — all four read the same getShipping() — and
+                the two wordings make the same claim, but the two files above
+                should be brought to this wording when their owner next touches
+                them. Do not "fix" it by reverting these two: the parenthetical
+                names a tariff, this one answers "does it multiply?". */}
             <div className="border-t border-glass-line px-5 py-4">
               <div className="space-y-1.5">
-                <div className="flex justify-between text-sm">
+                <div className="flex justify-between text-body">
                   <span className="text-muted-foreground">סכום פריטים</span>
                   <span className="whitespace-nowrap">{formatILS(subtotal)}</span>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">משלוח (תעריף אחיד לכל הזמנה)</span>
+                <div className="flex justify-between text-body">
+                  <span className="text-muted-foreground">משלוח</span>
                   <span className="whitespace-nowrap">{formatILS(shipping)}</span>
                 </div>
+                {/* Same sentence, same reasoning, same wording as the /cart
+                    summary — the drawer is the surface most shoppers will see
+                    this number on, because it opens on every add-to-cart. One
+                    flat charge per ORDER is the shop's only basket mechanic and
+                    it is true; there is no threshold to progress toward, so
+                    nothing here counts down or fills up. */}
+                {shipping > 0 && (
+                  <p className="text-micro text-muted-foreground">
+                    תעריף אחיד לכל ההזמנה, לא לפריט. הוספת עוד פריט לא מגדילה אותו.
+                  </p>
+                )}
               </div>
               <div aria-hidden="true" className="gold-rule my-3" />
-              <div className="mb-4 flex justify-between text-base">
-                <span className="font-bold">סך הכל</span>
-                <span className="whitespace-nowrap font-bold text-accent">{formatILS(grandTotal)}</span>
+              {/* --text-total, the reserved figure step. Same treatment as the
+                  /cart summary so the two surfaces present the same number the
+                  same way. */}
+              <div className="mb-4 flex items-baseline justify-between gap-3">
+                <span className="text-body font-bold">סך הכל</span>
+                <span className="whitespace-nowrap text-total font-bold text-accent">{formatILS(grandTotal)}</span>
+              </div>
+
+              {/* The two free gift affordances — see the long note at the same
+                  spot in src/routes/cart.tsx. Compact here: one capability line
+                  and one sentence, no panel, because this block sits directly
+                  above the checkout CTA in a 384px drawer and the density budget
+                  is the thing keeping this direction from reading as a wholesale
+                  catalogue. */}
+              <div className="mb-3 text-start">
+                <p className="text-meta font-semibold text-foreground">
+                  <span className="text-accent" aria-hidden="true">✦</span> עטיפה והקדשה אישית - ללא עלות
+                </p>
+                <p className="mt-0.5 text-micro leading-relaxed text-muted-foreground">
+                  אפשר לבחור בשלב התשלום. אינן משפיעות על סכום ההזמנה.
+                </p>
               </div>
 
               {/* Compact "complete the purchase" strip — genuine companions to
@@ -245,7 +282,7 @@ export function CartDrawer() {
               <Button className="press w-full" size="lg" onClick={goToCheckout}>
                 מעבר לתשלום
               </Button>
-              <div className="mt-2 flex items-center justify-between text-sm">
+              <div className="mt-2 flex items-center justify-between text-body">
                 <Link
                   to="/cart"
                   onClick={closeCart}

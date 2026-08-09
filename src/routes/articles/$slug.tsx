@@ -20,6 +20,7 @@ import { toast } from "sonner";
 // during SSR, so this route shipped NO body HTML to crawlers at all.
 import { sanitizeHtml } from "@/lib/sanitize-html";
 import { guideFaq, faqJsonLd } from "@/lib/guide-faq";
+import { occasionsForGuide } from "@/lib/guide-links";
 
 // Named/numeric HTML entities present in stored article HTML. Measured across
 // the five live guides: kiddush-cup-guide's body_html carries 11 literal
@@ -113,6 +114,48 @@ function articleBodyHtml(bodyHtml: string | null | undefined, hasFaq: boolean): 
     .replace(/(\d)\s*[–—]\s*(\d)/g, "$1-$2")
     .replace(/(\d)\s*×\s*(\d)/g, "$1x$2");
 }
+
+/**
+ * End offset of the guide's own "as a gift" section, or null if it has none.
+ *
+ * Every one of the five published guides ends on a gift paragraph of its own —
+ * measured on the live bodies 2026-08-09: "טלית כמתנה", "תפילין כמתנה לבר
+ * מצווה", "מזוזה כמתנה", "גביע קידוש כמתנה", "חנוכיה כמתנה". That paragraph is
+ * where the occasion CTA belongs and the page footer is where it does NOT: a
+ * reader who has just been told a kiddush cup is the housewarming present is
+ * one sentence away from wanting the housewarming shelf, and by the footer they
+ * have passed the FAQ, a product rail and two more articles.
+ *
+ * The cut is taken at the NEXT top-level <h2>, so the CTA lands after the gift
+ * section's prose rather than inside it. Safe to slice at that index because
+ * every stored body is a FLAT sequence of block elements (<h2>/<h3>/<p>/<ul>)
+ * with no wrapper — verified on the raw HTML — so both halves are independently
+ * balanced and each can be sanitised on its own.
+ */
+function giftSectionEnd(html: string): number | null {
+  for (const m of html.matchAll(/<h2\b[^>]*>([\s\S]*?)<\/h2>/g)) {
+    if (!m[1].replace(/<[^>]*>/g, "").includes("מתנה")) continue;
+    const from = (m.index ?? 0) + m[0].length;
+    const rel = html.slice(from).search(/<h2\b/);
+    return rel === -1 ? html.length : from + rel;
+  }
+  return null;
+}
+
+/** The body's RTL prose styling, hoisted so the two halves either side of the
+ *  occasion CTA are typographically one column and cannot drift apart. */
+const ARTICLE_PROSE_CLS = `max-w-none text-[17px] leading-[1.9] text-foreground
+  [&_h2]:font-display [&_h2]:text-2xl [&_h2]:font-bold [&_h2]:mt-10 [&_h2]:mb-3 [&_h2]:text-foreground
+  [&_h3]:font-display [&_h3]:text-xl [&_h3]:font-bold [&_h3]:mt-8 [&_h3]:mb-2 [&_h3]:text-foreground
+  [&_p]:mb-5
+  [&_ul]:mb-5 [&_ul]:list-disc [&_ul]:pr-6 [&_ul]:space-y-2
+  [&_ol]:mb-5 [&_ol]:list-decimal [&_ol]:pr-6 [&_ol]:space-y-2
+  [&_li]:leading-[1.85]
+  [&_strong]:font-semibold
+  [&_a]:text-accent [&_a]:underline [&_a]:underline-offset-4
+  [&_img]:rounded-xl [&_img]:max-w-full [&_img]:h-auto
+  [&_blockquote]:pr-5 [&_blockquote]:border-r-2 [&_blockquote]:border-glass-line [&_blockquote]:text-muted-foreground
+  [&_hr]:my-10 [&_hr]:border-0 [&_hr]:h-px [&_hr]:bg-glass-line`;
 
 /** The article's author, for BOTH the JSON-LD and the visible byline.
  *
@@ -441,6 +484,47 @@ function ArticleDetailPage() {
   // source as the FAQPage JSON-LD in the route head, so schema ↔ DOM match.
   const faq = guideFaq(a.slug);
 
+  // The occasion hubs this guide's gift section should point at (empty for a
+  // non-guide article). See GUIDE_OCCASIONS in guide-links.ts for the pairing.
+  const occasions = occasionsForGuide(a.slug);
+
+  // Body, split so the occasion CTA can sit at the end of the guide's own "as a
+  // gift" section instead of in the page footer. Falls back to one undivided
+  // block when the guide has no such section — the CTA then follows the whole
+  // body, still inside the reading flow and still above the FAQ.
+  const bodyHtml = articleBodyHtml(a.body_html, !!faq);
+  const cut = occasions.length > 0 ? giftSectionEnd(bodyHtml) : null;
+  const bodyParts =
+    cut === null ? [bodyHtml] : [bodyHtml.slice(0, cut), bodyHtml.slice(cut)];
+
+  // The CTA itself. Rendered between the two halves above (or after the body).
+  // Deliberately NOT part of `articleBody` in head(): it is navigation, the same
+  // class of thing as the product rail and the "מצאו את המוצרים" block further
+  // down, both of which that transcript already excludes.
+  const occasionCta = occasions.length > 0 && (
+    <aside className="not-prose glass glass-gold my-8 p-5 md:p-6 [--glass-radius:1.25rem]">
+      <p className="mb-2 text-[11px] tracking-[0.22em] text-accent">מתנה לאירוע</p>
+      <p className="mb-4 text-[15px] leading-relaxed text-foreground">
+        קוראים לקראת אירוע? ריכזנו את הפריטים המתאימים מכמה קטגוריות בעמוד אחד.
+      </p>
+      <div className="flex flex-wrap gap-2.5">
+        {occasions.map((o) => (
+          // /collection/$slug — `to`/`params` cast exactly as categories.tsx and
+          // the homepage occasion rail do, so the link does not depend on the
+          // router's literal path union being regenerated before type-check.
+          <Link
+            key={o.slug}
+            to={"/collection/$slug" as any}
+            params={{ slug: o.slug } as any}
+            className="press inline-flex min-h-[44px] items-center rounded-full border border-accent px-5 text-sm font-medium text-accent [@media(hover:hover)_and_(pointer:fine)]:hover:bg-accent [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-foreground"
+          >
+            {o.title}
+          </Link>
+        ))}
+      </div>
+    </aside>
+  );
+
   return (
     <article className="pb-12">
       {/* Hero. With a usable `featured_image` it is the photo band; with none —
@@ -526,27 +610,29 @@ function ArticleDetailPage() {
         {/* Article body. The old `prose-legal prose-he` hooks were never backed
             by a stylesheet (no @tailwindcss/typography in this project), so the
             sanitized HTML rendered unstyled — the Hebrew RTL measure and rhythm
-            are now set explicitly with scoped utilities. */}
-        <div
-          className="mb-12 max-w-none text-[17px] leading-[1.9] text-foreground
-            [&_h2]:font-display [&_h2]:text-2xl [&_h2]:font-bold [&_h2]:mt-10 [&_h2]:mb-3 [&_h2]:text-foreground
-            [&_h3]:font-display [&_h3]:text-xl [&_h3]:font-bold [&_h3]:mt-8 [&_h3]:mb-2 [&_h3]:text-foreground
-            [&_p]:mb-5
-            [&_ul]:mb-5 [&_ul]:list-disc [&_ul]:pr-6 [&_ul]:space-y-2
-            [&_ol]:mb-5 [&_ol]:list-decimal [&_ol]:pr-6 [&_ol]:space-y-2
-            [&_li]:leading-[1.85]
-            [&_strong]:font-semibold
-            [&_a]:text-accent [&_a]:underline [&_a]:underline-offset-4
-            [&_img]:rounded-xl [&_img]:max-w-full [&_img]:h-auto
-            [&_blockquote]:pr-5 [&_blockquote]:border-r-2 [&_blockquote]:border-glass-line [&_blockquote]:text-muted-foreground
-            [&_hr]:my-10 [&_hr]:border-0 [&_hr]:h-px [&_hr]:bg-glass-line"
-          /* Same pipeline head() feeds `articleBody` from, so DOM and schema can
-             never drift: the stored body's own "שאלות נפוצות" block is dropped
-             when this guide has a curated FAQ (otherwise the page shows the
-             heading twice — measured live on every guide — and answers some
-             questions twice), and RTL-reversing numeric ranges are repaired. */
-          dangerouslySetInnerHTML={{ __html: sanitizeHtml(articleBodyHtml(a.body_html, !!faq)) }}
-        />
+            are now set explicitly with scoped utilities (ARTICLE_PROSE_CLS).
+            Rendered as one block, or as two around the occasion CTA when the
+            guide has an "as a gift" section to host it (see giftSectionEnd).
+            Each half goes through sanitizeHtml separately, which is safe
+            because the stored bodies are flat block sequences — the cut can
+            only ever fall between two top-level elements. */}
+        <div className="mb-12">
+          {bodyParts.map((part, i) => (
+            <div key={i}>
+              <div
+                className={ARTICLE_PROSE_CLS}
+                /* Same pipeline head() feeds `articleBody` from, so DOM and
+                   schema can never drift: the stored body's own "שאלות נפוצות"
+                   block is dropped when this guide has a curated FAQ (otherwise
+                   the page shows the heading twice — measured live on every
+                   guide — and answers some questions twice), and RTL-reversing
+                   numeric ranges are repaired. */
+                dangerouslySetInnerHTML={{ __html: sanitizeHtml(part) }}
+              />
+              {i === 0 && occasionCta}
+            </div>
+          ))}
+        </div>
 
         {/* FAQ — AEO surface (voice, "People also ask", AI answer engines).
             Mirrors the FAQPage JSON-LD emitted in the route head, so per

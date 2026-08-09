@@ -5,6 +5,8 @@ import { PageHeader } from "@/components/PageHeader";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { PersonalizationPreview } from "@/components/product/PersonalizationPreview";
 import { PERSONALIZABLE_CATEGORY_SLUGS } from "@/lib/personalization";
+import { collapseSameName, orderCatalog } from "@/lib/catalog-order";
+import { GIFT_NOTE } from "@/lib/facets";
 
 const SITE = "https://orzadik.com";
 const CANONICAL = `${SITE}/collection/personalized`;
@@ -17,7 +19,14 @@ const TITLE = "רקמה וחריטה אישית — מתנה עם שם | אור 
 const DESCRIPTION =
   "פריטי יודאיקה עם רקמת שם או חריטת לייזר אישית — כיסויי טלית ותפילין, תיקים, מעמדי בנצ'ר וסידורים. הופכים פריט מהודר למתנה אישית ובלתי נשכחת. הפונט והגוון מתואמים איתכם לאחר ההזמנה.";
 
-type PersonalizedRow = ProductCardData & { is_active?: boolean; created_at?: string };
+// `family` is the personalizable category a row was pulled from — the sub-shelf
+// key orderShelf() round-robins across, so the showcase alternates between
+// talit covers, bags, benchers and siddurim instead of exhausting one first.
+type PersonalizedRow = ProductCardData & {
+  is_active?: boolean;
+  created_at?: string;
+  family?: string | null;
+};
 
 // Server-side fetch of the personalizable products. `PERSONALIZABLE_CATEGORY_SLUGS`
 // is the single source of truth (shared with the PDP), so this page can never
@@ -28,14 +37,19 @@ async function fetchPersonalizableProducts(): Promise<PersonalizedRow[]> {
 
   const { data: catRows, error: catErr } = await supabase
     .from("categories")
-    .select("id")
+    .select("id, slug")
     .in("slug", slugs);
   if (catErr) throw catErr;
-  const ids = (catRows ?? []).map((c: any) => c.id).filter(Boolean);
+  // id → slug, so every joined row can carry the sub-shelf it came from. The
+  // slug rides along on the query that was already here; no extra round trip.
+  const slugById = new Map<string, string>(
+    (catRows ?? []).map((c: any) => [c.id as string, c.slug as string]),
+  );
+  const ids = [...slugById.keys()].filter(Boolean);
   if (ids.length === 0) return [];
 
   const SELECT =
-    "products!inner(id, slug, name, price, sale_price, thumbnail_url, is_active, stock_status, created_at)";
+    "category_id, products!inner(id, slug, name, price, sale_price, thumbnail_url, is_active, stock_status, created_at)";
   // Preferred: order the join by the freshest products so the bounded pool below
   // captures recent items across every personalizable category, rather than an
   // arbitrary slice dominated by whichever category the planner scans first.
@@ -72,40 +86,34 @@ async function fetchPersonalizableProducts(): Promise<PersonalizedRow[]> {
     if (!p?.is_active || !p.thumbnail_url) continue;
     if (seen.has(p.id)) continue;
     seen.add(p.id);
-    pool.push(p as PersonalizedRow);
+    // First membership wins — the row is deduped above, so a product in two
+    // personalizable categories round-robins under whichever the ordered pool
+    // returned first. Arbitrary and harmless: `family` exists to make the cycle
+    // alternate, not to file a row correctly.
+    pool.push({ ...(p as PersonalizedRow), family: slugById.get(r.category_id) ?? null });
   }
 
   // Collapse same-name models into one tile, mirroring /category and /shop: the
   // supplier reuses one generic name across many SKUs, so without this the
-  // showcase would repeat near-identical cards. `groupKey` matches category.$slug.
-  const groupKey = (name: string) =>
-    name.toLowerCase().replace(/[׳״'"`‘’“”]/g, " ").replace(/\s+/g, " ").trim();
-  const groups = new Map<string, PersonalizedRow[]>();
-  for (const p of pool) {
-    const k = groupKey(p.name);
-    if (!groups.has(k)) groups.set(k, []);
-    groups.get(k)!.push(p);
-  }
-  const collapsed: PersonalizedRow[] = [...groups.values()].map((g) => {
-    // Representative prefers in stock, then the cheapest, so the tile links to a
-    // buyable entry point for the group.
-    const rep = [...g].sort(
-      (a, b) =>
-        Number(b.stock_status !== "outofstock") - Number(a.stock_status !== "outofstock") ||
-        a.price - b.price,
-    )[0];
-    return g.length > 1 ? ({ ...rep, model_count: g.length } as PersonalizedRow) : rep;
-  });
+  // showcase would repeat near-identical cards.
+  //
+  // The representative rule this file chose is PRESERVED by collapseSameName():
+  // has-photo → in stock → cheapest. The photo key is inert here (the pool is
+  // imaged-only by construction above), so what remains is exactly the "in
+  // stock, then cheapest, so the tile links to a buyable entry point" rule the
+  // inline picker implemented.
+  const collapsed = collapseSameName(pool);
 
-  // In-stock first so the strongest imagery leads, then premium (price desc) for
-  // a showcase feel, then a stable Hebrew name tiebreak. Cap the page.
-  collapsed.sort(
-    (a, b) =>
-      Number(b.stock_status !== "outofstock") - Number(a.stock_status !== "outofstock") ||
-      b.price - a.price ||
-      a.name.localeCompare(b.name, "he"),
-  );
-  return collapsed.slice(0, CAP);
+  // WAS: in-stock, then `b.price - a.price` "for a showcase feel", over a
+  // 600-row pool capped at 48. Measured effect: the cheapest of the 48 tiles
+  // this page rendered was ₪280, while the real floor of the personalizable
+  // categories is ₪15 — the page advertised personalisation as a ₪280+ service
+  // it is not. The shared shape order replaces it: a round-robin across the
+  // personalizable categories, each walked outward from its own median, so the
+  // 48-tile slice is a cross-section of what can actually be personalised.
+  // Out-of-stock and photo-less rows still sink last (sinkUnbuyableLast, inside
+  // orderCatalog).
+  return orderCatalog(collapsed, { shelfKey: "collection/personalized" }).slice(0, CAP);
 }
 
 export const Route = createFileRoute("/collection/personalized")({
@@ -221,12 +229,18 @@ function PersonalizedCollectionPage() {
         />
       </div>
 
-      {/* Hero — the shared gold-ruled page header, honest sub copy. */}
+      {/* Hero — the shared gold-ruled page header, honest sub copy.
+          `note` states the gift affordance that /checkout already implements
+          (see GIFT_NOTE): wrap and a printed dedication, free. A personalised
+          item is a gift in almost every case, so this is the fact the shopper
+          is missing at this point — not a promotion, and it carries no
+          threshold and no deadline. */}
       <div className="container mx-auto px-4 pt-6">
         <PageHeader
           eyebrow="התאמה אישית"
           title="רקמה וחריטה על שם אישי"
           sub="כיתוב שם, ברכה או תאריך — ברקמה עדינה או בחריטת לייזר — שהופכים פריט מהודר למתנה אישית. הפונט, הגוון והמיקום מתואמים איתכם לאחר ההזמנה."
+          note={GIFT_NOTE}
         />
       </div>
 

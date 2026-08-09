@@ -62,8 +62,20 @@ export type PriceRung = {
 const rungId = (lo: number, hi: number) =>
   `${Number.isFinite(lo) ? lo : "*"}-${Number.isFinite(hi) ? hi : "*"}`;
 
-const rungLabel = (lo: number, hi: number) =>
+/**
+ * "עד ₪100" / "₪100-300" / "₪300+".
+ *
+ * Exported because a URL can name a rung this shelf no longer offers — a link
+ * shared before the last supplier import, or one of the old global
+ * ?price=0-100 buckets — and the active-filter chip still has to say what is
+ * being filtered. Built from the BOUNDS, so it is right for any rung, current
+ * ladder or not. ASCII hyphen, never U+2013: see the note at the top of this
+ * file for what an en dash does to "₪14-24" in an RTL run.
+ */
+export const priceRungLabel = (lo: number, hi: number) =>
   !Number.isFinite(lo) ? `עד ₪${hi}` : !Number.isFinite(hi) ? `₪${lo}+` : `₪${lo}-${hi}`;
+
+const rungLabel = priceRungLabel;
 
 /**
  * Parse a `?price=` value back into bounds.
@@ -354,3 +366,39 @@ export const countSelected = (sel: SelectedFacets) => sel.m.length + sel.c.lengt
  */
 export const FACET_COVERAGE_NOTE =
   "לא לכל הפריטים מסומנים חומר, צבע ומידה. סינון לפי מאפיין יציג את הפריטים שסומנו בלבד.";
+
+/* ------------------------------- shelf copy ------------------------------- */
+//
+// The two other sentences a listing page is allowed to say about the offer.
+// They live beside FACET_COVERAGE_NOTE because this module is already the one
+// place a shelf's honest small print is written once and read by four routes —
+// and because the failure mode for all three is identical: a second copy of the
+// string somewhere else that drifts away from what the checkout actually does.
+//
+// Every claim below is checked against the code that implements it. Neither
+// line is a promotion, neither carries a threshold, a countdown or a progress
+// bar, and nothing here may grow one.
+
+/**
+ * The only basket mechanic this site has.
+ *
+ * SHIPPING_FLAT is 37 and FREE_SHIPPING_THRESHOLD is Infinity
+ * (src/lib/pricing.ts), i.e. getShipping() returns 37 for ANY positive
+ * subtotal — there is no free-shipping tier to progress toward, which is
+ * exactly why a progress bar would be a lie here rather than a nudge. The
+ * second clause is the one useful consequence of a flat per-ORDER fee: a
+ * second item costs nothing more to deliver.
+ *
+ * ASCII hyphen U+002D, never U+2013. An en dash is bidi class ON and UAX#9 N1
+ * would flip it against the "₪37" run beside it.
+ */
+export const SHIPPING_NOTE = "משלוח ₪37 לכל ההזמנה - אפשר לצרף כמה פריטים לאותו משלוח";
+
+/**
+ * Gift wrap and a printed dedication, as offered on /checkout today:
+ * "עטיפת מתנה חגיגית — בחינם", a הקדשה אישית textarea that prints and ships
+ * with the gift, and the explicit line "העטיפה וההקדשה ניתנות ללא עלות ואינן
+ * משפיעות על סכום ההזמנה" (checkout.tsx). This says that and nothing more — no
+ * card, no ribbon, no same-day promise, none of which the checkout implements.
+ */
+export const GIFT_NOTE = "עטיפה והקדשה אישית - ללא עלות";

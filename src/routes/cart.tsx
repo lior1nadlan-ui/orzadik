@@ -107,7 +107,7 @@ function CartPage() {
         {/* Glass panel over the light ground — the empty state is a surface, not
             a hole in the page. */}
         <div className="glass mx-auto max-w-lg px-6 py-14 text-center">
-          <h1 className="font-display text-3xl font-bold mb-3">העגלה ריקה</h1>
+          <h1 className="font-display text-page font-bold mb-3">העגלה ריקה</h1>
           <p className="text-muted-foreground mb-6">לא הוספת עדיין מוצרים לעגלה.</p>
           <Button asChild className="press">
             <Link to="/shop">התחל לקנות</Link>
@@ -132,7 +132,9 @@ function CartPage() {
           horizontal scroll on mobile. min-w-0 lets the column shrink so the
           carousel's own overflow-hidden clip does its job. */}
       <div className="lg:col-span-2 space-y-3 min-w-0">
-        <h1 className="font-display text-3xl font-bold mb-4">העגלה שלי</h1>
+        {/* The named scale, not a twelfth arbitrary size: --text-page is THE h1
+            step (28px). See the type-scale block in src/styles.css. */}
+        <h1 className="font-display text-page font-bold mb-4">העגלה שלי</h1>
         {items.map((item) => {
           const k = lineKey(item);
           const check = checks.get(k);
@@ -203,7 +205,7 @@ function CartPage() {
                 {/* Revalidation notice — appears only once the check resolves and
                     only for the lines it actually found a difference on. */}
                 {check && (
-                  <div className="mt-2 rounded-xl bg-secondary/70 hairline px-3 py-2 text-xs leading-relaxed text-foreground">
+                  <div className="mt-2 rounded-xl bg-secondary/70 hairline px-3 py-2 text-meta leading-relaxed text-foreground">
                     <p>{noticeText(check, item)}</p>
                     {blocked && (
                       // The other remove control, and the smallest thing on the
@@ -282,7 +284,7 @@ function CartPage() {
       {/* `glass-strong` (94% white + blur), not `glass`: this panel pins to the
           viewport and scrolls over unknown content, and it carries live prices. */}
       <div className="glass-strong p-6 h-fit lg:sticky lg:top-20">
-        <h2 className="font-display text-xl font-bold mb-4">סיכום הזמנה</h2>
+        <h2 className="font-display text-section font-bold mb-4">סיכום הזמנה</h2>
         {nothingOrderable ? (
           // No numbers at all here — a summary of an order that cannot be placed
           // would be three zeros over a cart full of products. The per-line
@@ -296,22 +298,40 @@ function CartPage() {
             {/* Every component of the amount that will be charged, so the column
                 reconciles: סכום פריטים (− הטבת מועדון) + משלוח = סך הכל. */}
             <div className="space-y-2">
-              <div className="flex justify-between text-sm">
+              <div className="flex justify-between text-body">
                 <span className="text-muted-foreground">סכום פריטים</span>
                 <span className="whitespace-nowrap">{formatILS(itemsTotal)}</span>
               </div>
               {memberBenefit > 0 && (
-                <div className="flex justify-between text-sm">
+                <div className="flex justify-between text-body">
                   <span className="text-muted-foreground">הטבת מועדון</span>
                   <span className="whitespace-nowrap">{formatILS(-memberBenefit)}</span>
                 </div>
               )}
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">משלוח (תעריף אחיד לכל הזמנה)</span>
+              <div className="flex justify-between text-body">
+                <span className="text-muted-foreground">משלוח</span>
                 <span className="whitespace-nowrap">{formatILS(shipping)}</span>
               </div>
+              {/* THE FLAT FEE, SAID AS ARITHMETIC. It was a parenthetical inside
+                  the label ("תעריף אחיד לכל הזמנה"), which reads as a tariff
+                  name and answers nothing. The question a shopper actually has
+                  in front of a shipping line is "does this multiply?" — and the
+                  answer here is the shop's single basket mechanic: one flat
+                  charge per ORDER, whatever is in it. It is also the ONLY basket
+                  mechanic there is. There is no threshold to progress toward
+                  (FREE_SHIPPING_THRESHOLD is Infinity in src/lib/pricing.ts), so
+                  there is deliberately no progress bar, no "add ₪X more", and no
+                  countdown anywhere near this number.
+                  Rendered only when a fee is actually charged — getShipping()
+                  returns 0 for an empty/unorderable subtotal, and a sentence
+                  about a flat rate under "₪0" would be describing nothing. */}
+              {shipping > 0 && (
+                <p className="text-micro text-muted-foreground">
+                  תעריף אחיד לכל ההזמנה, לא לפריט. הוספת עוד פריט לא מגדילה אותו.
+                </p>
+              )}
             </div>
-            <p className="text-xs text-muted-foreground mt-2 mb-3">
+            <p className="text-meta text-muted-foreground mt-2 mb-3">
               זמן אספקה משוער: 3-14 ימי עסקים
             </p>
             {/* "אפשר בתשלומים?" answered where the amount is, not three
@@ -320,13 +340,20 @@ function CartPage() {
                 otherwise). Same literal that reaches CardCom's
                 AdvancedDefinition. */}
             {instalmentsLine() && (
-              <p className="-mt-2 mb-3 text-xs text-accent">{instalmentsLine()}</p>
+              <p className="-mt-2 mb-3 text-meta text-accent">{instalmentsLine()}</p>
             )}
             {/* Decorative gold hairline — the rule is a gradient image, never text. */}
             <div className="gold-rule my-4" aria-hidden="true" />
-            <div className="flex justify-between text-lg mb-4">
-              <span className="font-bold">סך הכל</span>
-              <span className="font-bold text-accent whitespace-nowrap">{formatILS(finalTotal)}</span>
+            {/* --text-total (34px) is one of the two RESERVED figure steps in the
+                type scale, and this is the number it was reserved for: the last
+                amount a shopper reads before card details. It is bought with
+                SIZE here rather than with a colour or a box because everything
+                above it in this column is 15px and 12px — the jump alone says
+                "this is the one". items-baseline so the 15px label sits on the
+                34px figure's baseline instead of floating at its cap height. */}
+            <div className="flex items-baseline justify-between gap-3 mb-4">
+              <span className="text-body font-bold">סך הכל</span>
+              <span className="text-total font-bold text-accent whitespace-nowrap">{formatILS(finalTotal)}</span>
             </div>
           </>
         )}
@@ -338,7 +365,7 @@ function CartPage() {
           {blockedCount > 0 && (
             <p
               id="cart-blocked-note"
-              className="mb-3 rounded-xl bg-secondary/70 hairline px-3 py-2 text-xs leading-relaxed"
+              className="mb-3 rounded-xl bg-secondary/70 hairline px-3 py-2 text-meta leading-relaxed"
             >
               {blockedCount === 1
                 ? "פריט אחד בעגלה אינו זמין כעת להזמנה ואינו נכלל בסכום. יש להסיר אותו כדי להמשיך לתשלום."
@@ -346,7 +373,7 @@ function CartPage() {
             </p>
           )}
           {repricedCount > 0 && (
-            <p className="mb-3 rounded-xl bg-secondary/70 hairline px-3 py-2 text-xs leading-relaxed">
+            <p className="mb-3 rounded-xl bg-secondary/70 hairline px-3 py-2 text-meta leading-relaxed">
               {repricedCount === 1
                 ? "מחיר של פריט אחד בעגלה עודכן למחיר הנוכחי באתר."
                 : `מחירים של ${repricedCount} פריטים בעגלה עודכנו למחירים הנוכחיים באתר.`}
@@ -357,6 +384,36 @@ function CartPage() {
             </p>
           )}
         </div>
+
+        {/* THE TWO FREE GIFT AFFORDANCES, SURFACED WHERE THEY CAN STILL MATTER.
+            Both of these already work in src/routes/checkout.tsx — a 300-character
+            dedication that is printed and attached, and festive wrapping — and
+            until now the first time a shopper heard about either of them was
+            AFTER she had committed to paying. This cart and the mini-cart are the
+            last two screens before card details, and neither said a word.
+
+            It is stated as capability, not as a promotion: no exclamation, no
+            "limited", no urgency, and no number that could be mistaken for a
+            price. The only claim made is the one checkout.tsx already makes
+            verbatim ("ניתנות ללא עלות ואינן משפיעות על סכום ההזמנה"), and the
+            300 is the literal maxLength on that textarea, so the two surfaces
+            cannot drift.
+
+            The gold here is the decorative hairline (.hairline-gold) and the ✦,
+            both of which are legal decorative uses; the only gold carrying text
+            is --accent on the ornament itself. Withheld when nothing in the cart
+            can be ordered — there is no gift to wrap. */}
+        {!nothingOrderable && (
+          <div className="mb-4 rounded-xl hairline-gold bg-secondary/60 px-3 py-2.5 text-start">
+            <p className="text-body font-semibold text-foreground">
+              <span className="text-accent" aria-hidden="true">✦</span> עטיפה והקדשה אישית - ללא עלות
+            </p>
+            <p className="mt-1 text-micro leading-relaxed text-muted-foreground">
+              בשלב התשלום אפשר לסמן שזו מתנה, לכתוב הקדשה של עד 300 תווים שתודפס ותצורף למשלוח,
+              ולבקש עטיפה חגיגית. שתיהן ללא עלות ואינן משפיעות על סכום ההזמנה.
+            </p>
+          </div>
+        )}
 
         {/* The CTA is withheld only on a POSITIVE, resolved answer that a line
             would be rejected — the same read the server makes. While the check

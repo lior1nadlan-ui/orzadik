@@ -4,6 +4,8 @@ import { ProductCard, ProductCardData } from "@/components/ProductCard";
 import { PageHeader } from "@/components/PageHeader";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { getCollection, type OccasionCollection } from "@/lib/collections";
+import { collapseSameName, orderCatalog } from "@/lib/catalog-order";
+import { GIFT_NOTE } from "@/lib/facets";
 import { ChevronDown } from "lucide-react";
 
 const SITE = "https://orzadik.com";
@@ -12,28 +14,42 @@ const SITE = "https://orzadik.com";
 // without pulling thousands of rows. Mirrors /collection/personalized.
 const CAP = 48;
 
-type CollectionRow = ProductCardData & { is_active?: boolean; created_at?: string };
+// `family` is the source category a row was pulled from — the sub-shelf key
+// orderShelf() round-robins across. An occasion collection is a union of 2-6
+// categories, so without it a gift hub would open on one category's worth of
+// tiles before reaching the next.
+type CollectionRow = ProductCardData & {
+  is_active?: boolean;
+  created_at?: string;
+  family?: string | null;
+};
 
 /**
  * Server-side fetch of the products for a collection's category slugs. Mirrors
  * the proven /collection/personalized loader: resolve the slugs to category ids,
  * pull an ordered pool of their product links, then keep only active + imaged
- * products, dedupe by id, collapse same-name models, sort and cap.
+ * products, dedupe by id, collapse same-name models, order and cap.
  *
  * Every slug in `categorySlugs` is a REAL category (verified populated), so this
  * never invents a product: everything shown is a real row from `products`.
  */
-async function fetchCollectionProducts(categorySlugs: string[]): Promise<CollectionRow[]> {
+async function fetchCollectionProducts(collection: OccasionCollection): Promise<CollectionRow[]> {
   const { data: catRows, error: catErr } = await supabase
     .from("categories")
-    .select("id")
-    .in("slug", categorySlugs);
+    .select("id, slug")
+    .in("slug", collection.categorySlugs);
   if (catErr) throw catErr;
-  const ids = (catRows ?? []).map((c: any) => c.id).filter(Boolean);
+  // id → slug, so every joined row can carry the sub-shelf it came from. The
+  // slug is selected alongside the id purely for that; the query is otherwise
+  // the one that was already here.
+  const slugById = new Map<string, string>(
+    (catRows ?? []).map((c: any) => [c.id as string, c.slug as string]),
+  );
+  const ids = [...slugById.keys()].filter(Boolean);
   if (ids.length === 0) return [];
 
   const SELECT =
-    "products!inner(id, slug, name, price, sale_price, thumbnail_url, is_active, stock_status, created_at)";
+    "category_id, products!inner(id, slug, name, price, sale_price, thumbnail_url, is_active, stock_status, created_at)";
   // Preferred: order the join by the freshest products so the bounded pool below
   // spans recent items across every category in the collection, rather than an
   // arbitrary slice dominated by whichever category is scanned first.
@@ -70,40 +86,39 @@ async function fetchCollectionProducts(categorySlugs: string[]): Promise<Collect
     if (!p?.is_active || !p.thumbnail_url) continue;
     if (seen.has(p.id)) continue;
     seen.add(p.id);
-    pool.push(p as CollectionRow);
+    // First membership wins: a product that sits in two of the collection's
+    // categories is deduped above, so it round-robins under the first one the
+    // ordered pool returned it for. Which of the two is arbitrary and harmless
+    // — the point of `family` is that the cycle alternates, not that a row is
+    // filed correctly.
+    pool.push({ ...(p as CollectionRow), family: slugById.get(r.category_id) ?? null });
   }
 
   // Collapse same-name models into one tile, mirroring /category, /shop and
   // /collection/personalized: the supplier reuses one generic name across many
   // SKUs, so without this the grid would repeat near-identical cards.
-  const groupKey = (name: string) =>
-    name.toLowerCase().replace(/[׳״'"`‘’“”]/g, " ").replace(/\s+/g, " ").trim();
-  const groups = new Map<string, CollectionRow[]>();
-  for (const p of pool) {
-    const k = groupKey(p.name);
-    if (!groups.has(k)) groups.set(k, []);
-    groups.get(k)!.push(p);
-  }
-  const collapsed: CollectionRow[] = [...groups.values()].map((g) => {
-    // Representative prefers in stock, then the cheapest, so the tile links to a
-    // buyable entry point for the group.
-    const rep = [...g].sort(
-      (a, b) =>
-        Number(b.stock_status !== "outofstock") - Number(a.stock_status !== "outofstock") ||
-        a.price - b.price,
-    )[0];
-    return g.length > 1 ? ({ ...rep, model_count: g.length } as CollectionRow) : rep;
-  });
+  //
+  // THE REPRESENTATIVE PICKER THAT USED TO BE INLINE HERE IS PRESERVED, not
+  // dropped: collapseSameName() elects has-photo → in stock → CHEAPEST, which
+  // is the deliberate rule this file already applied (in stock, then cheapest)
+  // plus a photo preference that is inert here because the pool above is
+  // already imaged-only. So the tile still links to the cheapest buyable model
+  // of the group — the behaviour the old comment was defending.
+  const collapsed = collapseSameName(pool);
 
-  // In-stock first so the strongest imagery leads, then premium (price desc) for
-  // a gift-guide feel, then a stable Hebrew name tiebreak. Cap the page.
-  collapsed.sort(
-    (a, b) =>
-      Number(b.stock_status !== "outofstock") - Number(a.stock_status !== "outofstock") ||
-      b.price - a.price ||
-      a.name.localeCompare(b.name, "he"),
-  );
-  return collapsed.slice(0, CAP);
+  // WAS: in-stock, then `b.price - a.price` "for a gift-guide feel", then a
+  // Hebrew name tiebreak — i.e. price DESC. On /collection/personalized that
+  // opened a 48-tile showcase whose cheapest item was ₪280 over a real floor of
+  // ₪15, and the same rule ran here. Replaced by the shared shape order: a
+  // round-robin across the collection's own source categories, each ordered
+  // outward from its own median, so the first screen of a gift hub spans what
+  // the hub actually holds instead of its ceiling. In-stock and photo-less rows
+  // still sink last — orderCatalog() ends on sinkUnbuyableLast().
+  //
+  // The CAP=48 slice therefore takes the first 48 of an interleaved list, which
+  // is what makes it a cross-section of the collection rather than its 48 most
+  // expensive rows.
+  return orderCatalog(collapsed, { shelfKey: `collection/${collection.slug}` }).slice(0, CAP);
 }
 
 export const Route = createFileRoute("/collection/$slug")({
@@ -114,7 +129,7 @@ export const Route = createFileRoute("/collection/$slug")({
     const collection = getCollection(params.slug);
     if (!collection) throw notFound();
     try {
-      return { products: await fetchCollectionProducts(collection.categorySlugs) };
+      return { products: await fetchCollectionProducts(collection) };
     } catch (err) {
       // A DB blip should leave the landing page standing (it still ranks and
       // still explains the occasion) rather than blowing the whole route into
@@ -253,9 +268,18 @@ function CollectionPage() {
         />
       </div>
 
-      {/* Hero — the shared gold-ruled page header, honest occasion copy. */}
+      {/* Hero — the shared gold-ruled page header, honest occasion copy.
+          `note` is the gift affordance a shopper on an OCCASION page is
+          actually deciding about, and it is already implemented at checkout
+          (see GIFT_NOTE) — this only moves the fact to where the decision is
+          made. It is a statement, not a promotion: no threshold, no deadline. */}
       <div className="container mx-auto px-4 pt-6">
-        <PageHeader eyebrow={collection.eyebrow} title={collection.title} sub={collection.intro} />
+        <PageHeader
+          eyebrow={collection.eyebrow}
+          title={collection.title}
+          sub={collection.intro}
+          note={GIFT_NOTE}
+        />
       </div>
 
       {/* Products */}

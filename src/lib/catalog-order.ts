@@ -1,6 +1,14 @@
-// THE ordering of a shelf — one function, shared by /category/$slug, /shop's
-// sibling collections and both /collection routes, so no two listing pages can
-// mean different things by "the default order" again.
+// THE ordering of a shelf — one function, shared by the THREE client-ordered
+// listings: /category/$slug, /collection/$slug and /collection/personalized.
+//
+// /shop IS NOT A CALLER, deliberately. It is server-paged: list_products_collapsed
+// returns 24 rows at a time with its own total, so calling orderShelf there could
+// only reshuffle the 24 rows already fetched — page 1 would look shaped while the
+// shelf underneath stayed price-DESC, which is worse than an honestly wrong order
+// because it hides itself. Fixing /shop means a new sort branch inside the RPC,
+// not a client-side call, and it is out of scope here. Two consequences follow
+// and neither is a bug to be surprised by later: /shop cannot be pinned through
+// SHELF_ORDER_PINS, and /shop still opens on the catalogue's ceiling.
 //
 // WHY THIS FILE EXISTS AT ALL
 //
@@ -8,7 +16,8 @@
 // `b.price - a.price`; /collection/$slug and /collection/personalized sorted
 // `b.price - a.price` under a comment describing it as "premium … for a
 // gift-guide feel"; /shop's RPC ends its "recommended" branch on `r.price DESC`
-// once the constant in-stock / has-photo / has-copy keys fall through.
+// once the constant in-stock / has-photo / has-copy keys fall through — and that
+// last one is still true, see above.
 //
 // Measured against the live catalogue on 2026-08-06 (anon REST, count=exact),
 // that is the wrong default for THIS shop:
@@ -83,11 +92,23 @@ export type CatalogSort =
   | "name";
 
 /**
- * Per-shelf escape hatch. Key is the shelf slug (/category/<slug> or
- * /collection/<slug>); value is the sort that shelf opens on instead of
+ * Per-shelf escape hatch. Value is the sort that shelf opens on instead of
  * "shape". Empty on purpose — it exists so pinning a shelf is a one-line config
  * edit with a reason attached, not a refactor. Only consulted when the shopper
  * has NOT chosen a sort of their own.
+ *
+ * KEY FORMAT, fixed here so the three callers cannot each invent their own:
+ * the route family, a slash, the slug —
+ *
+ *     "category/kipot"            /category/kipot
+ *     "collection/bar-mitzvah"    /collection/bar-mitzvah
+ *     "collection/personalized"   /collection/personalized
+ *
+ * Namespaced rather than bare, because a category slug and a collection slug
+ * live in different tables and nothing stops them colliding: pinning "shabbat"
+ * would otherwise silently pin both the 242-card category and any collection
+ * that ever takes that slug. Add an entry WITH A COMMENT saying what was read
+ * on the shelf that justified it.
  */
 export const SHELF_ORDER_PINS: Record<string, CatalogSort> = {};
 
@@ -135,6 +156,29 @@ function quartileBands(rows: ShelfRow[]): string[] {
 }
 
 /**
+ * Codepoint name order — NOT localeCompare(name, "he").
+ *
+ * Every sort in this file feeds an SSR render AND the client grid, and the two
+ * must agree exactly or head()'s ItemList drifts from the rendered anchors. The
+ * hazard is recorded in categories.tsx:117-122: Hebrew collation depends on the
+ * ICU data the runtime ships, and the Cloudflare Workers SSR pass and the
+ * browser do not ship the same ICU. A locale-aware key is therefore a hydration
+ * bug wherever it is the primary order, and the tie branch here is exercised
+ * constantly — thousands of these rows share a price.
+ *
+ * Plain < / > compares UTF-16 code units, which is identical on every runtime.
+ * For this catalogue it is also the right answer: the Hebrew alphabet occupies
+ * U+05D0-U+05EA in alphabetical order, so codepoint order IS א-ב order for
+ * Hebrew names, and non-Hebrew names sort consistently rather than correctly —
+ * which is the trade this file needs. The id key after it makes the comparator
+ * total, so the result is a strict order with no runtime-dependent branch.
+ */
+function byNameThenId(a: ShelfRow, b: ShelfRow): number {
+  if (a.name !== b.name) return a.name < b.name ? -1 : 1;
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+}
+
+/**
  * The shape order. Pure and deterministic — the SSR loader, head()'s ItemList
  * and the client grid all call it on the same rows and get the same list, which
  * is the property that keeps the structured data and the rendered anchors from
@@ -164,10 +208,7 @@ export function orderShelf<T extends ShelfRow>(rows: T[]): T[] {
       const priced = list.filter((p) => p.price > 0);
       const call = list.filter((p) => p.price <= 0);
       const asc = [...priced].sort(
-        (a, b) =>
-          effOf(a) - effOf(b) ||
-          a.name.localeCompare(b.name, "he") ||
-          a.id.localeCompare(b.id),
+        (a, b) => effOf(a) - effOf(b) || byNameThenId(a, b),
       );
       return [...bisectionOrder(asc.length).map((i) => asc[i]), ...call];
     });
@@ -217,7 +258,9 @@ export function sinkUnbuyableLast<T extends ShelfRow>(rows: T[]): T[] {
  * placeholder while its siblings have images), then in stock, then cheapest —
  * a buyable, illustrated entry point for the group.
  */
-export function collapseSameName<T extends ShelfRow>(rows: T[]): Array<T & { model_count?: number }> {
+export function collapseSameName<T extends ShelfRow>(
+  rows: T[],
+): Array<T & { model_count?: number; model_price_max?: number }> {
   // Key mirrors norm_he(): lowercase, fold the quote family, collapse spaces.
   const groupKey = (name: string) =>
     name
@@ -238,12 +281,29 @@ export function collapseSameName<T extends ShelfRow>(rows: T[]): Array<T & { mod
         Number(b.stock_status !== "outofstock") - Number(a.stock_status !== "outofstock") ||
         a.price - b.price,
     )[0];
-    return g.length > 1 ? ({ ...rep, model_count: g.length } as T & { model_count: number }) : rep;
+    if (g.length < 2) return rep;
+    // The group's CEILING, raw. This is the only producer of model_price_max in
+    // the codebase, and without it ProductCard's "החל מ-" branch can never fire:
+    // it needs a ceiling to compare against, and it fails closed to a bare
+    // number when there is none. That failure mode is the one the tile is meant
+    // to fix — `rep` is the cheapest illustrated in-stock member, so a bare
+    // number on a spread group prints the group's FLOOR as if it were its price.
+    // Raw, not effective: ProductCard runs getEffectivePrice on both sides so a
+    // spread that vanishes after the site-wide discount correctly reads as one
+    // price. Prices are non-negative here; call-for-price rows carry 0 and are
+    // excluded from the tile's branch by its own isCallOnly guard.
+    let max = rep.price;
+    for (const p of g) if (p.price > max) max = p.price;
+    return { ...rep, model_count: g.length, model_price_max: max } as T & {
+      model_count: number;
+      model_price_max: number;
+    };
   });
 }
 
 /**
- * THE entry point. One call, four routes.
+ * THE entry point. One call, three routes (/shop is server-paged — see the top
+ * of this file for why it is not and cannot be one of them).
  *
  * `shelfKey` is only consulted for SHELF_ORDER_PINS, and only when the shopper
  * has not chosen a sort — an explicit ?sort= always wins over a pin, because a
@@ -285,7 +345,10 @@ export function orderCatalog<T extends ShelfRow>(
       list = [...rows].sort((a, b) => +new Date(a.created_at ?? 0) - +new Date(b.created_at ?? 0));
       break;
     case "name":
-      list = [...rows].sort((a, b) => a.name.localeCompare(b.name, "he"));
+      // Codepoint order, not locale — see byNameThenId. This branch is SSR'd
+      // too (the sort lives in the URL, so a shared ?sort=name link renders on
+      // the server), which makes it exactly as ICU-sensitive as the default.
+      list = [...rows].sort(byNameThenId);
       break;
     default:
       list = orderShelf(rows);

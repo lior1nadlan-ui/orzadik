@@ -89,6 +89,26 @@ const SKU_KEEP_BEFORE = /(תכולה|טהור|נפח|משקל|גרם|מ"ל|מ״�
 const DIGIT_TIMES_DIGIT = /(\d)\s*[×✕✖]\s*(\d)/g;
 const DIGIT_ENDASH_DIGIT = /(\d)\s*[–—]\s*(\d)/g;
 
+/**
+ * Apply the rule above to ANY string this module hands to a renderer — not just
+ * the product name.
+ *
+ * This is deliberately exported and deliberately called on every emitted value.
+ * The first version of this module normalised inside displayProductName only,
+ * which left the one field where digit-sign-digit is the NORMAL shape — `מידות`
+ * — going to the tile raw. That is the worst possible place to miss it: the
+ * measured example in sizeSegment's own docstring is "26X19 ס\"מ", the header
+ * above records a live row reading "בגודל 16×21 ס\"מ", and a dimension is
+ * precisely a number-sign-number run. So the field most likely to carry the
+ * hazard was the one field not protected from it.
+ *
+ * Length-preserving or shrinking ("16 × 21" -> "16x21"), so callers may safely
+ * normalise BEFORE any length guard and get a slightly more permissive result.
+ */
+export function neutralizeBidiDigits(s: string): string {
+  return s.replace(DIGIT_TIMES_DIGIT, "$1x$2").replace(DIGIT_ENDASH_DIGIT, "$1-$2");
+}
+
 /** Punctuation left dangling once a chunk in the middle/end is removed. */
 const DANGLING_TAIL = /[\s,|·\-–—]+$/;
 const DANGLING_HEAD = /^[\s,|·]+/;
@@ -105,9 +125,7 @@ export function displayProductName(raw: string | null | undefined): string {
   if (!raw) return "";
   const original = String(raw).trim();
 
-  let s = original
-    .replace(DIGIT_TIMES_DIGIT, "$1x$2")
-    .replace(DIGIT_ENDASH_DIGIT, "$1-$2")
+  let s = neutralizeBidiDigits(original)
     .replace(NO_RETURNS_CLAIM, " ")
     .replace(LEADING_CATALOGUE_PREFIX, "");
 
@@ -160,11 +178,26 @@ export function displayProductName(raw: string | null | undefined): string {
 
 type SpecKey = "חומר" | "צבע" | "מידות";
 
+/**
+ * The three label patterns, compiled ONCE at module load.
+ *
+ * They used to be built with `new RegExp(\`${key}\\s*:…\`)` on every lookup,
+ * which is three compilations per product. That is fine for one product page
+ * and not fine here: /category/$slug can have up to ~1000 ProductCards mounted
+ * at once, so the tile caption is the hottest render path on the site. Value
+ * runs to the next pipe, newline, or end; the label may be preceded by a pipe,
+ * a newline or the start of the string, so there is no anchor. Non-global, so
+ * they hold no lastIndex state and are safe to share.
+ */
+const SPEC_PATTERNS: Record<SpecKey, RegExp> = {
+  "חומר": /חומר\s*:\s*([^|\n\r]+)/,
+  "צבע": /צבע\s*:\s*([^|\n\r]+)/,
+  "מידות": /מידות\s*:\s*([^|\n\r]+)/,
+};
+
 /** Pull one `key: value` out of the house spec line. */
 function specValue(text: string, key: SpecKey): string | null {
-  // Value runs to the next pipe, newline, or end. The label may be preceded by
-  // a pipe, a newline or the start of the string, so no anchor is used.
-  const m = text.match(new RegExp(`${key}\\s*:\\s*([^|\\n\\r]+)`));
+  const m = text.match(SPEC_PATTERNS[key]);
   if (!m) return null;
   const v = m[1].trim().replace(/\s+/g, " ");
   return v.length > 0 ? v : null;
@@ -197,7 +230,9 @@ function compactList(v: string): string {
 function sizeSegment(v: string): string | null {
   if (/[.!?]/.test(v)) return null;      // a sentence, not a measurement
   if (v.includes(",")) return null;      // multi-dimension — too long for 171px
-  const s = v.replace(/^\s*(?:אורך|גובה|קוטר)\s+/, "").trim();
+  // Normalise BEFORE the length guard: this is the field that actually carries
+  // "16×21", and the substitution only ever shortens ("16 × 21" -> "16x21").
+  const s = neutralizeBidiDigits(v).replace(/^\s*(?:אורך|גובה|קוטר)\s+/, "").trim();
   if (s.length === 0 || s.length > 16) return null;
   if (!/\d/.test(s)) return null;        // "בינוני" tells a shopper nothing here
   return s;
@@ -222,7 +257,16 @@ function toPlainText(raw: string): string {
  */
 export function parseTileAttributes(description: string | null | undefined): string | null {
   if (!description) return null;
-  const text = toPlainText(String(description));
+  const raw = String(description);
+  // Cheap necessary condition on the RAW string, BEFORE toPlainText runs four
+  // whole-string replaces over it. 49% of products carry no spec tail at all and
+  // descriptions run to hundreds of characters, so on a grid of ~1000 tiles this
+  // skips the expensive half of the work for about half of them. It cannot
+  // produce a false negative: toPlainText only strips tags and decodes entities,
+  // and none of the three labels is a tag or an entity, so a label present after
+  // the strip was present before it.
+  if (!/חומר|צבע|מידות/.test(raw)) return null;
+  const text = toPlainText(raw);
   if (!/(חומר|צבע|מידות)\s*:/.test(text)) return null;
 
   const material = specValue(text, "חומר");
@@ -230,8 +274,13 @@ export function parseTileAttributes(description: string | null | undefined): str
   const sizeRaw = specValue(text, "מידות");
 
   const parts: string[] = [];
-  if (material) parts.push(compactList(material));
-  if (colour) parts.push(compactList(colour));
+  // Every value is normalised on the way out. sizeSegment already does its own
+  // (it needs the normalised form for its length guard); material and colour go
+  // through here because "כסף 2–3 מ\"מ" is a shape this feed can produce too, and
+  // a per-value guarantee is the only kind that survives someone adding a fourth
+  // attribute later.
+  if (material) parts.push(neutralizeBidiDigits(compactList(material)));
+  if (colour) parts.push(neutralizeBidiDigits(compactList(colour)));
   if (sizeRaw) {
     const size = sizeSegment(sizeRaw);
     if (size) parts.push(size);

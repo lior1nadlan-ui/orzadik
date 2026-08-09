@@ -1674,18 +1674,15 @@ function ProductPage() {
               <Truck className="h-4 w-4 shrink-0 text-accent mt-0.5" />
               <span>
                 דמי משלוח {formatILS(SHIPPING_FLAT)} (מתווספים בעגלה) • <span className="font-semibold text-accent">זמן אספקה {DELIVERY_WINDOW} ימי עסקים</span>
-                {/* Personalization is bought for weddings and bar mitzvahs —
-                    dated events — so a buyer who has typed a name needs to know
-                    the clock does not start at checkout. This is not a new
-                    promise: /shipping §"זמני אספקה" ¶3 already commits to
-                    "פרטי ההתאמה מתואמים איתכם לאחר ההזמנה, וההכנה מתחילה לאחר
-                    אישור הפרטים מולכם". Stated here so it is read BEFORE the
-                    card is charged rather than after. */}
-                {customText.trim() && (
-                  <span className="block text-xs text-muted-foreground mt-0.5">
-                    ההכנה מתחילה לאחר תיאום פרטי ההתאמה איתכם — חשוב לתאריך יעד? דברו איתנו לפני ההזמנה.
-                  </span>
-                )}
+                {/* The "ההכנה מתחילה לאחר תיאום פרטי ההתאמה" caveat used to hang
+                    here behind `customText.trim() &&`, i.e. it appeared only
+                    AFTER a name had been typed — which is after the shopper has
+                    already decided to personalize, and therefore after the one
+                    moment the warning could have changed anything. It now lives
+                    ungated at the top of the personalization block below, where
+                    it is read BEFORE the name field. Do not re-add it here: two
+                    copies of a delivery caveat is how the 3-14 window drifted
+                    across three surfaces in the first place. */}
               </span>
 
             </div>
@@ -1785,6 +1782,35 @@ function ProductPage() {
               <Label htmlFor="embroidery" className="text-sm font-semibold text-accent">
                 ✦ הוספת שם אישי על המוצר (אופציונלי)
               </Label>
+              {/* The dated-gift caveat, ungated.
+                  Personalization is bought for bar mitzvahs and weddings —
+                  events with a DATE — and the clock on this order does not start
+                  at checkout: /shipping §"זמני אספקה" ¶3 already commits to
+                  "פרטי ההתאמה מתואמים איתכם לאחר ההזמנה, וההכנה מתחילה לאחר
+                  אישור הפרטים מולכם". Nothing new is promised here and no second
+                  delivery number is introduced — DELIVERY_WINDOW in the shipping
+                  chip above stays the only one, precisely because a "מוכן תוך X"
+                  invented next to a personalization field is the kind of claim
+                  this page has had to strip before.
+                  It sits BEFORE the input on purpose: a buyer with a deadline
+                  needs it while they are still deciding, not after they have
+                  typed a name. The WhatsApp route is inline for the same reason
+                  — the answer to "will it make the 14th?" is a person, and it is
+                  one tap from the sentence that raises the question. Same
+                  PRESALE_WA_TEXT the rest of the page uses, so the message
+                  arrives pre-filled with this SKU. */}
+              <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+                ההכנה מתחילה לאחר תיאום פרטי ההתאמה איתכם - חשוב לתאריך יעד?{" "}
+                <a
+                  href={`https://wa.me/${CONTACT_WA}?text=${encodeURIComponent(PRESALE_WA_TEXT)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-semibold text-[#075E54] underline underline-offset-4"
+                >
+                  דברו איתנו בוואטסאפ
+                </a>{" "}
+                לפני ההזמנה.
+              </p>
               <Input
                 id="embroidery"
                 value={customText}

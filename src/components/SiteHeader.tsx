@@ -1,5 +1,6 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { ShoppingBag, User as UserIcon, Search, Menu, X, Heart } from "lucide-react";
+import { ShoppingBag, User as UserIcon, Search, Menu, X, Heart, ChevronDown } from "lucide-react";
+import { OCCASION_COLLECTIONS } from "@/lib/collections";
 import { useCart, formatILS, getEffectivePrice } from "@/lib/cart";
 import { useFavorites } from "@/components/engagement/favorites";
 import { useAuth } from "@/lib/auth";
@@ -43,27 +44,70 @@ type SearchSuggestion = {
 };
 
 // ---------------------------------------------------------------------------
-// Desktop nav row — curated links to REAL category slugs (verified in the DB).
-// Owner: to swap a destination, edit the <Link> labels/slugs in the nav row
-// below. TALITOT_SLUG is the same slug the homepage hero CTA links to; keep the
-// two in step. (It used to be the percent-encoded Hebrew slug — the 2026-07
-// cleanup renamed that row to clean ASCII precisely because the encoded form
-// 404s through the router.)
-// ---------------------------------------------------------------------------
-const TALITOT_SLUG = "talitot";
-
-// The curated category shortcuts, shared by the desktop nav row AND the drawer's
-// category section so the two surfaces can never drift. Every slug is a real
-// category verified in the DB (see note above). Owner: edit here to retarget a
-// shortcut in both places at once.
-const CURATED_CATEGORIES: { slug: string; label: string }[] = [
-  // marazim-chatanim, NOT "wedding": /category/wedding contains הפרשת חלה sets, a
-  // bride's blessing plaque and tallit clips — zero groom boxes. The four active
-  // groom sets are all in marazim-chatanim.
-  { slug: "marazim-chatanim", label: "מארזים לחתן" },
-  { slug: "chatan-kala", label: "חתן וכלה" },
-  { slug: "chalaka-set", label: "סטי חלאקה" },
-  { slug: TALITOT_SLUG, label: "טליתות" },
+// The six doors in the header.
+//
+// WHAT WAS HERE BEFORE, AND WHY IT WENT
+//
+// The four curated shortcuts were marazim-chatanim / chatan-kala / chalaka-set
+// / talitot. Measured on the live anon REST 2026-08-09 (count=exact, active
+// products only): 11 / 45 / 40 / 55 products — 151 rows, 3.2% of the 4,648-item
+// catalogue, and the two most expensive shelves in the shop (marazim-chatanim
+// runs ₪1,150-1,800 effective, talitot ₪235-1,100). Every page of this site
+// carried a nav whose shopping links pointed almost exclusively at things a
+// stranger cannot afford to risk on a shop they have never bought from.
+//
+// The six below are the six deepest shelves the catalogue actually has —
+// verified the same day, same query, and every one of them has ZERO rows with a
+// null thumbnail:
+//
+//   כיפות              kipot                    743
+//   חגים               chagim                   523
+//   טלית ותפילין        talit-tefilin            465
+//   נרתיקי מזוזה        plastic                  383
+//   שבת                shabbat                  357
+//   ברכות וחמסות        brachot-chamsot-segulot  301
+//
+// (The plan this implements said 525 / 359 for chagim / shabbat; the live counts
+// are 523 / 357 and those are the numbers printed. Re-check with:
+//   /rest/v1/categories?select=slug,name,products(count)
+//     &slug=in.(kipot,chagim,talit-tefilin,plastic,shabbat,brachot-chamsot-segulot)
+//     &products.is_active=eq.true )
+//
+// The two sets share ZERO products, so this is not a reshuffle — it is 2,772
+// products of newly-reachable shelf against 151.
+//
+// COUNTS ARE HARDCODED, DELIBERATELY. The header's own categories query does
+// carry live counts (CATEGORY_COUNT_EMBED, below), but SiteHeader is a
+// component and not a route: that query is client-only, so a live number would
+// pop in after hydration and reflow the nav on every page of the site. A static
+// label is in the server HTML. It is a NAV LABEL, not a promise — re-run the
+// query above after a supplier import and edit the six numbers.
+//
+// WHAT THE NUMBER MEANS: products, not tiles. /category/<slug> collapses
+// same-name models into one card (collapseSameName), so kipot's 743 products
+// render as ~671 cards, each carrying its own model_count. Nothing is hidden
+// and nothing is inflated; the count is the shelf's depth.
+//
+// marazim-chatanim KEEPS ITS PAGE AND LOSES THE HEADER. The old comment here
+// recorded why it was chosen over /category/wedding — "/category/wedding
+// contains הפרשת חלה sets, a bride's blessing plaque and tallit clips, zero
+// groom boxes; the groom sets are all in marazim-chatanim" — and that reasoning
+// is still correct FOR THAT PAGE, which is why the page stays and the flagship
+// band on the homepage still sells it. What changed is that it may not be a
+// DOOR: 7 of its 11 active products have a null thumbnail (measured 2026-08-09,
+// same 7 as the last audit), so a stranger arriving from the site chrome meets
+// a grid that is majority placeholder. That is a blocking owner input — photos —
+// not something markup can fix. Re-add it here when the 7 rows have images.
+//
+// The label for brachot-chamsot-segulot is shortened from the DB name
+// "ברכות חמסות וסגולות"; the category page carries the full name in its own h1.
+const CURATED_CATEGORIES: { slug: string; label: string; count: number }[] = [
+  { slug: "kipot", label: "כיפות", count: 743 },
+  { slug: "chagim", label: "חגים", count: 523 },
+  { slug: "talit-tefilin", label: "טלית ותפילין", count: 465 },
+  { slug: "plastic", label: "נרתיקי מזוזה", count: 383 },
+  { slug: "shabbat", label: "שבת", count: 357 },
+  { slug: "brachot-chamsot-segulot", label: "ברכות וחמסות", count: 301 },
 ];
 
 // ---------------------------------------------------------------------------
@@ -102,6 +146,70 @@ const LINK_HOVER_CLS = `transition-[color] duration-200 ease-out
 const ICON_BTN_CLS = `inline-flex h-10 w-10 items-center justify-center rounded-full
   text-foreground press
   [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent`;
+
+// The depth number beside a curated shortcut. Muted and a step down in size so
+// it reads as metadata ON the label rather than as a second word. It lives
+// INSIDE the <Link>, which means it is part of the accessible name ("כיפות
+// 743") — the only way the number means anything to a screen-reader user.
+// tabular-nums keeps the six of them optically aligned in the drawer's column.
+const NAV_COUNT_CLS = "ms-1.5 text-[11px] text-muted-foreground tabular-nums";
+
+/**
+ * "מתנות לפי אירוע" — the seven occasion hubs, as seven real links.
+ *
+ * This nav item used to point at /categories, whose top section indexes the
+ * hubs. That made every occasion two clicks away and, more expensively, meant
+ * the site chrome emitted ZERO /collection/ anchors: the seven hub pages are
+ * the shop's only rankable gift-guide surfaces and the most-linked element on
+ * the site pointed at none of them, passing every drop of that authority to
+ * /categories instead.
+ *
+ * A native <details> and not a JS menu, for the reason the guide FAQ is one
+ * (see articles/$slug.tsx): a closed <details> keeps its content in the DOM, so
+ * all seven anchors are in the server HTML on every page — while the mobile
+ * drawer's copy of this list is inside a Radix Sheet, which portals and
+ * UNMOUNTS when closed and is therefore invisible to a crawler. No JS, no
+ * hydration cost, keyboard-operable out of the box.
+ *
+ * Rendered only in the lg nav row; the drawer has its own always-open list.
+ */
+function OccasionMenu() {
+  return (
+    <details className="group relative">
+      <summary className="flex cursor-pointer list-none items-center gap-1.5 py-1 text-foreground transition-[color] duration-200 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent [&::-webkit-details-marker]:hidden">
+        מתנות לפי אירוע
+        <ChevronDown
+          aria-hidden="true"
+          className="h-3.5 w-3.5 transition-transform duration-200 ease-out motion-reduce:transition-none group-open:rotate-180"
+        />
+      </summary>
+      {/* .glass-strong because this panel floats over whatever the page is
+          scrolled to. It must restate --glass-shadow-lift: the header bar above
+          sets that variable to a zero-alpha shadow at rest and custom
+          properties inherit, so without this the panel would have no lift at
+          all until the page scrolled. */}
+      <div className="glass-strong absolute start-0 top-full z-50 mt-2 w-72 p-2 [--glass-radius:1rem] [--glass-shadow-lift:var(--shadow-soft)]">
+        <ul className="flex flex-col">
+          {OCCASION_COLLECTIONS.map((c) => (
+            <li key={c.slug}>
+              {/* /collection/$slug — `to`/`params` cast exactly as
+                  categories.tsx and the homepage rail do, so the link does not
+                  depend on the router's literal path union being regenerated
+                  before type-check. */}
+              <Link
+                to="/collection/$slug"
+                params={{ slug: c.slug }}
+                className="flex min-h-[44px] items-center rounded-lg px-3 text-sm text-foreground transition-[color,background-color] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
+              >
+                {c.title}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </details>
+  );
+}
 
 export function SiteHeader() {
   const { count, openCart, isCartOpen } = useCart();
@@ -456,11 +564,6 @@ export function SiteHeader() {
                   <Link to="/" onClick={() => setDrawerOpen(false)} className={`py-3 border-b border-border/40 ${LINK_HOVER_CLS}`}>בית</Link>
                   <Link to="/shop" onClick={() => setDrawerOpen(false)} className={`py-3 border-b border-border/40 ${LINK_HOVER_CLS}`}>כל המוצרים</Link>
                   <Link to="/categories" onClick={() => setDrawerOpen(false)} className={`py-3 border-b border-border/40 ${LINK_HOVER_CLS}`}>קטגוריות</Link>
-                  {/* Occasion/holiday gift hubs are indexed by the "קונים לפי
-                      אירוע" section at the top of /categories; this dedicated
-                      entry surfaces that shop-by-occasion path in the one nav
-                      visible at every breakpoint. */}
-                  <Link to="/categories" onClick={() => setDrawerOpen(false)} className={`py-3 border-b border-border/40 ${LINK_HOVER_CLS}`}>מתנות לפי אירוע</Link>
                   {/* /articles had no entry point anywhere in the shell; the drawer
                       is the one nav that is visible at every breakpoint, so the
                       guides live here as well as in the footer. */}
@@ -469,10 +572,12 @@ export function SiteHeader() {
                 </nav>
 
                 <div className="px-6 pt-4 pb-2">
-                  {/* Curated shortcuts — the same picks surfaced in the desktop
-                      nav row, mirrored here as quick-access chips (the gold-hairline
-                      chip idiom the search suggestions already use). The full
-                      category list follows below, unchanged. */}
+                  {/* Curated shortcuts — the same six deepest shelves surfaced
+                      in the desktop nav row, mirrored here as quick-access chips
+                      (the gold-hairline chip idiom the search suggestions already
+                      use), each carrying the same depth number. min-h-[44px]
+                      clears the touch floor: this drawer is the ONLY navigation
+                      on a phone. The full category list follows below. */}
                   <div className="text-[11px] tracking-[0.2em] uppercase text-muted-foreground mb-2">קטגוריות מובחרות</div>
                   <div className="flex flex-wrap gap-2 mb-5">
                     {CURATED_CATEGORIES.map((c) => (
@@ -481,9 +586,31 @@ export function SiteHeader() {
                         to="/category/$slug"
                         params={{ slug: c.slug }}
                         onClick={() => setDrawerOpen(false)}
-                        className="rounded-full border border-gold/40 px-3 py-1.5 text-xs text-foreground/85 press [@media(hover:hover)_and_(pointer:fine)]:hover:border-accent [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
+                        className="inline-flex min-h-[44px] items-center rounded-full border border-gold/40 px-3.5 text-xs text-foreground/85 press [@media(hover:hover)_and_(pointer:fine)]:hover:border-accent [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
                       >
                         {c.label}
+                        <span className={NAV_COUNT_CLS}>{c.count}</span>
+                      </Link>
+                    ))}
+                  </div>
+                  {/* מתנות לפי אירוע — the seven occasion hubs as seven real
+                      links, replacing the single "מתנות לפי אירוע" row that
+                      pointed at /categories and made every occasion a two-click
+                      journey. This is the desktop OccasionMenu's counterpart:
+                      the Sheet unmounts when closed, so these anchors are for
+                      the shopper, and the crawlable copy is the one in the nav
+                      row. Same chip idiom, same 44px floor. */}
+                  <div className="text-[11px] tracking-[0.2em] uppercase text-muted-foreground mb-2">מתנות לפי אירוע</div>
+                  <div className="flex flex-wrap gap-2 mb-5">
+                    {OCCASION_COLLECTIONS.map((c) => (
+                      <Link
+                        key={c.slug}
+                        to="/collection/$slug"
+                        params={{ slug: c.slug }}
+                        onClick={() => setDrawerOpen(false)}
+                        className="inline-flex min-h-[44px] items-center rounded-full border border-gold/40 px-3.5 text-xs text-foreground/85 press [@media(hover:hover)_and_(pointer:fine)]:hover:border-accent [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
+                      >
+                        {c.title}
                       </Link>
                     ))}
                   </div>
@@ -612,26 +739,34 @@ export function SiteHeader() {
         </div>
       </div>
 
-      {/* Desktop nav row — curated premium destinations (the full 72-category
-          drawer stays behind the hamburger). Owner: swap items by editing the
-          labels/slugs here; every slug is a real category verified in the DB. */}
-      <nav aria-label="ניווט ראשי" className="hidden lg:flex h-11 items-center justify-center gap-8 text-[15px]">
+      {/* Desktop nav row — the six deepest shelves with their depth (the full
+          102-category drawer stays behind the hamburger). Owner: swap items by
+          editing CURATED_CATEGORIES above; every slug is a real category
+          verified against the live REST API on the date recorded there.
+          h-11 became min-h-11 + flex-wrap: six labels carrying counts plus the
+          five chrome links exceed the lg container on one line, and a row that
+          wraps to two at 1024px and back to one at xl is a better trade than
+          dropping a door. Gap tightens to 5 at lg for the same reason. */}
+      <nav
+        aria-label="ניווט ראשי"
+        className="hidden min-h-11 flex-wrap items-center justify-center gap-x-5 gap-y-1 py-1.5 text-[15px] lg:flex xl:gap-x-7"
+      >
         <Link to="/shop" className={NAV_LINK_CLS}>חנות</Link>
         {CURATED_CATEGORIES.map((c) => (
           <Link key={c.slug} to="/category/$slug" params={{ slug: c.slug }} className={NAV_LINK_CLS}>
             {c.label}
+            <span className={NAV_COUNT_CLS}>{c.count}</span>
           </Link>
         ))}
         <Link to="/categories" className={NAV_LINK_CLS}>כל הקטגוריות</Link>
         {/* Secondary group — a discovery entry plus the informational
             destinations that only lived in the drawer/footer before. A hairline
             divider sets them off from the curated shopping links so the row
-            reads as two clusters. "מתנות לפי אירוע" points at /categories, whose
-            top section ("קונים לפי אירוע") indexes every occasion/holiday hub
-            (/collection/<slug>) — the discovery path into those rankable pages,
-            surfaced here without adding another item to the shopping cluster. */}
+            reads as two clusters. "מתנות לפי אירוע" now opens the seven
+            /collection/ hubs directly instead of bouncing through /categories —
+            see OccasionMenu for why that matters and why it is a <details>. */}
         <span aria-hidden="true" className="h-4 w-px bg-border" />
-        <Link to="/categories" className={NAV_LINK_CLS}>מתנות לפי אירוע</Link>
+        <OccasionMenu />
         <Link to="/articles" className={NAV_LINK_CLS}>מדריכים</Link>
         <Link to="/about" className={NAV_LINK_CLS}>אודות</Link>
       </nav>
@@ -862,9 +997,10 @@ export function SiteHeader() {
                         to="/category/$slug"
                         params={{ slug: c.slug }}
                         onClick={() => setSearchOpen(false)}
-                        className="rounded-full border border-gold/40 px-3 py-1.5 text-xs text-foreground/85 press [@media(hover:hover)_and_(pointer:fine)]:hover:border-accent [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
+                        className="inline-flex min-h-[44px] items-center rounded-full border border-gold/40 px-3.5 text-xs text-foreground/85 press [@media(hover:hover)_and_(pointer:fine)]:hover:border-accent [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
                       >
                         {c.label}
+                        <span className={NAV_COUNT_CLS}>{c.count}</span>
                       </Link>
                     ))}
                   </div>

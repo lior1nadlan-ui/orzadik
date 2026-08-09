@@ -17,6 +17,8 @@
 // tallit guide belongs on the sets, the bags AND the tallitot categories), which
 // is why the mapping lives here rather than in a query.
 
+import { OCCASION_COLLECTIONS } from "@/lib/collections";
+
 export type GuideRef = {
   slug: string;
   /** Shown as the link label. Kept short — the DB title_he is a full headline. */
@@ -96,6 +98,67 @@ export const GUIDE_CATEGORIES: Record<string, string[]> = {
   "kiddush-cup-guide": ["gviei-kidush", "gviei-kidush-crystal-keramika", "candlesticks"],
   "hanukkia-guide": ["hanukkah", "chagim"],
 };
+
+/**
+ * guide → OCCASION HUB(S). The third edge in this file, and the one that was
+ * missing.
+ *
+ * GUIDE_CATEGORIES above sends a reader to a CATEGORY — the right destination
+ * for "I now know what to look for, show me the shelf". It is the wrong
+ * destination for the paragraph every one of these guides ends on. Measured on
+ * the live bodies 2026-08-09, all five carry an "as a gift" <h2> of their own:
+ *
+ *   bechira-talit      "טלית כמתנה"
+ *   tefillin-guide     "תפילין כמתנה לבר מצווה"
+ *   mezuza-guide       "מזוזה כמתנה"
+ *   kiddush-cup-guide  "גביע קידוש כמתנה"
+ *   hanukkia-guide     "חנוכיה כמתנה"
+ *
+ * A reader in that paragraph is not shopping a shelf, they are shopping an
+ * OCCASION — and /collection/<slug> is the surface this site already built for
+ * exactly that (7 curated hubs, each unioning several real categories). Before
+ * this mapping the five guides emitted ZERO /collection/ links between them,
+ * while sitting at Search Console positions 12-26, i.e. the site's best-ranking
+ * pages passed nothing to its most commercial landing pages.
+ *
+ * The pairing is the guide's own sentence, not a guess:
+ *   tefillin-guide / bechira-talit  → bar-mitzva   (the tefillin guide's gift
+ *                                     heading literally says לבר מצווה, and the
+ *                                     tallit guide's gift section is the same
+ *                                     occasion)
+ *   mezuza-guide                    → bait-chadash (a mezuza is the housewarming
+ *                                     gift; that hub leads on מזוזות)
+ *   kiddush-cup-guide               → bait-chadash + chatan-kala (its own gift
+ *                                     paragraph names "חנוכת בית" and "חתונה")
+ *   hanukkia-guide                  → matanot-hanukkah
+ *
+ * Slugs are resolved against OCCASION_COLLECTIONS at read time by
+ * occasionsForGuide(), so a typo here renders NOTHING rather than a dead link.
+ */
+export const GUIDE_OCCASIONS: Record<string, string[]> = {
+  "tefillin-guide": ["bar-mitzva"],
+  "bechira-talit": ["bar-mitzva"],
+  "mezuza-guide": ["bait-chadash"],
+  "kiddush-cup-guide": ["bait-chadash", "chatan-kala"],
+  "hanukkia-guide": ["matanot-hanukkah"],
+};
+
+/** What a guide's occasion CTA needs to render one link. */
+export type OccasionRef = { slug: string; title: string; eyebrow: string };
+
+/**
+ * Occasion hubs for one guide, resolved to real collections.
+ *
+ * Pure: OCCASION_COLLECTIONS is plain data with no React and no browser
+ * globals, so this stays safe on the Cloudflare Workers SSR path — which is the
+ * whole point, since an anchor a crawler never sees passes no authority.
+ */
+export function occasionsForGuide(guideSlug: string): OccasionRef[] {
+  return (GUIDE_OCCASIONS[guideSlug] ?? [])
+    .map((slug) => OCCASION_COLLECTIONS.find((c) => c.slug === slug))
+    .filter((c): c is (typeof OCCASION_COLLECTIONS)[number] => !!c)
+    .map((c) => ({ slug: c.slug, title: c.title, eyebrow: c.eyebrow }));
+}
 
 /** Topically related guides, for the "מאמרים נוספים" block. */
 export const GUIDE_CLUSTERS: string[][] = [
