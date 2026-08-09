@@ -69,6 +69,27 @@ export type LocalPhoto = {
   src: string;
   width: number;
   height: number;
+  /** Responsive candidates, when downscales have been generated. See RESIZED. */
+  srcSet?: string;
+};
+
+/**
+ * Downscales generated next to an original, keyed by original filename.
+ *
+ * THIS IS THE "KNOWN COST" IN THE HEADER, NOW PAID — for the one file that has
+ * a confirmed pairing. groom-07.jpeg is 250 KB at 1440x1920 and a listing tile
+ * renders it at roughly 200 CSS px; the 400w candidate is 22 KB, so the tile
+ * stops paying 91% of a payload it cannot use. These files do not pass through
+ * the Supabase render endpoint (they live in public/), so the candidates are
+ * real files on disk rather than transform URLs.
+ *
+ * Regenerate with sharp: resize to width, jpeg quality 82, mozjpeg.
+ * A file absent from this map simply ships its original with no srcSet — the
+ * behaviour every unconfirmed pairing had before, so adding a pairing without
+ * generating downscales degrades in weight, never in correctness.
+ */
+const RESIZED: Record<string, number[]> = {
+  "groom-07.jpeg": [400, 800],
 };
 
 /**
@@ -126,7 +147,22 @@ const GROOM_SET_PHOTOS: Record<string, { width: number; height: number }> = {
  * got two of four wrong. Owner confirms, then we ship.
  */
 const SLUG_TO_GROOM_PHOTO: Record<string, string> = {
-  // "groom-set-white-crown": "groom-07.jpeg",
+  // OWNER-CONFIRMED 2026-08-09. Both blockers recorded above are cleared:
+  //   (a) the double-use is gone — src/routes/index.tsx no longer shows this
+  //       file under groom-set-black-leather-look; that entry was one of the two
+  //       wrong pairings this file's audit found, and it now points here;
+  //   (b) the owner looked at the photograph against the product and confirmed
+  //       it, rather than anyone reasoning from filename order again.
+  // The white bags, the silver crown repeated on the atara, the tallit corner
+  // and the kippah are `groom-set-white-crown` clause for clause, and the
+  // pre-rename slug groom-set-07 maps to this product in RENAMED_PRODUCT_SLUGS.
+  //
+  // The photograph carries a real customer's embroidered name, in four places,
+  // unretouched. Raised with the owner twice and published on their explicit
+  // instruction — it is their photograph of their own work and their customer
+  // relationship. If the customer asks, deleting this one line restores the
+  // placeholder.
+  "groom-set-white-crown": "groom-07.jpeg",
   // "groom-set-grey-print": "",
   // "groom-set-beige-suede": "",
   // "groom-set-light-blue": "",
@@ -157,7 +193,17 @@ export function localProductPhoto(slug: string | null | undefined): LocalPhoto |
   // back to no-photo rather than emitting an <img> with no intrinsic size,
   // which would reintroduce the layout shift the width/height attrs prevent.
   if (!dims) return null;
-  return { src: `/groom-sets/${file}`, width: dims.width, height: dims.height };
+  const src = `/groom-sets/${file}`;
+  const widths = Object.prototype.hasOwnProperty.call(RESIZED, file) ? RESIZED[file] : undefined;
+  // The original is always the last candidate at its true width, so a viewport
+  // that wants more than the largest downscale still has somewhere to go.
+  const srcSet = widths?.length
+    ? [
+        ...widths.map((w) => `${src.replace(/\.jpe?g$/i, "")}-${w}w.jpg ${w}w`),
+        `${src} ${dims.width}w`,
+      ].join(", ")
+    : undefined;
+  return { src, width: dims.width, height: dims.height, srcSet };
 }
 
 /** True when the slug has a confirmed bundled photograph. */

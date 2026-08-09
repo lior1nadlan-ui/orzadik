@@ -67,6 +67,12 @@ export function ProductThumb({
       return (
         <img
           src={local.src}
+          // Present only for files with generated downscales. `sizes` is the
+          // caller's own tile width, the same number the remote stages pass to
+          // thumbUrl — without it the browser assumes 100vw and picks the
+          // original, which is the entire cost this srcSet exists to avoid.
+          srcSet={local.srcSet}
+          sizes={local.srcSet ? `${width}px` : undefined}
           alt={alt}
           // Real decoded dimensions, not the square `width` the remote stages
           // assume — these photographs are 3:4 portrait. The container's

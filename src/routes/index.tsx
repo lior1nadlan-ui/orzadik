@@ -563,10 +563,29 @@ const BTN_OUTLINE =
 // The three slugs below were personal names until 2026-07-31 (…/groom-set-yaron-biton
 // — the customer whose bespoke box was photographed). They now describe the
 // product; src/server.ts 301s the old URLs.
+//
+// THESE PAIRINGS WERE AUDITED 2026-08-03 (see src/lib/product-photos.ts) AND
+// TWO OF THE THREE WERE WRONG — a photograph under the wrong slug is not a
+// cosmetic slip, it tells someone spending ₪1,400-2,000 that a different box
+// arrives. One is fixed here; one still is not:
+//
+//   groom-03 -> grey-melange     CORRECT (grey melange fabric, audited).
+//   groom-05 -> brown-leather-look  STILL WRONG. groom-05 is cream/beige quilted
+//     suede with a silver crown; that product's own DB photograph is
+//     unambiguously BROWN suede. The local file here OVERRIDES a correct
+//     catalogue photo with an incorrect one, so the fix is to drop the override
+//     and let the DB image through — but that is the owner's call on which
+//     product this slot should show, not a guess to make from a filename.
+//   groom-07 -> white-crown      FIXED 2026-08-09, was black-leather-look.
+//     groom-07 is a WHITE set whose silver crown repeats on the atara, the
+//     tallit corner and the kippah, while groom-set-black-leather-look is
+//     charcoal. It now points at the product it actually photographs, which is
+//     also the pairing the owner confirmed in product-photos.ts — so the
+//     homepage thumb and the product page finally show the same box.
 const GROOM_THUMBS: { img: string; slug: string }[] = [
   { img: "/groom-sets/groom-03.jpeg", slug: "groom-set-grey-melange" },
   { img: "/groom-sets/groom-05.jpeg", slug: "groom-set-brown-leather-look" },
-  { img: "/groom-sets/groom-07.jpeg", slug: "groom-set-black-leather-look" },
+  { img: "/groom-sets/groom-07.jpeg", slug: "groom-set-white-crown" },
 ];
 
 /**
