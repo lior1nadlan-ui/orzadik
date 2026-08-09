@@ -13,7 +13,6 @@ import { MobileCarousel } from "@/components/MobileCarousel";
 import { ProductCard, type ProductCardData } from "@/components/ProductCard";
 import { readRecent } from "@/components/engagement/recently-viewed";
 import { NewsletterSignup } from "@/components/NewsletterSignup";
-import { ShelfDirectory, fetchShelfStats } from "@/components/home/LuxuryShowcase";
 import { HomeReviews, fetchHomeReviews } from "@/components/content/HomeReviews";
 import { SectionHeader } from "@/components/home/SectionHeader";
 import { CollectionCard, type CatTile } from "@/components/home/CollectionCard";
@@ -339,16 +338,15 @@ export const Route = createFileRoute("/")({
   // rest down. Resolving them here puts them in the server-rendered HTML.
   // Each fetch is independently fault-tolerant — see settle().
   loader: async () => {
-    const [otherCats, featuredProducts, shelfStats, reviews, groomPrices, giftPicks] =
+    const [otherCats, featuredProducts, reviews, groomPrices, giftPicks] =
       await Promise.all([
         settle(fetchOtherCategories()),
         settle(fetchHomeFeaturedProducts()),
-        settle(fetchShelfStats()),
         settle(fetchHomeReviews()),
         settle(fetchGroomThumbPrices()),
         settle(fetchGiftPicks()),
       ]);
-    return { otherCats, featuredProducts, shelfStats, reviews, groomPrices, giftPicks };
+    return { otherCats, featuredProducts, reviews, groomPrices, giftPicks };
   },
   head: () => ({
     meta: [
@@ -690,7 +688,7 @@ function prefersReducedMotion() {
 
 function HomePage() {
   const heroVideoRef = useRef<HTMLVideoElement | null>(null);
-  const { otherCats, featuredProducts, shelfStats, reviews, groomPrices, giftPicks } =
+  const { otherCats, featuredProducts, reviews, groomPrices, giftPicks } =
     Route.useLoaderData();
 
   // Defer the hero video off the mobile critical path. The poster is the LCP
@@ -1281,12 +1279,18 @@ function HomePage() {
         reserveSpace={featuredProducts === null}
       />
 
-      {/* 9. המדפים הגדולים — the shelf directory that replaced "פריטי יוקרה
-          נבחרים" in this slot. Six doors with live depth and an honest floor;
-          see the header comment in components/home/LuxuryShowcase.tsx for what
-          the luxury showcase was measuring and why three products from the top
-          0.6% of the catalogue were the wrong thing for this page to carry. */}
-      <ShelfDirectory initialStats={shelfStats ?? undefined} />
+      {/* 9. THE SLOT IS DELIBERATELY EMPTY.
+          It held "פריטי יוקרה נבחרים" (three products from the top 0.6% of the
+          catalogue), then ShelfDirectory (six text doors with live depth). Both
+          are gone. The doors were removed on the owner's call: on a page where
+          every other block carries a photograph, a text-only panel reads as
+          unfinished rather than as restraint.
+          Nothing replaces them, because nothing needs to. After PR #70 the
+          header already carries those same six shelves with the same counts, so
+          the doors were a second copy of the primary navigation two thirds of
+          the way down the page. The shelves are still reachable from the header
+          on every route, from "שאר הקטגוריות" above, and from /categories.
+          If you put something back here, it needs artwork. */}
 
       {/* 10. חלאקה — promo band. The argaman half is now a glass panel beside the
           photo rather than a wine fill behind cream text. */}
