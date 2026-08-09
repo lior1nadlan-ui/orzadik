@@ -16,6 +16,7 @@ import { NewsletterSignup } from "@/components/NewsletterSignup";
 import { ShelfDirectory, fetchShelfStats } from "@/components/home/LuxuryShowcase";
 import { HomeReviews, fetchHomeReviews } from "@/components/content/HomeReviews";
 import { SectionHeader } from "@/components/home/SectionHeader";
+import { CollectionCard, type CatTile } from "@/components/home/CollectionCard";
 import { Reveal } from "@/components/Reveal";
 import { OCCASION_COLLECTIONS } from "@/lib/collections";
 import { GUIDES } from "@/lib/guide-links";
@@ -485,7 +486,11 @@ export const Route = createFileRoute("/")({
 // `w`/`h` are the tile image's real intrinsic pixels, so the browser can size
 // the box before the file arrives. The tiles themselves are square (the CSS
 // aspect + object-cover own the layout); these are not display dimensions.
-type CatTile = { slug: string; name: string; img: string; w: number; h: number };
+//
+// CatTile now lives with the component that renders it — both rails on this
+// page feed the same <CollectionCard>, so the shape is its contract, not this
+// route's. Re-exported below because the loader's return type is public.
+export type { CatTile };
 
 // Curated featured categories. `slug` is hardcoded (verified against the DB) so
 // the section renders at SSR — no client round-trip, no post-hydration CLS.
@@ -1243,45 +1248,21 @@ function HomePage() {
       <section>
         <Reveal className="container mx-auto px-4 py-14 md:py-20">
           <SectionHeader eyebrow="הקולקציות שלנו" title="מה תרצו לגלות?" />
-          {/* basis-[43%] on mobile: a third tile peeks past the edge so the rail
-              reads as swipeable. md:/lg: layout is owned by MobileCarousel. */}
+          {/* basis-[62%], not the 43% this rail used to carry. 43% of a 390px
+              phone renders a 144.8px card, and <CollectionCard>'s plate cannot
+              be built at that width without dropping the category name to the
+              11px legal-text floor to make room for the decoration above it.
+              62% gives 216px, which is the narrowest the card is designed for.
+              The next tile still peeks, so the rail still reads as swipeable —
+              just less of it. md:/lg: layout is owned by MobileCarousel. */}
           <MobileCarousel
-            basis="basis-[43%]"
+            basis="basis-[62%]"
             mdGrid="md:grid-cols-3"
             mdGap="md:gap-6"
             className="max-w-6xl mx-auto"
           >
             {cats.map((c) => (
-              <Link
-                key={c.slug}
-                to="/category/$slug"
-                params={{ slug: c.slug }}
-                className="group block"
-              >
-                <div className="glass-lift relative aspect-square overflow-hidden rounded-lg bg-muted">
-                  <img
-                    src={c.img}
-                    alt={c.name}
-                    loading="lazy"
-                    decoding="async"
-                    width={c.w}
-                    height={c.h}
-                    className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 ease-out motion-safe:[@media(hover:hover)_and_(pointer:fine)]:group-hover:scale-105"
-                  />
-                  {/* Photo scrim stays dark — it is the one dark surface the
-                      direction keeps — but re-pointed from warm #2A211A to the
-                      cool ink --argaman-deep. */}
-                  <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-argaman-deep/70 via-transparent to-transparent" />
-                  {/* Single label plaque — glass-strong, since it sits on a photo.
-                      Lifts with the same hover gate as the img (transform-only,
-                      200ms, --ease-out) so photo + label move as one object. */}
-                  <div className="absolute inset-x-0 bottom-4 flex justify-center px-3">
-                    <span className="glass-strong px-5 py-2 font-display text-base text-foreground text-center leading-tight [--glass-radius:9999px] transition-transform duration-200 ease-out motion-safe:[@media(hover:hover)_and_(pointer:fine)]:group-hover:-translate-y-0.5">
-                      {c.name}
-                    </span>
-                  </div>
-                </div>
-              </Link>
+              <CollectionCard key={c.slug} cat={c} />
             ))}
           </MobileCarousel>
         </Reveal>
@@ -1567,9 +1548,24 @@ function RecentlyViewedRail() {
 /**
  * Height of the populated "שאר הקטגוריות" section, measured in-browser at the
  * widths where the fluid container changes size (max per range, so it can only
- * ever over-reserve): <768px 528 · 768-1279px 536 · >=1280px 589.
+ * ever over-reserve). Re-measured 2026-08-09 after the tiles became
+ * <CollectionCard>, which changed the basis chain and therefore the tile square:
+ *
+ *   <768px      390 -> 494 · 767 -> 500      max 500
+ *   768-1279px  768 -> 577 · 1279 -> 583     max 583
+ *   >=1280px    1280 -> 581 · 1536 -> 632    max 632
+ *
+ * The plate itself adds nothing: it is absolutely positioned inside the square,
+ * so a two-line category name grows it upward and the section height is a pure
+ * function of the tile width.
+ *
+ * NOTE THIS CONSTANT IS CURRENTLY UNREACHABLE. `reserveSpace` has one call site
+ * and it passes `false` unconditionally, so both branches that read this are
+ * dead. It is kept correct rather than deleted because it is the right guard if
+ * the loader ever stops resolving the strip at SSR — but if you are here because
+ * it went stale again, deleting it and the prop is a behaviour-preserving change.
  */
-const OTHER_CATS_RESERVED_HEIGHT = " min-h-[530px] md:min-h-[540px] xl:min-h-[590px]";
+const OTHER_CATS_RESERVED_HEIGHT = " min-h-[500px] md:min-h-[590px] xl:min-h-[640px]";
 
 /**
  * "שאר הקטגוריות" — the tile carousel for every category with artwork that is
@@ -1603,34 +1599,22 @@ function OtherCategoriesSection({
           opts={{ direction: "rtl", loop: true, dragFree: true, align: "start" }}
           aria-label="שאר הקטגוריות"
         >
+          {/* The basis chain below replaces basis-1/2 sm:basis-1/3 lg:basis-1/5.
+              The old one was NON-MONOTONIC: 234.7px at a 1023px viewport,
+              185.6px at 1024px, because the basis dropped a whole column at lg
+              while the container only grew 256px. That 1024-1279 band is iPad
+              landscape and small laptops, and 185.6px was the site's narrowest
+              desktop card — 8% wider than the phone. Stepping through
+              md:1/3 -> lg:1/4 -> xl:1/5 keeps every band at or above 216px and
+              removes the pinch. Cost: 4 tiles per row instead of 5 between
+              1024 and 1535. */}
           <CarouselContent>
             {cats.map((c) => (
-              <CarouselItem key={c.slug} className="basis-1/2 sm:basis-1/3 lg:basis-1/5">
-                <Link
-                  to="/category/$slug"
-                  params={{ slug: c.slug }}
-                  className="group/card relative block"
-                >
-                  <div className="relative aspect-square overflow-hidden rounded-lg border border-gold/30 bg-muted">
-                    <img
-                      src={c.img}
-                      alt={c.name}
-                      loading="lazy"
-                      decoding="async"
-                      width={c.w}
-                      height={c.h}
-                      className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 ease-out motion-safe:[@media(hover:hover)_and_(pointer:fine)]:group-hover/card:scale-105"
-                    />
-                    {/* Cool-ink photo scrim (was warm #2A211A) */}
-                    <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-argaman-deep/70 via-transparent to-transparent" />
-                    {/* Plaque label — glass-strong, it sits on a photo */}
-                    <div className="absolute inset-x-0 bottom-3 flex justify-center px-2">
-                      <span className="glass-strong px-4 py-1.5 font-display text-xs md:text-sm text-foreground text-center leading-tight [--glass-radius:9999px]">
-                        {c.name}
-                      </span>
-                    </div>
-                  </div>
-                </Link>
+              <CarouselItem
+                key={c.slug}
+                className="basis-[62%] sm:basis-[38%] md:basis-1/3 lg:basis-1/4 xl:basis-1/5"
+              >
+                <CollectionCard cat={c} />
               </CarouselItem>
             ))}
           </CarouselContent>
