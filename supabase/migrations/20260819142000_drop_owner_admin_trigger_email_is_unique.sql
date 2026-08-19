@@ -1,0 +1,35 @@
+-- Drop the signup trigger again. The premise it was reinstated on is false.
+--
+-- APPLIED TO PRODUCTION 2026-08-19 via MCP.
+--
+-- 20260819141500 put it back on the theory that signing in with Google at
+-- lior1nadlan@gmail.com might create a SECOND auth.users row with a new id,
+-- leaving the owner "signed in with the same email" but without the admin role,
+-- which is keyed to user_id.
+--
+-- auth.users makes that impossible:
+--
+--   CREATE UNIQUE INDEX users_email_partial_key
+--     ON auth.users USING btree (email) WHERE (is_sso_user = false);
+--
+-- One email, one non-SSO row. Attempting the duplicate insert directly returns
+--   ERROR 23505: duplicate key value violates unique constraint
+--   "users_email_partial_key"
+-- so a Google sign-in at that address can only attach its identity to the
+-- EXISTING user — id c551ff68…, which already holds the admin row — or fail
+-- outright. It can never produce a second, role-less account.
+--
+-- That leaves the trigger with no scenario to cover and a real cost: a standing
+-- rule granting the highest privilege in the system to whoever next creates an
+-- account with that address. The backfill in 20260819141500 already put the
+-- grants where they belong and does not depend on this.
+--
+-- Note for anyone re-treading this: if Google sign-in ever ERRORS instead of
+-- linking, that is Supabase's automatic-identity-linking setting, not a
+-- permissions problem — and a trigger on auth.users cannot fix it, because no
+-- row is inserted to fire on.
+--
+-- VERIFIED AFTER APPLY: zero rows in pg_trigger for the trigger name, zero in
+-- pg_proc for the function, and exactly one admin — lior1nadlan@gmail.com.
+drop trigger if exists grant_owner_admin_on_signup on auth.users;
+drop function if exists public.grant_owner_admin_on_signup();
