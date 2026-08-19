@@ -41,12 +41,12 @@ import { CardSkeleton } from "@/components/Skeletons";
 import { CROSS_SELL_MAP, DEFAULT_CROSS_SELL_CATEGORY } from "@/lib/cross-sells";
 import { thumbUrl } from "@/lib/img";
 // Owned by the images workstream — imported READ-ONLY, never edited from here.
-// It returns a bundled public/ photograph only for owner-CONFIRMED slug↔file
-// pairings and null for everything else, so a confirmed photo silently wins and
-// the "no photo yet" panel below is only ever the fallback. All seven groom-set
-// pairings are still commented out in that file pending owner confirmation, so
-// today it returns null for all 4,648 products and nothing on this page changes.
-import { localProductPhoto } from "@/lib/product-photos";
+// It returns bundled public/ photographs only for slugs with a pairing recorded
+// in that file, and an empty array for everything else, so the "no photo yet"
+// panel below is only ever the fallback. Since 2026-08-19 the seven groom sets
+// are paired (five of them with a second frame, the set's own siddur); the other
+// 4,641 products get an empty array and nothing on this page changes for them.
+import { localProductPhotos } from "@/lib/product-photos";
 import { ShoppingCart, Minus, Plus, Check, Truck, RotateCcw, ZoomIn, Heart, Lock, ShieldCheck } from "lucide-react";
 import { sellerIdentityLine, BUSINESS, CONSUMER_POLICY } from "@/lib/business";
 import { useFavorites } from "@/components/engagement/favorites";
@@ -1166,14 +1166,13 @@ function ProductPage() {
         .sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
         .map((i: any) => i.url)
         .filter(Boolean)),
-      // Last resort, and only for owner-confirmed pairings: a photograph
-      // bundled in public/ rather than stored in Supabase. Appended (not
-      // prepended) so it can never displace a real DB image, and deduped by the
-      // Set like everything else. Returns null for every slug today, so the
-      // honest "no photo yet" panel in the gallery below still renders for all
-      // 7 image-less groom sets — it retires by itself the moment the images
-      // workstream's owner confirms a pairing, with no change needed here.
-      ...(localProductPhoto(product.slug)?.src ? [localProductPhoto(product.slug)!.src] : []),
+      // Last resort: photographs bundled in public/ rather than stored in
+      // Supabase, hero first and then any further frames (for the groom sets,
+      // the set's own siddur shot on its own). Appended (not prepended) so they
+      // can never displace a real DB image, and deduped by the Set like
+      // everything else. Empty for every product without a pairing in
+      // product-photos.ts, which is all but the seven groom sets.
+      ...localProductPhotos(product.slug).map((p) => p.src),
     ]),
   );
   // If an in-place size variant is selected, use its price as the base.
@@ -1254,7 +1253,7 @@ function ProductPage() {
   //     most expensive line. A bare "אין תמונה" box on a ₪2,000 page is a dead
   //     end; the shop is real and 5 minutes from קריית ביאליק, so offer the
   //     three ways to actually see the thing.
-  //     Reads `gallery`, which already folds in localProductPhoto() — so a
+  //     Reads `gallery`, which already folds in localProductPhotos() — so a
   //     confirmed bundled photograph beats this panel automatically and no
   //     coordination between the two workstreams is needed. As of 2026-08-19
   //     all seven are paired in product-photos.ts, so none of the seven shows

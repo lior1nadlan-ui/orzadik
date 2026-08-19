@@ -139,6 +139,12 @@ const PHOTO_SIZES: Record<string, { width: number; height: number }> = {
   "/product-photos/drive-2026-08/img_0098.webp": { width: 1102, height: 1200 },
   "/product-photos/drive-2026-08/img_0105.webp": { width: 900, height: 1200 },
   "/product-photos/drive-2026-08/img_0119.webp": { width: 1200, height: 1143 },
+  // Siddur covers from the same shoot, shot one per frame.
+  "/product-photos/drive-2026-08/img_0107.webp": { width: 900, height: 1200 },
+  "/product-photos/drive-2026-08/img_0108.webp": { width: 900, height: 1200 },
+  "/product-photos/drive-2026-08/img_0109.webp": { width: 900, height: 1200 },
+  "/product-photos/drive-2026-08/img_0110.webp": { width: 900, height: 1200 },
+  "/product-photos/drive-2026-08/img_0111.webp": { width: 900, height: 1200 },
 };
 
 /**
@@ -227,6 +233,51 @@ const SLUG_TO_PHOTO: Record<string, string> = {
 };
 
 /**
+ * slug -> further bundled frames, shown after the hero in the product gallery.
+ *
+ * Every entry here is the SIDDUR that ships inside that groom set, shot on its
+ * own. The owner's rule for the line, in their words on 2026-08-19: "כל סידור
+ * בצבע של הטלית" — each siddur is bound in the colour of its tallit. That is
+ * what makes a colour match evidence here rather than a guess, and each pairing
+ * below was additionally checked against the siddur visible inside the set's own
+ * flat-lay:
+ *
+ *   grey-print          img_0108  pale grey linen, blind-stamped "סידור"
+ *   beige-suede         img_0111  cream linen carrying the SAME flame motif as
+ *                                 the set's bags, kippah and atara — the motif
+ *                                 is what makes this one certain, not the colour
+ *   beige-linen-classic img_0109  oatmeal linen, same weave as the set's bags
+ *   white-embroidered   img_0110  white, blind-embossed "סידור"
+ *   blue-denim          img_0107  blue-grey quilted with a gold crown
+ *
+ * NOT PAIRED, and each for a stated reason rather than for lack of a candidate:
+ *
+ *   light-blue      No standalone cover in the shoot is pale blue. The set's own
+ *                   flat-lays (img_0093, img_0098, img_0099) do show its pale
+ *                   blue siddur, so the frame exists — it was just never shot
+ *                   on its own. Nothing to add until it is.
+ *   white-crown     img_0116 matches the set's silver crown motif exactly, and
+ *                   is the obvious pairing on looks alone. It is left out
+ *                   because its cover reads "סידור הודו לשם לבת ישראל" — a
+ *                   women's siddur, on a חתן product. If the shop really does
+ *                   ship that book with the groom set, this is a one-line add;
+ *                   if not, adding it would have put the wrong book on the page.
+ *
+ * Three charcoal covers (img_0113, img_0114, img_0115) are also unplaced. No
+ * charcoal set is among these seven — they most likely belong to
+ * groom-set-black-leather-look, -grey-melange or -linen-look-premium, which
+ * already carry DB photographs, and which of the three is which is not
+ * something these frames settle.
+ */
+const SLUG_TO_EXTRA_PHOTOS: Record<string, string[]> = {
+  "groom-set-grey-print": ["/product-photos/drive-2026-08/img_0108.webp"],
+  "groom-set-beige-suede": ["/product-photos/drive-2026-08/img_0111.webp"],
+  "groom-set-beige-linen-classic": ["/product-photos/drive-2026-08/img_0109.webp"],
+  "groom-set-white-embroidered": ["/product-photos/drive-2026-08/img_0110.webp"],
+  "groom-set-blue-denim": ["/product-photos/drive-2026-08/img_0107.webp"],
+};
+
+/**
  * The bundled photograph for a product slug, or null when there isn't one.
  *
  * Deliberately total and defensive: any slug that is not a confirmed key —
@@ -241,15 +292,42 @@ export function localProductPhoto(slug: string | null | undefined): LocalPhoto |
     ? SLUG_TO_PHOTO[slug]
     : undefined;
   if (!file) return null;
-  const dims = Object.prototype.hasOwnProperty.call(PHOTO_SIZES, file)
-    ? PHOTO_SIZES[file]
+  return photoFor(file);
+}
+
+/**
+ * Every bundled frame for a slug, hero first: the SLUG_TO_PHOTO photograph
+ * followed by any SLUG_TO_EXTRA_PHOTOS frames, in the order listed there.
+ *
+ * Same defensiveness as localProductPhoto — an unmeasured path is skipped
+ * rather than emitting an <img> with no intrinsic size, and a slug with nothing
+ * bundled returns an empty array, never null. Callers spread it into a gallery,
+ * so element order is the display order.
+ *
+ * A product with extra frames but no hero returns just the extras; that is a
+ * mistake in the maps rather than a state to design for, but it degrades to
+ * "shows what we have" instead of throwing.
+ */
+export function localProductPhotos(slug: string | null | undefined): LocalPhoto[] {
+  if (typeof slug !== "string" || slug === "") return [];
+  const extras = Object.prototype.hasOwnProperty.call(SLUG_TO_EXTRA_PHOTOS, slug)
+    ? SLUG_TO_EXTRA_PHOTOS[slug]
+    : [];
+  const hero = localProductPhoto(slug);
+  const rest = extras.map(photoFor).filter((p): p is LocalPhoto => p !== null);
+  return hero ? [hero, ...rest] : rest;
+}
+
+/** Resolve one bundled path to a sized photo, or null if it has no measurement. */
+function photoFor(src: string): LocalPhoto | null {
+  const dims = Object.prototype.hasOwnProperty.call(PHOTO_SIZES, src)
+    ? PHOTO_SIZES[src]
     : undefined;
   // A pairing pointing at a file we have no measurement for is a typo. Fall
   // back to no-photo rather than emitting an <img> with no intrinsic size,
   // which would reintroduce the layout shift the width/height attrs prevent.
   if (!dims) return null;
-  const src = file;
-  const widths = Object.prototype.hasOwnProperty.call(RESIZED, file) ? RESIZED[file] : undefined;
+  const widths = Object.prototype.hasOwnProperty.call(RESIZED, src) ? RESIZED[src] : undefined;
   // The original is always the last candidate at its true width, so a viewport
   // that wants more than the largest downscale still has somewhere to go.
   const srcSet = widths?.length
