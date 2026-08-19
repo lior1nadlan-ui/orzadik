@@ -97,23 +97,46 @@ export const BUSINESS = {
   /** Public contact phone (already used in structured data). */
   phone: "+972-54-581-8486",
   phoneDisplay: "054-581-8486",
-  /** General contact email. */
-  email: "orzarualachatz@gmail.com",
+  // ⚠️ Every address below must be able to RECEIVE before this file ships.
+  // Publishing one the domain cannot receive is the exact defect this replaces,
+  // and it has already happened once — see the history note. Cloudflare Email
+  // Routing is what makes them work; if it is ever removed from orzadik.com,
+  // these three go back to bouncing and the statutory routes go with them.
+  //
+  // Verified live 2026-08-19: MX, SPF and DKIM present on the root domain,
+  // destination address verified, one routing rule per address plus a catch-all,
+  // and mail sent from an unrelated account to all three was Forwarded by
+  // Cloudflare with no bounce returned to the sender.
+  //
+  // All three are published to customers: `email` in the header, /contact,
+  // /shipping, /returns and in the seller-identity line at the foot of every
+  // order confirmation, abandoned-cart reminder, review request and campaign
+  // (Consumer Protection Law §4ב requires the seller's contact details there).
+  // The other two are STATUTORY routes — the privacy contact (חוק הגנת הפרטיות)
+  // and the accessibility coordinator (תקנות שוויון זכויות / ת"י 5568) — named
+  // in /privacy, /terms and /accessibility, where the accessibility statement
+  // promises a response within 30 days.
+  //
+  // HISTORY, so nobody repeats it: these first pointed at privacy@ and
+  // accessibility@orzadik.com while **orzadik.com had no MX record**, so both
+  // silently bounced — a statutory contact route that could not receive mail at
+  // all. They were then pointed at orzarualachatz@gmail.com, which does receive,
+  // but which the owner does not read. Both failure modes are invisible from the
+  // outside: mail leaves the customer's outbox and nothing comes back.
+  //
+  // Now on the domain, via Cloudflare Email Routing forwarding to the owner's
+  // own inbox. That keeps the owner's personal address off the site, survives a
+  // change of personal mailbox without a code change, and adds the MX record
+  // whose absence was a spam signal on every order confirmation the shop sends.
+
+  /** General contact email. Routed to the owner's inbox. */
+  email: "info@orzadik.com",
   /** WhatsApp number (digits only, international). */
   whatsapp: "972545818486",
-  // ⚠️ These two are STATUTORY contact routes — the privacy contact (חוק הגנת
-  // הפרטיות) and the accessibility coordinator (תקנות שוויון זכויות / ת"י 5568) —
-  // and they are published in /privacy, /terms and /accessibility as the way to
-  // reach the business. They pointed at privacy@ and accessibility@orzadik.com,
-  // and **orzadik.com has no MX record**, so both addresses bounced: the
-  // accessibility statement promised a 30-day response at an address that could
-  // not receive mail at all. Pointed at the working inbox until the owner sets up
-  // real mail routing on the domain (Cloudflare Email Routing is free and would
-  // also remove the no-MX spam signal on every order confirmation we send).
-  /** Privacy / data-protection contact. */
-  privacyEmail: "orzarualachatz@gmail.com",
-  /** Accessibility coordinator contact. */
-  accessibilityEmail: "orzarualachatz@gmail.com",
+  /** Privacy / data-protection contact. Routed to the owner's inbox. */
+  privacyEmail: "privacy@orzadik.com",
+  /** Accessibility coordinator contact. Routed to the owner's inbox. */
+  accessibilityEmail: "accessibility@orzadik.com",
   site: "https://orzadik.com",
   /**
    * Search-engine verification tokens. Fill from Google Search Console
