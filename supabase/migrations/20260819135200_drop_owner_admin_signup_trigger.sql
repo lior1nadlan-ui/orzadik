@@ -1,0 +1,25 @@
+-- Remove the deferred admin grant. It has done its job.
+--
+-- APPLIED TO PRODUCTION 2026-08-19 via MCP.
+--
+-- 20260819140500_correct_admin_to_owner_email.sql installed a trigger that
+-- granted admin to lior1nadlan@gmail.com the moment that address registered,
+-- because at the time the account did not exist and there was nothing to key a
+-- grant to. The owner registered at 13:46:44 on 2026-08-19, the trigger fired,
+-- and public.user_roles now holds the admin row directly.
+--
+-- The trigger is therefore pure standing risk from here on: a rule that grants
+-- the highest privilege in the system to whoever next creates an account with
+-- that address. The account already exists, so the only way it could fire again
+-- is if the account were deleted and re-created — which is precisely the case
+-- where you would NOT want the privilege handed back silently.
+--
+-- Dropped in the order that matters: the trigger depends on the function, so the
+-- trigger goes first.
+--
+-- VERIFIED AFTER APPLY: zero rows in pg_trigger for the trigger name, zero in
+-- pg_proc for the function, and exactly one admin row — lior1nadlan@gmail.com.
+-- That account's own JWT reads all 4,672 products (including the 24 inactive),
+-- every order, order item, profile, cart and article.
+drop trigger if exists grant_owner_admin_on_signup on auth.users;
+drop function if exists public.grant_owner_admin_on_signup();
