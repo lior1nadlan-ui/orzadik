@@ -11,8 +11,10 @@
 -- at all — hence a ledger of the same shape, following
 -- 20260728120000_add_category_copy_runs_ledger.sql.
 --
--- NOT APPLIED YET — this session has no DB write access (the Supabase MCP
--- returned "permission denied" mid-session). Owner runs it in the SQL editor.
+-- APPLIED TO PRODUCTION 2026-08-19 via MCP. Dry-run first matched the counts
+-- documented above exactly (44 catalogue numbers + 28 truncated units); after
+-- apply, product_name_runs holds 72 restore rows and both defect classes
+-- return zero rows.
 
 create table if not exists public.product_name_runs (
   id           bigint generated always as identity primary key,
