@@ -30,8 +30,8 @@
 -- Idempotent: matches the exact sentence and no-ops once applied. Logged to
 -- product_copy_runs' sibling ledger shape so it is reversible.
 --
--- NOT APPLIED — this session has no DB write access (the Supabase MCP returned
--- "permission denied" mid-session). Owner runs it in the SQL editor.
+-- APPLIED TO PRODUCTION 2026-08-19 via MCP. The guard query at the foot of this
+-- file now returns zero rows, and article_copy_runs holds the restore row.
 
 create table if not exists public.article_copy_runs (
   id                bigint generated always as identity primary key,

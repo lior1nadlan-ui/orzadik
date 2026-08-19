@@ -59,6 +59,44 @@ export type Database = {
         }
         Relationships: []
       }
+      article_copy_runs: {
+        Row: {
+          article_id: string
+          body_html_after: string | null
+          body_html_before: string | null
+          generated_at: string
+          id: number
+          md5_after: string | null
+          run_id: string
+        }
+        Insert: {
+          article_id: string
+          body_html_after?: string | null
+          body_html_before?: string | null
+          generated_at?: string
+          id?: never
+          md5_after?: string | null
+          run_id: string
+        }
+        Update: {
+          article_id?: string
+          body_html_after?: string | null
+          body_html_before?: string | null
+          generated_at?: string
+          id?: never
+          md5_after?: string | null
+          run_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "article_copy_runs_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "articles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       articles: {
         Row: {
           author: string | null
@@ -248,6 +286,50 @@ export type Database = {
           wp_id?: number | null
         }
         Relationships: []
+      }
+      category_copy_runs: {
+        Row: {
+          category_id: string
+          description_after: string | null
+          description_before: string | null
+          generated_at: string
+          id: number
+          long_description_after: string | null
+          long_description_before: string | null
+          md5_after: string | null
+          run_id: string
+        }
+        Insert: {
+          category_id: string
+          description_after?: string | null
+          description_before?: string | null
+          generated_at?: string
+          id?: never
+          long_description_after?: string | null
+          long_description_before?: string | null
+          md5_after?: string | null
+          run_id: string
+        }
+        Update: {
+          category_id?: string
+          description_after?: string | null
+          description_before?: string | null
+          generated_at?: string
+          id?: never
+          long_description_after?: string | null
+          long_description_before?: string | null
+          md5_after?: string | null
+          run_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "category_copy_runs_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       crm_customer_notes: {
         Row: {
@@ -575,6 +657,44 @@ export type Database = {
           },
         ]
       }
+      product_copy_runs: {
+        Row: {
+          description_after: string | null
+          description_before: string | null
+          generated_at: string
+          id: number
+          md5_after: string | null
+          product_id: string
+          run_id: string
+        }
+        Insert: {
+          description_after?: string | null
+          description_before?: string | null
+          generated_at?: string
+          id?: number
+          md5_after?: string | null
+          product_id: string
+          run_id: string
+        }
+        Update: {
+          description_after?: string | null
+          description_before?: string | null
+          generated_at?: string
+          id?: number
+          md5_after?: string | null
+          product_id?: string
+          run_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_copy_runs_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_images: {
         Row: {
           created_at: string
@@ -600,6 +720,44 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "product_images_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_name_runs: {
+        Row: {
+          generated_at: string
+          id: number
+          md5_after: string | null
+          name_after: string | null
+          name_before: string | null
+          product_id: string
+          run_id: string
+        }
+        Insert: {
+          generated_at?: string
+          id?: never
+          md5_after?: string | null
+          name_after?: string | null
+          name_before?: string | null
+          product_id: string
+          run_id: string
+        }
+        Update: {
+          generated_at?: string
+          id?: never
+          md5_after?: string | null
+          name_after?: string | null
+          name_before?: string | null
+          product_id?: string
+          run_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_name_runs_product_id_fkey"
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
@@ -854,6 +1012,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      canonical_product_slug: { Args: { p_slug: string }; Returns: string }
       claim_campaign_recipients: {
         Args: { p_campaign_id: string; p_limit: number }
         Returns: {
@@ -883,6 +1042,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      he_variants: { Args: { w: string }; Returns: string[] }
       increment_rate_limit: {
         Args: { p_key: string; p_ttl_seconds: number }
         Returns: number
