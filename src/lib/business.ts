@@ -97,10 +97,16 @@ export const BUSINESS = {
   /** Public contact phone (already used in structured data). */
   phone: "+972-54-581-8486",
   phoneDisplay: "054-581-8486",
-  // ⚠️ DO NOT SHIP THIS FILE UNTIL CLOUDFLARE EMAIL ROUTING IS LIVE ON
-  // orzadik.com AND ALL THREE ADDRESSES BELOW HAVE BEEN TESTED BY SENDING REAL
-  // MAIL TO THEM. Publishing an address the domain cannot receive is the exact
-  // defect this replaces — see the history note below.
+  // ⚠️ Every address below must be able to RECEIVE before this file ships.
+  // Publishing one the domain cannot receive is the exact defect this replaces,
+  // and it has already happened once — see the history note. Cloudflare Email
+  // Routing is what makes them work; if it is ever removed from orzadik.com,
+  // these three go back to bouncing and the statutory routes go with them.
+  //
+  // Verified live 2026-08-19: MX, SPF and DKIM present on the root domain,
+  // destination address verified, one routing rule per address plus a catch-all,
+  // and mail sent from an unrelated account to all three was Forwarded by
+  // Cloudflare with no bounce returned to the sender.
   //
   // All three are published to customers: `email` in the header, /contact,
   // /shipping, /returns and in the seller-identity line at the foot of every
