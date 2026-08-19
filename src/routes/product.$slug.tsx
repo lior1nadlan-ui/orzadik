@@ -1256,9 +1256,10 @@ function ProductPage() {
   //     three ways to actually see the thing.
   //     Reads `gallery`, which already folds in localProductPhoto() — so a
   //     confirmed bundled photograph beats this panel automatically and no
-  //     coordination between the two workstreams is needed. All seven pairings
-  //     in product-photos.ts are still awaiting owner confirmation, so all
-  //     seven pages show the panel today.
+  //     coordination between the two workstreams is needed. As of 2026-08-19
+  //     all seven are paired in product-photos.ts, so none of the seven shows
+  //     the panel any more — it stays as the correct behaviour for any future
+  //     product that has no photograph, and for any pairing later withdrawn.
   const hasNoPhoto = gallery.length === 0;
 
   // Favorites heart — rendered in every branch (regular, call-only and

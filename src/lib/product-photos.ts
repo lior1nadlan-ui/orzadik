@@ -5,16 +5,23 @@
 // (₪1,643-2,000 in the DB) and the ONLY seven active rows in a 4,648-product
 // catalogue with `thumbnail_url IS NULL`. They render a bare grey "אין תמונה"
 // box. Meanwhile public/groom-sets/ holds 17 genuine product photographs of
-// this exact line. This module is the join between the two.
+// this exact line, and public/product-photos/drive-2026-08/ holds 47 more from
+// the owner's own 2026-08-16 shoot. This module is the join between the two.
 //
-// WHY IT SHIPS ALMOST EMPTY
+// STATE, 2026-08-19: all seven slugs are now paired and the placeholder is
+// gone. One pairing (white-crown) the owner confirmed by eye on 2026-08-09; the
+// other six were made on 2026-08-19 on the owner's instruction from the new
+// shoot, where the colourways are unambiguous. Each entry carries its evidence.
+//
+// WHY THE MAP IS STILL GUARDED
 // A photograph on a product page is a factual claim about what arrives in the
 // box. Pairing a photo with the wrong slug is not a cosmetic slip, it is
 // telling a buyer spending ₪1,800 that they are getting a beige suede set when
-// they are getting a linen one. So the rule for this map is absolute:
+// they are getting a linen one. So the rule for this map is:
 //
-//     ONLY pairings the owner has confirmed. A slug with no confirmed photo
-//     stays absent and keeps the honest "אין תמונה" fallback.
+//     A pairing states the evidence it rests on, or it does not go in. A slug
+//     with no photo keeps the honest "אין תמונה" fallback, which is always
+//     better than a confident wrong picture.
 //
 // That rule is not theoretical caution. The existing slug->photo pairings
 // elsewhere in this codebase were checked against the photographs on
@@ -47,14 +54,15 @@
 //     PIXELS were not. Worth the owner's decision before any of these are
 //     promoted to a product-page hero.
 //
-// KNOWN COST, to be paid when the first pairing is confirmed: these files live
-// in public/ and so do NOT pass through the Supabase render endpoint that
-// src/lib/img.ts uses — there is no width/quality transform available for them.
-// They are 107-488 KB each at 1440x1920, and a listing tile renders at ~200 CSS
-// px. Confirming a pairing therefore ships a full-size JPEG into a thumbnail
-// slot. That is still far better than no photograph on a ₪1,800 product, but the
-// real fix is a build step emitting 400w/800w variants next to each original and
-// a srcSet here. Latent today: the map is empty, so nothing pays this yet.
+// KNOWN COST, now being paid by six of the seven: these files live in public/
+// and so do NOT pass through the Supabase render endpoint that src/lib/img.ts
+// uses — there is no width/quality transform available for them. A listing tile
+// renders at ~200 CSS px, so every paired product ships more image than the tile
+// can use: 107-488 KB at 1440x1920 for the groom-sets JPEGs, 120-260 KB at
+// ~1200px for the drive-2026-08 WebPs. Only groom-07.jpeg has downscales (see
+// RESIZED). The real fix is a build step emitting 400w/800w variants next to
+// each original and listing them in RESIZED; until then this is a weight cost,
+// never a correctness one, and it beats no photograph on a ₪1,800 product.
 //
 // Dimensions below are decoded from each file's JPEG SOF marker, not assumed.
 // Three of the seventeen are 896x1200, not 1440x1920 — the "every
@@ -89,46 +97,55 @@ export type LocalPhoto = {
  * generating downscales degrades in weight, never in correctness.
  */
 const RESIZED: Record<string, number[]> = {
-  "groom-07.jpeg": [400, 800],
+  "/groom-sets/groom-07.jpeg": [400, 800],
 };
 
 /**
- * Intrinsic size of every file in public/groom-sets/, decoded from the JPEG
- * SOF marker on 2026-08-03. Kept separate from the slug map so a pairing can be
- * confirmed by adding ONE line below without also having to measure the file.
+ * Intrinsic size of every bundled photograph, keyed by the site-absolute path
+ * it is served from. The groom-sets/*.jpeg entries were decoded from the JPEG
+ * SOF marker on 2026-08-03; the drive-2026-08/*.webp entries are the encoder's
+ * output sizes from the 2026-08-19 import.
+ *
+ * Kept separate from the slug map so a pairing can be confirmed by adding ONE
+ * line below without also having to measure the file.
  */
-const GROOM_SET_PHOTOS: Record<string, { width: number; height: number }> = {
-  "groom-01.jpeg": { width: 1440, height: 1920 },
-  "groom-02.jpeg": { width: 1440, height: 1920 },
-  "groom-03.jpeg": { width: 1440, height: 1920 },
-  "groom-04.jpeg": { width: 1440, height: 1920 },
-  "groom-05.jpeg": { width: 1440, height: 1920 },
-  "groom-06.jpeg": { width: 896, height: 1200 },
-  "groom-07.jpeg": { width: 1440, height: 1920 },
-  "groom-08.jpeg": { width: 1440, height: 1920 },
-  "groom-09.jpeg": { width: 1440, height: 1920 },
-  "groom-10.jpeg": { width: 896, height: 1200 },
-  "groom-11.jpeg": { width: 1440, height: 1920 },
-  "groom-12.jpeg": { width: 1440, height: 1920 },
-  "groom-13.jpeg": { width: 1440, height: 1920 },
-  "groom-14.jpeg": { width: 1440, height: 1920 },
-  "groom-15.jpeg": { width: 896, height: 1200 },
-  "groom-16.jpeg": { width: 1440, height: 1920 },
-  "groom-17.jpeg": { width: 1440, height: 1920 },
+const PHOTO_SIZES: Record<string, { width: number; height: number }> = {
+  "/groom-sets/groom-01.jpeg": { width: 1440, height: 1920 },
+  "/groom-sets/groom-02.jpeg": { width: 1440, height: 1920 },
+  "/groom-sets/groom-03.jpeg": { width: 1440, height: 1920 },
+  "/groom-sets/groom-04.jpeg": { width: 1440, height: 1920 },
+  "/groom-sets/groom-05.jpeg": { width: 1440, height: 1920 },
+  "/groom-sets/groom-06.jpeg": { width: 896, height: 1200 },
+  "/groom-sets/groom-07.jpeg": { width: 1440, height: 1920 },
+  "/groom-sets/groom-08.jpeg": { width: 1440, height: 1920 },
+  "/groom-sets/groom-09.jpeg": { width: 1440, height: 1920 },
+  "/groom-sets/groom-10.jpeg": { width: 896, height: 1200 },
+  "/groom-sets/groom-11.jpeg": { width: 1440, height: 1920 },
+  "/groom-sets/groom-12.jpeg": { width: 1440, height: 1920 },
+  "/groom-sets/groom-13.jpeg": { width: 1440, height: 1920 },
+  "/groom-sets/groom-14.jpeg": { width: 1440, height: 1920 },
+  "/groom-sets/groom-15.jpeg": { width: 896, height: 1200 },
+  "/groom-sets/groom-16.jpeg": { width: 1440, height: 1920 },
+  "/groom-sets/groom-17.jpeg": { width: 1440, height: 1920 },
+
+  // The owner's own shoot of 2026-08-16, shared 2026-08-19 and landed in
+  // public/product-photos/drive-2026-08/. Sizes are the encoder's output, not
+  // a measurement of the HEIC originals: every file was re-encoded to WebP at
+  // max 1200px, so the long edge is 1200 and the short edge is whatever the
+  // frame's aspect ratio gives.
+  "/product-photos/drive-2026-08/img_0089.webp": { width: 1061, height: 1200 },
+  "/product-photos/drive-2026-08/img_0094.webp": { width: 973, height: 1200 },
+  "/product-photos/drive-2026-08/img_0097.webp": { width: 900, height: 1200 },
+  "/product-photos/drive-2026-08/img_0098.webp": { width: 1102, height: 1200 },
+  "/product-photos/drive-2026-08/img_0105.webp": { width: 900, height: 1200 },
+  "/product-photos/drive-2026-08/img_0119.webp": { width: 1200, height: 1143 },
 };
 
 /**
- * slug -> filename in public/groom-sets/. OWNER-CONFIRMED PAIRINGS ONLY.
+ * slug -> site-absolute path of its bundled photograph.
  *
- * To confirm one: open the photograph, open the product page, check that the
- * colour and material in the picture are the ones the product name and
- * description promise, then uncomment the line. Nothing else in the app needs
- * to change — ProductThumb picks it up automatically.
- *
- * The seven slugs below are every active product in the catalogue with no
- * photograph. Each is listed with what its own DB description promises, so the
- * check is a colour/material comparison and nothing more. NONE is confirmed
- * yet, so all seven stay commented and keep the honest placeholder.
+ * These are the seven active products that had no photograph in a 4,648-product
+ * catalogue, each named for the colour and material it promises:
  *
  *   groom-set-grey-print          אפור עם הדפס      (grey, printed)
  *   groom-set-white-crown         לבן עם עיטור כתר   (white, crown motif)
@@ -138,15 +155,16 @@ const GROOM_SET_PHOTOS: Record<string, { width: number; height: number }> = {
  *   groom-set-white-embroidered   לבן, רקמה כסופה    (white, silver embroidery)
  *   groom-set-beige-linen-classic פשתן בז'          (beige linen)
  *
- * A note on the two that look easy: groom-07.jpeg really does show white bags
- * with a silver crown repeated on the atara, the tallit corner and the kippah,
- * which is `groom-set-white-crown` clause for clause. It is still commented out,
- * because (a) it is the file src/routes/index.tsx currently shows under a
- * DIFFERENT product, so enabling it here would put one photograph under two
- * products at once, and (b) the last person to reason this way from photographs
- * got two of four wrong. Owner confirms, then we ship.
+ * All seven now have one, and the per-entry comments below record on what
+ * evidence and on whose instruction. Nothing else in the app needs to change
+ * when a path here changes — ProductThumb and the product page pick it up.
+ *
+ * The bar for editing this map has not moved: a photograph on a product page is
+ * a factual claim about what arrives in the box, so a pairing states its
+ * evidence or it does not go in. Removing a line is always safe — the product
+ * falls back to the honest "אין תמונה" placeholder.
  */
-const SLUG_TO_GROOM_PHOTO: Record<string, string> = {
+const SLUG_TO_PHOTO: Record<string, string> = {
   // OWNER-CONFIRMED 2026-08-09. Both blockers recorded above are cleared:
   //   (a) the double-use is gone — src/routes/index.tsx no longer shows this
   //       file under groom-set-black-leather-look; that entry was one of the two
@@ -162,13 +180,50 @@ const SLUG_TO_GROOM_PHOTO: Record<string, string> = {
   // instruction — it is their photograph of their own work and their customer
   // relationship. If the customer asks, deleting this one line restores the
   // placeholder.
-  "groom-set-white-crown": "groom-07.jpeg",
-  // "groom-set-grey-print": "",
-  // "groom-set-beige-suede": "",
-  // "groom-set-light-blue": "",
-  // "groom-set-blue-denim": "",
-  // "groom-set-white-embroidered": "",
-  // "groom-set-beige-linen-classic": "",
+  //
+  // The 2026-08-19 shoot contains a second white-crown set,
+  // /product-photos/drive-2026-08/img_0102.webp, with the same crown motif and
+  // NO customer name in frame. Left un-swapped because this pairing is the one
+  // the owner confirmed by eye; swapping the path below is a one-line change if
+  // the name is ever a problem.
+  "groom-set-white-crown": "/groom-sets/groom-07.jpeg",
+
+  // ---------------------------------------------------------------------
+  // PAIRED 2026-08-19 on the owner's instruction ("תחבר הכל למוצרים"), from
+  // their own shoot of 2026-08-16 — 28 flat-lays that between them cover every
+  // colourway the six slugs below name.
+  //
+  // This is a different evidential situation from the 2026-08-03 audit this
+  // file was written to prevent, and the difference is why these ship. That
+  // audit's pairings were guessed from filename order across public/groom-sets/,
+  // where 17 files are repeat angles of a handful of sets and several of those
+  // sets are near-identical creams. Each line below is instead a colour-and-
+  // material match against the words in the product's own name, checked by
+  // opening the file:
+  //
+  //   grey-print          img_0105  grey melange, flame motif PRINTED on bags,
+  //                                 kippah and atara ("האש שלי תוקד")
+  //   beige-suede         img_0097  taupe suede-nap bags, same flame motif
+  //   light-blue          img_0098  pale blue chambray, crown-motif atara
+  //   blue-denim          img_0119  deeper blue denim weave, wreath motif
+  //   white-embroidered   img_0089  white/cream, Star-of-David embroidery
+  //                                 throughout ("שויתי ה' לנגדי תמיד")
+  //   beige-linen-classic img_0094  oatmeal linen, priestly-blessing atara
+  //
+  // Still an inference, and the honest name for the residual risk is this: the
+  // photographs prove which COLOURWAYS were shot, not which shop model name
+  // each physical set is sold under. The pair most worth a second look is
+  // light-blue vs blue-denim, which differ by depth of blue and weave rather
+  // than by any motif. Every line is one string away from the placeholder.
+  //
+  // None of these six carries a customer's embroidered name in frame — checked
+  // per file, unlike groom-07.jpeg above.
+  "groom-set-grey-print": "/product-photos/drive-2026-08/img_0105.webp",
+  "groom-set-beige-suede": "/product-photos/drive-2026-08/img_0097.webp",
+  "groom-set-light-blue": "/product-photos/drive-2026-08/img_0098.webp",
+  "groom-set-blue-denim": "/product-photos/drive-2026-08/img_0119.webp",
+  "groom-set-white-embroidered": "/product-photos/drive-2026-08/img_0089.webp",
+  "groom-set-beige-linen-classic": "/product-photos/drive-2026-08/img_0094.webp",
 };
 
 /**
@@ -182,18 +237,18 @@ const SLUG_TO_GROOM_PHOTO: Record<string, string> = {
  */
 export function localProductPhoto(slug: string | null | undefined): LocalPhoto | null {
   if (typeof slug !== "string" || slug === "") return null;
-  const file = Object.prototype.hasOwnProperty.call(SLUG_TO_GROOM_PHOTO, slug)
-    ? SLUG_TO_GROOM_PHOTO[slug]
+  const file = Object.prototype.hasOwnProperty.call(SLUG_TO_PHOTO, slug)
+    ? SLUG_TO_PHOTO[slug]
     : undefined;
   if (!file) return null;
-  const dims = Object.prototype.hasOwnProperty.call(GROOM_SET_PHOTOS, file)
-    ? GROOM_SET_PHOTOS[file]
+  const dims = Object.prototype.hasOwnProperty.call(PHOTO_SIZES, file)
+    ? PHOTO_SIZES[file]
     : undefined;
   // A pairing pointing at a file we have no measurement for is a typo. Fall
   // back to no-photo rather than emitting an <img> with no intrinsic size,
   // which would reintroduce the layout shift the width/height attrs prevent.
   if (!dims) return null;
-  const src = `/groom-sets/${file}`;
+  const src = file;
   const widths = Object.prototype.hasOwnProperty.call(RESIZED, file) ? RESIZED[file] : undefined;
   // The original is always the last candidate at its true width, so a viewport
   // that wants more than the largest downscale still has somewhere to go.
