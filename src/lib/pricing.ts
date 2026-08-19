@@ -43,6 +43,23 @@ export function getDiscountPct(price: number, salePrice?: number | null): number
   return original > effective ? Math.round((1 - effective / original) * 100) : 0;
 }
 
+/**
+ * Whether a catalog price is a real, sellable price.
+ *
+ * A price of 0 is missing data, not an offer. `getEffectivePrice(0)` returns 0
+ * by design — a "call for price" product — but nothing downstream of it treated
+ * 0 as unsellable, so an active, in-stock row whose price was never filled in
+ * produced a line total of 0. `getShipping` then saw a 0 subtotal and waived the
+ * fee as well, and the order landed at ₪0 for everything including delivery.
+ * Seven live rows were in exactly that state.
+ *
+ * NaN is rejected alongside it: `Number(null)` is 0, but `Number(undefined)` is
+ * NaN, and a NaN unit price propagates into line totals without ever throwing.
+ */
+export function isSellablePrice(price: number): boolean {
+  return Number.isFinite(price) && price > 0;
+}
+
 /** Apply the member discount to a subtotal (post-site-discount). Rounded to whole ₪. */
 export function applyMemberDiscount(subtotal: number, isMember: boolean): number {
   if (!isMember) return subtotal;

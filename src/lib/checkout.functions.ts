@@ -10,6 +10,7 @@ import {
   SHIPPING_FLAT,
   getEffectivePrice as effectivePrice,
   applyMemberDiscount as applyMember,
+  isSellablePrice,
 } from "@/lib/pricing";
 
 // Price math (SITE_DISCOUNT / MEMBER_DISCOUNT / SHIPPING_FLAT / effectivePrice /
@@ -111,6 +112,18 @@ export const placeOrder = createServerFn({ method: "POST" })
         if (v.in_stock === false) throw new Error(`הגודל אזל מהמלאי: ${p.name} — ${v.label}`);
         if (v.price !== null) basePrice = v.price;
         variantLabel = v.label;
+      }
+      // Every check above passes for an active, in-stock row whose price was
+      // simply never filled in — and seven live rows were in exactly that state
+      // (the "האש שלי" gold and silver pieces, diamond settings among them). The
+      // line then came to 0, `subtotal > 0` was false so shipping was waived
+      // too, and the order landed at ₪0 for the lot.
+      //
+      // Guarded here rather than in the cart because this function re-reads the
+      // price from the database precisely so nothing the client sends can
+      // influence it, which makes it the one point every order must pass.
+      if (!isSellablePrice(basePrice)) {
+        throw new Error(`מוצר ללא מחיר תקין: ${p.name}`);
       }
       const unit_price = effectivePrice(basePrice);
       const methodLabel = i.custom_method === "laser" ? "לייזר" : i.custom_method === "embroidery" ? "רקמה" : null;

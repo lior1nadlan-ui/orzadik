@@ -8,6 +8,7 @@ import {
   getDiscountPct,
   applyMemberDiscount,
   getShipping,
+  isSellablePrice,
 } from "./pricing";
 
 describe("getEffectivePrice", () => {
@@ -24,6 +25,32 @@ describe("getEffectivePrice", () => {
   it("never returns a fractional value", () => {
     for (const p of [17, 33, 88, 123, 777]) {
       expect(Number.isInteger(getEffectivePrice(p))).toBe(true);
+    }
+  });
+});
+
+describe("isSellablePrice — a 0 price is missing data, not an offer", () => {
+  it("rejects 0, which is what made ₪0 orders possible", () => {
+    // Seven active, in-stock rows carried price 0.00. Every other guard in the
+    // checkout passed them, the line total came to 0, and because getShipping
+    // waives the fee on a 0 subtotal the whole order — delivery included — came
+    // to nothing.
+    expect(isSellablePrice(0)).toBe(false);
+    expect(getEffectivePrice(0)).toBe(0);
+    expect(getShipping(0)).toBe(0);
+  });
+
+  it("rejects negatives and non-finite values", () => {
+    // Number(null) is 0 but Number(undefined) is NaN, and NaN spreads through
+    // line totals without ever throwing.
+    expect(isSellablePrice(-1)).toBe(false);
+    expect(isSellablePrice(NaN)).toBe(false);
+    expect(isSellablePrice(Infinity)).toBe(false);
+  });
+
+  it("accepts every real catalog price", () => {
+    for (const p of [1, 37, 188, 1150, 2000]) {
+      expect(isSellablePrice(p)).toBe(true);
     }
   });
 });
