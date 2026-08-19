@@ -9,6 +9,7 @@ import {
   fetchHomeFeaturedProducts,
   rotateDaily,
 } from "@/components/home/FeaturedProductsCarousel";
+import { thumbUrl } from "@/lib/img";
 import { MobileCarousel } from "@/components/MobileCarousel";
 import { ProductCard, type ProductCardData } from "@/components/ProductCard";
 import { readRecent } from "@/components/engagement/recently-viewed";
@@ -570,39 +571,51 @@ const BTN_OUTLINE =
 // arrives. One is fixed here; one still is not:
 //
 //   groom-03 -> grey-melange     CORRECT (grey melange fabric, audited).
-//   groom-05 -> brown-leather-look  STILL WRONG. groom-05 is cream/beige quilted
-//     suede with a silver crown; that product's own DB photograph is
-//     unambiguously BROWN suede. The local file here OVERRIDES a correct
-//     catalogue photo with an incorrect one, so the fix is to drop the override
-//     and let the DB image through — but that is the owner's call on which
-//     product this slot should show, not a guess to make from a filename.
+//   groom-05 -> brown-leather-look  FIXED 2026-08-19, by doing exactly what the
+//     note here asked for: the override is dropped and the DB image comes
+//     through. groom-05 is cream/beige quilted suede with a silver crown while
+//     that product's own catalogue photograph is unambiguously BROWN suede, so
+//     the local file was overriding a correct photo with an incorrect one.
+//     Dropping the override changes only WHICH PHOTOGRAPH this slot shows, not
+//     which product it promotes — the owner's call, the one this note was
+//     waiting on, is untouched. `img` is optional below; a thumb without one
+//     renders the product's own thumbnail_url.
 //   groom-07 -> white-crown      FIXED 2026-08-09, was black-leather-look.
 //     groom-07 is a WHITE set whose silver crown repeats on the atara, the
 //     tallit corner and the kippah, while groom-set-black-leather-look is
 //     charcoal. It now points at the product it actually photographs, which is
 //     also the pairing the owner confirmed in product-photos.ts — so the
 //     homepage thumb and the product page finally show the same box.
-const GROOM_THUMBS: { img: string; slug: string }[] = [
+const GROOM_THUMBS: { img?: string; slug: string }[] = [
   { img: "/groom-sets/groom-03.jpeg", slug: "groom-set-grey-melange" },
-  { img: "/groom-sets/groom-05.jpeg", slug: "groom-set-brown-leather-look" },
+  { slug: "groom-set-brown-leather-look" },
   { img: "/groom-sets/groom-07.jpeg", slug: "groom-set-white-crown" },
 ];
 
 /**
- * Live prices for the three groom thumbs above. Same contract as the luxury
- * showcase: fetch the RAW row price and apply getEffectivePrice() at the render
- * site, so the badge, the PDP and the cart all run the one function.
+ * Live price AND catalogue photograph for the three groom thumbs above. Same
+ * price contract as the luxury showcase: fetch the RAW row price and apply
+ * getEffectivePrice() at the render site, so the badge, the PDP and the cart all
+ * run the one function.
+ *
+ * thumbnail_url rides along for thumbs that declare no local `img`. One query
+ * either way — the row is already being read for its price.
  */
-async function fetchGroomThumbPrices(): Promise<Record<string, number>> {
+type GroomThumbRow = { price: number | null; thumb: string | null };
+
+async function fetchGroomThumbPrices(): Promise<Record<string, GroomThumbRow>> {
   const { data, error } = await supabase
     .from("products")
-    .select("slug, price")
+    .select("slug, price, thumbnail_url")
     .in("slug", GROOM_THUMBS.map((t) => t.slug));
   if (error) throw error;
-  const out: Record<string, number> = {};
+  const out: Record<string, GroomThumbRow> = {};
   for (const row of data ?? []) {
     const n = Number(row.price);
-    if (Number.isFinite(n) && n > 0) out[row.slug] = n;
+    out[row.slug] = {
+      price: Number.isFinite(n) && n > 0 ? n : null,
+      thumb: row.thumbnail_url || null,
+    };
   }
   return out;
 }
@@ -949,11 +962,16 @@ function HomePage() {
                   reads as a set on a phone, not just one hero image. */}
               <div className="grid grid-cols-3 gap-2 mt-2">
                 {GROOM_THUMBS.map((t) => {
-                  const raw = groomPrices?.[t.slug];
-                  const price =
-                    raw !== undefined && Number.isFinite(raw) && raw > 0
-                      ? formatILS(getEffectivePrice(raw))
-                      : null;
+                  const row = groomPrices?.[t.slug];
+                  const price = row?.price != null ? formatILS(getEffectivePrice(row.price)) : null;
+                  // A thumb with no local `img` shows the product's own
+                  // catalogue photograph, width-transformed like every other
+                  // tile on the site. Rendered at ~200 CSS px in a 3-up strip.
+                  const src = t.img ?? thumbUrl(row?.thumb, 400);
+                  // No photograph from either source: skip the tile rather than
+                  // emit a broken <img>. Same instinct as the price badge above
+                  // — nothing beats something wrong.
+                  if (!src) return null;
                   return (
                   <Link
                     key={t.slug}
@@ -962,7 +980,7 @@ function HomePage() {
                     className="group relative block aspect-square overflow-hidden rounded-lg"
                   >
                     <img
-                      src={t.img}
+                      src={src}
                       alt="מארז חתן — טלית ועטרה"
                       loading="lazy"
                       decoding="async"

@@ -7,6 +7,17 @@ import { localProductPhoto, localProductPhotos, hasLocalProductPhoto } from "./p
 // suite. The one exception is the hero-first ordering guarantee, which the
 // product gallery depends on for display order.
 
+/** The seven active products that carry no DB photograph of their own. */
+const PAIRED_SLUGS = [
+  "groom-set-grey-print",
+  "groom-set-beige-suede",
+  "groom-set-beige-linen-classic",
+  "groom-set-white-embroidered",
+  "groom-set-blue-denim",
+  "groom-set-light-blue",
+  "groom-set-white-crown",
+];
+
 describe("localProductPhoto", () => {
   it("returns a fully-sized photo for a paired slug", () => {
     const photo = localProductPhoto("groom-set-white-crown");
@@ -30,9 +41,14 @@ describe("localProductPhotos", () => {
     expect(all[0].src).toBe(localProductPhoto("groom-set-grey-print")!.src);
   });
 
-  it("returns the single hero for a slug with no extra frames", () => {
-    const slug = "groom-set-light-blue";
-    expect(localProductPhotos(slug).map((p) => p.src)).toEqual([localProductPhoto(slug)!.src]);
+  it("leads with the hero for every paired slug, however many extras it has", () => {
+    // Written this way deliberately: an earlier version asserted that one named
+    // slug had NO extra frames, and broke the day that set got its gallery. How
+    // many frames a product has is data the owner adds to; that the hero comes
+    // first is the contract this module owes the gallery.
+    for (const slug of PAIRED_SLUGS) {
+      expect(localProductPhotos(slug)[0].src).toBe(localProductPhoto(slug)!.src);
+    }
   });
 
   it("returns an empty array, never null, for anything unpaired", () => {
@@ -42,15 +58,7 @@ describe("localProductPhotos", () => {
   });
 
   it("emits no duplicate frames and measures every one", () => {
-    for (const slug of [
-      "groom-set-grey-print",
-      "groom-set-beige-suede",
-      "groom-set-beige-linen-classic",
-      "groom-set-white-embroidered",
-      "groom-set-blue-denim",
-      "groom-set-light-blue",
-      "groom-set-white-crown",
-    ]) {
+    for (const slug of PAIRED_SLUGS) {
       const photos = localProductPhotos(slug);
       // Every one of the seven products with no DB image must show something;
       // an empty list here is the "אין תמונה" box coming back.

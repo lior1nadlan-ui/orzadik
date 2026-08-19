@@ -139,6 +139,16 @@ const PHOTO_SIZES: Record<string, { width: number; height: number }> = {
   "/product-photos/drive-2026-08/img_0098.webp": { width: 1102, height: 1200 },
   "/product-photos/drive-2026-08/img_0105.webp": { width: 900, height: 1200 },
   "/product-photos/drive-2026-08/img_0119.webp": { width: 1200, height: 1143 },
+  // Further angles of sets already paired above.
+  "/product-photos/drive-2026-08/img_0091.webp": { width: 900, height: 1200 },
+  "/product-photos/drive-2026-08/img_0092.webp": { width: 900, height: 1200 },
+  "/product-photos/drive-2026-08/img_0093.webp": { width: 900, height: 1200 },
+  "/product-photos/drive-2026-08/img_0095.webp": { width: 900, height: 1200 },
+  "/product-photos/drive-2026-08/img_0096.webp": { width: 1200, height: 1155 },
+  "/product-photos/drive-2026-08/img_0099.webp": { width: 900, height: 1200 },
+  "/product-photos/drive-2026-08/img_0102.webp": { width: 900, height: 1200 },
+  "/product-photos/drive-2026-08/img_0106.webp": { width: 900, height: 1200 },
+  "/product-photos/drive-2026-08/img_0120.webp": { width: 900, height: 1200 },
   // Siddur covers from the same shoot, shot one per frame.
   "/product-photos/drive-2026-08/img_0107.webp": { width: 900, height: 1200 },
   "/product-photos/drive-2026-08/img_0108.webp": { width: 900, height: 1200 },
@@ -235,11 +245,31 @@ const SLUG_TO_PHOTO: Record<string, string> = {
 /**
  * slug -> further bundled frames, shown after the hero in the product gallery.
  *
- * Every entry here is the SIDDUR that ships inside that groom set, shot on its
- * own. The owner's rule for the line, in their words on 2026-08-19: "כל סידור
- * בצבע של הטלית" — each siddur is bound in the colour of its tallit. That is
- * what makes a colour match evidence here rather than a guess, and each pairing
- * below was additionally checked against the siddur visible inside the set's own
+ * Two kinds of frame, in this order: more ANGLES of the same physical set, then
+ * that set's own SIDDUR shot on its own.
+ *
+ * ANGLES are only listed where the frame is unmistakably the same physical set
+ * as the hero — same colourway, same motif, and the same wording embroidered on
+ * the atara, which is the detail that actually distinguishes two sets of similar
+ * colour. Frames of a similar-looking but differently-lettered set are left out
+ * rather than padded in:
+ *
+ *   grey-print          img_0106  grey melange, "האש שלי תוקד", flame motif
+ *   beige-suede         img_0096  taupe suede, "האש שלי תוקד עד ביאת המשיח"
+ *   beige-linen-classic img_0095  oatmeal linen, same long priestly-blessing
+ *                                 atara and crown motif as the hero
+ *   white-embroidered   img_0091  white/cream, "שויתי ה'", Star of David
+ *   blue-denim          img_0120  blue-grey, wreath motif, same long atara text
+ *   light-blue          img_0099, img_0092, img_0093  pale blue chambray with
+ *                                 the pale blue siddur in frame
+ *   white-crown         img_0102  white with the crown motif, "שמע ישראל" atara,
+ *                                 and — unlike the groom-07.jpeg hero — no
+ *                                 customer name anywhere in the frame
+ *
+ * SIDDURIM rest on the owner's rule for the line, in their words on 2026-08-19:
+ * "כל סידור בצבע של הטלית" — each siddur is bound in the colour of its tallit.
+ * That is what makes a colour match evidence here rather than a guess, and each
+ * was additionally checked against the siddur visible inside the set's own
  * flat-lay:
  *
  *   grey-print          img_0108  pale grey linen, blind-stamped "סידור"
@@ -250,12 +280,11 @@ const SLUG_TO_PHOTO: Record<string, string> = {
  *   white-embroidered   img_0110  white, blind-embossed "סידור"
  *   blue-denim          img_0107  blue-grey quilted with a gold crown
  *
- * NOT PAIRED, and each for a stated reason rather than for lack of a candidate:
+ * NO SIDDUR FRAME, each for a stated reason rather than for lack of a candidate:
  *
- *   light-blue      No standalone cover in the shoot is pale blue. The set's own
- *                   flat-lays (img_0093, img_0098, img_0099) do show its pale
- *                   blue siddur, so the frame exists — it was just never shot
- *                   on its own. Nothing to add until it is.
+ *   light-blue      No standalone cover in the shoot is pale blue. Its siddur is
+ *                   visible inside the angles listed above, so the book exists —
+ *                   it was just never shot on its own.
  *   white-crown     img_0116 matches the set's silver crown motif exactly, and
  *                   is the obvious pairing on looks alone. It is left out
  *                   because its cover reads "סידור הודו לשם לבת ישראל" — a
@@ -270,11 +299,32 @@ const SLUG_TO_PHOTO: Record<string, string> = {
  * something these frames settle.
  */
 const SLUG_TO_EXTRA_PHOTOS: Record<string, string[]> = {
-  "groom-set-grey-print": ["/product-photos/drive-2026-08/img_0108.webp"],
-  "groom-set-beige-suede": ["/product-photos/drive-2026-08/img_0111.webp"],
-  "groom-set-beige-linen-classic": ["/product-photos/drive-2026-08/img_0109.webp"],
-  "groom-set-white-embroidered": ["/product-photos/drive-2026-08/img_0110.webp"],
-  "groom-set-blue-denim": ["/product-photos/drive-2026-08/img_0107.webp"],
+  "groom-set-grey-print": [
+    "/product-photos/drive-2026-08/img_0106.webp",
+    "/product-photos/drive-2026-08/img_0108.webp",
+  ],
+  "groom-set-beige-suede": [
+    "/product-photos/drive-2026-08/img_0096.webp",
+    "/product-photos/drive-2026-08/img_0111.webp",
+  ],
+  "groom-set-beige-linen-classic": [
+    "/product-photos/drive-2026-08/img_0095.webp",
+    "/product-photos/drive-2026-08/img_0109.webp",
+  ],
+  "groom-set-white-embroidered": [
+    "/product-photos/drive-2026-08/img_0091.webp",
+    "/product-photos/drive-2026-08/img_0110.webp",
+  ],
+  "groom-set-blue-denim": [
+    "/product-photos/drive-2026-08/img_0120.webp",
+    "/product-photos/drive-2026-08/img_0107.webp",
+  ],
+  "groom-set-light-blue": [
+    "/product-photos/drive-2026-08/img_0099.webp",
+    "/product-photos/drive-2026-08/img_0092.webp",
+    "/product-photos/drive-2026-08/img_0093.webp",
+  ],
+  "groom-set-white-crown": ["/product-photos/drive-2026-08/img_0102.webp"],
 };
 
 /**
