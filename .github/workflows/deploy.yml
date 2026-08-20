@@ -9,13 +9,19 @@
 # are not the live site, which is what made the gap easy to miss.
 #
 # WHAT IT RUNS, AND WHAT IT DELIBERATELY DOES NOT
-# Tests gate the deploy. `typecheck` and `lint` do NOT, and that is not an
-# oversight: on the commit this file was added, `tsc --noEmit` reports two
-# pre-existing route-type errors in src/components/ArticleCard.tsx and `eslint`
-# reports a few hundred pre-existing prettier violations in the large route
-# files. Gating on either would mean this workflow fails on its own first run
-# and every deploy after it. Clear that debt and add them here — that is the
-# right end state, just not one this file can assert today.
+# Tests and typecheck gate the deploy. `lint` does NOT, and that is not an
+# oversight: `eslint` reports a few hundred pre-existing prettier violations in
+# the large route files, so gating on it would fail this workflow on its own
+# first run and every deploy after it. Clearing that debt and adding lint here
+# is the right end state; `npm run format` does most of it, but it rewrites
+# thousands of lines across files nobody is otherwise touching, so it wants its
+# own PR rather than riding along with a deploy change.
+#
+# typecheck was in that same excluded list for exactly one commit. The two
+# errors keeping it out were real: ArticleCard passed an interpolated
+# `/articles/${slug}` to <Link to>, where TanStack Router expects the route
+# PATTERN plus params. Fixed to `to="/articles/$slug" params={{ slug }}`, which
+# is what every other Link in the codebase already does, and the gate went in.
 name: Deploy
 
 on:
@@ -46,6 +52,9 @@ jobs:
           cache: npm
 
       - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
 
       - name: Test
         run: npm test
