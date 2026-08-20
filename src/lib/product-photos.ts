@@ -54,15 +54,19 @@
 //     PIXELS were not. Worth the owner's decision before any of these are
 //     promoted to a product-page hero.
 //
-// KNOWN COST, now being paid by six of the seven: these files live in public/
-// and so do NOT pass through the Supabase render endpoint that src/lib/img.ts
-// uses — there is no width/quality transform available for them. A listing tile
-// renders at ~200 CSS px, so every paired product ships more image than the tile
-// can use: 107-488 KB at 1440x1920 for the groom-sets JPEGs, 120-260 KB at
-// ~1200px for the drive-2026-08 WebPs. Only groom-07.jpeg has downscales (see
-// RESIZED). The real fix is a build step emitting 400w/800w variants next to
-// each original and listing them in RESIZED; until then this is a weight cost,
-// never a correctness one, and it beats no photograph on a ₪1,800 product.
+// KNOWN COST, PAID 2026-08-20. These files live in public/ and so do NOT pass
+// through the Supabase render endpoint that src/lib/img.ts uses — there is no
+// width/quality transform available for them, and a listing tile renders at
+// ~200 CSS px. Every hero now ships 400w/800w downscales alongside the original
+// and offers them as a srcSet (see RESIZED), so the tile pulls 16-30 KB instead
+// of the 198-283 KB full-size frame — an 88-92% cut, measured per file.
+//
+// Two things are deliberately NOT downscaled: the gallery frames, which are
+// displayed near full size on the product page (the same reason the DB gallery
+// keeps its originals), and the hero-carousel slides on the homepage, which are
+// full-bleed. Adding a hero to SLUG_TO_PHOTO without generating its downscales
+// is fine — it simply ships the original with no srcSet, which is where all of
+// these started. Weight, never correctness.
 //
 // Dimensions below are decoded from each file's JPEG SOF marker, not assumed.
 // Three of the seventeen are 896x1200, not 1440x1920 — the "every
@@ -84,20 +88,39 @@ export type LocalPhoto = {
 /**
  * Downscales generated next to an original, keyed by original filename.
  *
- * THIS IS THE "KNOWN COST" IN THE HEADER, NOW PAID — for the one file that has
- * a confirmed pairing. groom-07.jpeg is 250 KB at 1440x1920 and a listing tile
- * renders it at roughly 200 CSS px; the 400w candidate is 22 KB, so the tile
- * stops paying 91% of a payload it cannot use. These files do not pass through
- * the Supabase render endpoint (they live in public/), so the candidates are
- * real files on disk rather than transform URLs.
+ * THIS IS THE "KNOWN COST" IN THE HEADER, NOW PAID for all seven heroes. A
+ * listing tile renders at roughly 200 CSS px against originals of 198-283 KB
+ * (drive-2026-08 WebP) and 250 KB (groom-07.jpeg at 1440x1920); the 400w
+ * candidates are 16-30 KB, so the tile stops paying ~90% of a payload it cannot
+ * use. These files do not pass through the Supabase render endpoint (they live
+ * in public/), so the candidates are real files on disk rather than transform
+ * URLs, and each is named for its original with the width inserted before the
+ * extension: img_0105.webp -> img_0105-400w.webp.
  *
- * Regenerate with sharp: resize to width, jpeg quality 82, mozjpeg.
+ * Regenerate at the same settings the originals were encoded with — WebP
+ * quality 80, method 6 for drive-2026-08; JPEG quality 82, mozjpeg for
+ * groom-sets. Resize by long edge; these are all portraits.
+ *
  * A file absent from this map simply ships its original with no srcSet — the
- * behaviour every unconfirmed pairing had before, so adding a pairing without
- * generating downscales degrades in weight, never in correctness.
+ * behaviour every pairing had before, so adding one without generating
+ * downscales degrades in weight, never in correctness. Adding one WITH a
+ * downscale that was never generated does not: the candidates 404. That is what
+ * the srcSet test in product-photos.test.ts stats every path to prevent.
  */
 const RESIZED: Record<string, number[]> = {
   "/groom-sets/groom-07.jpeg": [400, 800],
+  // Generated 2026-08-20 for the six heroes ProductThumb renders, which were
+  // shipping a ~1200px WebP into a ~200 CSS px tile. Measured, per file:
+  // 198-283 KB original -> 16-30 KB at 400w, an 88-92% cut on the tile.
+  // Only the HEROES have downscales: the gallery frames are displayed near
+  // full size on the product page, which is the same reason the DB gallery
+  // keeps its originals (see the header).
+  "/product-photos/drive-2026-08/img_0089.webp": [400, 800],
+  "/product-photos/drive-2026-08/img_0094.webp": [400, 800],
+  "/product-photos/drive-2026-08/img_0097.webp": [400, 800],
+  "/product-photos/drive-2026-08/img_0098.webp": [400, 800],
+  "/product-photos/drive-2026-08/img_0105.webp": [400, 800],
+  "/product-photos/drive-2026-08/img_0119.webp": [400, 800],
 };
 
 /**
@@ -149,6 +172,13 @@ const PHOTO_SIZES: Record<string, { width: number; height: number }> = {
   "/product-photos/drive-2026-08/img_0102.webp": { width: 900, height: 1200 },
   "/product-photos/drive-2026-08/img_0106.webp": { width: 900, height: 1200 },
   "/product-photos/drive-2026-08/img_0120.webp": { width: 900, height: 1200 },
+  // Worn on a model, outdoors at golden hour. Same 1200px long edge as the rest.
+  "/product-photos/drive-2026-08/photo-2026-08-16-17-39-56.webp": { width: 900, height: 1200 },
+  "/product-photos/drive-2026-08/photo-2026-08-16-17-39-56_2.webp": { width: 900, height: 1200 },
+  "/product-photos/drive-2026-08/photo-2026-08-16-17-39-56_3.webp": { width: 900, height: 1200 },
+  "/product-photos/drive-2026-08/photo-2026-08-16-17-39-56_4.webp": { width: 900, height: 1200 },
+  "/product-photos/drive-2026-08/photo-2026-08-16-17-39-56_5.webp": { width: 900, height: 1200 },
+  "/product-photos/drive-2026-08/photo-2026-08-16-17-39-57_3.webp": { width: 900, height: 1200 },
   // Siddur covers from the same shoot, shot one per frame.
   "/product-photos/drive-2026-08/img_0107.webp": { width: 900, height: 1200 },
   "/product-photos/drive-2026-08/img_0108.webp": { width: 900, height: 1200 },
@@ -245,8 +275,10 @@ const SLUG_TO_PHOTO: Record<string, string> = {
 /**
  * slug -> further bundled frames, shown after the hero in the product gallery.
  *
- * Two kinds of frame, in this order: more ANGLES of the same physical set, then
- * that set's own SIDDUR shot on its own.
+ * Three kinds of frame, in this order: more ANGLES of the same physical set,
+ * then the set WORN on a model, then that set's own SIDDUR shot on its own.
+ * Worn sits before the siddur because seeing the tallit on a person is what the
+ * owner asked these frames to do — "שהלקוח יראה איך זה נראה על בן אדם".
  *
  * ANGLES are only listed where the frame is unmistakably the same physical set
  * as the hero — same colourway, same motif, and the same wording embroidered on
@@ -265,6 +297,28 @@ const SLUG_TO_PHOTO: Record<string, string> = {
  *   white-crown         img_0102  white with the crown motif, "שמע ישראל" atara,
  *                                 and — unlike the groom-07.jpeg hero — no
  *                                 customer name anywhere in the frame
+ *
+ * WORN frames are read the same way as angles — off the atara lettering and the
+ * bag motif, which are visible in these shots and are what separates two white
+ * tallitot:
+ *
+ *   white-embroidered   ...56_2  the large Star of David appliqué across the
+ *                                back is the same one in img_0089; nothing else
+ *                                in the shoot has it. The surest of the eight.
+ *   beige-linen-classic ...56_5, ...56_3  oatmeal atara, star corner patch
+ *   light-blue          ...56_4  pale blue bag, crown motif, "יברכך" lettering
+ *   blue-denim          ...56, ...57_3  blue bag with the WREATH of text and
+ *                                the long dense atara passage, as in img_0119
+ *
+ * Two worn frames are attached to nothing, and it is the same reason both
+ * times — the garment in them is not one of these seven:
+ *
+ *   ...57    a classic white tallit with BLACK stripes and black lettering,
+ *            the garment in img_0103. No set here is black-striped.
+ *   ...57_2  grey atara with a Star of David. The grey set in this shoot
+ *            (grey-print) carries the flame motif, not a star, so this is some
+ *            other grey — most likely one of the sets that already has a DB
+ *            photograph.
  *
  * SIDDURIM rest on the owner's rule for the line, in their words on 2026-08-19:
  * "כל סידור בצבע של הטלית" — each siddur is bound in the colour of its tallit.
@@ -309,18 +363,24 @@ const SLUG_TO_EXTRA_PHOTOS: Record<string, string[]> = {
   ],
   "groom-set-beige-linen-classic": [
     "/product-photos/drive-2026-08/img_0095.webp",
+    "/product-photos/drive-2026-08/photo-2026-08-16-17-39-56_5.webp",
+    "/product-photos/drive-2026-08/photo-2026-08-16-17-39-56_3.webp",
     "/product-photos/drive-2026-08/img_0109.webp",
   ],
   "groom-set-white-embroidered": [
     "/product-photos/drive-2026-08/img_0091.webp",
+    "/product-photos/drive-2026-08/photo-2026-08-16-17-39-56_2.webp",
     "/product-photos/drive-2026-08/img_0110.webp",
   ],
   "groom-set-blue-denim": [
     "/product-photos/drive-2026-08/img_0120.webp",
+    "/product-photos/drive-2026-08/photo-2026-08-16-17-39-56.webp",
+    "/product-photos/drive-2026-08/photo-2026-08-16-17-39-57_3.webp",
     "/product-photos/drive-2026-08/img_0107.webp",
   ],
   "groom-set-light-blue": [
     "/product-photos/drive-2026-08/img_0099.webp",
+    "/product-photos/drive-2026-08/photo-2026-08-16-17-39-56_4.webp",
     "/product-photos/drive-2026-08/img_0092.webp",
     "/product-photos/drive-2026-08/img_0093.webp",
   ],
@@ -368,6 +428,12 @@ export function localProductPhotos(slug: string | null | undefined): LocalPhoto[
   return hero ? [hero, ...rest] : rest;
 }
 
+/** ".webp" / ".jpeg" for a path, or "" when it has no extension at all. */
+function extensionOf(src: string): string {
+  const m = /(\.[a-z0-9]+)$/i.exec(src);
+  return m ? m[1] : "";
+}
+
 /** Resolve one bundled path to a sized photo, or null if it has no measurement. */
 function photoFor(src: string): LocalPhoto | null {
   const dims = Object.prototype.hasOwnProperty.call(PHOTO_SIZES, src)
@@ -382,7 +448,18 @@ function photoFor(src: string): LocalPhoto | null {
   // that wants more than the largest downscale still has somewhere to go.
   const srcSet = widths?.length
     ? [
-        ...widths.map((w) => `${src.replace(/\.jpe?g$/i, "")}-${w}w.jpg ${w}w`),
+        // A downscale is named for its original, extension included:
+        // foo.webp -> foo-400w.webp, groom-07.jpeg -> groom-07-400w.jpeg.
+        //
+        // This line hardcoded ".jpg" until 2026-08-20, which was correct for the
+        // single entry RESIZED then held and wrong for every WebP added since —
+        // those advertised candidates that did not exist, and a browser choosing
+        // one would 404 and fall back to the full-size src. The two groom-07
+        // files were renamed .jpg -> .jpeg to match their original, so the rule
+        // is uniform. A test walks every candidate and stats it.
+        ...widths.map(
+          (w) => `${src.replace(/(\.[a-z0-9]+)$/i, "")}-${w}w${extensionOf(src)} ${w}w`,
+        ),
         `${src} ${dims.width}w`,
       ].join(", ")
     : undefined;

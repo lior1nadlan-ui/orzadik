@@ -368,8 +368,16 @@ export const Route = createFileRoute("/")({
     ],
     links: [
       { rel: "canonical", href: "https://orzadik.com/" },
-      // The hero poster is the homepage LCP paint — preload it so it shows fast.
-      { rel: "preload", as: "image", href: "/media/hero-poster.webp", fetchpriority: "high" },
+      // The hero's FIRST SLIDE is the homepage LCP paint — preload it so it shows
+      // fast. Only slide 0: the other seven mount after idle (see HomePage), so
+      // preloading them would recreate exactly the critical-path race that
+      // deferral exists to prevent. Keep this href and HERO_SLIDES[0] in step.
+      {
+        rel: "preload",
+        as: "image",
+        href: "/product-photos/drive-2026-08/photo-2026-08-16-17-39-57.webp",
+        fetchpriority: "high",
+      },
     ],
     scripts: [
       // The homepage is the page the brand name should resolve to, and it was
@@ -713,27 +721,52 @@ const HOME_GUIDES = [
   "hanukkia-guide",
 ].map((slug) => GUIDES[slug]).filter(Boolean);
 
+/**
+ * The hero cross-fade, in display order. All eight frames of the 2026-08-16
+ * shoot, 900x1200 WebP, 72-118 KB each.
+ *
+ * Order is deliberate, not filename order. Slide 0 is the LCP paint and the only
+ * one fetched on the critical path, so it is the strongest frame: the classic
+ * white tallit with black stripes, the most recognisable garment in the shoot.
+ * After that the sequence alternates warm and cool so no two consecutive fades
+ * look like the same photograph twice.
+ *
+ * These are the same files the product galleries use (see product-photos.ts) —
+ * one copy on disk, served twice.
+ */
+const HERO_SLIDES = [
+  "/product-photos/drive-2026-08/photo-2026-08-16-17-39-57.webp",
+  "/product-photos/drive-2026-08/photo-2026-08-16-17-39-56_2.webp",
+  "/product-photos/drive-2026-08/photo-2026-08-16-17-39-56_4.webp",
+  "/product-photos/drive-2026-08/photo-2026-08-16-17-39-56_5.webp",
+  "/product-photos/drive-2026-08/photo-2026-08-16-17-39-57_2.webp",
+  "/product-photos/drive-2026-08/photo-2026-08-16-17-39-56.webp",
+  "/product-photos/drive-2026-08/photo-2026-08-16-17-39-56_3.webp",
+  "/product-photos/drive-2026-08/photo-2026-08-16-17-39-57_3.webp",
+];
+
 // SSR-safe prefers-reduced-motion check — only ever called from effects/handlers.
 function prefersReducedMotion() {
   return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
 function HomePage() {
-  const heroVideoRef = useRef<HTMLVideoElement | null>(null);
   const { otherCats, featuredProducts, reviews, groomPrices, giftPicks } =
     Route.useLoaderData();
 
-  // Defer the hero video off the mobile critical path. The poster is the LCP
-  // paint; with the <source> children present at first render, autoPlay would
-  // override preload="metadata" and immediately stream the 1.2MB WebM / 3.0MB
-  // MP4, competing with hero-poster.webp on mobile. So the sources are withheld
-  // from the initial render (poster only) and attached after the browser goes
-  // idle — requestIdleCallback, with a ~1200ms setTimeout fallback. The whole
-  // attach is gated behind a reduced-motion check, so those users get the poster
-  // only and never download the video at all. Mirrors LazyReel's below-the-fold
-  // lazy pattern. SSR-safe: requestIdleCallback is touched only inside the
-  // effect, never at module top-level or during render.
-  const [heroSourcesReady, setHeroSourcesReady] = useState(false);
+  // Defer every hero slide after the first off the mobile critical path. Slide 0
+  // is the LCP paint and is preloaded in head(); the other seven are withheld
+  // from the initial render and mounted once the browser goes idle —
+  // requestIdleCallback with a ~1200ms setTimeout fallback. They cannot be left
+  // in the DOM behind loading="lazy": they are stacked inside the viewport at
+  // opacity 0, which counts as visible, so the browser would fetch all eight at
+  // once and race the LCP on a phone. This is the same deferral the hero video
+  // used, kept for the same reason.
+  //
+  // Reduced-motion users never mount the rest and never advance — they get slide
+  // 0 as a still photograph, which is a complete hero on its own.
+  const [heroRestReady, setHeroRestReady] = useState(false);
+  const [heroSlide, setHeroSlide] = useState(0);
 
   useEffect(() => {
     if (prefersReducedMotion()) return;
@@ -743,7 +776,7 @@ function HomePage() {
     };
     let idleId: number | undefined;
     let timerId: ReturnType<typeof setTimeout> | undefined;
-    const attach = () => setHeroSourcesReady(true);
+    const attach = () => setHeroRestReady(true);
     if (typeof w.requestIdleCallback === "function") {
       idleId = w.requestIdleCallback(attach, { timeout: 1200 });
     } else {
@@ -755,15 +788,13 @@ function HomePage() {
     };
   }, []);
 
-  // Once the <source> children are in the DOM, load() re-selects the resource so
-  // the just-attached sources are picked up; autoPlay + muted then starts the
-  // loop on its own.
+  // Advance only once the rest are mounted, so the first cross-fade never lands
+  // on an image that has not been fetched yet.
   useEffect(() => {
-    if (heroSourcesReady) {
-      heroVideoRef.current?.load();
-      heroVideoRef.current?.play()?.catch(() => {});
-    }
-  }, [heroSourcesReady]);
+    if (!heroRestReady) return;
+    const id = setInterval(() => setHeroSlide((i) => (i + 1) % HERO_SLIDES.length), 5000);
+    return () => clearInterval(id);
+  }, [heroRestReady]);
 
   // Static — rendered at SSR from the curated FEATURED list (slugs hardcoded), so
   // the tiles are in the initial HTML and the section never shifts after hydration.
@@ -773,48 +804,47 @@ function HomePage() {
     <>
       {/* 1. Hero */}
       <section className="relative">
-        <video
-          ref={heroVideoRef}
-          poster="/media/hero-poster.webp"
-          autoPlay
-          muted
-          loop
-          playsInline
-          preload="metadata"
-          // Decorative background footage: it carries no information the plaque
-          // below does not already state in text (brand line, h1, sub-line), it
-          // has no controls and is permanently muted, so it is hidden from the
-          // accessibility tree rather than given a name that a screen reader
-          // would read out as a second, duplicate brand announcement. This is
-          // what the accessibility statement (§4.5) declares — keep them in sync.
+        {/* Cross-fading photographs of the shop's own tallitot worn outdoors at
+            golden hour, from the 2026-08-16 shoot. Replaces the bespoke 16:9
+            HyperFrames loop (kept in public/media/ — hero-video.webm/.mp4 and
+            hero-poster.webp — so the previous hero is one revert away).
+            Decorative, exactly as the video was: the frames carry no information
+            the plaque below does not state in text, so the whole stack is hidden
+            from the accessibility tree rather than announced as eight images a
+            screen reader would read as duplicate brand noise. This is what the
+            accessibility statement (§4.5) declares — keep them in sync.
+
+            The sources are 3:4 PORTRAITS in a landscape band, which is the one
+            real difference from the video: object-cover crops them hard on a wide
+            desktop viewport. object-position sits higher than the video's 42% so
+            the model's face and the embroidered atara — the part a buyer is
+            actually looking at — stay inside the crop at every width. */}
+        <div
           aria-hidden="true"
-          // Bespoke 16:9 landscape loop, built for this hero (HyperFrames): a
-          // seamless ~10.5s montage — tallit portrait → gold flame pendant →
-          // siddur → crystal candlesticks → wrap back to the tallit — already
-          // warm-graded with a baked-in sun-bloom + vignette, so it needs no CSS
-          // treatment. It's SHARP on every viewport: on desktop the wide frame
-          // fits the landscape band; on mobile object-cover center-crops onto the
-          // flagship tallit portrait (face + embroidered atara), which opens and
-          // closes the loop. The crisp warm POSTER (frame 0 of this same video)
-          // carries first paint (LCP), so when the loop attaches it starts on the
-          // identical frame — zero pop. object-position biases the crop a touch
-          // high so faces stay in view. Reduced-motion users never load the video
-          // and keep the poster. All decorative — contrast lives on the plaque.
-          style={{ objectPosition: "50% 42%" }}
-          className="block w-full min-h-[520px] h-[62svh] md:min-h-0 md:h-[60vh] md:max-h-[720px] object-cover bg-cream"
+          className="relative block w-full min-h-[520px] h-[62svh] md:min-h-0 md:h-[60vh] md:max-h-[720px] overflow-hidden bg-cream"
         >
-          {/* Sources are attached only after the browser is idle (see the effect
-              above) so they never compete with the LCP poster on first paint, and
-              are skipped entirely for reduced-motion users. WebM (VP9) first —
-              ~60% smaller (1.2MB vs 3.0MB); browsers that can't play it fall back
-              to the MP4. */}
-          {heroSourcesReady && (
-            <>
-              <source src="/media/hero-video.webm" type="video/webm" />
-              <source src="/media/hero-video.mp4" type="video/mp4" />
-            </>
+          {HERO_SLIDES.map((src, i) =>
+            // Slide 0 renders always and is the LCP paint; the rest mount only
+            // after idle. See the effect above for why lazy-loading them in
+            // place would not work.
+            i === 0 || heroRestReady ? (
+              <img
+                key={src}
+                src={src}
+                alt=""
+                width={900}
+                height={1200}
+                loading={i === 0 ? "eager" : "lazy"}
+                fetchPriority={i === 0 ? "high" : "low"}
+                decoding={i === 0 ? "sync" : "async"}
+                style={{ objectPosition: "50% 30%" }}
+                className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-1000 ease-in-out motion-reduce:transition-none ${
+                  i === heroSlide ? "opacity-100" : "opacity-0"
+                }`}
+              />
+            ) : null,
           )}
-        </video>
+        </div>
 
         {/* Depth stack over the footage — three decorative layers, none
             load-bearing for contrast (every glyph below sits on .glass-strong).
