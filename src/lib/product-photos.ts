@@ -149,6 +149,13 @@ const PHOTO_SIZES: Record<string, { width: number; height: number }> = {
   "/product-photos/drive-2026-08/img_0102.webp": { width: 900, height: 1200 },
   "/product-photos/drive-2026-08/img_0106.webp": { width: 900, height: 1200 },
   "/product-photos/drive-2026-08/img_0120.webp": { width: 900, height: 1200 },
+  // Worn on a model, outdoors at golden hour. Same 1200px long edge as the rest.
+  "/product-photos/drive-2026-08/photo-2026-08-16-17-39-56.webp": { width: 900, height: 1200 },
+  "/product-photos/drive-2026-08/photo-2026-08-16-17-39-56_2.webp": { width: 900, height: 1200 },
+  "/product-photos/drive-2026-08/photo-2026-08-16-17-39-56_3.webp": { width: 900, height: 1200 },
+  "/product-photos/drive-2026-08/photo-2026-08-16-17-39-56_4.webp": { width: 900, height: 1200 },
+  "/product-photos/drive-2026-08/photo-2026-08-16-17-39-56_5.webp": { width: 900, height: 1200 },
+  "/product-photos/drive-2026-08/photo-2026-08-16-17-39-57_3.webp": { width: 900, height: 1200 },
   // Siddur covers from the same shoot, shot one per frame.
   "/product-photos/drive-2026-08/img_0107.webp": { width: 900, height: 1200 },
   "/product-photos/drive-2026-08/img_0108.webp": { width: 900, height: 1200 },
@@ -245,8 +252,10 @@ const SLUG_TO_PHOTO: Record<string, string> = {
 /**
  * slug -> further bundled frames, shown after the hero in the product gallery.
  *
- * Two kinds of frame, in this order: more ANGLES of the same physical set, then
- * that set's own SIDDUR shot on its own.
+ * Three kinds of frame, in this order: more ANGLES of the same physical set,
+ * then the set WORN on a model, then that set's own SIDDUR shot on its own.
+ * Worn sits before the siddur because seeing the tallit on a person is what the
+ * owner asked these frames to do — "שהלקוח יראה איך זה נראה על בן אדם".
  *
  * ANGLES are only listed where the frame is unmistakably the same physical set
  * as the hero — same colourway, same motif, and the same wording embroidered on
@@ -265,6 +274,28 @@ const SLUG_TO_PHOTO: Record<string, string> = {
  *   white-crown         img_0102  white with the crown motif, "שמע ישראל" atara,
  *                                 and — unlike the groom-07.jpeg hero — no
  *                                 customer name anywhere in the frame
+ *
+ * WORN frames are read the same way as angles — off the atara lettering and the
+ * bag motif, which are visible in these shots and are what separates two white
+ * tallitot:
+ *
+ *   white-embroidered   ...56_2  the large Star of David appliqué across the
+ *                                back is the same one in img_0089; nothing else
+ *                                in the shoot has it. The surest of the eight.
+ *   beige-linen-classic ...56_5, ...56_3  oatmeal atara, star corner patch
+ *   light-blue          ...56_4  pale blue bag, crown motif, "יברכך" lettering
+ *   blue-denim          ...56, ...57_3  blue bag with the WREATH of text and
+ *                                the long dense atara passage, as in img_0119
+ *
+ * Two worn frames are attached to nothing, and it is the same reason both
+ * times — the garment in them is not one of these seven:
+ *
+ *   ...57    a classic white tallit with BLACK stripes and black lettering,
+ *            the garment in img_0103. No set here is black-striped.
+ *   ...57_2  grey atara with a Star of David. The grey set in this shoot
+ *            (grey-print) carries the flame motif, not a star, so this is some
+ *            other grey — most likely one of the sets that already has a DB
+ *            photograph.
  *
  * SIDDURIM rest on the owner's rule for the line, in their words on 2026-08-19:
  * "כל סידור בצבע של הטלית" — each siddur is bound in the colour of its tallit.
@@ -309,18 +340,24 @@ const SLUG_TO_EXTRA_PHOTOS: Record<string, string[]> = {
   ],
   "groom-set-beige-linen-classic": [
     "/product-photos/drive-2026-08/img_0095.webp",
+    "/product-photos/drive-2026-08/photo-2026-08-16-17-39-56_5.webp",
+    "/product-photos/drive-2026-08/photo-2026-08-16-17-39-56_3.webp",
     "/product-photos/drive-2026-08/img_0109.webp",
   ],
   "groom-set-white-embroidered": [
     "/product-photos/drive-2026-08/img_0091.webp",
+    "/product-photos/drive-2026-08/photo-2026-08-16-17-39-56_2.webp",
     "/product-photos/drive-2026-08/img_0110.webp",
   ],
   "groom-set-blue-denim": [
     "/product-photos/drive-2026-08/img_0120.webp",
+    "/product-photos/drive-2026-08/photo-2026-08-16-17-39-56.webp",
+    "/product-photos/drive-2026-08/photo-2026-08-16-17-39-57_3.webp",
     "/product-photos/drive-2026-08/img_0107.webp",
   ],
   "groom-set-light-blue": [
     "/product-photos/drive-2026-08/img_0099.webp",
+    "/product-photos/drive-2026-08/photo-2026-08-16-17-39-56_4.webp",
     "/product-photos/drive-2026-08/img_0092.webp",
     "/product-photos/drive-2026-08/img_0093.webp",
   ],
