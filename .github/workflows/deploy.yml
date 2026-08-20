@@ -1,0 +1,83 @@
+# Deploy the site to Cloudflare Workers on every push to main.
+#
+# WHY THIS EXISTS
+# Until 2026-08-20 this repository had no workflows at all. Merging to main
+# changed nothing a visitor could see: production is the Worker named `orzarua`
+# (see wrangler.jsonc), and somebody had to run wrangler by hand for a change to
+# go live. Four PRs of product photographs sat merged and invisible before
+# anyone noticed. The Vercel checks on those PRs were preview builds only — they
+# are not the live site, which is what made the gap easy to miss.
+#
+# WHAT IT RUNS, AND WHAT IT DELIBERATELY DOES NOT
+# Tests and typecheck gate the deploy. `lint` does NOT, and that is not an
+# oversight: `eslint` reports a few hundred pre-existing prettier violations in
+# the large route files, so gating on it would fail this workflow on its own
+# first run and every deploy after it. Clearing that debt and adding lint here
+# is the right end state; `npm run format` does most of it, but it rewrites
+# thousands of lines across files nobody is otherwise touching, so it wants its
+# own PR rather than riding along with a deploy change.
+#
+# typecheck was in that same excluded list for exactly one commit. The two
+# errors keeping it out were real: ArticleCard passed an interpolated
+# `/articles/${slug}` to <Link to>, where TanStack Router expects the route
+# PATTERN plus params. Fixed to `to="/articles/$slug" params={{ slug }}`, which
+# is what every other Link in the codebase already does, and the gate went in.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  # Lets a deploy be re-run from the Actions tab without an empty commit —
+  # e.g. after rotating the API token, or to roll forward a failed run.
+  workflow_dispatch:
+
+concurrency:
+  # One deploy at a time. NOT cancel-in-progress: a cancelled `wrangler deploy`
+  # can leave the upload half-done, and a superseded deploy is cheap next to an
+  # ambiguous production state. Later pushes queue behind the current one.
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # Forks cannot read the secrets and would fail noisily on every push.
+    if: github.repository == 'lior1nadlan-ui/orzadik'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      # wrangler is not a direct dependency: it arrives through
+      # @cloudflare/vite-plugin, which both depends on it and declares it as a
+      # peer, so npm ci installs the version the plugin was built against
+      # (4.98.0 today). Adding it explicitly was tried and reverted — npm
+      # resolved a newer major-minor and rewrote 4,300 lines of the lockfile,
+      # which is a bigger production risk than the tidiness is worth. If it ever
+      # needs pinning, pin it EXACTLY and regenerate the lock deliberately.
+      #
+      # `vite build` emits its own dist/server/wrangler.json — the built entry
+      # (index.mjs), the ASSETS binding pointing at dist/client, the custom-domain
+      # routes and the cron triggers. Deploying the ROOT wrangler.jsonc instead
+      # would point `main` at the raw src/server.ts and ship no client assets, so
+      # the config path here is load-bearing. Keep it in step with `npm run deploy`
+      # in package.json.
+      - name: Deploy to Cloudflare Workers
+        run: npx wrangler deploy --config dist/server/wrangler.json
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

@@ -41,7 +41,8 @@ export function ArticleCard({
   if (compact) {
     return (
       <Link
-        to={`/articles/${slug}`}
+        to="/articles/$slug"
+        params={{ slug }}
         className="press group block rounded-xl p-3 hairline"
       >
         <h3 className="font-semibold text-sm leading-snug text-foreground transition-colors duration-200 ease-out [@media(hover:hover)_and_(pointer:fine)]:group-hover:text-accent line-clamp-2">
@@ -61,7 +62,8 @@ export function ArticleCard({
 
   return (
     <Link
-      to={`/articles/${slug}`}
+      to="/articles/$slug"
+      params={{ slug }}
       className="glass glass-lift group block h-full overflow-hidden"
     >
       {/* Featured image — or, when none is set, a branded mesh + ✦ panel so the
