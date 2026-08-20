@@ -54,15 +54,19 @@
 //     PIXELS were not. Worth the owner's decision before any of these are
 //     promoted to a product-page hero.
 //
-// KNOWN COST, now being paid by six of the seven: these files live in public/
-// and so do NOT pass through the Supabase render endpoint that src/lib/img.ts
-// uses — there is no width/quality transform available for them. A listing tile
-// renders at ~200 CSS px, so every paired product ships more image than the tile
-// can use: 107-488 KB at 1440x1920 for the groom-sets JPEGs, 120-260 KB at
-// ~1200px for the drive-2026-08 WebPs. Only groom-07.jpeg has downscales (see
-// RESIZED). The real fix is a build step emitting 400w/800w variants next to
-// each original and listing them in RESIZED; until then this is a weight cost,
-// never a correctness one, and it beats no photograph on a ₪1,800 product.
+// KNOWN COST, PAID 2026-08-20. These files live in public/ and so do NOT pass
+// through the Supabase render endpoint that src/lib/img.ts uses — there is no
+// width/quality transform available for them, and a listing tile renders at
+// ~200 CSS px. Every hero now ships 400w/800w downscales alongside the original
+// and offers them as a srcSet (see RESIZED), so the tile pulls 16-30 KB instead
+// of the 198-283 KB full-size frame — an 88-92% cut, measured per file.
+//
+// Two things are deliberately NOT downscaled: the gallery frames, which are
+// displayed near full size on the product page (the same reason the DB gallery
+// keeps its originals), and the hero-carousel slides on the homepage, which are
+// full-bleed. Adding a hero to SLUG_TO_PHOTO without generating its downscales
+// is fine — it simply ships the original with no srcSet, which is where all of
+// these started. Weight, never correctness.
 //
 // Dimensions below are decoded from each file's JPEG SOF marker, not assumed.
 // Three of the seventeen are 896x1200, not 1440x1920 — the "every
@@ -84,20 +88,39 @@ export type LocalPhoto = {
 /**
  * Downscales generated next to an original, keyed by original filename.
  *
- * THIS IS THE "KNOWN COST" IN THE HEADER, NOW PAID — for the one file that has
- * a confirmed pairing. groom-07.jpeg is 250 KB at 1440x1920 and a listing tile
- * renders it at roughly 200 CSS px; the 400w candidate is 22 KB, so the tile
- * stops paying 91% of a payload it cannot use. These files do not pass through
- * the Supabase render endpoint (they live in public/), so the candidates are
- * real files on disk rather than transform URLs.
+ * THIS IS THE "KNOWN COST" IN THE HEADER, NOW PAID for all seven heroes. A
+ * listing tile renders at roughly 200 CSS px against originals of 198-283 KB
+ * (drive-2026-08 WebP) and 250 KB (groom-07.jpeg at 1440x1920); the 400w
+ * candidates are 16-30 KB, so the tile stops paying ~90% of a payload it cannot
+ * use. These files do not pass through the Supabase render endpoint (they live
+ * in public/), so the candidates are real files on disk rather than transform
+ * URLs, and each is named for its original with the width inserted before the
+ * extension: img_0105.webp -> img_0105-400w.webp.
  *
- * Regenerate with sharp: resize to width, jpeg quality 82, mozjpeg.
+ * Regenerate at the same settings the originals were encoded with — WebP
+ * quality 80, method 6 for drive-2026-08; JPEG quality 82, mozjpeg for
+ * groom-sets. Resize by long edge; these are all portraits.
+ *
  * A file absent from this map simply ships its original with no srcSet — the
- * behaviour every unconfirmed pairing had before, so adding a pairing without
- * generating downscales degrades in weight, never in correctness.
+ * behaviour every pairing had before, so adding one without generating
+ * downscales degrades in weight, never in correctness. Adding one WITH a
+ * downscale that was never generated does not: the candidates 404. That is what
+ * the srcSet test in product-photos.test.ts stats every path to prevent.
  */
 const RESIZED: Record<string, number[]> = {
   "/groom-sets/groom-07.jpeg": [400, 800],
+  // Generated 2026-08-20 for the six heroes ProductThumb renders, which were
+  // shipping a ~1200px WebP into a ~200 CSS px tile. Measured, per file:
+  // 198-283 KB original -> 16-30 KB at 400w, an 88-92% cut on the tile.
+  // Only the HEROES have downscales: the gallery frames are displayed near
+  // full size on the product page, which is the same reason the DB gallery
+  // keeps its originals (see the header).
+  "/product-photos/drive-2026-08/img_0089.webp": [400, 800],
+  "/product-photos/drive-2026-08/img_0094.webp": [400, 800],
+  "/product-photos/drive-2026-08/img_0097.webp": [400, 800],
+  "/product-photos/drive-2026-08/img_0098.webp": [400, 800],
+  "/product-photos/drive-2026-08/img_0105.webp": [400, 800],
+  "/product-photos/drive-2026-08/img_0119.webp": [400, 800],
 };
 
 /**
@@ -405,6 +428,12 @@ export function localProductPhotos(slug: string | null | undefined): LocalPhoto[
   return hero ? [hero, ...rest] : rest;
 }
 
+/** ".webp" / ".jpeg" for a path, or "" when it has no extension at all. */
+function extensionOf(src: string): string {
+  const m = /(\.[a-z0-9]+)$/i.exec(src);
+  return m ? m[1] : "";
+}
+
 /** Resolve one bundled path to a sized photo, or null if it has no measurement. */
 function photoFor(src: string): LocalPhoto | null {
   const dims = Object.prototype.hasOwnProperty.call(PHOTO_SIZES, src)
@@ -419,7 +448,18 @@ function photoFor(src: string): LocalPhoto | null {
   // that wants more than the largest downscale still has somewhere to go.
   const srcSet = widths?.length
     ? [
-        ...widths.map((w) => `${src.replace(/\.jpe?g$/i, "")}-${w}w.jpg ${w}w`),
+        // A downscale is named for its original, extension included:
+        // foo.webp -> foo-400w.webp, groom-07.jpeg -> groom-07-400w.jpeg.
+        //
+        // This line hardcoded ".jpg" until 2026-08-20, which was correct for the
+        // single entry RESIZED then held and wrong for every WebP added since —
+        // those advertised candidates that did not exist, and a browser choosing
+        // one would 404 and fall back to the full-size src. The two groom-07
+        // files were renamed .jpg -> .jpeg to match their original, so the rule
+        // is uniform. A test walks every candidate and stats it.
+        ...widths.map(
+          (w) => `${src.replace(/(\.[a-z0-9]+)$/i, "")}-${w}w${extensionOf(src)} ${w}w`,
+        ),
         `${src} ${dims.width}w`,
       ].join(", ")
     : undefined;

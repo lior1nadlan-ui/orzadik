@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { existsSync } from "node:fs";
 import { localProductPhoto, localProductPhotos, hasLocalProductPhoto } from "./product-photos";
 
 // The map itself is data the owner confirms, so these tests deliberately assert
@@ -54,6 +55,32 @@ describe("localProductPhotos", () => {
   it("returns an empty array, never null, for anything unpaired", () => {
     for (const input of ["", "no-such-product", null, undefined]) {
       expect(localProductPhotos(input)).toEqual([]);
+    }
+  });
+
+  // These two read the filesystem on purpose. Every path this module emits is a
+  // site-absolute URL served straight out of public/, with no bundler step to
+  // catch a typo — so a wrong string is a 404 in front of a customer, and the
+  // only place it can be caught cheaply is here. The srcSet case is not
+  // hypothetical: the candidate builder hardcoded ".jpg" until 2026-08-20, which
+  // meant every WebP entry advertised files that did not exist.
+  it("points every frame at a file that exists in public/", () => {
+    for (const slug of PAIRED_SLUGS) {
+      for (const photo of localProductPhotos(slug)) {
+        expect(existsSync(`public${photo.src}`), `${slug} -> ${photo.src}`).toBe(true);
+      }
+    }
+  });
+
+  it("points every srcSet candidate at a file that exists in public/", () => {
+    for (const slug of PAIRED_SLUGS) {
+      for (const photo of localProductPhotos(slug)) {
+        if (!photo.srcSet) continue;
+        for (const candidate of photo.srcSet.split(",")) {
+          const url = candidate.trim().split(/\s+/)[0];
+          expect(existsSync(`public${url}`), `${slug} -> ${url}`).toBe(true);
+        }
+      }
     }
   });
 
