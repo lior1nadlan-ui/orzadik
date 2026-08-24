@@ -575,10 +575,70 @@ export const exportOrdersCsv = createServerFn({ method: "POST" })
 
 // ---- Customers -------------------------------------------------------------
 
+/**
+ * A customer is DORMANT once this many days have passed since their last order.
+ *
+ * 120 days is a deliberate choice for THIS shop, not a CRM convention. The
+ * catalogue is tashmishei kedusha and gift-ware: a tallit or a groom set is a
+ * once-in-years purchase, so an e-commerce default of 30 or 60 days would mark
+ * a perfectly happy customer as lapsed and turn the badge into noise nobody
+ * reads. 120 days is long enough to clear the chagim gap (Pesach→Rosh Hashana
+ * is ~150 days, so a customer who buys only at both chagim still shows dormant
+ * between them, which is exactly when a "we're here" message is welcome).
+ *
+ * Change this number if the shop's rhythm turns out different — it is one
+ * constant precisely so it can be argued with, and the tests pin the boundary.
+ */
+export const DORMANT_AFTER_DAYS = 120;
+
+/**
+ * Customer segments, derived rather than stored — every one is a fact already
+ * present in the orders table, only named.
+ *
+ *   lead    ordered but never paid. Not a customer yet; usually an abandoned
+ *           bank-transfer or a failed card. Worth a call more than anyone else
+ *           on this list.
+ *   new     exactly one paid order.
+ *   repeat  two or more paid orders.
+ *
+ * DELIBERATELY ABSENT: a "VIP" tier. Every threshold I could pick (₪2,000?
+ * top 10%?) would be invented rather than measured, and a badge that says VIP
+ * on the strength of a number nobody chose is worse than no badge. Sort by
+ * "סך קניות" already answers "who spends most" honestly. If the owner names a
+ * number that means something to them, it belongs here as a fourth segment.
+ */
+export type CustomerSegment = "lead" | "new" | "repeat";
+
+/** Segment labels, shared by the customers screen and the CSV export so the
+ * spreadsheet and the table never disagree about what a row is called. */
+export const SEGMENT_HE: Record<CustomerSegment, string> = {
+  lead: "לא שילם",
+  new: "לקוח חדש",
+  repeat: "לקוח חוזר",
+};
+
+/** Days between `iso` and `now`, floored. Negative clock skew clamps to 0. */
+export function daysSince(iso: string | null | undefined, now: number = Date.now()): number | null {
+  if (!iso) return null;
+  const t = new Date(iso).getTime();
+  if (!Number.isFinite(t)) return null;
+  return Math.max(0, Math.floor((now - t) / 86_400_000));
+}
+
+/** The segment for one aggregated customer row. Pure — exported for tests. */
+export function customerSegment(c: { paidOrders: number }): CustomerSegment {
+  if (c.paidOrders === 0) return "lead";
+  return c.paidOrders === 1 ? "new" : "repeat";
+}
+
 const CustomersSchema = z.object({
   q: z.string().max(120).optional(),
   sort: z.enum(["ltv", "recent", "orders"]).default("ltv"),
   page: z.number().int().min(0).default(0),
+  // "dormant" cuts across the three segments rather than being one of them: a
+  // lead, a new buyer and a repeat buyer can each go quiet, and "who has gone
+  // quiet" is the question that actually starts a conversation.
+  segment: z.enum(["all", "lead", "new", "repeat", "dormant"]).default("all"),
 });
 
 /** Column list every customer-aggregation caller fetches from orders. */
@@ -586,11 +646,17 @@ const CUSTOMER_ORDER_COLUMNS =
   "customer_email, customer_name, customer_phone, total, payment_status, created_at, contact_consent";
 
 /** Fold the raw orders rows into one aggregated row per customer email, then
- * apply the same term-match and sort the customers screen shows. */
-function aggregateCustomers(
+ * apply the same term-match, segment filter and sort the customers screen shows.
+ *
+ * Exported for tests: it is the only place the numbers the owner acts on are
+ * computed, and it is pure, so it is worth pinning directly rather than through
+ * a server function that needs a database. */
+export function aggregateCustomers(
   orders: any[],
   q: string | undefined,
   sort: "ltv" | "recent" | "orders",
+  segment: "all" | CustomerSegment | "dormant" = "all",
+  now: number = Date.now(),
 ) {
   const byEmail = new Map<string, any>();
   for (const o of orders) {
@@ -612,7 +678,18 @@ function aggregateCustomers(
     byEmail.set(key, cur);
   }
 
-  let rows = [...byEmail.values()];
+  let rows = [...byEmail.values()].map((c) => {
+    const days = daysSince(c.lastOrderAt, now);
+    return {
+      ...c,
+      daysSinceLastOrder: days,
+      segment: customerSegment(c),
+      // A lead has no paid order, so "gone quiet" is measured from the attempt
+      // that never completed — which is the one worth chasing soonest.
+      dormant: days !== null && days >= DORMANT_AFTER_DAYS,
+    };
+  });
+
   const term = sanitizeTerm(q ?? "").toLowerCase();
   if (term) {
     rows = rows.filter(
@@ -621,6 +698,9 @@ function aggregateCustomers(
         String(c.name ?? "").toLowerCase().includes(term) ||
         String(c.phone ?? "").includes(term),
     );
+  }
+  if (segment !== "all") {
+    rows = rows.filter((c) => (segment === "dormant" ? c.dormant : c.segment === segment));
   }
   rows.sort(
     sort === "recent"
@@ -637,7 +717,7 @@ export const listCustomers = createServerFn({ method: "POST" })
   .handler(async ({ data: f }) => {
     await requireAdmin();
     const orders = await fetchAllOrders(CUSTOMER_ORDER_COLUMNS);
-    const rows = aggregateCustomers(orders, f.q, f.sort);
+    const rows = aggregateCustomers(orders, f.q, f.sort, f.segment);
     const total = rows.length;
     const from = f.page * PAGE_SIZE;
     return { rows: rows.slice(from, from + PAGE_SIZE), total, pageSize: PAGE_SIZE };
@@ -648,16 +728,29 @@ export const exportCustomersCsv = createServerFn({ method: "POST" })
   .handler(async ({ data: f }) => {
     await requireAdmin();
     const orders = await fetchAllOrders(CUSTOMER_ORDER_COLUMNS);
-    const rows = aggregateCustomers(orders, f.q, f.sort);
+    const rows = aggregateCustomers(orders, f.q, f.sort, f.segment);
 
     const header = [
-      "שם", "אימייל", "טלפון", "הזמנות", "הזמנות ששולמו", "סך קניות", "הזמנה אחרונה", "אישר יצירת קשר",
+      "שם",
+      "אימייל",
+      "טלפון",
+      "הזמנות",
+      "הזמנות ששולמו",
+      "סך קניות",
+      "הזמנה אחרונה",
+      "ימים מההזמנה האחרונה",
+      "סוג",
+      "רדום",
+      "אישר יצירת קשר",
     ];
     const lines = rows.map((c) =>
       [
         c.name, c.email, c.phone,
         c.orders, c.paidOrders, c.ltv,
         new Date(c.lastOrderAt).toLocaleString("he-IL"),
+        c.daysSinceLastOrder ?? "",
+        SEGMENT_HE[c.segment as CustomerSegment],
+        c.dormant ? "כן" : "לא",
         c.contactConsent ? "כן" : "לא",
       ].map(csvEsc).join(","),
     );

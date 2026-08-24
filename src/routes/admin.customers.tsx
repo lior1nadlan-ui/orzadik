@@ -7,6 +7,9 @@ import {
   addCustomerNote,
   deleteCustomerNote,
   exportCustomersCsv,
+  SEGMENT_HE,
+  DORMANT_AFTER_DAYS,
+  type CustomerSegment,
 } from "@/lib/admin-crm.functions";
 import { formatILS } from "@/lib/cart";
 import { waMessage } from "@/lib/wa-templates";
@@ -35,6 +38,38 @@ function waLink(phone: string): string {
 
 const SHOP = "אור זרוע לצדיק";
 
+/** Segment pill colours. Muted on purpose — these sit in every row, so they
+ * have to be readable at a glance without turning the table into a rainbow.
+ * "lead" is the only one that gets a warm colour, because it is the only one
+ * that means someone tried to buy and the money never arrived. */
+const SEGMENT_STYLE: Record<CustomerSegment, string> = {
+  lead: "bg-amber-100 text-amber-900",
+  new: "bg-sky-100 text-sky-900",
+  repeat: "bg-emerald-100 text-emerald-900",
+};
+
+/** "לפני 3 ימים" / "היום" — the number the owner actually reasons about, next
+ * to the date they can verify it against. */
+function sinceLabel(days: number | null | undefined): string {
+  if (days === null || days === undefined) return "";
+  if (days === 0) return "היום";
+  if (days === 1) return "אתמול";
+  return `לפני ${days} ימים`;
+}
+
+/** A quiet nudge for a customer who has gone dormant — warm, not salesy, and
+ * it never claims a reason for the silence. Same waMessage() normalization as
+ * every other WhatsApp link here, so a missing phone falls back cleanly. */
+function waWeMissYou(c: { name?: string; phone?: string } | null | undefined): string | null {
+  const name = String(c?.name ?? "").trim();
+  const greet = name ? `שלום ${name}` : "שלום";
+  const text =
+    `${greet}! 💛\n` +
+    `כאן מ"${SHOP}". עבר קצת זמן מאז שהתראינו ורצינו פשוט לשאול מה שלומך. ` +
+    `אם מתקרב אירוע, בר מצווה או חתונה — נשמח לעזור לבחור ולהתאים אישית. 🙏`;
+  return waMessage(c?.phone, text);
+}
+
 /** Warm, generic WhatsApp greeting for a customer — no order context, just a
  * human hello that references them by name and opens the door to help. Built on
  * waMessage() so phone normalization stays identical to waLink(); returns null
@@ -62,6 +97,7 @@ function AdminCustomers() {
   const [q, setQ] = useState(search.q ?? "");
   const [debouncedQ, setDebouncedQ] = useState(search.q ?? "");
   const [sort, setSort] = useState<"ltv" | "recent" | "orders">("ltv");
+  const [segment, setSegment] = useState<"all" | CustomerSegment | "dormant">("all");
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<any>(null);
   const [noteText, setNoteText] = useState("");
@@ -71,12 +107,12 @@ function AdminCustomers() {
     const t = setTimeout(() => setDebouncedQ(q), 300);
     return () => clearTimeout(t);
   }, [q]);
-  useEffect(() => setPage(0), [debouncedQ, sort]);
+  useEffect(() => setPage(0), [debouncedQ, sort, segment]);
 
   const { data, isFetching } = useQuery({
-    queryKey: ["admin-customers", debouncedQ, sort, page],
+    queryKey: ["admin-customers", debouncedQ, sort, segment, page],
     placeholderData: keepPreviousData,
-    queryFn: () => list({ data: { q: debouncedQ || undefined, sort, page } }),
+    queryFn: () => list({ data: { q: debouncedQ || undefined, sort, segment, page } }),
   });
   const customers = data?.rows ?? [];
   const total = data?.total ?? 0;
@@ -118,7 +154,12 @@ function AdminCustomers() {
 
   const doExport = async () => {
     try {
-      const { csv, count } = await exportCsv({ data: { q: debouncedQ || undefined, sort, page: 0 } });
+      // Exports exactly what the table is showing, filter included — a CSV that
+      // silently ignored the segment filter would be a different list from the
+      // one the owner is looking at when they click.
+      const { csv, count } = await exportCsv({
+        data: { q: debouncedQ || undefined, sort, segment, page: 0 },
+      });
       const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -143,6 +184,18 @@ function AdminCustomers() {
           <option value="recent">לפי הזמנה אחרונה</option>
           <option value="orders">לפי מס׳ הזמנות</option>
         </select>
+        <select
+          value={segment}
+          onChange={(e) => setSegment(e.target.value as any)}
+          className="rounded-md border bg-background px-3 py-2 text-sm"
+          aria-label="סינון לפי סוג לקוח"
+        >
+          <option value="all">כל הלקוחות</option>
+          <option value="dormant">רדומים ({DORMANT_AFTER_DAYS}+ ימים)</option>
+          <option value="lead">{SEGMENT_HE.lead}</option>
+          <option value="new">{SEGMENT_HE.new}</option>
+          <option value="repeat">{SEGMENT_HE.repeat}</option>
+        </select>
         <Button size="sm" variant="outline" onClick={doExport}>
           <Download className="h-4 w-4 ml-1" /> ייצוא CSV
         </Button>
@@ -163,19 +216,55 @@ function AdminCustomers() {
             {customers.map((c: any) => (
               <tr key={c.email} className="border-t">
                 <td className="p-3">
-                  <div className="font-medium">{c.name}</div>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="font-medium">{c.name}</span>
+                    <span
+                      className={`text-[11px] rounded-full px-2 py-0.5 ${SEGMENT_STYLE[c.segment as CustomerSegment]}`}
+                    >
+                      {SEGMENT_HE[c.segment as CustomerSegment]}
+                    </span>
+                    {c.dormant && (
+                      <span
+                        className="text-[11px] rounded-full bg-muted text-muted-foreground px-2 py-0.5"
+                        title={`אין הזמנה כבר ${c.daysSinceLastOrder} ימים`}
+                      >
+                        רדום
+                      </span>
+                    )}
+                  </div>
                   <div className="text-xs text-muted-foreground">{c.email}</div>
                 </td>
                 <td className="p-3">
                   <div className="flex gap-1.5">
                     <a href={`tel:${c.phone}`} className="rounded-full border p-1.5 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted" title={c.phone}><Phone className="h-3.5 w-3.5" /></a>
-                    <a href={waGreeting(c) ?? waLink(c.phone)} target="_blank" rel="noreferrer" className="rounded-full border p-1.5 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted text-emerald-700" title="WhatsApp — הודעת ברכה מוכנה"><MessageCircle className="h-3.5 w-3.5" /></a>
+                    {/* A dormant customer gets the "we missed you" opener
+                        instead of the generic hello — same one tap, but the
+                        message fits the only thing that is actually different
+                        about them. */}
+                    <a
+                      href={(c.dormant ? waWeMissYou(c) : waGreeting(c)) ?? waLink(c.phone)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="rounded-full border p-1.5 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted text-emerald-700"
+                      title={
+                        c.dormant
+                          ? "WhatsApp — הודעת ״מזמן לא התראינו״"
+                          : "WhatsApp — הודעת ברכה מוכנה"
+                      }
+                    >
+                      <MessageCircle className="h-3.5 w-3.5" />
+                    </a>
                     <a href={`mailto:${c.email}`} className="rounded-full border p-1.5 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted" title={c.email}><Mail className="h-3.5 w-3.5" /></a>
                   </div>
                 </td>
                 <td className="p-3">{c.orders}{c.paidOrders !== c.orders && <span className="text-xs text-muted-foreground"> ({c.paidOrders} שולמו)</span>}</td>
                 <td className="p-3 font-bold">{formatILS(c.ltv)}</td>
-                <td className="p-3 text-xs">{new Date(c.lastOrderAt).toLocaleDateString("he-IL")}</td>
+                <td className="p-3 text-xs">
+                  <div>{new Date(c.lastOrderAt).toLocaleDateString("he-IL")}</div>
+                  <div className={c.dormant ? "text-amber-700" : "text-muted-foreground"}>
+                    {sinceLabel(c.daysSinceLastOrder)}
+                  </div>
+                </td>
                 <td className="p-3"><Button size="sm" variant="outline" onClick={() => setSelected(c)}>כרטיס לקוח</Button></td>
               </tr>
             ))}
