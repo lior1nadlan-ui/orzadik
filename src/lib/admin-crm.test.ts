@@ -3,6 +3,8 @@ import {
   aggregateCustomers,
   customerSegment,
   daysSince,
+  matchesSegment,
+  segmentCounts,
   DORMANT_AFTER_DAYS,
 } from "./admin-crm.functions";
 
@@ -49,6 +51,37 @@ describe("customerSegment", () => {
   it("separates a first-time buyer from a returning one", () => {
     expect(customerSegment({ paidOrders: 1 })).toBe("new");
     expect(customerSegment({ paidOrders: 2 })).toBe("repeat");
+  });
+});
+
+describe("matchesSegment / segmentCounts", () => {
+  const rows = [
+    { segment: "lead" as const, dormant: true },
+    { segment: "new" as const, dormant: false },
+    { segment: "repeat" as const, dormant: true },
+    { segment: "repeat" as const, dormant: false },
+  ];
+
+  it('lets everything through under "all"', () => {
+    expect(rows.every((r) => matchesSegment(r, "all"))).toBe(true);
+  });
+
+  it("counts a dormant row under BOTH its segment and dormant", () => {
+    const counts = segmentCounts(rows);
+    expect(counts).toEqual({ all: 4, lead: 1, new: 1, repeat: 2, dormant: 2 });
+    // The sum of the three segments is the total; dormant deliberately is not
+    // part of that sum, because it overlaps all three.
+    expect(counts.lead + counts.new + counts.repeat).toBe(counts.all);
+  });
+
+  // The chips promise "click this and see N rows". That only holds while the
+  // count and the filter use the same predicate, which is why both go through
+  // matchesSegment — this test is what stops them drifting apart.
+  it("makes every chip count equal the rows that chip filters to", () => {
+    const counts = segmentCounts(rows);
+    for (const key of ["all", "lead", "new", "repeat", "dormant"] as const) {
+      expect(rows.filter((r) => matchesSegment(r, key))).toHaveLength(counts[key]);
+    }
   });
 });
 

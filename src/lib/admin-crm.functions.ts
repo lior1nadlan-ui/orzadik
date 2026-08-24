@@ -631,6 +631,30 @@ export function customerSegment(c: { paidOrders: number }): CustomerSegment {
   return c.paidOrders === 1 ? "new" : "repeat";
 }
 
+/** The filter predicate, in ONE place: the list, the counts and the CSV export
+ * all route through it, so a row can never be counted under a heading it would
+ * not appear under when clicked. */
+export function matchesSegment(
+  c: { segment: CustomerSegment; dormant: boolean },
+  segment: "all" | CustomerSegment | "dormant",
+): boolean {
+  if (segment === "all") return true;
+  return segment === "dormant" ? c.dormant : c.segment === segment;
+}
+
+/** How many customers sit under each heading, for the chips above the table.
+ * Counted AFTER the search term is applied, so the numbers describe the list
+ * being looked at rather than the whole database. */
+export function segmentCounts(rows: { segment: CustomerSegment; dormant: boolean }[]) {
+  return {
+    all: rows.length,
+    lead: rows.filter((c) => c.segment === "lead").length,
+    new: rows.filter((c) => c.segment === "new").length,
+    repeat: rows.filter((c) => c.segment === "repeat").length,
+    dormant: rows.filter((c) => c.dormant).length,
+  };
+}
+
 const CustomersSchema = z.object({
   q: z.string().max(120).optional(),
   sort: z.enum(["ltv", "recent", "orders"]).default("ltv"),
@@ -700,7 +724,7 @@ export function aggregateCustomers(
     );
   }
   if (segment !== "all") {
-    rows = rows.filter((c) => (segment === "dormant" ? c.dormant : c.segment === segment));
+    rows = rows.filter((c) => matchesSegment(c, segment));
   }
   rows.sort(
     sort === "recent"
@@ -717,10 +741,16 @@ export const listCustomers = createServerFn({ method: "POST" })
   .handler(async ({ data: f }) => {
     await requireAdmin();
     const orders = await fetchAllOrders(CUSTOMER_ORDER_COLUMNS);
-    const rows = aggregateCustomers(orders, f.q, f.sort, f.segment);
+    // Aggregate once with the search applied but the segment left open: the
+    // chips need to say how many sit under EVERY heading, including the ones
+    // currently filtered out. Filtering afterwards costs one array pass and
+    // saves a second full walk of the orders table.
+    const matched = aggregateCustomers(orders, f.q, f.sort, "all");
+    const counts = segmentCounts(matched);
+    const rows = matched.filter((c) => matchesSegment(c, f.segment));
     const total = rows.length;
     const from = f.page * PAGE_SIZE;
-    return { rows: rows.slice(from, from + PAGE_SIZE), total, pageSize: PAGE_SIZE };
+    return { rows: rows.slice(from, from + PAGE_SIZE), total, pageSize: PAGE_SIZE, counts };
   });
 
 export const exportCustomersCsv = createServerFn({ method: "POST" })

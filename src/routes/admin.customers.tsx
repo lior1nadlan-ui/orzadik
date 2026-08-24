@@ -48,6 +48,16 @@ const SEGMENT_STYLE: Record<CustomerSegment, string> = {
   repeat: "bg-emerald-100 text-emerald-900",
 };
 
+/** Chip order is triage order, not alphabetical: the two that mean "someone is
+ * waiting" come first, then the descriptive ones, then the escape hatch. */
+const SEGMENT_CHIPS: { key: "all" | CustomerSegment | "dormant"; label: string }[] = [
+  { key: "lead", label: SEGMENT_HE.lead },
+  { key: "dormant", label: `רדומים (${DORMANT_AFTER_DAYS}+ ימים)` },
+  { key: "repeat", label: SEGMENT_HE.repeat },
+  { key: "new", label: SEGMENT_HE.new },
+  { key: "all", label: "הכל" },
+];
+
 /** "לפני 3 ימים" / "היום" — the number the owner actually reasons about, next
  * to the date they can verify it against. */
 function sinceLabel(days: number | null | undefined): string {
@@ -115,6 +125,7 @@ function AdminCustomers() {
     queryFn: () => list({ data: { q: debouncedQ || undefined, sort, segment, page } }),
   });
   const customers = data?.rows ?? [];
+  const counts = data?.counts;
   const total = data?.total ?? 0;
   const pageSize = data?.pageSize ?? 25;
   const pages = Math.max(1, Math.ceil(total / pageSize));
@@ -184,21 +195,41 @@ function AdminCustomers() {
           <option value="recent">לפי הזמנה אחרונה</option>
           <option value="orders">לפי מס׳ הזמנות</option>
         </select>
-        <select
-          value={segment}
-          onChange={(e) => setSegment(e.target.value as any)}
-          className="rounded-md border bg-background px-3 py-2 text-sm"
-          aria-label="סינון לפי סוג לקוח"
-        >
-          <option value="all">כל הלקוחות</option>
-          <option value="dormant">רדומים ({DORMANT_AFTER_DAYS}+ ימים)</option>
-          <option value="lead">{SEGMENT_HE.lead}</option>
-          <option value="new">{SEGMENT_HE.new}</option>
-          <option value="repeat">{SEGMENT_HE.repeat}</option>
-        </select>
         <Button size="sm" variant="outline" onClick={doExport}>
           <Download className="h-4 w-4 ml-1" /> ייצוא CSV
         </Button>
+      </div>
+
+      {/* Segment chips rather than a dropdown: the counts are the point. A
+          dropdown hides "3 people ordered and never paid" behind a click
+          nobody makes, and that is the row worth acting on today. Counts
+          follow the search box, so they always describe the list on screen. */}
+      <div className="flex flex-wrap gap-1.5 mb-4" role="group" aria-label="סינון לפי סוג לקוח">
+        {SEGMENT_CHIPS.map((chip) => {
+          const n = counts?.[chip.key] ?? 0;
+          const active = segment === chip.key;
+          return (
+            <button
+              key={chip.key}
+              type="button"
+              onClick={() => setSegment(chip.key)}
+              aria-pressed={active}
+              // An empty segment stays visible but muted and unclickable —
+              // "0 רדומים" is genuinely good news and worth reading, while a
+              // chip that filters to nothing is a dead end.
+              disabled={n === 0 && chip.key !== "all"}
+              className={`rounded-full border px-3 py-1 text-xs transition-colors duration-150 ${
+                active
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : n === 0 && chip.key !== "all"
+                    ? "text-muted-foreground/50"
+                    : "[@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"
+              }`}
+            >
+              {chip.label} <span className="font-semibold">{n}</span>
+            </button>
+          );
+        })}
       </div>
 
       <div className={`rounded-lg border bg-card overflow-x-auto transition-opacity duration-200 ease-out ${isFetching ? "opacity-60" : ""}`}>
@@ -284,18 +315,61 @@ function AdminCustomers() {
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           {selected && (
             <>
-              <DialogHeader><DialogTitle>{selected.name}</DialogTitle></DialogHeader>
+              <DialogHeader>
+                <DialogTitle className="flex flex-wrap items-center gap-2">
+                  {selected.name}
+                  {/* The same two badges the row carries. The card is where a
+                      note gets written and a decision gets made, so losing the
+                      context that made the row worth opening would be the wrong
+                      place to save space. */}
+                  <span
+                    className={`text-[11px] font-normal rounded-full px-2 py-0.5 ${SEGMENT_STYLE[selected.segment as CustomerSegment]}`}
+                  >
+                    {SEGMENT_HE[selected.segment as CustomerSegment]}
+                  </span>
+                  {selected.dormant && (
+                    <span className="text-[11px] font-normal rounded-full bg-muted text-muted-foreground px-2 py-0.5">
+                      רדום
+                    </span>
+                  )}
+                </DialogTitle>
+              </DialogHeader>
               <div className="space-y-4 text-sm">
                 <div className="flex flex-wrap items-center gap-2">
                   <a href={`tel:${selected.phone}`} className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"><Phone className="h-3 w-3" /> {selected.phone}</a>
-                  <a href={waGreeting(selected) ?? waLink(selected.phone)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted text-emerald-700" title="WhatsApp — הודעת ברכה מוכנה"><MessageCircle className="h-3 w-3" /> וואטסאפ</a>
+                  <a
+                    href={
+                      (selected.dormant ? waWeMissYou(selected) : waGreeting(selected)) ??
+                      waLink(selected.phone)
+                    }
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted text-emerald-700"
+                    title={
+                      selected.dormant
+                        ? "WhatsApp — הודעת ״מזמן לא התראינו״"
+                        : "WhatsApp — הודעת ברכה מוכנה"
+                    }
+                  >
+                    <MessageCircle className="h-3 w-3" /> וואטסאפ
+                  </a>
                   <a href={`mailto:${selected.email}`} className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"><Mail className="h-3 w-3" /> {selected.email}</a>
                   {selected.contactConsent && <span className="text-[11px] rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5">אישר/ה יצירת קשר</span>}
                 </div>
                 <div className="grid grid-cols-3 gap-2 text-center">
                   <div className="rounded-lg border p-3"><div className="text-xs text-muted-foreground">הזמנות</div><div className="text-lg font-bold">{selected.orders}</div></div>
                   <div className="rounded-lg border p-3"><div className="text-xs text-muted-foreground">סך קניות</div><div className="text-lg font-bold">{formatILS(selected.ltv)}</div></div>
-                  <div className="rounded-lg border p-3"><div className="text-xs text-muted-foreground">אחרונה</div><div className="text-lg font-bold">{new Date(selected.lastOrderAt).toLocaleDateString("he-IL")}</div></div>
+                  <div className="rounded-lg border p-3">
+                    <div className="text-xs text-muted-foreground">אחרונה</div>
+                    <div className="text-lg font-bold">
+                      {new Date(selected.lastOrderAt).toLocaleDateString("he-IL")}
+                    </div>
+                    <div
+                      className={`text-xs ${selected.dormant ? "text-amber-700" : "text-muted-foreground"}`}
+                    >
+                      {sinceLabel(selected.daysSinceLastOrder)}
+                    </div>
+                  </div>
                 </div>
 
                 {/* Notes */}
