@@ -7,6 +7,9 @@ import {
   addCustomerNote,
   deleteCustomerNote,
   exportCustomersCsv,
+  SEGMENT_HE,
+  DORMANT_AFTER_DAYS,
+  type CustomerSegment,
 } from "@/lib/admin-crm.functions";
 import { formatILS } from "@/lib/cart";
 import { waMessage } from "@/lib/wa-templates";
@@ -35,6 +38,48 @@ function waLink(phone: string): string {
 
 const SHOP = "אור זרוע לצדיק";
 
+/** Segment pill colours. Muted on purpose — these sit in every row, so they
+ * have to be readable at a glance without turning the table into a rainbow.
+ * "lead" is the only one that gets a warm colour, because it is the only one
+ * that means someone tried to buy and the money never arrived. */
+const SEGMENT_STYLE: Record<CustomerSegment, string> = {
+  lead: "bg-amber-100 text-amber-900",
+  new: "bg-sky-100 text-sky-900",
+  repeat: "bg-emerald-100 text-emerald-900",
+};
+
+/** Chip order is triage order, not alphabetical: the two that mean "someone is
+ * waiting" come first, then the descriptive ones, then the escape hatch. */
+const SEGMENT_CHIPS: { key: "all" | CustomerSegment | "dormant"; label: string }[] = [
+  { key: "lead", label: SEGMENT_HE.lead },
+  { key: "dormant", label: `רדומים (${DORMANT_AFTER_DAYS}+ ימים)` },
+  { key: "repeat", label: SEGMENT_HE.repeat },
+  { key: "new", label: SEGMENT_HE.new },
+  { key: "all", label: "הכל" },
+];
+
+/** "לפני 3 ימים" / "היום" — the number the owner actually reasons about, next
+ * to the date they can verify it against. */
+function sinceLabel(days: number | null | undefined): string {
+  if (days === null || days === undefined) return "";
+  if (days === 0) return "היום";
+  if (days === 1) return "אתמול";
+  return `לפני ${days} ימים`;
+}
+
+/** A quiet nudge for a customer who has gone dormant — warm, not salesy, and
+ * it never claims a reason for the silence. Same waMessage() normalization as
+ * every other WhatsApp link here, so a missing phone falls back cleanly. */
+function waWeMissYou(c: { name?: string; phone?: string } | null | undefined): string | null {
+  const name = String(c?.name ?? "").trim();
+  const greet = name ? `שלום ${name}` : "שלום";
+  const text =
+    `${greet}! 💛\n` +
+    `כאן מ"${SHOP}". עבר קצת זמן מאז שהתראינו ורצינו פשוט לשאול מה שלומך. ` +
+    `אם מתקרב אירוע, בר מצווה או חתונה — נשמח לעזור לבחור ולהתאים אישית. 🙏`;
+  return waMessage(c?.phone, text);
+}
+
 /** Warm, generic WhatsApp greeting for a customer — no order context, just a
  * human hello that references them by name and opens the door to help. Built on
  * waMessage() so phone normalization stays identical to waLink(); returns null
@@ -62,6 +107,7 @@ function AdminCustomers() {
   const [q, setQ] = useState(search.q ?? "");
   const [debouncedQ, setDebouncedQ] = useState(search.q ?? "");
   const [sort, setSort] = useState<"ltv" | "recent" | "orders">("ltv");
+  const [segment, setSegment] = useState<"all" | CustomerSegment | "dormant">("all");
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<any>(null);
   const [noteText, setNoteText] = useState("");
@@ -71,14 +117,15 @@ function AdminCustomers() {
     const t = setTimeout(() => setDebouncedQ(q), 300);
     return () => clearTimeout(t);
   }, [q]);
-  useEffect(() => setPage(0), [debouncedQ, sort]);
+  useEffect(() => setPage(0), [debouncedQ, sort, segment]);
 
   const { data, isFetching } = useQuery({
-    queryKey: ["admin-customers", debouncedQ, sort, page],
+    queryKey: ["admin-customers", debouncedQ, sort, segment, page],
     placeholderData: keepPreviousData,
-    queryFn: () => list({ data: { q: debouncedQ || undefined, sort, page } }),
+    queryFn: () => list({ data: { q: debouncedQ || undefined, sort, segment, page } }),
   });
   const customers = data?.rows ?? [];
+  const counts = data?.counts;
   const total = data?.total ?? 0;
   const pageSize = data?.pageSize ?? 25;
   const pages = Math.max(1, Math.ceil(total / pageSize));
@@ -118,7 +165,12 @@ function AdminCustomers() {
 
   const doExport = async () => {
     try {
-      const { csv, count } = await exportCsv({ data: { q: debouncedQ || undefined, sort, page: 0 } });
+      // Exports exactly what the table is showing, filter included — a CSV that
+      // silently ignored the segment filter would be a different list from the
+      // one the owner is looking at when they click.
+      const { csv, count } = await exportCsv({
+        data: { q: debouncedQ || undefined, sort, segment, page: 0 },
+      });
       const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -148,6 +200,38 @@ function AdminCustomers() {
         </Button>
       </div>
 
+      {/* Segment chips rather than a dropdown: the counts are the point. A
+          dropdown hides "3 people ordered and never paid" behind a click
+          nobody makes, and that is the row worth acting on today. Counts
+          follow the search box, so they always describe the list on screen. */}
+      <div className="flex flex-wrap gap-1.5 mb-4" role="group" aria-label="סינון לפי סוג לקוח">
+        {SEGMENT_CHIPS.map((chip) => {
+          const n = counts?.[chip.key] ?? 0;
+          const active = segment === chip.key;
+          return (
+            <button
+              key={chip.key}
+              type="button"
+              onClick={() => setSegment(chip.key)}
+              aria-pressed={active}
+              // An empty segment stays visible but muted and unclickable —
+              // "0 רדומים" is genuinely good news and worth reading, while a
+              // chip that filters to nothing is a dead end.
+              disabled={n === 0 && chip.key !== "all"}
+              className={`rounded-full border px-3 py-1 text-xs transition-colors duration-150 ${
+                active
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : n === 0 && chip.key !== "all"
+                    ? "text-muted-foreground/50"
+                    : "[@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"
+              }`}
+            >
+              {chip.label} <span className="font-semibold">{n}</span>
+            </button>
+          );
+        })}
+      </div>
+
       <div className={`rounded-lg border bg-card overflow-x-auto transition-opacity duration-200 ease-out ${isFetching ? "opacity-60" : ""}`}>
         <table className="w-full text-sm">
           <thead className="bg-muted/50"><tr className="text-right">
@@ -163,19 +247,55 @@ function AdminCustomers() {
             {customers.map((c: any) => (
               <tr key={c.email} className="border-t">
                 <td className="p-3">
-                  <div className="font-medium">{c.name}</div>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="font-medium">{c.name}</span>
+                    <span
+                      className={`text-[11px] rounded-full px-2 py-0.5 ${SEGMENT_STYLE[c.segment as CustomerSegment]}`}
+                    >
+                      {SEGMENT_HE[c.segment as CustomerSegment]}
+                    </span>
+                    {c.dormant && (
+                      <span
+                        className="text-[11px] rounded-full bg-muted text-muted-foreground px-2 py-0.5"
+                        title={`אין הזמנה כבר ${c.daysSinceLastOrder} ימים`}
+                      >
+                        רדום
+                      </span>
+                    )}
+                  </div>
                   <div className="text-xs text-muted-foreground">{c.email}</div>
                 </td>
                 <td className="p-3">
                   <div className="flex gap-1.5">
                     <a href={`tel:${c.phone}`} className="rounded-full border p-1.5 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted" title={c.phone}><Phone className="h-3.5 w-3.5" /></a>
-                    <a href={waGreeting(c) ?? waLink(c.phone)} target="_blank" rel="noreferrer" className="rounded-full border p-1.5 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted text-emerald-700" title="WhatsApp — הודעת ברכה מוכנה"><MessageCircle className="h-3.5 w-3.5" /></a>
+                    {/* A dormant customer gets the "we missed you" opener
+                        instead of the generic hello — same one tap, but the
+                        message fits the only thing that is actually different
+                        about them. */}
+                    <a
+                      href={(c.dormant ? waWeMissYou(c) : waGreeting(c)) ?? waLink(c.phone)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="rounded-full border p-1.5 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted text-emerald-700"
+                      title={
+                        c.dormant
+                          ? "WhatsApp — הודעת ״מזמן לא התראינו״"
+                          : "WhatsApp — הודעת ברכה מוכנה"
+                      }
+                    >
+                      <MessageCircle className="h-3.5 w-3.5" />
+                    </a>
                     <a href={`mailto:${c.email}`} className="rounded-full border p-1.5 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted" title={c.email}><Mail className="h-3.5 w-3.5" /></a>
                   </div>
                 </td>
                 <td className="p-3">{c.orders}{c.paidOrders !== c.orders && <span className="text-xs text-muted-foreground"> ({c.paidOrders} שולמו)</span>}</td>
                 <td className="p-3 font-bold">{formatILS(c.ltv)}</td>
-                <td className="p-3 text-xs">{new Date(c.lastOrderAt).toLocaleDateString("he-IL")}</td>
+                <td className="p-3 text-xs">
+                  <div>{new Date(c.lastOrderAt).toLocaleDateString("he-IL")}</div>
+                  <div className={c.dormant ? "text-amber-700" : "text-muted-foreground"}>
+                    {sinceLabel(c.daysSinceLastOrder)}
+                  </div>
+                </td>
                 <td className="p-3"><Button size="sm" variant="outline" onClick={() => setSelected(c)}>כרטיס לקוח</Button></td>
               </tr>
             ))}
@@ -195,18 +315,61 @@ function AdminCustomers() {
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           {selected && (
             <>
-              <DialogHeader><DialogTitle>{selected.name}</DialogTitle></DialogHeader>
+              <DialogHeader>
+                <DialogTitle className="flex flex-wrap items-center gap-2">
+                  {selected.name}
+                  {/* The same two badges the row carries. The card is where a
+                      note gets written and a decision gets made, so losing the
+                      context that made the row worth opening would be the wrong
+                      place to save space. */}
+                  <span
+                    className={`text-[11px] font-normal rounded-full px-2 py-0.5 ${SEGMENT_STYLE[selected.segment as CustomerSegment]}`}
+                  >
+                    {SEGMENT_HE[selected.segment as CustomerSegment]}
+                  </span>
+                  {selected.dormant && (
+                    <span className="text-[11px] font-normal rounded-full bg-muted text-muted-foreground px-2 py-0.5">
+                      רדום
+                    </span>
+                  )}
+                </DialogTitle>
+              </DialogHeader>
               <div className="space-y-4 text-sm">
                 <div className="flex flex-wrap items-center gap-2">
                   <a href={`tel:${selected.phone}`} className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"><Phone className="h-3 w-3" /> {selected.phone}</a>
-                  <a href={waGreeting(selected) ?? waLink(selected.phone)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted text-emerald-700" title="WhatsApp — הודעת ברכה מוכנה"><MessageCircle className="h-3 w-3" /> וואטסאפ</a>
+                  <a
+                    href={
+                      (selected.dormant ? waWeMissYou(selected) : waGreeting(selected)) ??
+                      waLink(selected.phone)
+                    }
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted text-emerald-700"
+                    title={
+                      selected.dormant
+                        ? "WhatsApp — הודעת ״מזמן לא התראינו״"
+                        : "WhatsApp — הודעת ברכה מוכנה"
+                    }
+                  >
+                    <MessageCircle className="h-3 w-3" /> וואטסאפ
+                  </a>
                   <a href={`mailto:${selected.email}`} className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"><Mail className="h-3 w-3" /> {selected.email}</a>
                   {selected.contactConsent && <span className="text-[11px] rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5">אישר/ה יצירת קשר</span>}
                 </div>
                 <div className="grid grid-cols-3 gap-2 text-center">
                   <div className="rounded-lg border p-3"><div className="text-xs text-muted-foreground">הזמנות</div><div className="text-lg font-bold">{selected.orders}</div></div>
                   <div className="rounded-lg border p-3"><div className="text-xs text-muted-foreground">סך קניות</div><div className="text-lg font-bold">{formatILS(selected.ltv)}</div></div>
-                  <div className="rounded-lg border p-3"><div className="text-xs text-muted-foreground">אחרונה</div><div className="text-lg font-bold">{new Date(selected.lastOrderAt).toLocaleDateString("he-IL")}</div></div>
+                  <div className="rounded-lg border p-3">
+                    <div className="text-xs text-muted-foreground">אחרונה</div>
+                    <div className="text-lg font-bold">
+                      {new Date(selected.lastOrderAt).toLocaleDateString("he-IL")}
+                    </div>
+                    <div
+                      className={`text-xs ${selected.dormant ? "text-amber-700" : "text-muted-foreground"}`}
+                    >
+                      {sinceLabel(selected.daysSinceLastOrder)}
+                    </div>
+                  </div>
                 </div>
 
                 {/* Notes */}
