@@ -22,6 +22,26 @@ import { sendOrderConfirmationEmails } from "@/lib/order-emails.server";
 
 const CARDCOM_BASE = "https://secure.cardcom.solutions/api/v11";
 
+/** CardCom's "there is no token" sentinel — an all-zeros GUID, not a null. */
+const EMPTY_TOKEN_GUID = "00000000-0000-0000-0000-000000000000";
+
+/**
+ * True only for a token that can actually charge a card later.
+ *
+ * CardCom does not omit TokenInfo when no token was produced: on a DECLINED
+ * transaction it returns the block fully populated with the all-zeros GUID, an
+ * expiry of "00010101" and a blank approval number. A plain truthiness test
+ * therefore passes, and we wrote a row that stored no usable token — but DID
+ * store the cardholder's identity number, for a payment that never happened.
+ * That is retention of sensitive data with no purpose behind it, which is the
+ * real reason this guard exists; the junk row was only how it was noticed.
+ */
+export function isUsableCardcomToken(token: unknown): boolean {
+  if (typeof token !== "string") return false;
+  const t = token.trim();
+  return t !== "" && t.toLowerCase() !== EMPTY_TOKEN_GUID;
+}
+
 /** Per the CardCom spec: 5s timeout, one retry. */
 export async function getLpResult(lowProfileId: string): Promise<any> {
   const body = JSON.stringify({
@@ -109,8 +129,11 @@ export async function settleCardcomOrder(
   };
 
   // Card tokens & cardholder identity go to the server-only secrets table — never
-  // stored on the orders table (not client-readable).
-  if (tokenInfo?.Token) {
+  // stored on the orders table (not client-readable). Written ONLY when a real
+  // token came back: see isUsableCardcomToken for why a truthiness test is not
+  // enough, and why the difference is about the identity number rather than the
+  // token.
+  if (isUsableCardcomToken(tokenInfo?.Token)) {
     const { error: secErr } = await supabaseAdmin.from("order_payment_secrets").upsert({
       order_id: order.id,
       cardcom_token: tokenInfo?.Token ?? null,
