@@ -19,7 +19,15 @@ import {
   CarouselPrevious,
   type CarouselApi,
 } from "@/components/ui/carousel";
-import { formatILS, useCart, getEffectivePrice, FREE_SHIPPING_THRESHOLD, SHIPPING_FLAT, type CustomMethod } from "@/lib/cart";
+import {
+  formatILS,
+  useCart,
+  getEffectivePrice,
+  FREE_SHIPPING_THRESHOLD,
+  SHIPPING_FLAT,
+  type CustomMethod,
+} from "@/lib/cart";
+import { isCallOnlyProduct } from "@/lib/pricing";
 import { trackViewItem } from "@/lib/analytics";
 import { ProductCardData } from "@/components/ProductCard";
 import { ProductCarousel } from "@/components/product/ProductCarousel";
@@ -47,7 +55,18 @@ import { thumbUrl } from "@/lib/img";
 // are paired (five of them with a second frame, the set's own siddur); the other
 // 4,641 products get an empty array and nothing on this page changes for them.
 import { localProductPhotos } from "@/lib/product-photos";
-import { ShoppingCart, Minus, Plus, Check, Truck, RotateCcw, ZoomIn, Heart, Lock, ShieldCheck } from "lucide-react";
+import {
+  ShoppingCart,
+  Minus,
+  Plus,
+  Check,
+  Truck,
+  RotateCcw,
+  ZoomIn,
+  Heart,
+  Lock,
+  ShieldCheck,
+} from "lucide-react";
 import { sellerIdentityLine, BUSINESS, CONSUMER_POLICY } from "@/lib/business";
 import { useFavorites } from "@/components/engagement/favorites";
 import { readRecent, recordRecent } from "@/components/engagement/recently-viewed";
@@ -80,12 +99,15 @@ async function fetchProductWithRetry(slug: string, maxRetries = 2) {
       if (error) throw error;
       return data;
     } catch (err: any) {
-      if (i === maxRetries || !["ECONNREFUSED", "ETIMEDOUT", "network"].some(m => String(err).includes(m))) {
+      if (
+        i === maxRetries ||
+        !["ECONNREFUSED", "ETIMEDOUT", "network"].some((m) => String(err).includes(m))
+      ) {
         // A real error (not a missing row) — surface it to the route error
         // boundary rather than masquerading as "product not found" (soft-404).
         throw err;
       }
-      await new Promise(r => setTimeout(r, Math.pow(2, i) * 100));
+      await new Promise((r) => setTimeout(r, Math.pow(2, i) * 100));
     }
   }
   return null;
@@ -100,7 +122,8 @@ async function fetchReviewSummary(productId: string): Promise<{ average: number;
       .eq("is_approved", true);
     const rows = (data ?? []) as { rating: number }[];
     const count = rows.length;
-    const average = count > 0 ? Math.round((rows.reduce((s, r) => s + r.rating, 0) / count) * 10) / 10 : 0;
+    const average =
+      count > 0 ? Math.round((rows.reduce((s, r) => s + r.rating, 0) / count) * 10) / 10 : 0;
     return { average, count };
   } catch {
     return { average: 0, count: 0 };
@@ -141,7 +164,8 @@ function betterRepresentative(a: any, b: any) {
   const stock = (x: any) => (x.stock_status !== "outofstock" ? 0 : 1);
   if (img(a) !== img(b)) return img(a) - img(b);
   if (stock(a) !== stock(b)) return stock(a) - stock(b);
-  const pa = Number(a.price ?? 0), pb = Number(b.price ?? 0);
+  const pa = Number(a.price ?? 0),
+    pb = Number(b.price ?? 0);
   if (pa !== pb) return pa - pb;
   return String(a.id ?? "").localeCompare(String(b.id ?? ""));
 }
@@ -229,8 +253,7 @@ export const Route = createFileRoute("/product/$slug")({
     // Does this NAME appear at more than one price? When it does, the sitemap
     // carries one URL per price and those URLs would otherwise ship a
     // byte-identical <title>; head() uses this to tell them apart.
-    const nameHasMultiplePrices =
-      new Set(nameFamily.map((r: any) => Number(r.price))).size > 1;
+    const nameHasMultiplePrices = new Set(nameFamily.map((r: any) => Number(r.price))).size > 1;
     // Which category this product's breadcrumb should lead through. Taking
     // index 0 of the join — as this did — is not a rule, it is row order: 3,297
     // of the 4,648 active products sit in BOTH a top-level category and one of
@@ -270,7 +293,15 @@ export const Route = createFileRoute("/product/$slug")({
         }
       }
     }
-    return { product, reviewSummary, initialReviews, parentCat, leafCat, canonicalSlug, nameHasMultiplePrices };
+    return {
+      product,
+      reviewSummary,
+      initialReviews,
+      parentCat,
+      leafCat,
+      canonicalSlug,
+      nameHasMultiplePrices,
+    };
   },
   head: ({ loaderData, params }) => {
     // Percent-encode the slug segment, exactly as sitemap[.]xml.ts's loc() and
@@ -282,8 +313,7 @@ export const Route = createFileRoute("/product/$slug")({
     // removing it: Google would still see two byte strings for one page, which
     // is precisely how one URL becomes two. All three surfaces must agree.
     // Safe on the ASCII slugs too: encodeURIComponent leaves [a-z0-9-] untouched.
-    const productUrl = (slug: string) =>
-      `https://orzadik.com/product/${encodeURIComponent(slug)}`;
+    const productUrl = (slug: string) => `https://orzadik.com/product/${encodeURIComponent(slug)}`;
     const url = productUrl(params.slug);
     // Canonical points at the representative of this product's (name, price)
     // group, which for a unique name is the product itself. Siblings that differ
@@ -298,16 +328,22 @@ export const Route = createFileRoute("/product/$slug")({
     // Google a rel=canonical and a Product node that contradict each other.
     const isSelfCanonical = canonicalSlug === params.slug;
     const p = loaderData?.product as any;
-    const reviewSummary = (loaderData as any)?.reviewSummary as { average: number; count: number } | undefined;
-    if (!p) return { meta: [{ title: "מוצר | אור זרוע לצדיק" }], links: [{ rel: "canonical", href: url }] };
+    const reviewSummary = (loaderData as any)?.reviewSummary as
+      | { average: number; count: number }
+      | undefined;
+    if (!p)
+      return {
+        meta: [{ title: "מוצר | אור זרוע לצדיק" }],
+        links: [{ rel: "canonical", href: url }],
+      };
 
     const images: string[] = [
       ...(p.thumbnail_url ? [p.thumbnail_url] : []),
-      ...((p.product_images ?? [])
+      ...(p.product_images ?? [])
         .slice()
         .sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
         .map((i: any) => i.url)
-        .filter(Boolean)),
+        .filter(Boolean),
     ];
     // LCP preload hint. The first gallery image is the product page's largest
     // paint (this is the 4,600+-page organic template). Preload it mirroring
@@ -321,12 +357,13 @@ export const Route = createFileRoute("/product/$slug")({
     const lcpImg: string | undefined = images[0];
     const lcpRendered = lcpImg ? thumbUrl(lcpImg, 1200, 80) : null;
     const lcpCanTransform = lcpRendered != null && lcpRendered !== lcpImg;
-    const lcpSrcSet = lcpImg && lcpCanTransform
-      ? [
-          ...[600, 900, 1200].map((w) => `${thumbUrl(lcpImg, w, 80)} ${w}w`),
-          `${lcpImg} 1400w`,
-        ].join(", ")
-      : undefined;
+    const lcpSrcSet =
+      lcpImg && lcpCanTransform
+        ? [
+            ...[600, 900, 1200].map((w) => `${thumbUrl(lcpImg, w, 80)} ${w}w`),
+            `${lcpImg} 1400w`,
+          ].join(", ")
+        : undefined;
     const lcpPreload = lcpImg
       ? [
           {
@@ -349,7 +386,13 @@ export const Route = createFileRoute("/product/$slug")({
       | { slug: string; name: string; parent_slug: string | null }
       | null
       | undefined;
-    const isCallOnly = cats.some((c: any) => c.slug === "esh-sheli-gold");
+    // Category OR unsellable price — see the note on the page-body isCallOnly
+    // below. Keeping the two in step matters here because this one decides
+    // whether a price goes into the Offer node and the <title>.
+    const isCallOnly = isCallOnlyProduct(
+      p.price,
+      cats.map((c: any) => c?.slug),
+    );
     // The SAME personalization gate the page body uses for `showEmbroidery`:
     // same helper, same inputs (product slug + its category slugs, both already
     // in hand here). head() therefore knows exactly what the PDP knows about
@@ -367,13 +410,16 @@ export const Route = createFileRoute("/product/$slug")({
     // which reads as a database row, not a shop. short_description stays the
     // fallback for anything without prose.
     const prose = (p.description || "").split(/\n\s*\n/)[0] ?? "";
-    const proseClean = prose.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
+    const proseClean = prose
+      .replace(/<[^>]*>/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
     // A spec line as the FIRST paragraph means there is no prose to prefer.
     const proseIsSpec = /^\s*(חומר|צבע|מידות|שפה)\s*:/.test(proseClean);
     const plainDesc = (
       !proseIsSpec && proseClean.length >= 60
         ? proseClean
-        : (p.short_description || p.description || "")
+        : p.short_description || p.description || ""
     )
       .replace(/<[^>]*>/g, "")
       .replace(/\s+/g, " ")
@@ -552,7 +598,10 @@ export const Route = createFileRoute("/product/$slug")({
 
     // Build the trail dynamically — positions come from the array index so
     // they stay consecutive whether or not the parent/category levels exist.
-    const parentCat = (loaderData as any)?.parentCat as { slug: string; name: string } | null | undefined;
+    const parentCat = (loaderData as any)?.parentCat as
+      | { slug: string; name: string }
+      | null
+      | undefined;
     const crumbs: Array<{ name: string; item: string }> = [
       { name: "בית", item: "https://orzadik.com/" },
       { name: "מוצרים", item: "https://orzadik.com/shop" },
@@ -600,7 +649,12 @@ export const Route = createFileRoute("/product/$slug")({
     const metaDesc =
       descBase.length <= 160
         ? descBase
-        : `${descBase.slice(0, 160).replace(/\s+\S*$/, "").trim() || descBase.slice(0, 160).trim()}…`;
+        : `${
+            descBase
+              .slice(0, 160)
+              .replace(/\s+\S*$/, "")
+              .trim() || descBase.slice(0, 160).trim()
+          }…`;
     // Duplicate-title guard. 186 name groups put two or more URLs in the sitemap
     // at different prices — 226 URLs beyond the 3,540 distinct names, measured
     // 2026-08-02 — and each of them shipped a byte-identical <title> with its
@@ -720,15 +774,7 @@ function useZoomMode(): boolean {
 // The lens math uses the IMAGE's on-screen rect (getBoundingClientRect), so it
 // is correct regardless of the carousel's transform; all DOM reads happen in
 // pointer handlers / effects, never at render — SSR-safe.
-function ZoomableImage({
-  src,
-  alt,
-  lensMode,
-}: {
-  src: string;
-  alt: string;
-  lensMode: boolean;
-}) {
+function ZoomableImage({ src, alt, lensMode }: { src: string; alt: string; lensMode: boolean }) {
   const imgRef = useRef<HTMLImageElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [lens, setLens] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
@@ -948,7 +994,15 @@ function ProductPage() {
         .select("id, label, sku, price, sort_order, in_stock")
         .eq("product_id", product!.id)
         .order("sort_order");
-      if (!vs || vs.length === 0) return [] as Array<{ id: string; label: string; sku: string | null; price: number | null; inStock: boolean; slug?: string }>;
+      if (!vs || vs.length === 0)
+        return [] as Array<{
+          id: string;
+          label: string;
+          sku: string | null;
+          price: number | null;
+          inStock: boolean;
+          slug?: string;
+        }>;
       const skus = vs.map((v: any) => v.sku).filter(Boolean);
       let siblings: any[] = [];
       if (skus.length > 0) {
@@ -958,18 +1012,20 @@ function ProductPage() {
           .in("sku", skus);
         siblings = sib ?? [];
       }
-      return vs.map((v: any) => {
-        const s = siblings.find((x: any) => x.sku === v.sku);
-        return {
-          id: v.id as string,
-          label: v.label as string,
-          sku: (v.sku as string | null) ?? null,
-          price: v.price !== null && v.price !== undefined ? Number(v.price) : null,
-          // Legacy rows predate the column — null/undefined means "available".
-          inStock: v.in_stock !== false,
-          slug: s?.slug as string | undefined,
-        };
-      }).filter((v) => v.price !== null || v.slug);
+      return vs
+        .map((v: any) => {
+          const s = siblings.find((x: any) => x.sku === v.sku);
+          return {
+            id: v.id as string,
+            label: v.label as string,
+            sku: (v.sku as string | null) ?? null,
+            price: v.price !== null && v.price !== undefined ? Number(v.price) : null,
+            // Legacy rows predate the column — null/undefined means "available".
+            inStock: v.in_stock !== false,
+            slug: s?.slug as string | undefined,
+          };
+        })
+        .filter((v) => v.price !== null || v.slug);
     },
   });
 
@@ -985,7 +1041,6 @@ function ProductPage() {
     inPlaceVariants[0] ??
     null;
 
-
   const categoryIds: string[] = (product?.product_categories ?? [])
     .map((pc: any) => pc?.categories?.id)
     .filter(Boolean);
@@ -1000,15 +1055,16 @@ function ProductPage() {
   // from the same sets — so the same products show the same UI as before.
   const showEmbroidery = isPersonalizableProduct(slug, categorySlugs);
   const embroideryOnly = categorySlugs.some((s) => EMBROIDERY_ONLY_CATEGORY_SLUGS.has(s));
-  const printInsteadOfEmbroidery = categorySlugs.some((s) => PRINT_INSTEAD_OF_EMBROIDERY_CATEGORY_SLUGS.has(s));
+  const printInsteadOfEmbroidery = categorySlugs.some((s) =>
+    PRINT_INSTEAD_OF_EMBROIDERY_CATEGORY_SLUGS.has(s),
+  );
   const embroideryLabel = getEmbroideryLabel(categorySlugs);
   // Short, category-accurate label for the above-the-fold personalization chip.
   const personalizationChipLabel = printInsteadOfEmbroidery
     ? "ניתן להוסיף הטבעה או חריטה אישית"
     : embroideryOnly
-    ? "ניתן להוסיף רקמה אישית"
-    : "ניתן להוסיף רקמה או חריטה אישית";
-
+      ? "ניתן להוסיף רקמה אישית"
+      : "ניתן להוסיף רקמה או חריטה אישית";
 
   const { data: related = [] } = useQuery({
     queryKey: ["related", product?.id, categorySlugs.join(",")],
@@ -1017,13 +1073,12 @@ function ProductPage() {
       // 1) Build cross-sell candidate categories from this product's categories
       const crossSlugs = new Set<string>();
       for (const s of categorySlugs) {
-        for (const t of (CROSS_SELL_MAP[s] ?? [])) crossSlugs.add(t);
+        for (const t of CROSS_SELL_MAP[s] ?? []) crossSlugs.add(t);
       }
       // Don't suggest categories the product is already in
       for (const s of categorySlugs) crossSlugs.delete(s);
-      const targetSlugs = crossSlugs.size > 0
-        ? Array.from(crossSlugs)
-        : [DEFAULT_CROSS_SELL_CATEGORY];
+      const targetSlugs =
+        crossSlugs.size > 0 ? Array.from(crossSlugs) : [DEFAULT_CROSS_SELL_CATEGORY];
 
       // Resolve target slugs → category IDs
       const { data: cats } = await supabase
@@ -1046,7 +1101,7 @@ function ProductPage() {
       // floor scales with the main price so add-ons feel like a real upgrade.
       const mainPrice = Number(product!.price) || 0;
       const minAddonPrice = Math.max(60, Math.round(mainPrice * 0.12));
-      for (const r of (data ?? [])) {
+      for (const r of data ?? []) {
         const p: any = (r as any).products;
         if (!p?.is_active || !p.thumbnail_url) continue;
         if (p.id === product!.id) continue;
@@ -1060,7 +1115,7 @@ function ProductPage() {
       // Fallback: if the price filter eliminated everything, relax it so the
       // section is not empty for low-priced mains.
       if (out.length === 0) {
-        for (const r of (data ?? [])) {
+        for (const r of data ?? []) {
           const p: any = (r as any).products;
           if (!p?.is_active || !p.thumbnail_url) continue;
           if (p.id === product!.id) continue;
@@ -1104,13 +1159,15 @@ function ProductPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("product_categories")
-        .select("products!inner(id, slug, name, price, sale_price, thumbnail_url, is_active, stock_status)")
+        .select(
+          "products!inner(id, slug, name, price, sale_price, thumbnail_url, is_active, stock_status)",
+        )
         .in("category_id", categoryIds)
         .limit(24);
       if (error) throw error;
       const seen = new Set<string>();
       const out: ProductCardData[] = [];
-      for (const r of (data ?? [])) {
+      for (const r of data ?? []) {
         const p: any = (r as any).products;
         if (!p?.is_active || !p.thumbnail_url) continue;
         if (p.id === product!.id) continue;
@@ -1150,22 +1207,25 @@ function ProductPage() {
             <CardSkeleton className="h-12 w-full min-h-0" />
           </div>
         </div>
-        <p role="status" className="sr-only">טוען…</p>
+        <p role="status" className="sr-only">
+          טוען…
+        </p>
       </div>
     );
   }
-  if (!product) return <div className="container mx-auto px-4 py-20 text-center">המוצר לא נמצא</div>;
+  if (!product)
+    return <div className="container mx-auto px-4 py-20 text-center">המוצר לא נמצא</div>;
 
   // Dedupe (thumbnail_url often repeats inside product_images) and copy before
   // sorting so the React Query cache object is never mutated — mirrors head().
   const gallery: string[] = Array.from(
     new Set<string>([
       ...(product.thumbnail_url ? [product.thumbnail_url] : []),
-      ...((product.product_images ?? [])
+      ...(product.product_images ?? [])
         .slice()
         .sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
         .map((i: any) => i.url)
-        .filter(Boolean)),
+        .filter(Boolean),
       // Last resort: photographs bundled in public/ rather than stored in
       // Supabase, hero first and then any further frames (for the groom sets,
       // the set's own siddur shot on its own). Appended (not prepended) so they
@@ -1205,8 +1265,24 @@ function ProductPage() {
   // products that have no description of their own. The breadcrumb genuinely
   // wants the leaf; this sentence genuinely wants the parent.
   const copyCategory: any = parentCategory ?? leafCategory ?? null;
-  const isCallOnly = (product.product_categories ?? []).some(
-    (pc: any) => pc?.categories?.slug === "esh-sheli-gold"
+  // Two conditions, deliberately OR'd.
+  //
+  // The category is the intent: the esh-sheli-gold pieces are priced by the
+  // daily gold rate, so their own copy tells the customer to call for a quote.
+  // The price test is the safety net. ProductCard has always keyed call-only on
+  // `!(price > 0)` while this page keyed it on the category alone, so the two
+  // could disagree: a ₪0 product outside that category would show a ₪0 price
+  // and a working "הוסף לסל" here, and the customer would only be stopped at
+  // the very end of checkout by "מוצר ללא מחיר תקין" — after entering their
+  // address. Today all seven ₪0 rows are in the category and nothing is in the
+  // category at a real price, so the two agree; this makes that agreement
+  // structural rather than a coincidence of the current data.
+  //
+  // isSellablePrice is the SAME predicate createOrder enforces, so the buy box
+  // can no longer offer something the server will refuse.
+  const isCallOnly = isCallOnlyProduct(
+    product.price,
+    (product.product_categories ?? []).map((pc: any) => pc?.categories?.slug),
   );
 
   // ── Three "the page asks for a decision it gives no control for" gates ──
@@ -1239,7 +1315,7 @@ function ProductPage() {
   //     buried mid-sentence); where it does not, we say so and route to a human.
   //     Scoped to the garment category only — a mezuzah case has no fit.
   const isTallitGarment = (product.product_categories ?? []).some(
-    (pc: any) => pc?.categories?.slug === "talitot"
+    (pc: any) => pc?.categories?.slug === "talitot",
   );
   const sizeFromName =
     product.name.match(/גודל\s*\d+\s*-\s*(\d+\s*[xX×]\s*\d+\s*ס["״]?מ)/)?.[1] ??
@@ -1362,7 +1438,13 @@ function ProductPage() {
     { label: "בית", to: "/" },
     { label: "מוצרים", to: "/shop" },
     ...(parentCategory
-      ? [{ label: parentCategory.name, to: "/category/$slug", params: { slug: parentCategory.slug } }]
+      ? [
+          {
+            label: parentCategory.name,
+            to: "/category/$slug",
+            params: { slug: parentCategory.slug },
+          },
+        ]
       : []),
     ...(firstCategory
       ? [{ label: firstCategory.name, to: "/category/$slug", params: { slug: firstCategory.slug } }]
@@ -1406,7 +1488,9 @@ function ProductPage() {
     const forward = e.key === "ArrowLeft" || e.key === "ArrowDown";
     const next = selectable[(curIdx + (forward ? 1 : -1) + selectable.length) % selectable.length];
     setSelectedVariantId(next.id);
-    (e.currentTarget.querySelector(`[data-variant-id="${next.id}"]`) as HTMLElement | null)?.focus();
+    (
+      e.currentTarget.querySelector(`[data-variant-id="${next.id}"]`) as HTMLElement | null
+    )?.focus();
   }
 
   // The one add-to-cart entry point for the page — the desktop buy row and the
@@ -1419,7 +1503,6 @@ function ProductPage() {
     if (!product) return;
     addToCart();
   }
-
 
   return (
     <div className="container mx-auto px-4 py-10">
@@ -1520,7 +1603,15 @@ function ProductPage() {
                     the slide the user was viewing. watchDrag is off: pointer
                     drag/touch pan belongs to the zoom (lens tracking on desktop,
                     scroll-pan on touch), so slide changes go through the arrows. */}
-                <Carousel dir="rtl" opts={{ direction: "rtl", loop: true, startIndex: selectedIndex, watchDrag: false }}>
+                <Carousel
+                  dir="rtl"
+                  opts={{
+                    direction: "rtl",
+                    loop: true,
+                    startIndex: selectedIndex,
+                    watchDrag: false,
+                  }}
+                >
                   <CarouselContent>
                     {gallery.map((url, i) => (
                       <CarouselItem key={url}>
@@ -1553,10 +1644,12 @@ function ProductPage() {
             // and the physical shop, which is real and open. It promises no
             // photo will arrive and invents no description.
             <div className="glass glass-gold aspect-square w-full flex flex-col items-center justify-center gap-3 p-6 text-center">
-              <span className="text-sm font-semibold text-accent">עדיין אין צילום של הדגם הזה באתר</span>
+              <span className="text-sm font-semibold text-accent">
+                עדיין אין צילום של הדגם הזה באתר
+              </span>
               <p className="text-xs leading-relaxed text-foreground/85">
-                נשמח לשלוח לכם תמונות של הדגם בוואטסאפ, או להראות לכם אותו בחנות
-                ב{BUSINESS.address}.
+                נשמח לשלוח לכם תמונות של הדגם בוואטסאפ, או להראות לכם אותו בחנות ב{BUSINESS.address}
+                .
               </p>
               <div className="flex flex-wrap items-center justify-center gap-2">
                 <a
@@ -1577,7 +1670,11 @@ function ProductPage() {
             </div>
           )}
           {gallery.length > 1 && (
-            <div className="mt-3 flex gap-2 overflow-x-auto" role="group" aria-label="תמונות נוספות של המוצר">
+            <div
+              className="mt-3 flex gap-2 overflow-x-auto"
+              role="group"
+              aria-label="תמונות נוספות של המוצר"
+            >
               {gallery.map((url, idx) => (
                 <button
                   key={url}
@@ -1592,7 +1689,13 @@ function ProductPage() {
                   {/* 80 CSS px — request a 160px transform (2× for retina)
                       instead of the full-size original. The main slide and the
                       zoom dialog keep the originals. */}
-                  <img src={thumbUrl(url, 160) ?? url} alt="" loading="lazy" decoding="async" className="h-full w-full object-contain p-1" />
+                  <img
+                    src={thumbUrl(url, 160) ?? url}
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                    className="h-full w-full object-contain p-1"
+                  />
                 </button>
               ))}
             </div>
@@ -1626,7 +1729,9 @@ function ProductPage() {
           {isCallOnly ? (
             <div className="glass mb-3 px-4 py-3">
               <div className="text-lg font-bold text-accent">המחיר משתנה לפי שער הזהב היומי</div>
-              <div className="text-sm text-foreground mt-1">לקבלת הצעת מחיר עדכנית - צרו קשר בטלפון או בוואטסאפ</div>
+              <div className="text-sm text-foreground mt-1">
+                לקבלת הצעת מחיר עדכנית - צרו קשר בטלפון או בוואטסאפ
+              </div>
             </div>
           ) : (
             <div className="flex items-baseline gap-3 mb-3 flex-wrap">
@@ -1673,7 +1778,10 @@ function ProductPage() {
             <div className="glass inline-flex items-start gap-1.5 text-sm text-foreground px-2.5 py-1 [--glass-radius:0.625rem] [--glass-shadow:0_1px_2px_rgba(22,24,29,0.05)]">
               <Truck className="h-4 w-4 shrink-0 text-accent mt-0.5" />
               <span>
-                דמי משלוח {formatILS(SHIPPING_FLAT)} (מתווספים בעגלה) • <span className="font-semibold text-accent">זמן אספקה {DELIVERY_WINDOW} ימי עסקים</span>
+                דמי משלוח {formatILS(SHIPPING_FLAT)} (מתווספים בעגלה) •{" "}
+                <span className="font-semibold text-accent">
+                  זמן אספקה {DELIVERY_WINDOW} ימי עסקים
+                </span>
                 {/* The "ההכנה מתחילה לאחר תיאום פרטי ההתאמה" caveat used to hang
                     here behind `customText.trim() &&`, i.e. it appeared only
                     AFTER a name had been typed — which is after the shopper has
@@ -1684,7 +1792,6 @@ function ProductPage() {
                     copies of a delivery caveat is how the 3-14 window drifted
                     across three surfaces in the first place. */}
               </span>
-
             </div>
           </div>
 
@@ -1716,7 +1823,10 @@ function ProductPage() {
                     שאלו בוואטסאפ
                   </a>{" "}
                   או{" "}
-                  <a href={`tel:${CONTACT_TEL}`} className="font-semibold text-accent underline underline-offset-4">
+                  <a
+                    href={`tel:${CONTACT_TEL}`}
+                    className="font-semibold text-accent underline underline-offset-4"
+                  >
                     התקשרו {BUSINESS.phoneDisplay}
                   </a>
                   .
@@ -1761,7 +1871,6 @@ function ProductPage() {
               </div>
             </div>
           )}
-
 
           {/* short_description carries NO markup on any of the 4,648 active
               products (verified against the live DB), and on 2,366 of them it IS
@@ -1821,13 +1930,14 @@ function ProductPage() {
               />
               {customText.trim() && !embroideryOnly && (
                 <div className="mt-3">
-                  <span className="block text-xs font-medium text-accent mb-1.5">בחרו שיטת התאמה:</span>
+                  <span className="block text-xs font-medium text-accent mb-1.5">
+                    בחרו שיטת התאמה:
+                  </span>
                   <div className="flex gap-2">
-                    {([
+                    {[
                       { value: "embroidery" as const, label: embroideryLabel },
                       { value: "laser" as const, label: "חריטת לייזר" },
-                    ]).map((opt) => {
-
+                    ].map((opt) => {
                       const active = customMethod === opt.value;
                       return (
                         <button
@@ -1868,13 +1978,11 @@ function ProductPage() {
                 {printInsteadOfEmbroidery
                   ? "ניתן להוסיף שם בהטבעה או בחריטת לייזר בעברית. ניצור איתכם קשר לאחר ההזמנה לתיאום פונט וגוון."
                   : embroideryOnly
-                  ? "ניתן להוסיף שם ברקמה בעברית. ניצור איתכם קשר לאחר ההזמנה לתיאום פונט וגוון."
-                  : "ניתן להוסיף שם ברקמה או בחריטת לייזר בעברית. ניצור איתכם קשר לאחר ההזמנה לתיאום פונט וגוון."}
+                    ? "ניתן להוסיף שם ברקמה בעברית. ניצור איתכם קשר לאחר ההזמנה לתיאום פונט וגוון."
+                    : "ניתן להוסיף שם ברקמה או בחריטת לייזר בעברית. ניצור איתכם קשר לאחר ההזמנה לתיאום פונט וגוון."}
               </p>
-
             </div>
           )}
-
 
           {/* Size variants. Two genuinely different interaction models, so they
               get two labelled rows instead of one undifferentiated chip list:
@@ -1926,10 +2034,17 @@ function ProductPage() {
 
               {siblingVariants.length > 0 && (
                 <div className={inPlaceVariants.length > 0 ? "mt-3" : ""}>
-                  <span className="block text-xs font-medium text-muted-foreground mb-1.5" id="sibling-sizes-label">
+                  <span
+                    className="block text-xs font-medium text-muted-foreground mb-1.5"
+                    id="sibling-sizes-label"
+                  >
                     מידות נוספות
                   </span>
-                  <div role="group" className="flex flex-wrap gap-2" aria-labelledby="sibling-sizes-label">
+                  <div
+                    role="group"
+                    className="flex flex-wrap gap-2"
+                    aria-labelledby="sibling-sizes-label"
+                  >
                     {siblingVariants.map((v) => {
                       // Sibling-product variant → link to the other product page.
                       const isCurrent = v.sku === product.sku;
@@ -1986,11 +2101,20 @@ function ProductPage() {
               {/* --input (3.25:1 on white) is the form-CONTROL boundary token;
                   --border is a decorative 1.25:1 line and fails 1.4.11 here. */}
               <div className="inline-flex items-center overflow-hidden rounded-full border border-input bg-white/70">
-                <button onClick={() => setQty((q) => Math.max(1, q - 1))} disabled={qty <= 1} className="press px-3 py-2 disabled:pointer-events-none disabled:opacity-50 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted" aria-label="הפחת">
+                <button
+                  onClick={() => setQty((q) => Math.max(1, q - 1))}
+                  disabled={qty <= 1}
+                  className="press px-3 py-2 disabled:pointer-events-none disabled:opacity-50 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"
+                  aria-label="הפחת"
+                >
                   <Minus className="h-4 w-4" />
                 </button>
                 <span className="px-4 font-medium">{qty}</span>
-                <button onClick={() => setQty((q) => q + 1)} className="press px-3 py-2 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted" aria-label="הוסף">
+                <button
+                  onClick={() => setQty((q) => q + 1)}
+                  className="press px-3 py-2 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"
+                  aria-label="הוסף"
+                >
                   <Plus className="h-4 w-4" />
                 </button>
               </div>
@@ -2005,8 +2129,8 @@ function ProductPage() {
                 {!canBuy
                   ? "אזל מהמלאי"
                   : qty > 1
-                  ? `הוסף לעגלה — ${formatILS(effective * qty)}`
-                  : "הוסף לעגלה"}
+                    ? `הוסף לעגלה — ${formatILS(effective * qty)}`
+                    : "הוסף לעגלה"}
               </Button>
               <Button
                 size="lg"
@@ -2046,7 +2170,9 @@ function ProductPage() {
                 rel="noopener noreferrer"
                 className="press glass flex items-center gap-2.5 px-3.5 py-2.5 text-sm font-medium text-[#075E54] [--glass-radius:0.75rem] [@media(hover:hover)_and_(pointer:fine)]:hover:[--glass-bg:rgba(255,255,255,0.94)]"
               >
-                <span aria-hidden="true" className="text-base leading-none">💬</span>
+                <span aria-hidden="true" className="text-base leading-none">
+                  💬
+                </span>
                 <span>שאלה לפני שקונים? דברו איתנו בוואטסאפ — נענה אישית</span>
               </a>
 
@@ -2143,93 +2269,100 @@ function ProductPage() {
           {/* Accordion — one glass pane, hairline dividers between the rows,
               instead of three gold-ruled bands. */}
           <div className="glass mt-8 px-4 md:px-5">
-          {/* Radix renders each AccordionTrigger inside an <h3>. On this page those
+            {/* Radix renders each AccordionTrigger inside an <h3>. On this page those
               are the first headings after the <h1>, so the document skipped h1→h3
               on all 4,641 product pages. This visually-hidden <h2> names the group
               and restores the ladder. Deliberately NOT fixed by re-levelling the
               shared Accordion primitive: elsewhere its <h3> is correctly nested
               under a real <h2>, and changing it globally would break those. */}
-          <h2 className="sr-only">מידע נוסף על המוצר</h2>
-          <Accordion type="single" collapsible defaultValue="desc">
-            <AccordionItem value="desc" className="border-glass-line last:border-b-0">
-              <AccordionTrigger className="font-display text-base">תיאור המוצר</AccordionTrigger>
-              <AccordionContent>
-                {product.description ? (
-                  // Was a sanitised innerHTML injection with dead `prose` hooks.
-                  // 4,348 of 4,648 descriptions are plain text whose blank line
-                  // HTML was collapsing, gluing the prose to the spec block; the
-                  // 300 that carry markup use only <p>/<br>/<strong> with no
-                  // attributes, so RichCopy renders that subset as JSX and this
-                  // route no longer builds HTML from stored data at all.
-                  <RichCopy text={product.description} />
-                ) : (
-                  // 142 products have no long description. Rather than omit the
-                  // section, build a truthful fallback from facts the page
-                  // already holds — the product name, its category, the store's
-                  // kashrut/quality stance, and (when applicable) that
-                  // personalization is offered. Deliberately generic: it invents
-                  // no material, dimension, or availability the DB doesn't have.
-                  <p className="text-sm text-foreground/90 leading-relaxed">
-                    {product.name}
-                    {copyCategory ? ` מתוך מבחר ה${copyCategory.name}` : ""} של אור זרוע לצדיק —
-                    תשמישי קדושה ויודאיקה הנבחרים בהקפדה על כשרות והידור.
-                    {showEmbroidery ? " לפריט זה ניתן להוסיף התאמה אישית (רקמה/חריטה) בעמוד ההזמנה." : ""}
-                    {" "}יש לכם שאלה על הפריט? נשמח לעזור בטלפון או בוואטסאפ.
-                  </p>
-                )}
-              </AccordionContent>
-            </AccordionItem>
-            <AccordionItem value="ship" className="border-glass-line last:border-b-0">
-              <AccordionTrigger className="font-display text-base">משלוחים</AccordionTrigger>
-              <AccordionContent>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  {/* Same single-string DELIVERY_WINDOW as the chip above: this
+            <h2 className="sr-only">מידע נוסף על המוצר</h2>
+            <Accordion type="single" collapsible defaultValue="desc">
+              <AccordionItem value="desc" className="border-glass-line last:border-b-0">
+                <AccordionTrigger className="font-display text-base">תיאור המוצר</AccordionTrigger>
+                <AccordionContent>
+                  {product.description ? (
+                    // Was a sanitised innerHTML injection with dead `prose` hooks.
+                    // 4,348 of 4,648 descriptions are plain text whose blank line
+                    // HTML was collapsing, gluing the prose to the spec block; the
+                    // 300 that carry markup use only <p>/<br>/<strong> with no
+                    // attributes, so RichCopy renders that subset as JSX and this
+                    // route no longer builds HTML from stored data at all.
+                    <RichCopy text={product.description} />
+                  ) : (
+                    // 142 products have no long description. Rather than omit the
+                    // section, build a truthful fallback from facts the page
+                    // already holds — the product name, its category, the store's
+                    // kashrut/quality stance, and (when applicable) that
+                    // personalization is offered. Deliberately generic: it invents
+                    // no material, dimension, or availability the DB doesn't have.
+                    <p className="text-sm text-foreground/90 leading-relaxed">
+                      {product.name}
+                      {copyCategory ? ` מתוך מבחר ה${copyCategory.name}` : ""} של אור זרוע לצדיק —
+                      תשמישי קדושה ויודאיקה הנבחרים בהקפדה על כשרות והידור.
+                      {showEmbroidery
+                        ? " לפריט זה ניתן להוסיף התאמה אישית (רקמה/חריטה) בעמוד ההזמנה."
+                        : ""}{" "}
+                      יש לכם שאלה על הפריט? נשמח לעזור בטלפון או בוואטסאפ.
+                    </p>
+                  )}
+                </AccordionContent>
+              </AccordionItem>
+              <AccordionItem value="ship" className="border-glass-line last:border-b-0">
+                <AccordionTrigger className="font-display text-base">משלוחים</AccordionTrigger>
+                <AccordionContent>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    {/* Same single-string DELIVERY_WINDOW as the chip above: this
                       was the JSX-children form `{min}-{max}`, which is three
                       adjacent text nodes rather than one, and the built-output
                       proof I have (live /shipping) only covers the one-node
                       form. Both surfaces on this page now use the construct
                       that is actually verified. */}
-                  משלוח עד הבית לכל רחבי הארץ, אספקה משוערת {DELIVERY_WINDOW} ימי עסקים ממועד אישור ההזמנה. פרטים מלאים ב
-                  <Link
-                    to="/shipping"
-                    className="text-accent underline underline-offset-4 [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-strong"
-                  >
-                    עמוד המשלוחים
-                  </Link>
-                  .
-                </p>
-              </AccordionContent>
-            </AccordionItem>
-            <AccordionItem value="ret" className="border-glass-line last:border-b-0">
-              <AccordionTrigger className="font-display text-base">מדיניות החזרות וביטולים</AccordionTrigger>
-              <AccordionContent>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  ניתן לבטל עסקה בכתב עד {CONSUMER_POLICY.cancellationDays} ימים מקבלת המוצר, בהתאם לחוק הגנת הצרכן — בהודעה בדוא"ל
-                  או דרך{" "}
-                  <Link
-                    to="/contact"
-                    className="text-accent underline underline-offset-4 [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-strong"
-                  >
-                    עמוד יצירת הקשר
-                  </Link>
-                  . בביטול שאינו עקב פגם ייתכן ניכוי דמי ביטול בשיעור שלא יעלה על
-                  {CONSUMER_POLICY.cancellationFeePct}% ממחיר העסקה או {CONSUMER_POLICY.cancellationFeeCapIls} ₪, הנמוך מביניהם, והחזר כספי יבוצע תוך {CONSUMER_POLICY.refundDays} ימים מקבלת ההודעה.
-                  המוצר יוחזר באריזתו המקורית וללא שימוש. פריטים בהתאמה אישית (רקמה/חריטה) אינם ניתנים לביטול.
-                </p>
-              </AccordionContent>
-            </AccordionItem>
-          </Accordion>
+                    משלוח עד הבית לכל רחבי הארץ, אספקה משוערת {DELIVERY_WINDOW} ימי עסקים ממועד
+                    אישור ההזמנה. פרטים מלאים ב
+                    <Link
+                      to="/shipping"
+                      className="text-accent underline underline-offset-4 [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-strong"
+                    >
+                      עמוד המשלוחים
+                    </Link>
+                    .
+                  </p>
+                </AccordionContent>
+              </AccordionItem>
+              <AccordionItem value="ret" className="border-glass-line last:border-b-0">
+                <AccordionTrigger className="font-display text-base">
+                  מדיניות החזרות וביטולים
+                </AccordionTrigger>
+                <AccordionContent>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    ניתן לבטל עסקה בכתב עד {CONSUMER_POLICY.cancellationDays} ימים מקבלת המוצר,
+                    בהתאם לחוק הגנת הצרכן — בהודעה בדוא"ל או דרך{" "}
+                    <Link
+                      to="/contact"
+                      className="text-accent underline underline-offset-4 [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-strong"
+                    >
+                      עמוד יצירת הקשר
+                    </Link>
+                    . בביטול שאינו עקב פגם ייתכן ניכוי דמי ביטול בשיעור שלא יעלה על
+                    {CONSUMER_POLICY.cancellationFeePct}% ממחיר העסקה או{" "}
+                    {CONSUMER_POLICY.cancellationFeeCapIls} ₪, הנמוך מביניהם, והחזר כספי יבוצע תוך{" "}
+                    {CONSUMER_POLICY.refundDays} ימים מקבלת ההודעה. המוצר יוחזר באריזתו המקורית וללא
+                    שימוש. פריטים בהתאמה אישית (רקמה/חריטה) אינם ניתנים לביטול.
+                  </p>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
 
-          {/* Contextual guide link, capped at 2. Across ~4,600 product pages
+            {/* Contextual guide link, capped at 2. Across ~4,600 product pages
               this is the largest block of internal links into the guides on the
               site — and it renders server-side, so crawlers see it. Capped and
               category-varied so it reads as a pointer, not boilerplate. */}
-          {productGuides.length > 0 && (
-            <div className="mt-6 border-t border-glass-line pt-4">
-              <p className="mb-1.5 text-xs text-muted-foreground">עוד בנושא</p>
-              <GuideLinks guides={productGuides} variant="inline" />
-            </div>
-          )}
+            {productGuides.length > 0 && (
+              <div className="mt-6 border-t border-glass-line pt-4">
+                <p className="mb-1.5 text-xs text-muted-foreground">עוד בנושא</p>
+                <GuideLinks guides={productGuides} variant="inline" />
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -2277,7 +2410,9 @@ function ProductPage() {
             ),
         );
         const sameShade = distinct.filter((m) => getEffectivePrice(Number(m.price)) === effective);
-        const otherPriced = distinct.filter((m) => getEffectivePrice(Number(m.price)) !== effective);
+        const otherPriced = distinct.filter(
+          (m) => getEffectivePrice(Number(m.price)) !== effective,
+        );
         const otherPrices = otherPriced.map((m) => getEffectivePrice(Number(m.price)));
         return (
           <>
@@ -2349,7 +2484,11 @@ function ProductPage() {
       )}
 
       {/* Customer reviews + star ratings */}
-      <ProductReviews productId={product.id} initialSummary={reviewSummary} initialReviews={initialReviews} />
+      <ProductReviews
+        productId={product.id}
+        initialSummary={reviewSummary}
+        initialReviews={initialReviews}
+      />
 
       {/* Mobile buy bar. `sticky` (not `fixed`) on purpose: it pins to the
           bottom of the viewport while the page body is in view and then
@@ -2359,7 +2498,10 @@ function ProductPage() {
       {/* data-mobile-actionbar: styles.css lifts the global WhatsApp / a11y FABs
           above this bar while it is in the DOM — otherwise they float on top of
           the price readout and the add-to-cart button on every phone. */}
-      <div data-mobile-actionbar className="glass-strong lg:hidden sticky bottom-0 z-40 -mx-4 mt-10 px-4 py-3 [--glass-radius:0] [--glass-shadow-lift:0_-10px_30px_-16px_rgba(22,24,29,0.20)]">
+      <div
+        data-mobile-actionbar
+        className="glass-strong lg:hidden sticky bottom-0 z-40 -mx-4 mt-10 px-4 py-3 [--glass-radius:0] [--glass-shadow-lift:0_-10px_30px_-16px_rgba(22,24,29,0.20)]"
+      >
         {isCallOnly || !canBuy ? (
           <div className="flex items-center gap-2">
             {contactCtas(isCallOnly ? QUOTE_WA_TEXT : RESTOCK_WA_TEXT, true)}
@@ -2374,11 +2516,7 @@ function ProductPage() {
                 {formatILS(effective * qty)}
               </div>
             </div>
-            <Button
-              size="lg"
-              onClick={addToCartWithFeedback}
-              className="flex-1 gap-2"
-            >
+            <Button size="lg" onClick={addToCartWithFeedback} className="flex-1 gap-2">
               <ShoppingCart className="h-4 w-4" /> הוסף לעגלה
             </Button>
           </div>

@@ -9,6 +9,8 @@ import {
   applyMemberDiscount,
   getShipping,
   isSellablePrice,
+  isCallOnlyProduct,
+  CALL_ONLY_CATEGORY_SLUG,
 } from "./pricing";
 
 describe("getEffectivePrice", () => {
@@ -123,14 +125,8 @@ describe("constants sanity", () => {
  * placeOrder (checkout.functions.ts) and the client math in cart.tsx.
  */
 describe("client/server total agreement", () => {
-  function computeOrderTotal(
-    items: { price: number; quantity: number }[],
-    isMember: boolean,
-  ) {
-    const rawSubtotal = items.reduce(
-      (s, i) => s + getEffectivePrice(i.price) * i.quantity,
-      0,
-    );
+  function computeOrderTotal(items: { price: number; quantity: number }[], isMember: boolean) {
+    const rawSubtotal = items.reduce((s, i) => s + getEffectivePrice(i.price) * i.quantity, 0);
     const subtotal = applyMemberDiscount(rawSubtotal, isMember);
     const shipping = getShipping(subtotal);
     return { subtotal, shipping, total: subtotal + shipping };
@@ -157,5 +153,44 @@ describe("client/server total agreement", () => {
   it("charges no shipping for an empty cart", () => {
     const r = computeOrderTotal([], false);
     expect(r).toEqual({ subtotal: 0, shipping: 0, total: 0 });
+  });
+});
+
+// ProductCard decided call-only from the price; the product page decided it
+// from the category. On today's data they agree — all seven ₪0 rows are in
+// esh-sheli-gold and nothing in that category has a real price — but nothing
+// held them together. These tests are about the disagreement that was possible,
+// which is why the ₪0-outside-the-category case is the important one: there the
+// old page showed a working "הוסף לסל" for a line createOrder refuses.
+describe("isCallOnlyProduct", () => {
+  it("quotes anything in the gold-rate category, even at a real price", () => {
+    expect(isCallOnlyProduct(1800, [CALL_ONLY_CATEGORY_SLUG])).toBe(true);
+  });
+
+  it("quotes a ₪0 product even when it is in no such category", () => {
+    expect(isCallOnlyProduct(0, ["tallitot"])).toBe(true);
+    expect(isCallOnlyProduct(0)).toBe(true);
+  });
+
+  it("sells a normally priced product in an ordinary category", () => {
+    expect(isCallOnlyProduct(1800, ["tallitot"])).toBe(false);
+    expect(isCallOnlyProduct(1800)).toBe(false);
+  });
+
+  // The buy box must never offer what createOrder will refuse, so the price
+  // half of this predicate has to be exactly the checkout's own test.
+  it("agrees with isSellablePrice on every price shape the DB can hold", () => {
+    for (const price of [0, -1, null, undefined, NaN, Infinity, "", "abc"]) {
+      expect(isCallOnlyProduct(price)).toBe(true);
+      expect(isSellablePrice(Number(price))).toBe(false);
+    }
+    for (const price of [0.5, 1, 1643, "1786"]) {
+      expect(isCallOnlyProduct(price)).toBe(false);
+      expect(isSellablePrice(Number(price))).toBe(true);
+    }
+  });
+
+  it("ignores null and undefined category slugs from a left join", () => {
+    expect(isCallOnlyProduct(1800, [null, undefined])).toBe(false);
   });
 });

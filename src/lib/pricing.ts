@@ -71,3 +71,38 @@ export function getShipping(subtotalAfterDiscount: number): number {
   if (subtotalAfterDiscount <= 0) return 0;
   return SHIPPING_FLAT;
 }
+
+/**
+ * The category whose pieces are priced by the daily gold/silver rate, so the
+ * shop quotes them by phone or WhatsApp instead of listing a number.
+ */
+export const CALL_ONLY_CATEGORY_SLUG = "esh-sheli-gold";
+
+/**
+ * Whether a product must be quoted rather than sold from the page.
+ *
+ * There are two reasons, and they are OR'd on purpose:
+ *
+ * 1. INTENT — the product sits in esh-sheli-gold. Its own copy already tells
+ *    the customer "המחיר משתנה לפי שער הזהב היומי... צרו קשר", so the page must
+ *    match that promise and offer a quote, not a cart.
+ *
+ * 2. SAFETY — the price is not sellable. createOrder refuses such a line with
+ *    "מוצר ללא מחיר תקין", so a buy box that offers it is offering something
+ *    the server will reject. Without this half, a ₪0 product outside the
+ *    category shows a working "הוסף לסל" and the customer is only stopped
+ *    after entering their address.
+ *
+ * This lives here because ProductCard keyed call-only on the price alone while
+ * the product page keyed it on the category alone. The two happened to agree on
+ * the current data — all seven ₪0 rows are in the category, and nothing in the
+ * category has a real price — but nothing held them together. One predicate in
+ * one place is what makes that agreement structural.
+ */
+export function isCallOnlyProduct(
+  price: unknown,
+  categorySlugs: readonly (string | null | undefined)[] = [],
+): boolean {
+  if (categorySlugs.some((s) => s === CALL_ONLY_CATEGORY_SLUG)) return true;
+  return !isSellablePrice(Number(price));
+}
