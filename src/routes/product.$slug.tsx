@@ -191,6 +191,23 @@ async function fetchNameFamily(nameNorm: string | null | undefined) {
   }
 }
 
+/**
+ * Gallery order: sort_order, then the image URL as a tiebreak.
+ *
+ * 52 products carry two DIFFERENT images on the SAME sort_order. Sorting on
+ * sort_order alone leaves their relative order decided by whatever sequence
+ * PostgREST happened to return the embedded rows in — which is unspecified, so
+ * the same product page can show its 2nd and 3rd photo in either order between
+ * loads or between the SSR pass and the client refetch. None of the ties are at
+ * the first image, so the hero photo is never affected; this is about the page
+ * not quietly reshuffling itself. The URL is stable and unique per row, so it
+ * makes the result total and reproducible.
+ */
+function byGalleryOrder(a: any, b: any): number {
+  const d = (a.sort_order ?? 0) - (b.sort_order ?? 0);
+  return d !== 0 ? d : String(a.url ?? "").localeCompare(String(b.url ?? ""));
+}
+
 export const Route = createFileRoute("/product/$slug")({
   loader: async ({ params }) => {
     const product = await fetchProductWithRetry(params.slug);
@@ -341,7 +358,7 @@ export const Route = createFileRoute("/product/$slug")({
       ...(p.thumbnail_url ? [p.thumbnail_url] : []),
       ...(p.product_images ?? [])
         .slice()
-        .sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+        .sort(byGalleryOrder)
         .map((i: any) => i.url)
         .filter(Boolean),
     ];
@@ -1223,7 +1240,7 @@ function ProductPage() {
       ...(product.thumbnail_url ? [product.thumbnail_url] : []),
       ...(product.product_images ?? [])
         .slice()
-        .sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+        .sort(byGalleryOrder)
         .map((i: any) => i.url)
         .filter(Boolean),
       // Last resort: photographs bundled in public/ rather than stored in
