@@ -1,6 +1,7 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { formatILS, useCart, getEffectivePrice } from "@/lib/cart";
+import { isCallOnlyProduct } from "@/lib/pricing";
 import { useFavorites } from "@/components/engagement/favorites";
 import { ProductThumb } from "@/components/ProductThumb";
 import { displayProductName, parseTileAttributes } from "@/lib/display-name";
@@ -89,7 +90,17 @@ const PERSONALIZATION_MARKER: Record<PersonalizationMethod, string> = {
   both: "ניתן לרקום או לחרוט",
 };
 
-export function ProductCard({ p, priority = false, eager, highPriority }: { p: ProductCardData; priority?: boolean; eager?: boolean; highPriority?: boolean }) {
+export function ProductCard({
+  p,
+  priority = false,
+  eager,
+  highPriority,
+}: {
+  p: ProductCardData;
+  priority?: boolean;
+  eager?: boolean;
+  highPriority?: boolean;
+}) {
   const { add } = useCart();
   const { has, toggle } = useFavorites();
   const navigate = useNavigate();
@@ -126,8 +137,7 @@ export function ProductCard({ p, priority = false, eager, highPriority }: { p: P
   // can never disagree about whether a product can carry a name. Silent when the
   // loader did not select category slugs.
   const categorySlugs = p.category_slugs ?? [];
-  const personalizable =
-    categorySlugs.length > 0 && isPersonalizableProduct(p.slug, categorySlugs);
+  const personalizable = categorySlugs.length > 0 && isPersonalizableProduct(p.slug, categorySlugs);
   const personalizationText = personalizable
     ? PERSONALIZATION_MARKER[personalizationMethod(categorySlugs)]
     : null;
@@ -136,7 +146,10 @@ export function ProductCard({ p, priority = false, eager, highPriority }: { p: P
   // products), and it is spelled the same way here as in catalog-order.ts and
   // the two price sorts. Previously `=== 0`, which let a null/NaN price fall
   // through to the priced branch and print "₪NaN".
-  const isCallOnly = !(Number(p.price) > 0);
+  // Same predicate as the product page — see isCallOnlyProduct. ProductCard
+  // has no category slugs in hand, so the price half is what applies here; the
+  // shared helper is what keeps the two screens from drifting apart.
+  const isCallOnly = isCallOnlyProduct(p.price);
   const isOutOfStock = p.stock_status === "outofstock";
   const effective = getEffectivePrice(p.price);
 
@@ -234,7 +247,9 @@ export function ProductCard({ p, priority = false, eager, highPriority }: { p: P
         // and make the fill snap. Naming every property keeps both.
         className="absolute top-3 left-3 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/90 shadow transition-[background-color,transform,scale] duration-160 ease-out before:absolute before:-inset-1 before:content-[''] [@media(hover:hover)_and_(pointer:fine)]:hover:bg-white motion-safe:active:scale-[0.97] focus-visible:active:scale-100"
       >
-        <Heart className={`h-[1.125rem] w-[1.125rem] ${saved ? "fill-accent text-accent" : "text-foreground/60"}`} />
+        <Heart
+          className={`h-[1.125rem] w-[1.125rem] ${saved ? "fill-accent text-accent" : "text-foreground/60"}`}
+        />
       </button>
 
       {/* ---- IMAGE ------------------------------------------------------------
@@ -419,7 +434,14 @@ export function ProductCard({ p, priority = false, eager, highPriority }: { p: P
                 //
                 // `displayName`, not p.name: the cleaned string is what the
                 // drawer, /cart and the order email then carry.
-                add({ productId: p.id, slug: p.slug, name: displayName, price: p.price, salePrice: p.sale_price, thumbnail: p.thumbnail_url });
+                add({
+                  productId: p.id,
+                  slug: p.slug,
+                  name: displayName,
+                  price: p.price,
+                  salePrice: p.sale_price,
+                  thumbnail: p.thumbnail_url,
+                });
                 setAdded(true);
                 window.setTimeout(() => setAdded(false), 1500);
               }}
