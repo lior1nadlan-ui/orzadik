@@ -42,6 +42,42 @@ export function isUsableCardcomToken(token: unknown): boolean {
   return t !== "" && t.toLowerCase() !== EMPTY_TOKEN_GUID;
 }
 
+/**
+ * True when writing `fields` + `payment_status` would leave the order exactly as
+ * it already is.
+ *
+ * This is not a micro-optimisation, it is what stops the reconciliation sweep
+ * starving itself. orders_updated_at is `BEFORE UPDATE ... FOR EACH ROW EXECUTE
+ * tg_set_updated_at()`, which sets NEW.updated_at = now() unconditionally — an
+ * UPDATE that changes no value still bumps the timestamp. The sweep's lower
+ * bound is `updated_at > now - 72h`, so a permanently declined order that the
+ * sweep re-writes on every tick keeps refreshing its own updated_at and never
+ * ages out of the window. With `.limit(50)` ordered by created_at ascending,
+ * enough of those hold the oldest 50 slots forever and a genuinely stuck newer
+ * order is never even looked at — which is how a payment can sit unsettled for a
+ * day and a half despite a sweep that runs every ten minutes.
+ *
+ * Skipping the no-op write lets a dead order age out 72 hours after its last
+ * REAL payment attempt, which is what the window was always meant to measure. A
+ * retry writes a new cardcom_low_profile_id, so a customer coming back through
+ * /track still pulls the order back into scope.
+ */
+export function settlementAlreadyRecorded(
+  order: any,
+  fields: Record<string, any>,
+  paymentStatus: string,
+): boolean {
+  if (order?.payment_status !== paymentStatus) return false;
+  return Object.entries(fields).every(([key, value]) => {
+    const current = order?.[key];
+    // Both sides are compared as strings because these columns are text in the
+    // DB but arrive from CardCom as numbers; null and undefined both mean "not
+    // set" and must not read as a difference.
+    const norm = (v: unknown) => (v === null || v === undefined ? "" : String(v));
+    return norm(current) === norm(value);
+  });
+}
+
 /** Per the CardCom spec: 5s timeout, one retry. */
 export async function getLpResult(lowProfileId: string): Promise<any> {
   const body = JSON.stringify({
@@ -146,6 +182,12 @@ export async function settleCardcomOrder(
   }
 
   if (responseCode !== 0) {
+    // See settlementAlreadyRecorded: re-writing an unchanged decline would bump
+    // updated_at and pin this order inside the sweep's window forever.
+    if (settlementAlreadyRecorded(order, cardcomFields, "failed")) {
+      console.log(`${tag} order ${order.id} already recorded as failed (code ${responseCode})`);
+      return { kind: "declined", code: responseCode };
+    }
     await supabaseAdmin
       .from("orders")
       .update({ ...cardcomFields, payment_status: "failed" })
@@ -169,14 +211,18 @@ export async function settleCardcomOrder(
   // stays refundable and traceable. The reason rides on cardcom_description (ours
   // to write) rather than orders.notes (customer-authored).
   const blockAndPersist = async (reason: string) => {
+    const fields = {
+      ...cardcomFields,
+      cardcom_tranzaction_id: lp?.TranzactionId ?? null,
+      cardcom_description: `[חסום: ${reason}] ${lp?.Description ?? ""}`.trim(),
+    };
+    // Same reason as the decline path: a block is permanent, and re-writing it
+    // every ten minutes would keep the order at the head of the sweep's queue
+    // ahead of orders that still need settling.
+    if (settlementAlreadyRecorded(order, fields, "failed")) return;
     await supabaseAdmin
       .from("orders")
-      .update({
-        ...cardcomFields,
-        cardcom_tranzaction_id: lp?.TranzactionId ?? null,
-        cardcom_description: `[חסום: ${reason}] ${lp?.Description ?? ""}`.trim(),
-        payment_status: "failed",
-      })
+      .update({ ...fields, payment_status: "failed" })
       .eq("id", order.id);
   };
 
@@ -187,8 +233,12 @@ export async function settleCardcomOrder(
   const coinRaw = ti?.CoinId ?? null;
   const coinNum = Number(coinRaw);
   const coinExposed =
-    coinRaw !== null && coinRaw !== undefined && coinRaw !== "" &&
-    Number.isInteger(coinNum) && coinNum > 0 && coinNum < 200;
+    coinRaw !== null &&
+    coinRaw !== undefined &&
+    coinRaw !== "" &&
+    Number.isInteger(coinNum) &&
+    coinNum > 0 &&
+    coinNum < 200;
   if (coinExposed && coinNum !== 1) {
     console.error(
       `${tag} CRITICAL: currency mismatch for order ${order.id} — coin=${coinRaw} expected ILS (CoinId 1). Blocking.`,
@@ -208,8 +258,7 @@ export async function settleCardcomOrder(
   // 333.333…), and the owner can enable instalments from the CardCom terminal with
   // NO deploy on our side. Still only ₪0.36 at CardCom's maximum of 36 payments.
   // Deliberately NOT widened to accept charged > total.
-  const AMOUNT_EPSILON =
-    Number.isFinite(nPayments) && nPayments > 1 ? 0.01 * nPayments : 0.01;
+  const AMOUNT_EPSILON = Number.isFinite(nPayments) && nPayments > 1 ? 0.01 * nPayments : 0.01;
   if (Number.isFinite(chargedAmount)) {
     if (Math.abs(chargedAmount - Number(order.total)) > AMOUNT_EPSILON) {
       console.error(
@@ -299,7 +348,9 @@ export async function settleCardcomOrder(
   // match is correct — .ilike would treat `_`/`%` in the local-part as wildcards
   // and mark a look-alike customer's cart converted, killing THEIR reminder.
   try {
-    const buyerEmail = String(updated.customer_email ?? "").trim().toLowerCase();
+    const buyerEmail = String(updated.customer_email ?? "")
+      .trim()
+      .toLowerCase();
     if (buyerEmail) {
       const { error: cartErr } = await supabaseAdmin
         .from("abandoned_carts")
