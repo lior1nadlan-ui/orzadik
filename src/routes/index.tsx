@@ -383,6 +383,13 @@ export const Route = createFileRoute("/")({
         rel: "preload",
         as: "image",
         href: "/product-photos/drive-2026-08/photo-2026-08-16-17-39-57.webp",
+        // MUST mirror the <img>'s srcSet/sizes exactly. A preload that names
+        // only href makes the browser fetch the full 1536w frame, and then the
+        // element's own srcSet picks the 768w rendition on a phone — two
+        // downloads for one LCP paint, which is worse than no preload at all.
+        imagesrcset:
+          "/product-photos/drive-2026-08/photo-2026-08-16-17-39-57-768w.webp 768w, /product-photos/drive-2026-08/photo-2026-08-16-17-39-57-1024w.webp 1024w, /product-photos/drive-2026-08/photo-2026-08-16-17-39-57.webp 1536w",
+        imagesizes: "100vw",
         fetchpriority: "high",
       },
     ],
@@ -924,11 +931,24 @@ function HomePage() {
             This is what the accessibility statement (§4.5) declares — keep them
             in sync.
 
-            The sources are 3:4 PORTRAITS. At full viewport height that is now an
+            The sources are 3:4 PORTRAITS. At full viewport height that is an
             ADVANTAGE on phones, where the frame is itself portrait and the photo
             is shown nearly whole; on a wide desktop object-cover still crops, so
             object-position stays high enough to hold the model's face and the
-            embroidered atara — the part a buyer is actually looking at. */}
+            embroidered atara — the part a buyer is actually looking at.
+
+            RESOLUTION. These shipped at 900x1200 while the hero was a 60vh band.
+            At full viewport that is a 2.1x upscale on a 1920px desktop and the
+            owner saw it immediately ("מאוד מטושטשות"). Re-encoded from the Drive
+            originals at their NATIVE size — 1536x2048 for slide 0, 1086x1448 for
+            the rest — which is every pixel that exists: the sources are WhatsApp
+            exports (PHOTO-<timestamp>.jpg, 160-380KB), already downscaled once
+            before they reached us. Sharper than this needs the camera files, not
+            better code.
+            Slide 0 alone went 118KB -> 355KB, which is why srcSet exists here:
+            a phone takes the 768w or 1024w rendition (~74-167KB) and only a wide
+            desktop pays for the full frame. Regenerate the variants with the
+            same 768/1024 widths if these are ever re-shot. */}
         <div
           aria-hidden="true"
           className="relative block w-full h-[100svh] min-h-[560px] overflow-hidden bg-cream"
@@ -942,11 +962,13 @@ function HomePage() {
                 key={src}
                 src={src}
                 alt=""
-                width={900}
-                height={1200}
+                width={i === 0 ? 1536 : 1086}
+                height={i === 0 ? 2048 : 1448}
                 loading={i === 0 ? "eager" : "lazy"}
                 fetchPriority={i === 0 ? "high" : "low"}
                 decoding={i === 0 ? "sync" : "async"}
+                srcSet={`${src.replace(".webp", "-768w.webp")} 768w, ${src.replace(".webp", "-1024w.webp")} 1024w, ${src} ${i === 0 ? 1536 : 1086}w`}
+                sizes="100vw"
                 style={{ objectPosition: "50% 28%" }}
                 className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-[1400ms] ease-in-out motion-reduce:transition-none ${
                   i === heroSlide ? "opacity-100" : "opacity-0"
