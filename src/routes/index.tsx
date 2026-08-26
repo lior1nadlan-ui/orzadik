@@ -839,6 +839,14 @@ const HOME_GUIDES = [
  */
 const HERO_SLIDES = [
   "/product-photos/drive-2026-08/photo-2026-08-16-17-39-57.webp",
+  // Slides 1-2 are the two frames from the same shoot in which the jute tallit
+  // BAG is clearly in hand. They sit here, immediately behind the LCP frame,
+  // rather than at the end of the reel: the carousel advances on a timer and a
+  // visitor who scrolls on after a few seconds would never reach position 11,
+  // so the two frames that show a thing the shop actually sells go where they
+  // will be seen.
+  "/product-photos/drive-2026-08/hero-2026-08-16-09.webp",
+  "/product-photos/drive-2026-08/hero-2026-08-16-10.webp",
   "/product-photos/drive-2026-08/photo-2026-08-16-17-39-56_2.webp",
   "/product-photos/drive-2026-08/photo-2026-08-16-17-39-56_4.webp",
   "/product-photos/drive-2026-08/photo-2026-08-16-17-39-56_5.webp",
@@ -846,6 +854,10 @@ const HERO_SLIDES = [
   "/product-photos/drive-2026-08/photo-2026-08-16-17-39-56.webp",
   "/product-photos/drive-2026-08/photo-2026-08-16-17-39-56_3.webp",
   "/product-photos/drive-2026-08/photo-2026-08-16-17-39-57_3.webp",
+  // The remaining two new frames — tallit drawn over the head. No product is
+  // held, so they are atmosphere rather than merchandise and can sit last.
+  "/product-photos/drive-2026-08/hero-2026-08-16-11.webp",
+  "/product-photos/drive-2026-08/hero-2026-08-16-12.webp",
 ];
 
 // SSR-safe prefers-reduced-motion check — only ever called from effects/handlers.
