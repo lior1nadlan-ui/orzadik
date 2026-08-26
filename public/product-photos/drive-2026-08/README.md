@@ -11,6 +11,7 @@ and JPEG straight off an iPhone; they are not kept here.
 | Groom-set flat-lays | `img_0068`–`img_0106` (28 files) | Full מארז לחתן laid out: tallit, tallit bag, tefillin bag, kippah, siddur, atara. Distinct colourways: white/cream, beige linen, taupe suede, grey melange, grey flame-print, denim blue, light blue. |
 | Siddur covers | `img_0107`–`img_0118` (11 files) | Single siddur, shot flat, one cover per frame: navy+gold crown, grey linen, cream linen, white embossed, white+silver crown, flame-motif linen, charcoal. |
 | Lifestyle | `photo-2026-08-16-*` (8 files) | Model wearing a tallit outdoors at golden hour. Suitable for category banners and the homepage hero, not for a product tile. |
+| Lifestyle | `hero-2026-08-16-09..12` (4 files) | Same shoot, added 2026-08-26 from a second Drive upload. 09 and 10 show the jute tallit BAG in hand — the only frames in the set where a sellable item is held — so they run as hero slides 1-2. 11 and 12 are the tallit drawn over the head, atmosphere only, and run last. Source filenames are UUIDs (WhatsApp export); the manifest maps each back to its Drive title. |
 
 ## Not yet attached to any product
 
