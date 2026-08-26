@@ -59,8 +59,42 @@ jobs:
       - name: Test
         run: npm test
 
+      # VITE_* MUST be present HERE, at build time. Vite inlines them into the
+      # CLIENT bundle; there is no runtime lookup to fall back on, because in the
+      # browser `process.env` compiles to `{}` (verified in the shipped bundle).
+      #
+      # This step had no env for its first three deploys, and that took the whole
+      # site down for ~35 hours: src/integrations/supabase/client.ts throws
+      # "Missing Supabase environment variable(s)" the moment any page touches the
+      # browser Supabase client, which the homepage does, so every visitor got the
+      # error boundary. Nothing failed loudly — the build succeeded, the deploy
+      # succeeded, the Worker served, and SSR kept working because the SERVER reads
+      # the same values from wrangler.jsonc `vars` at runtime. Only the client was
+      # dead. Before CI existed the owner deployed by hand with a local .env, which
+      # is why it had never surfaced.
+      #
+      # These two are NOT secrets: both are already committed in plaintext in
+      # wrangler.jsonc, and a Supabase publishable key is designed to be public and
+      # is protected by RLS. Keep the two files in step.
       - name: Build
         run: npm run build
+        env:
+          VITE_SUPABASE_URL: https://whtjslgrrfzehivrknuv.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_iIXlA6UOH_jEMubtd2nW9A_bG9hPbaF
+
+      # The deploy that broke the site was green at every step. This is the check
+      # that would have caught it: if the publishable key is not inlined in the
+      # client bundle, the browser client cannot be constructed and every page
+      # throws. Fail here rather than shipping a site that only looks deployed.
+      - name: Verify client bundle carries Supabase config
+        run: |
+          if ! grep -rq "sb_publishable_" dist/client/assets/*.js; then
+            echo "::error::Supabase publishable key is NOT inlined in dist/client."
+            echo "::error::Every page would throw 'Missing Supabase environment variable(s)'."
+            echo "::error::Check the VITE_* env on the Build step above."
+            exit 1
+          fi
+          echo "Client bundle carries the Supabase config."
 
       # wrangler is not a direct dependency: it arrives through
       # @cloudflare/vite-plugin, which both depends on it and declares it as a
