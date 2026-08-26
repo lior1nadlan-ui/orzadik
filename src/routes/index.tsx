@@ -88,29 +88,29 @@ import oc_pvcBags from "@/assets/other-cats/pvc-bags.webp";
 import oc_tefillinCases from "@/assets/other-cats/tefillin-cases.webp";
 
 const OTHER_CATS_IMAGES: Record<string, string> = {
-  "aluminum": oc_aluminum,
+  aluminum: oc_aluminum,
   "%d7%90%d7%a7%d7%a1%d7%a1%d7%95%d7%a8%d7%99%d7%96": oc_accessories,
-  "blessings": oc_blessings,
+  blessings: oc_blessings,
   "metal-kiddush-cups": oc_metalKiddush,
   "crystal-ceramic-kiddush-cups": oc_crystalKiddush,
-  "havdalah": oc_havdalah,
-  "hanukkah": oc_hanukkah,
-  "wedding": oc_wedding,
-  "talitot": oc_tallitTzitzit,
+  havdalah: oc_havdalah,
+  hanukkah: oc_hanukkah,
+  wedding: oc_wedding,
+  talitot: oc_tallitTzitzit,
   "challah-covers": oc_challahCover,
-  "kipot": oc_kippot,
+  kipot: oc_kippot,
   "%d7%9e%d7%95%d7%a6%d7%a8%d7%99-%d7%97%d7%92%d7%99%d7%9d": oc_holidays,
 
   "wine-dividers": oc_wineDividers,
   "maim-achronim": oc_maimAchronim,
   "%d7%9e%d7%99%d7%aa%d7%95%d7%92": oc_branding,
   "bencher-stands": oc_bencherStands,
-  "mirrors": oc_mirrors,
+  mirrors: oc_mirrors,
   "washing-cups": oc_washingCups,
   "%d7%a1%d7%98-%d7%98%d7%9c%d7%99%d7%aa-%d7%aa%d7%a4%d7%99%d7%9c%d7%99%d7%9f": oc_talitTefillinSet,
   "talit-tefillin-sets": oc_talitTefillinSets,
   "liqueur-sets": oc_liqueurSets,
-  "atara": oc_atara,
+  atara: oc_atara,
   // "polyrasin-stone" is deliberately absent. The artwork that sat here was an
   // AI-generated robed figure with hands clasped in prayer — Marian iconography
   // with pseudo-Hebrew glyphs painted on the robe. A figurative devotional
@@ -118,10 +118,10 @@ const OTHER_CATS_IMAGES: Record<string, string> = {
   // what puts a tile on the homepage, so the key is the removal. The category
   // itself is real (12 polymer/stone mezuza cases with genuine supplier photos)
   // and still lives at /category/polyrasin-stone.
-  "purim": oc_purim,
-  "plastic": oc_mezuzot,
-  "candlesticks": oc_candlesticks,
-  "passover": oc_passover,
+  purim: oc_purim,
+  plastic: oc_mezuzot,
+  candlesticks: oc_candlesticks,
+  passover: oc_passover,
   "talit-clips": oc_talitClips,
   "rosh-hashana": oc_roshHashana,
   "pvc-bags": oc_pvcBags,
@@ -234,16 +234,16 @@ async function fetchOtherCategories(): Promise<CatTile[]> {
   const blacklist = new Set([
     "sale",
     "uncategorized",
-    "wine-dividers",                                                        // מחלקי יין — 0
-    "birkat-habayit",                                                       // תמונות בלייזר — 0
-    "study-books",                                                          // ספרי לימוד — 0
-    "%d7%90%d7%a7%d7%a1%d7%a1%d7%95%d7%a8%d7%99%d7%96",                     // אקססוריז — 0
-    "%d7%9e%d7%95%d7%a6%d7%a8%d7%99-%d7%97%d7%92%d7%99%d7%9d",              // מוצרי חגים — 0
-    "%d7%9e%d7%99%d7%aa%d7%95%d7%92",                                       // מיתוג — 0
+    "wine-dividers", // מחלקי יין — 0
+    "birkat-habayit", // תמונות בלייזר — 0
+    "study-books", // ספרי לימוד — 0
+    "%d7%90%d7%a7%d7%a1%d7%a1%d7%95%d7%a8%d7%99%d7%96", // אקססוריז — 0
+    "%d7%9e%d7%95%d7%a6%d7%a8%d7%99-%d7%97%d7%92%d7%99%d7%9d", // מוצרי חגים — 0
+    "%d7%9e%d7%99%d7%aa%d7%95%d7%92", // מיתוג — 0
     "%d7%a1%d7%98-%d7%98%d7%9c%d7%99%d7%aa-%d7%aa%d7%a4%d7%99%d7%9c%d7%99%d7%9f", // סט טלית תפילין — 0
-    "aluminum",                                                             // 1 product, duplicate
-    "bencher-stands",                                                       // 1 product, duplicate
-    "liqueur-sets",                                                         // 1 product, duplicate
+    "aluminum", // 1 product, duplicate
+    "bencher-stands", // 1 product, duplicate
+    "liqueur-sets", // 1 product, duplicate
   ]);
   const bySlug = new Map((cats ?? []).map((c) => [c.slug, c.name]));
   // Emit in the curated map order rather than PostgREST's (unordered) row
@@ -282,7 +282,7 @@ const FAQ_ITEMS: { q: string; a: string }[] = [
     // it is read verbatim by machines and is in fact the ONLY copy of this
     // answer a crawler ever sees. Part of the tzitzit/talit range does
     // carry hashgacha, which is why that is stated separately rather than dropped.
-    a: "אנו בוחרים כל פריט בקפידה, בהקפדה על איכות והידור. חשוב לדעת: בחנות נמכרים נרתיקי מזוזה, תיקי תפילין וכיסויים לטלית ולתפילין — ולא קלף כתוב או תפילין מסופר סת\"ם. חלק מהטליתות והציציות מגיעות בהשגחה רבנית. לפרטים על ההכשר של פריט מסוים נשמח לענות בטלפון או בוואטסאפ.",
+    a: 'אנו בוחרים כל פריט בקפידה, בהקפדה על איכות והידור. חשוב לדעת: בחנות נמכרים נרתיקי מזוזה, תיקי תפילין וכיסויים לטלית ולתפילין — ולא קלף כתוב או תפילין מסופר סת"ם. חלק מהטליתות והציציות מגיעות בהשגחה רבנית. לפרטים על ההכשר של פריט מסוים נשמח לענות בטלפון או בוואטסאפ.',
   },
   {
     q: "האם ניתן להוסיף שם אישי או רקמה על המוצרים?",
@@ -298,12 +298,12 @@ const FAQ_ITEMS: { q: string; a: string }[] = [
   },
   {
     q: "האם ניתן להזמין מחוץ לישראל?",
-    a: "כרגע אנו משלחים בתוך ישראל בלבד. למשלוחים לחו\"ל, אנא צרו קשר ישיר בוואטסאפ ונשמח לסייע.",
+    a: 'כרגע אנו משלחים בתוך ישראל בלבד. למשלוחים לחו"ל, אנא צרו קשר ישיר בוואטסאפ ונשמח לסייע.',
   },
   {
-    q: "מה זה \"אור זרוע לצדיק\" ומי עומד מאחורי החנות?",
+    q: 'מה זה "אור זרוע לצדיק" ומי עומד מאחורי החנות?',
     // Product list matches FAQ item 1 and the catalog: כיסויים/נרתיקים, not klaf.
-    a: "אור זרוע לצדיק היא חנות אונליין ישראלית לתשמישי קדושה ויודאיקה מהודרת, בבעלות ליאור בן עמי מקרית ביאליק. השם נלקח מהפסוק בתהילים (צ\"ז), \"אוֹר זָרֻעַ לַצַּדִּיק\". החנות מתמחה בטליתות, כיסויי טלית ותפילין, נרתיקי מזוזה, גביעי קידוש, חנוכיות ומארזים לחתנים, עם אפשרות רקמה וחריטה אישית ומשלוח עד הבית בישראל.",
+    a: 'אור זרוע לצדיק היא חנות אונליין ישראלית לתשמישי קדושה ויודאיקה מהודרת, בבעלות ליאור בן עמי מקרית ביאליק. השם נלקח מהפסוק בתהילים (צ"ז), "אוֹר זָרֻעַ לַצַּדִּיק". החנות מתמחה בטליתות, כיסויי טלית ותפילין, נרתיקי מזוזה, גביעי קידוש, חנוכיות ומארזים לחתנים, עם אפשרות רקמה וחריטה אישית ומשלוח עד הבית בישראל.',
   },
 ];
 
@@ -339,14 +339,13 @@ export const Route = createFileRoute("/")({
   // rest down. Resolving them here puts them in the server-rendered HTML.
   // Each fetch is independently fault-tolerant — see settle().
   loader: async () => {
-    const [otherCats, featuredProducts, reviews, groomPrices, giftPicks] =
-      await Promise.all([
-        settle(fetchOtherCategories()),
-        settle(fetchHomeFeaturedProducts()),
-        settle(fetchHomeReviews()),
-        settle(fetchGroomThumbPrices()),
-        settle(fetchGiftPicks()),
-      ]);
+    const [otherCats, featuredProducts, reviews, groomPrices, giftPicks] = await Promise.all([
+      settle(fetchOtherCategories()),
+      settle(fetchHomeFeaturedProducts()),
+      settle(fetchHomeReviews()),
+      settle(fetchGroomThumbPrices()),
+      settle(fetchGiftPicks()),
+    ]);
     return { otherCats, featuredProducts, reviews, groomPrices, giftPicks };
   },
   head: () => ({
@@ -360,11 +359,19 @@ export const Route = createFileRoute("/")({
       // here, on the share cards, which have no 920px budget to respect; the
       // SERP description above gave it up to make room for the brand token.
       // Dropping a claim is always safe — this is the honest version, kept.
-      { property: "og:description", content: "טליתות, כיסויי טלית ותפילין, נרתיקי מזוזה, גביעי קידוש ומארזים לחתנים — נבחרים בהקפדה על כשרות והידור. רקמה אישית ומשלוח עד הבית." },
+      {
+        property: "og:description",
+        content:
+          "טליתות, כיסויי טלית ותפילין, נרתיקי מזוזה, גביעי קידוש ומארזים לחתנים — נבחרים בהקפדה על כשרות והידור. רקמה אישית ומשלוח עד הבית.",
+      },
       { property: "og:url", content: "https://orzadik.com/" },
       { property: "og:type", content: "website" },
       { name: "twitter:title", content: HOME_TITLE },
-      { name: "twitter:description", content: "טליתות, כיסויי טלית ותפילין, נרתיקי מזוזה, גביעי קידוש ומארזים לחתנים — נבחרים בהקפדה על כשרות והידור." },
+      {
+        name: "twitter:description",
+        content:
+          "טליתות, כיסויי טלית ותפילין, נרתיקי מזוזה, גביעי קידוש ומארזים לחתנים — נבחרים בהקפדה על כשרות והידור.",
+      },
     ],
     links: [
       { rel: "canonical", href: "https://orzadik.com/" },
@@ -502,7 +509,14 @@ export type { CatTile };
 // Curated featured categories. `slug` is hardcoded (verified against the DB) so
 // the section renders at SSR — no client round-trip, no post-hydration CLS.
 const FEATURED: { id: string; slug: string; name: string; img: string; w: number; h: number }[] = [
-  { id: "ac72c907-8981-404d-b776-642467e43110", slug: "talitot", name: "טליתות", img: imgTallit, w: 800, h: 1000 },
+  {
+    id: "ac72c907-8981-404d-b776-642467e43110",
+    slug: "talitot",
+    name: "טליתות",
+    img: imgTallit,
+    w: 800,
+    h: 1000,
+  },
   // Was marazim-chatanim. 7 of that category's 11 active products carry a null
   // thumbnail (measured 2026-08-09), so a homepage tile opened a grid that is
   // majority placeholder — a blocking owner input (photographs), not something
@@ -511,12 +525,54 @@ const FEATURED: { id: string; slug: string; name: string; img: string; w: number
   // in that band still land on the photographed SKUs. This tile now opens the
   // wider חתן וכלה shelf: 45 active products, floor ₪28 effective, and its own
   // 7 image-less rows sink to the back under the shared shelf ordering.
-  { id: "d2954417-843b-48fa-bf00-92a6dcf87d03", slug: "chatan-kala", name: "חתן וכלה", img: imgChatan, w: 800, h: 1067 },
-  { id: "f48e44e3-eab6-4281-a09d-cac9a96a8e96", slug: "talit-tefillin-sets", name: "כיסויים לטלית ותפילין", img: imgTallitTefillinCovers, w: 800, h: 1067 },
-  { id: "3109eed6-32e3-40eb-9fe4-874029b8ab4d", slug: "chalaka-set", name: "סט חלאקה", img: imgChalaka, w: 800, h: 1067 },
-  { id: "c78aea58-8a38-43ee-a236-3aa2f1942225", slug: "yehudaika", name: "מוצרי יודאיקה", img: imgJudaica, w: 800, h: 800 },
-  { id: "b6854069-9746-4490-b6ea-ef7debe4d795", slug: "sidurim", name: "סידורים ותהילים", img: imgSiddur, w: 800, h: 800 },
-  { id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890", slug: "esh-sheli-gold", name: "אש שלי - תכשיטי זהב", img: imgGoldJewelry, w: 800, h: 1144 },
+  {
+    id: "d2954417-843b-48fa-bf00-92a6dcf87d03",
+    slug: "chatan-kala",
+    name: "חתן וכלה",
+    img: imgChatan,
+    w: 800,
+    h: 1067,
+  },
+  {
+    id: "f48e44e3-eab6-4281-a09d-cac9a96a8e96",
+    slug: "talit-tefillin-sets",
+    name: "כיסויים לטלית ותפילין",
+    img: imgTallitTefillinCovers,
+    w: 800,
+    h: 1067,
+  },
+  {
+    id: "3109eed6-32e3-40eb-9fe4-874029b8ab4d",
+    slug: "chalaka-set",
+    name: "סט חלאקה",
+    img: imgChalaka,
+    w: 800,
+    h: 1067,
+  },
+  {
+    id: "c78aea58-8a38-43ee-a236-3aa2f1942225",
+    slug: "yehudaika",
+    name: "מוצרי יודאיקה",
+    img: imgJudaica,
+    w: 800,
+    h: 800,
+  },
+  {
+    id: "b6854069-9746-4490-b6ea-ef7debe4d795",
+    slug: "sidurim",
+    name: "סידורים ותהילים",
+    img: imgSiddur,
+    w: 800,
+    h: 800,
+  },
+  {
+    id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    slug: "esh-sheli-gold",
+    name: "אש שלי - תכשיטי זהב",
+    img: imgGoldJewelry,
+    w: 800,
+    h: 1144,
+  },
 ];
 
 // Light-ground button variants. Every band on this page is now white/glass, so
@@ -554,10 +610,8 @@ const FEATURED: { id: string; slug: string; name: string; img: string; w: number
 // past the 44px floor.
 const BTN_BASE =
   "press inline-flex items-center justify-center gap-2 rounded-full min-h-[3.25rem] px-8 text-base font-semibold";
-const BTN_SOLID =
-  `${BTN_BASE} bg-accent text-white shadow-[var(--glass-shadow)] [@media(hover:hover)_and_(pointer:fine)]:hover:bg-accent-strong`;
-const BTN_OUTLINE =
-  `${BTN_BASE} border border-accent bg-white/85 text-accent [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary`;
+const BTN_SOLID = `${BTN_BASE} bg-accent text-white shadow-[var(--glass-shadow)] [@media(hover:hover)_and_(pointer:fine)]:hover:bg-accent-strong`;
+const BTN_OUTLINE = `${BTN_BASE} border border-accent bg-white/85 text-accent [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary`;
 
 // Curated groom-set thumbs under the flagship banner image.
 // להחלפת פריטים: החליפו את `img` לכל קובץ תחת public/groom-sets/ (groom-01..17.jpeg)
@@ -615,7 +669,10 @@ async function fetchGroomThumbPrices(): Promise<Record<string, GroomThumbRow>> {
   const { data, error } = await supabase
     .from("products")
     .select("slug, price, thumbnail_url")
-    .in("slug", GROOM_THUMBS.map((t) => t.slug));
+    .in(
+      "slug",
+      GROOM_THUMBS.map((t) => t.slug),
+    );
   if (error) throw error;
   const out: Record<string, GroomThumbRow> = {};
   for (const row of data ?? []) {
@@ -634,22 +691,53 @@ async function fetchGroomThumbPrices(): Promise<Record<string, GroomThumbRow>> {
 // sits beside its own text label, so the SVGs stay unlabelled by design.
 function IconTruck({ className }: { className?: string }) {
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <path d="M3 7h11v10H3z"/><path d="M14 10h4l3 3v4h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/>
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <path d="M3 7h11v10H3z" />
+      <path d="M14 10h4l3 3v4h-7z" />
+      <circle cx="7" cy="18" r="2" />
+      <circle cx="17" cy="18" r="2" />
     </svg>
   );
 }
 function IconGem({ className }: { className?: string }) {
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <path d="M12 2l2.39 4.84L20 7.74l-4 3.9.94 5.5L12 14.77l-4.94 2.37L8 11.64 4 7.74l5.61-.9z"/>
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <path d="M12 2l2.39 4.84L20 7.74l-4 3.9.94 5.5L12 14.77l-4.94 2.37L8 11.64 4 7.74l5.61-.9z" />
     </svg>
   );
 }
 function IconShieldCheck({ className }: { className?: string }) {
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <path d="M12 22s-8-4.5-8-11a5 5 0 0 1 9-3 5 5 0 0 1 9 3c0 6.5-8 11-8 11z"/><path d="M9 12l2 2 4-4"/>
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <path d="M12 22s-8-4.5-8-11a5 5 0 0 1 9-3 5 5 0 0 1 9 3c0 6.5-8 11-8 11z" />
+      <path d="M9 12l2 2 4-4" />
     </svg>
   );
 }
@@ -719,7 +807,9 @@ const HOME_GUIDES = [
   "mezuza-guide",
   "tefillin-guide",
   "hanukkia-guide",
-].map((slug) => GUIDES[slug]).filter(Boolean);
+]
+  .map((slug) => GUIDES[slug])
+  .filter(Boolean);
 
 /**
  * The hero cross-fade, in display order. All eight frames of the 2026-08-16
@@ -747,12 +837,13 @@ const HERO_SLIDES = [
 
 // SSR-safe prefers-reduced-motion check — only ever called from effects/handlers.
 function prefersReducedMotion() {
-  return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  return (
+    typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
 }
 
 function HomePage() {
-  const { otherCats, featuredProducts, reviews, groomPrices, giftPicks } =
-    Route.useLoaderData();
+  const { otherCats, featuredProducts, reviews, groomPrices, giftPicks } = Route.useLoaderData();
 
   // Defer every hero slide after the first off the mobile critical path. Slide 0
   // is the LCP paint and is preloaded in head(); the other seven are withheld
@@ -798,30 +889,43 @@ function HomePage() {
 
   // Static — rendered at SSR from the curated FEATURED list (slugs hardcoded), so
   // the tiles are in the initial HTML and the section never shifts after hydration.
-  const cats: CatTile[] = FEATURED.map((f) => ({ slug: f.slug, name: f.name, img: f.img, w: f.w, h: f.h }));
+  const cats: CatTile[] = FEATURED.map((f) => ({
+    slug: f.slug,
+    name: f.name,
+    img: f.img,
+    w: f.w,
+    h: f.h,
+  }));
 
   return (
     <>
-      {/* 1. Hero */}
+      {/* 1. Hero — full-bleed photography.
+          The previous hero put a 94%-opaque white plaque in the middle of a
+          60vh band, which meant the photographs the shoot was commissioned for
+          were reduced to a cropped strip behind a box. The owner's note was
+          exactly that: the photos should own the screen. So the frame is now
+          the full viewport and the type sits ON the image instead of in a card
+          floating over it. */}
       <section className="relative">
         {/* Cross-fading photographs of the shop's own tallitot worn outdoors at
             golden hour, from the 2026-08-16 shoot. Replaces the bespoke 16:9
             HyperFrames loop (kept in public/media/ — hero-video.webm/.mp4 and
-            hero-poster.webp — so the previous hero is one revert away).
-            Decorative, exactly as the video was: the frames carry no information
-            the plaque below does not state in text, so the whole stack is hidden
-            from the accessibility tree rather than announced as eight images a
-            screen reader would read as duplicate brand noise. This is what the
-            accessibility statement (§4.5) declares — keep them in sync.
+            hero-poster.webp — so that hero is still one revert away).
+            Decorative, exactly as the video was: the frames carry no
+            information the type below does not state in words, so the whole
+            stack is hidden from the accessibility tree rather than announced as
+            eight images a screen reader would read as duplicate brand noise.
+            This is what the accessibility statement (§4.5) declares — keep them
+            in sync.
 
-            The sources are 3:4 PORTRAITS in a landscape band, which is the one
-            real difference from the video: object-cover crops them hard on a wide
-            desktop viewport. object-position sits higher than the video's 42% so
-            the model's face and the embroidered atara — the part a buyer is
-            actually looking at — stay inside the crop at every width. */}
+            The sources are 3:4 PORTRAITS. At full viewport height that is now an
+            ADVANTAGE on phones, where the frame is itself portrait and the photo
+            is shown nearly whole; on a wide desktop object-cover still crops, so
+            object-position stays high enough to hold the model's face and the
+            embroidered atara — the part a buyer is actually looking at. */}
         <div
           aria-hidden="true"
-          className="relative block w-full min-h-[520px] h-[62svh] md:min-h-0 md:h-[60vh] md:max-h-[720px] overflow-hidden bg-cream"
+          className="relative block w-full h-[100svh] min-h-[560px] overflow-hidden bg-cream"
         >
           {HERO_SLIDES.map((src, i) =>
             // Slide 0 renders always and is the LCP paint; the rest mount only
@@ -837,8 +941,8 @@ function HomePage() {
                 loading={i === 0 ? "eager" : "lazy"}
                 fetchPriority={i === 0 ? "high" : "low"}
                 decoding={i === 0 ? "sync" : "async"}
-                style={{ objectPosition: "50% 30%" }}
-                className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-1000 ease-in-out motion-reduce:transition-none ${
+                style={{ objectPosition: "50% 28%" }}
+                className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-[1400ms] ease-in-out motion-reduce:transition-none ${
                   i === heroSlide ? "opacity-100" : "opacity-0"
                 }`}
               />
@@ -846,40 +950,48 @@ function HomePage() {
           )}
         </div>
 
-        {/* Depth stack over the footage — three decorative layers, none
-            load-bearing for contrast (every glyph below sits on .glass-strong).
-            Replaces the old flat white frost, which washed the whole hero cold
-            and gray. */}
-        {/* 1) Light pool + vignette: a pool of cream light at the plaque's
-            position that the panel floats in (the "pane of light"), fading to
-            warm-dark edges so the frame has depth instead of reading flat. */}
+        {/* Scrim. This is the one load-bearing layer on the page: the headline
+            is now white ON the photograph, so legibility depends entirely on how
+            dark the backing is where the glyphs sit — it can no longer be
+            guaranteed by a near-opaque card.
+            Sized against the WORST case, a blown-out white frame, and the
+            binding constraint is NOT the white headline — it is the small gold
+            eyebrow, which is both the lightest ink and the highest line in the
+            block. The gradient therefore holds ≥0.88 across the entire bottom
+            42% rather than ramping through it, and the eyebrow was lifted from
+            #E8D6A8 to #F1E4C3 to clear AA on its own:
+              white on 0.88-over-white  → 1.05/0.17 ≈ 6.2:1
+              #F1E4C3 on the same       → 0.83/0.17 ≈ 4.9:1
+            Both above the 4.5:1 small text needs, not merely the 3:1 the
+            display h1 would be allowed as large text.
+            Above 78% the scrim is essentially clear, so the top half of the
+            frame stays pure photograph. That split is the whole design — if you
+            lighten the gradient to show more image, re-check the eyebrow first;
+            it fails before anything else does. */}
         <div
           aria-hidden="true"
-          className="absolute inset-0 pointer-events-none bg-[radial-gradient(118%_88%_at_50%_40%,rgba(255,251,242,0.60)_0%,rgba(252,245,230,0.14)_40%,transparent_58%,rgba(42,29,9,0.34)_100%)]"
+          className="absolute inset-0 pointer-events-none bg-[linear-gradient(to_top,rgba(22,15,4,0.94)_0%,rgba(22,15,4,0.88)_42%,rgba(22,15,4,0.58)_60%,rgba(22,15,4,0.16)_78%,transparent_92%)]"
         />
-        {/* 2) A whisper of brand gold top-to-bottom, tying the mixed cool/warm
-            reel to the warm identity. Low enough that crystal sparkle survives. */}
+        {/* A whisper of brand gold across the whole frame, tying a mixed cool /
+            warm reel to the warm identity. Low enough that the linen texture and
+            the crystal sparkle both survive it. */}
         <div
           aria-hidden="true"
-          className="absolute inset-0 pointer-events-none bg-gradient-to-b from-[#7E611E]/22 via-[#7E611E]/10 to-[#4A360E]/34"
+          className="absolute inset-0 pointer-events-none bg-gradient-to-b from-[#7E611E]/14 via-transparent to-[#4A360E]/22"
         />
 
-        {/* Centered headline + CTAs over the video.
-            The value-prop line is the page's only h1 (the colophon heading was demoted to h2).
-            .glass-strong is the only glass that is contrast-safe over unknown
-            backdrops: at 94% white the worst-case backing is #F0F0F0, where the
-            foreground ink is 15.8:1, muted-foreground 5.75:1 and --accent 5.10:1 —
-            all AA even over the video's darkest frames. */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6">
-          <div className="glass-strong stagger max-w-md md:max-w-2xl mx-auto px-6 py-5 md:px-12 md:py-8 [--glass-radius:1.5rem]">
-            <p className="text-[10px] md:text-xs tracking-[0.35em] text-accent mb-3">
+        {/* Type, bottom-anchored. The value-prop line is the page's only h1
+            (the colophon heading was demoted to h2). */}
+        <div className="absolute inset-x-0 bottom-0 flex flex-col items-center text-center px-6 pb-16 md:pb-24">
+          <div className="stagger max-w-xl md:max-w-3xl mx-auto">
+            <p className="text-[10px] md:text-xs tracking-[0.42em] text-[#F1E4C3] mb-4">
               אור זרוע לצדיק
             </p>
-            <h1 className="font-display text-4xl md:text-6xl leading-[1.08] [text-wrap:balance] text-foreground">
+            <h1 className="font-display text-4xl sm:text-5xl md:text-7xl leading-[1.06] [text-wrap:balance] text-white drop-shadow-[0_2px_18px_rgba(0,0,0,0.45)]">
               תשמישי קדושה ויודאיקה מהודרת
             </h1>
-            <span aria-hidden="true" className="gold-rule block w-24 mx-auto my-4" />
-            <p className="text-muted-foreground text-sm md:text-lg">
+            <span aria-hidden="true" className="gold-rule block w-24 mx-auto my-5 md:my-6" />
+            <p className="text-white/90 text-sm md:text-lg [text-wrap:balance]">
               טליתות, כיסויי טלית ותפילין, נרתיקי מזוזה ומארזי חתן — עם רקמה וחריטה אישית
             </p>
             {/* ChevronLeft, not Right: the document is dir=rtl, so "forward"
@@ -887,7 +999,7 @@ function HomePage() {
                 puts "previous" on the right edge. aria-hidden because the link
                 text already names the destination; the icon is affordance, not
                 information. */}
-            <div className="mt-6 flex flex-col sm:flex-row justify-center gap-3">
+            <div className="mt-7 md:mt-9 flex flex-col sm:flex-row justify-center gap-3">
               <Link to="/shop" className={`${BTN_SOLID} w-full sm:w-auto`}>
                 לחנות
                 <ChevronLeft className="h-4 w-4 shrink-0" aria-hidden="true" />
@@ -911,7 +1023,34 @@ function HomePage() {
                 <ChevronLeft className="h-4 w-4 shrink-0" aria-hidden="true" />
               </Link>
             </div>
+
+            {/* Position indicator, not a control. The stack is decorative and
+                hidden from the accessibility tree; adding eight focusable
+                buttons would put keyboard stops on something that carries no
+                information, so these are dots that report and nothing more. */}
+            <div aria-hidden="true" className="mt-9 flex justify-center gap-2">
+              {HERO_SLIDES.map((src, i) => (
+                <span
+                  key={src}
+                  className={`h-1 rounded-full transition-all duration-500 motion-reduce:transition-none ${
+                    i === heroSlide ? "w-7 bg-white/90" : "w-1.5 bg-white/40"
+                  }`}
+                />
+              ))}
+            </div>
           </div>
+        </div>
+
+        {/* Scroll cue. A hero that fills the viewport hides the fact that a
+            shop follows it — on a phone the fold is the whole screen and there
+            is no peek of the next section to imply "keep going". */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-x-0 bottom-4 hidden md:flex justify-center"
+        >
+          <span className="h-9 w-[22px] rounded-full border border-white/45 flex items-start justify-center pt-1.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-white/70 animate-bounce motion-reduce:animate-none" />
+          </span>
         </div>
       </section>
 
@@ -949,7 +1088,8 @@ function HomePage() {
                   is ever wanted, compute min(getEffectivePrice(price)) over the
                   wedding category in the loader rather than typing a number. */}
               <p className="text-muted-foreground text-[15px] leading-7 max-w-md mb-6">
-                טלית מהודרת, עטרה וכלי קודש נבחרים — מוגשים במארז מעוצב. אפשר להוסיף רקמה או חריטה אישית בשם החתן.
+                טלית מהודרת, עטרה וכלי קודש נבחרים — מוגשים במארז מעוצב. אפשר להוסיף רקמה או חריטה
+                אישית בשם החתן.
               </p>
               <div className="flex flex-wrap items-center gap-x-6 gap-y-4">
                 {/* The band's own CTA also leaves /category/marazim-chatanim —
@@ -957,11 +1097,7 @@ function HomePage() {
                     links below still go straight to the photographed groom sets,
                     so a shopper who wants a groom box is one tap away; what is
                     gone is the door that opened on 7 placeholders. */}
-                <Link
-                  to="/collection/$slug"
-                  params={{ slug: "chatan-kala" }}
-                  className={BTN_SOLID}
-                >
+                <Link to="/collection/$slug" params={{ slug: "chatan-kala" }} className={BTN_SOLID}>
                   לכל מתנות החתן והכלה
                 </Link>
                 <Link
@@ -986,7 +1122,10 @@ function HomePage() {
                   height={GROOM_IMG_H}
                   className="w-full aspect-[3/4] object-cover rounded-lg"
                 />
-                <span aria-hidden="true" className="hairline-gold absolute inset-3 rounded-lg pointer-events-none" />
+                <span
+                  aria-hidden="true"
+                  className="hairline-gold absolute inset-3 rounded-lg pointer-events-none"
+                />
               </div>
               {/* 3-up linked thumb strip — shown on mobile too so the flagship
                   reads as a set on a phone, not just one hero image. */}
@@ -1003,36 +1142,39 @@ function HomePage() {
                   // — nothing beats something wrong.
                   if (!src) return null;
                   return (
-                  <Link
-                    key={t.slug}
-                    to="/product/$slug"
-                    params={{ slug: t.slug }}
-                    className="group relative block aspect-square overflow-hidden rounded-lg"
-                  >
-                    <img
-                      src={src}
-                      alt="מארז חתן — טלית ועטרה"
-                      loading="lazy"
-                      decoding="async"
-                      width={GROOM_IMG_W}
-                      height={GROOM_IMG_H}
-                      className="h-full w-full object-cover transition-transform duration-300 ease-out motion-safe:[@media(hover:hover)_and_(pointer:fine)]:group-hover:scale-105"
-                    />
-                    {/* The frame rides above the photo, so it is an overlay rather
+                    <Link
+                      key={t.slug}
+                      to="/product/$slug"
+                      params={{ slug: t.slug }}
+                      className="group relative block aspect-square overflow-hidden rounded-lg"
+                    >
+                      <img
+                        src={src}
+                        alt="מארז חתן — טלית ועטרה"
+                        loading="lazy"
+                        decoding="async"
+                        width={GROOM_IMG_W}
+                        height={GROOM_IMG_H}
+                        className="h-full w-full object-cover transition-transform duration-300 ease-out motion-safe:[@media(hover:hover)_and_(pointer:fine)]:group-hover:scale-105"
+                      />
+                      {/* The frame rides above the photo, so it is an overlay rather
                         than an inset ring on the tile itself. */}
-                    <span aria-hidden="true" className="hairline-gold absolute inset-0 rounded-lg pointer-events-none" />
-                    {/* Live price — glass-strong because it sits on the photo
+                      <span
+                        aria-hidden="true"
+                        className="hairline-gold absolute inset-0 rounded-lg pointer-events-none"
+                      />
+                      {/* Live price — glass-strong because it sits on the photo
                         (--accent over it is 5.10:1 worst case). Visible by
                         DEFAULT so touch devices (no hover) always see the price;
                         only hover-capable pointers hide it and reveal it on
                         group-hover. Omitted entirely when the row is missing —
                         no badge beats a wrong badge. */}
-                    {price && (
-                      <span className="glass-strong absolute inset-x-2 bottom-2 py-1.5 text-sm font-semibold text-accent text-center opacity-100 transition-opacity duration-200 ease-out [--glass-radius:0.75rem] [@media(hover:hover)_and_(pointer:fine)]:opacity-0 [@media(hover:hover)_and_(pointer:fine)]:group-hover:opacity-100">
-                        {price}
-                      </span>
-                    )}
-                  </Link>
+                      {price && (
+                        <span className="glass-strong absolute inset-x-2 bottom-2 py-1.5 text-sm font-semibold text-accent text-center opacity-100 transition-opacity duration-200 ease-out [--glass-radius:0.75rem] [@media(hover:hover)_and_(pointer:fine)]:opacity-0 [@media(hover:hover)_and_(pointer:fine)]:group-hover:opacity-100">
+                          {price}
+                        </span>
+                      )}
+                    </Link>
                   );
                 })}
               </div>
@@ -1085,7 +1227,8 @@ function HomePage() {
                 רקמה וחריטה אישית — הוסיפו שם על המתנה
               </h2>
               <p className="mt-2 text-sm md:text-base text-muted-foreground max-w-xl mx-auto md:mx-0 leading-7">
-                על כיסויים לטלית ותפילין, תיקים וסידורים — את הגופן, הצבע והמיקום נתאם איתכם לאחר ההזמנה.
+                על כיסויים לטלית ותפילין, תיקים וסידורים — את הגופן, הצבע והמיקום נתאם איתכם לאחר
+                ההזמנה.
               </p>
             </div>
             <Link to="/collection/personalized" className={`${BTN_SOLID} shrink-0`}>
@@ -1212,12 +1355,7 @@ function HomePage() {
               {/* rel="noopener": external target. No `nofollow` — this is our own
                   Business Profile and the outbound link corroborates the sameAs
                   claim rather than passing equity to a third party. */}
-              <a
-                href={GOOGLE_PLACE_URL}
-                target="_blank"
-                rel="noopener"
-                className={BTN_SOLID}
-              >
+              <a href={GOOGLE_PLACE_URL} target="_blank" rel="noopener" className={BTN_SOLID}>
                 הפרופיל שלנו בגוגל מפות
               </a>
               <a
@@ -1416,9 +1554,7 @@ function HomePage() {
       <section>
         <Reveal className="container mx-auto px-4 py-14 md:py-20">
           <div className="text-center mb-10 md:mb-14">
-            <p className="text-[10px] md:text-xs tracking-[0.35em] text-accent mb-3">
-              גלריה
-            </p>
+            <p className="text-[10px] md:text-xs tracking-[0.35em] text-accent mb-3">גלריה</p>
             <h2 className="font-display text-3xl md:text-4xl tracking-wide mb-3 text-foreground">
               מהפריטים שלנו
             </h2>
@@ -1428,8 +1564,8 @@ function HomePage() {
               <span className="gold-rule w-8 shrink-0" />
             </div>
             <p className="mx-auto max-w-xl text-sm md:text-[15px] text-muted-foreground leading-relaxed">
-              מבחר צילומים וסרטונים של פריטים מהחנות. לעדכונים שוטפים ולתכנים נוספים —
-              עקבו אחרינו באינסטגרם:{" "}
+              מבחר צילומים וסרטונים של פריטים מהחנות. לעדכונים שוטפים ולתכנים נוספים — עקבו אחרינו
+              באינסטגרם:{" "}
               <a
                 href={INSTAGRAM_URL}
                 target="_blank"
@@ -1481,9 +1617,7 @@ function HomePage() {
                     <h3 className="font-display text-lg md:text-xl text-foreground leading-tight">
                       {g.title}
                     </h3>
-                    <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
-                      {g.blurb}
-                    </p>
+                    <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{g.blurb}</p>
                   </div>
                   <span className="inline-flex items-center gap-1.5 text-sm text-accent">
                     לקריאה
@@ -1507,9 +1641,7 @@ function HomePage() {
       <section className="py-14 md:py-20">
         <Reveal className="container mx-auto px-4">
           <div className="glass glass-gold [--glass-radius:1.5rem] max-w-2xl mx-auto px-6 md:px-10 py-10 text-center">
-            <div className="text-xs tracking-[0.35em] text-accent mb-3">
-              הישארו מעודכנים
-            </div>
+            <div className="text-xs tracking-[0.35em] text-accent mb-3">הישארו מעודכנים</div>
             <h2 className="font-display text-2xl md:text-3xl text-foreground mb-2">
               מדריכים ותוכן לקראת החגים
             </h2>
@@ -1534,7 +1666,11 @@ function HomePage() {
             אור זרוע לצדיק — חנות תשמישי קדושה ויודאיקה מהודרת
           </h2>
           <p className="text-center text-sm text-muted-foreground leading-relaxed mb-4 max-w-3xl mx-auto">
-            <strong>אור זרוע לצדיק</strong> היא חנות אונליין ישראלית לתשמישי קדושה ויודאיקה מהודרת — טליתות, כיסויי טלית ותפילין, נרתיקי מזוזה, גביעי קידוש, חנוכיות ומארזים לחתנים. השם נלקח מהפסוק בתהילים (צ״ז), "אוֹר זָרֻעַ לַצַּדִּיק", ומבטא את רוח החנות: אור, הידור ואיכות. הפריטים נבחרים בהקפדה על כשרות והידור, ואנו מציעים רקמה וחריטה אישית ומשלוח עד הבית בכל הארץ.
+            <strong>אור זרוע לצדיק</strong> היא חנות אונליין ישראלית לתשמישי קדושה ויודאיקה מהודרת —
+            טליתות, כיסויי טלית ותפילין, נרתיקי מזוזה, גביעי קידוש, חנוכיות ומארזים לחתנים. השם נלקח
+            מהפסוק בתהילים (צ״ז), "אוֹר זָרֻעַ לַצַּדִּיק", ומבטא את רוח החנות: אור, הידור ואיכות.
+            הפריטים נבחרים בהקפדה על כשרות והידור, ואנו מציעים רקמה וחריטה אישית ומשלוח עד הבית בכל
+            הארץ.
           </p>
           <p className="text-center text-xs text-muted-foreground leading-relaxed mb-12 max-w-3xl mx-auto">
             הבעלים: ליאור בן עמי · דרך עכו 190, קרית ביאליק · טל׳ 054-581-8486.
@@ -1555,8 +1691,14 @@ function HomePage() {
           <div className="glass p-4 md:p-8 [--glass-radius:1.5rem]">
             <Accordion type="single" collapsible defaultValue="faq-0" className="w-full">
               {FAQ_ITEMS.map((item, i) => (
-                <AccordionItem key={i} value={`faq-${i}`} className="border-gold/30 last:border-b-0">
-                  <AccordionTrigger className="text-right font-display text-base">{item.q}</AccordionTrigger>
+                <AccordionItem
+                  key={i}
+                  value={`faq-${i}`}
+                  className="border-gold/30 last:border-b-0"
+                >
+                  <AccordionTrigger className="text-right font-display text-base">
+                    {item.q}
+                  </AccordionTrigger>
                   <AccordionContent className="text-muted-foreground leading-relaxed">
                     {item.a}
                   </AccordionContent>
@@ -1803,12 +1945,24 @@ function StoreGallery() {
                   className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 ease-out motion-safe:[@media(hover:hover)_and_(pointer:fine)]:group-hover:scale-105"
                 />
               )}
-              <div aria-hidden="true" className="absolute inset-0 bg-foreground/0 transition-colors duration-200 ease-out [@media(hover:hover)_and_(pointer:fine)]:group-hover:bg-foreground/20" />
+              <div
+                aria-hidden="true"
+                className="absolute inset-0 bg-foreground/0 transition-colors duration-200 ease-out [@media(hover:hover)_and_(pointer:fine)]:group-hover:bg-foreground/20"
+              />
               <div className="absolute top-3 right-3 opacity-0 transition-opacity duration-200 ease-out [@media(hover:hover)_and_(pointer:fine)]:group-hover:opacity-100">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-background drop-shadow">
-                  <rect x="3" y="3" width="18" height="18" rx="5"/>
-                  <circle cx="12" cy="12" r="4"/>
-                  <circle cx="17.5" cy="6.5" r="1" fill="currentColor"/>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="w-5 h-5 text-background drop-shadow"
+                >
+                  <rect x="3" y="3" width="18" height="18" rx="5" />
+                  <circle cx="12" cy="12" r="4" />
+                  <circle cx="17.5" cy="6.5" r="1" fill="currentColor" />
                 </svg>
               </div>
             </a>
