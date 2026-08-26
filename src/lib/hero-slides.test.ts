@@ -1,0 +1,70 @@
+import { describe, it, expect } from "vitest";
+import { existsSync, readFileSync } from "node:fs";
+
+// The homepage hero builds each slide's srcSet by STRING SUBSTITUTION on the
+// filename — `src.replace(".webp", "-768w.webp")` — so a slide whose renditions
+// were never generated does not fail the build, fail a type check, or throw. It
+// 404s in the browser, the browser silently falls back to another candidate,
+// and the only symptom is a hero that is heavier or blurrier than intended on
+// exactly the devices that can least afford it.
+//
+// That is precisely how the reel drifted before: it shipped at 900x1200 into a
+// full-viewport frame and nobody noticed until the owner said the photographs
+// looked blurry. This test is the guard that class of mistake deserves — it
+// reads the real array out of the route and stats every file the runtime will
+// ask for.
+const ROUTE = "src/routes/index.tsx";
+const WIDTHS = [768, 1024] as const;
+
+function heroSlides(): string[] {
+  const src = readFileSync(ROUTE, "utf8");
+  const block = src.match(/const HERO_SLIDES = \[(.*?)\n\];/s);
+  if (!block) throw new Error(`HERO_SLIDES not found in ${ROUTE} — did the array get renamed?`);
+  return [...block[1].matchAll(/"(\/product-photos\/[^"]+)"/g)].map((m) => m[1]);
+}
+
+describe("hero slides ship every file their srcSet names", () => {
+  const slides = heroSlides();
+
+  it("finds a non-empty slide list", () => {
+    expect(slides.length).toBeGreaterThan(0);
+  });
+
+  it("has no duplicate slides", () => {
+    expect(new Set(slides).size).toBe(slides.length);
+  });
+
+  it.each(slides)("%s exists at full size", (slide) => {
+    expect(existsSync(`public${slide}`), `missing: public${slide}`).toBe(true);
+  });
+
+  // The srcSet is built by replacing ".webp" — so every slide needs all three.
+  it.each(slides)("%s has its 768w and 1024w renditions", (slide) => {
+    for (const w of WIDTHS) {
+      const variant = slide.replace(".webp", `-${w}w.webp`);
+      expect(
+        existsSync(`public${variant}`),
+        `missing: public${variant} — the hero's srcSet names it, so it would 404`,
+      ).toBe(true);
+    }
+  });
+
+  // head() preloads the LCP frame with a hand-written imagesrcset string. If it
+  // drifts from HERO_SLIDES[0], the browser preloads one file and the element
+  // then downloads a different one: two fetches for one paint, which is worse
+  // than not preloading at all.
+  it("preloads exactly the first slide, and its renditions match", () => {
+    const src = readFileSync(ROUTE, "utf8");
+    const preload = src.match(
+      /rel: "preload",[\s\S]*?href: "([^"]+)"[\s\S]*?imagesrcset:\s*\n?\s*"([^"]+)"/,
+    );
+    expect(preload, "preload link with imagesrcset not found").not.toBeNull();
+    const [, href, srcset] = preload!;
+
+    expect(href, "preload href must be HERO_SLIDES[0]").toBe(slides[0]);
+    for (const w of WIDTHS) {
+      expect(srcset).toContain(`${slides[0].replace(".webp", `-${w}w.webp`)} ${w}w`);
+    }
+    expect(srcset).toContain(slides[0]);
+  });
+});

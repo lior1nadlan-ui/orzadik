@@ -376,7 +376,7 @@ export const Route = createFileRoute("/")({
     links: [
       { rel: "canonical", href: "https://orzadik.com/" },
       // The hero's FIRST SLIDE is the homepage LCP paint — preload it so it shows
-      // fast. Only slide 0: the other seven mount after idle (see HomePage), so
+      // fast. Only slide 0: the other eleven mount after idle (see HomePage), so
       // preloading them would recreate exactly the critical-path race that
       // deferral exists to prevent. Keep this href and HERO_SLIDES[0] in step.
       {
@@ -825,8 +825,10 @@ const HOME_GUIDES = [
   .filter(Boolean);
 
 /**
- * The hero cross-fade, in display order. All eight frames of the 2026-08-16
- * shoot, 900x1200 WebP, 72-118 KB each.
+ * The hero cross-fade, in display order. Twelve frames of the 2026-08-16 shoot:
+ * slide 0 at 1536x2048 and the other eleven at 1086x1448, WebP, 135-355 KB for
+ * the full renditions with 768w/1024w variants beside each (see the <img> below
+ * — every entry here needs all three files or its srcSet 404s).
  *
  * Order is deliberate, not filename order. Slide 0 is the LCP paint and the only
  * one fetched on the critical path, so it is the strongest frame: the classic
@@ -871,13 +873,14 @@ function HomePage() {
   const { otherCats, featuredProducts, reviews, groomPrices, giftPicks } = Route.useLoaderData();
 
   // Defer every hero slide after the first off the mobile critical path. Slide 0
-  // is the LCP paint and is preloaded in head(); the other seven are withheld
+  // is the LCP paint and is preloaded in head(); the other eleven are withheld
   // from the initial render and mounted once the browser goes idle —
   // requestIdleCallback with a ~1200ms setTimeout fallback. They cannot be left
   // in the DOM behind loading="lazy": they are stacked inside the viewport at
-  // opacity 0, which counts as visible, so the browser would fetch all eight at
+  // opacity 0, which counts as visible, so the browser would fetch all twelve at
   // once and race the LCP on a phone. This is the same deferral the hero video
-  // used, kept for the same reason.
+  // used, kept for the same reason — and it matters more at twelve frames than
+  // it did at eight.
   //
   // Reduced-motion users never mount the rest and never advance — they get slide
   // 0 as a still photograph, which is a complete hero on its own.
