@@ -612,6 +612,12 @@ const BTN_BASE =
   "press inline-flex items-center justify-center gap-2 rounded-full min-h-[3.25rem] px-8 text-base font-semibold";
 const BTN_SOLID = `${BTN_BASE} bg-accent text-white shadow-[var(--glass-shadow)] [@media(hover:hover)_and_(pointer:fine)]:hover:bg-accent-strong`;
 const BTN_OUTLINE = `${BTN_BASE} border border-accent bg-white/85 text-accent [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary`;
+// Hero-only. The two doors sit directly on the photography with no card behind
+// them, so the 0.50 tint is not decoration — it is half of the contrast budget
+// (the bottom scrim is the other half; see the note on it). backdrop-blur only
+// softens what shows through; it guarantees nothing on its own and must never
+// be treated as the reason this is legible.
+const BTN_GLASS = `${BTN_BASE} border border-white/70 bg-black/50 text-white backdrop-blur-md [@media(hover:hover)_and_(pointer:fine)]:hover:bg-black/65`;
 
 // Curated groom-set thumbs under the flagship banner image.
 // להחלפת פריטים: החליפו את `img` לכל קובץ תחת public/groom-sets/ (groom-01..17.jpeg)
@@ -950,107 +956,90 @@ function HomePage() {
           )}
         </div>
 
-        {/* Scrim. This is the one load-bearing layer on the page: the headline
-            is now white ON the photograph, so legibility depends entirely on how
-            dark the backing is where the glyphs sit — it can no longer be
-            guaranteed by a near-opaque card.
-            Sized against the WORST case, a blown-out white frame, and the
-            binding constraint is NOT the white headline — it is the small gold
-            eyebrow, which is both the lightest ink and the highest line in the
-            block. The gradient therefore holds ≥0.88 across the entire bottom
-            42% rather than ramping through it, and the eyebrow was lifted from
-            #E8D6A8 to #F1E4C3 to clear AA on its own:
-              white on 0.88-over-white  → 1.05/0.17 ≈ 6.2:1
-              #F1E4C3 on the same       → 0.83/0.17 ≈ 4.9:1
-            Both above the 4.5:1 small text needs, not merely the 3:1 the
-            display h1 would be allowed as large text.
-            Above 78% the scrim is essentially clear, so the top half of the
-            frame stays pure photograph. That split is the whole design — if you
-            lighten the gradient to show more image, re-check the eyebrow first;
-            it fails before anything else does. */}
+        {/* Scrim — now confined to the bottom third.
+            The card is gone at the owner's request ("תמחק את הקוביה הלבנה...
+            זה מפריע לסרטון"), so nothing opaque backs the two buttons and
+            legibility rests entirely here. That makes this the one place on the
+            page where "make it lighter to show more photo" is a WCAG decision,
+            not a taste one.
+
+            The arithmetic, against the worst case of a blown-out white frame:
+            light reaching the eye is what survives BOTH the scrim and the
+            button's own tint. At 0.65 and 0.50 that is 0.35 x 0.50 = 0.175, so
+            white glyphs read 1.05/0.225 ≈ 4.7:1 — over the 4.5:1 that button
+            text at 16px needs. Drop either value and it fails; they only work
+            as a pair. Above 34% the scrim is clear, so roughly two thirds of
+            every frame is now untouched photograph. */}
         <div
           aria-hidden="true"
-          className="absolute inset-0 pointer-events-none bg-[linear-gradient(to_top,rgba(22,15,4,0.94)_0%,rgba(22,15,4,0.88)_42%,rgba(22,15,4,0.58)_60%,rgba(22,15,4,0.16)_78%,transparent_92%)]"
+          className="absolute inset-0 pointer-events-none bg-[linear-gradient(to_top,rgba(22,15,4,0.72)_0%,rgba(22,15,4,0.65)_14%,rgba(22,15,4,0.30)_24%,transparent_34%)]"
         />
-        {/* A whisper of brand gold across the whole frame, tying a mixed cool /
-            warm reel to the warm identity. Low enough that the linen texture and
-            the crystal sparkle both survive it. */}
+        {/* A whisper of brand gold, tying a mixed cool / warm reel to the warm
+            identity. Low enough that the linen texture survives it. */}
         <div
           aria-hidden="true"
-          className="absolute inset-0 pointer-events-none bg-gradient-to-b from-[#7E611E]/14 via-transparent to-[#4A360E]/22"
+          className="absolute inset-0 pointer-events-none bg-gradient-to-b from-[#7E611E]/10 via-transparent to-[#4A360E]/16"
         />
 
-        {/* Type, bottom-anchored. The value-prop line is the page's only h1
-            (the colophon heading was demoted to h2). */}
-        <div className="absolute inset-x-0 bottom-0 flex flex-col items-center text-center px-6 pb-16 md:pb-24">
-          <div className="stagger max-w-xl md:max-w-3xl mx-auto">
-            <p className="text-[10px] md:text-xs tracking-[0.42em] text-[#F1E4C3] mb-4">
-              אור זרוע לצדיק
-            </p>
-            <h1 className="font-display text-4xl sm:text-5xl md:text-7xl leading-[1.06] [text-wrap:balance] text-white drop-shadow-[0_2px_18px_rgba(0,0,0,0.45)]">
-              תשמישי קדושה ויודאיקה מהודרת
-            </h1>
-            <span aria-hidden="true" className="gold-rule block w-24 mx-auto my-5 md:my-6" />
-            <p className="text-white/90 text-sm md:text-lg [text-wrap:balance]">
-              טליתות, כיסויי טלית ותפילין, נרתיקי מזוזה ומארזי חתן — עם רקמה וחריטה אישית
-            </p>
+        {/* The h1 is KEPT, and only visually hidden.
+            The owner asked for the headline block to go, and visually it has.
+            But this is the page's single h1 and the homepage is what the brand
+            name has to resolve to — deleting the element outright would leave
+            the site's most important page with no h1 at all, which is an SEO
+            regression he did not ask for and would not see. sr-only is the
+            standard way to keep the document outline honest while the design
+            carries no visible headline; the text still describes the page
+            truthfully, so it is not cloaking.
+            The eyebrow and the sub-line were DELETED rather than hidden: they
+            are marketing copy, both are stated elsewhere on the page and in the
+            JSON-LD, and burying paragraphs of keywords off-screen is a
+            different thing entirely from keeping one honest heading. */}
+        <h1 className="sr-only">תשמישי קדושה ויודאיקה מהודרת — אור זרוע לצדיק</h1>
+
+        {/* Two glass doors, nothing else. */}
+        <div className="absolute inset-x-0 bottom-0 flex flex-col items-center px-6 pb-12 md:pb-16">
+          <div className="stagger flex w-full max-w-md flex-col sm:w-auto sm:max-w-none sm:flex-row justify-center gap-3">
             {/* ChevronLeft, not Right: the document is dir=rtl, so "forward"
                 points LEFT — the same convention the RTL carousel uses when it
                 puts "previous" on the right edge. aria-hidden because the link
                 text already names the destination; the icon is affordance, not
                 information. */}
-            <div className="mt-7 md:mt-9 flex flex-col sm:flex-row justify-center gap-3">
-              <Link to="/shop" className={`${BTN_SOLID} w-full sm:w-auto`}>
-                לחנות
-                <ChevronLeft className="h-4 w-4 shrink-0" aria-hidden="true" />
-              </Link>
-              {/* Was /category/marazim-chatanim. Same button, same geometry —
-                  only the destination moved, and only because 7 of that
-                  category's 11 products have no photograph, so the hero's
-                  second door opened on a wall of placeholders. /collection/
-                  chatan-kala unions חתן כלה, חתונה, מארזים לחתנים, כיסויים
-                  לטלית and ברכונים, so the groom boxes are still in there —
-                  they are simply no longer the first thing a stranger meets,
-                  and the shared shelf ordering sinks the image-less rows last.
-                  The label moved with the destination: a CTA must name where it
-                  goes. */}
-              <Link
-                to="/collection/$slug"
-                params={{ slug: "chatan-kala" }}
-                className={`${BTN_OUTLINE} w-full sm:w-auto`}
-              >
-                לחתן ולכלה
-                <ChevronLeft className="h-4 w-4 shrink-0" aria-hidden="true" />
-              </Link>
-            </div>
-
-            {/* Position indicator, not a control. The stack is decorative and
-                hidden from the accessibility tree; adding eight focusable
-                buttons would put keyboard stops on something that carries no
-                information, so these are dots that report and nothing more. */}
-            <div aria-hidden="true" className="mt-9 flex justify-center gap-2">
-              {HERO_SLIDES.map((src, i) => (
-                <span
-                  key={src}
-                  className={`h-1 rounded-full transition-all duration-500 motion-reduce:transition-none ${
-                    i === heroSlide ? "w-7 bg-white/90" : "w-1.5 bg-white/40"
-                  }`}
-                />
-              ))}
-            </div>
+            <Link to="/shop" className={`${BTN_GLASS} w-full sm:w-auto`}>
+              לחנות
+              <ChevronLeft className="h-4 w-4 shrink-0" aria-hidden="true" />
+            </Link>
+            {/* Was /category/marazim-chatanim. Same button, same geometry —
+                only the destination moved, and only because 7 of that
+                category's 11 products have no photograph, so the hero's second
+                door opened on a wall of placeholders. /collection/chatan-kala
+                unions חתן כלה, חתונה, מארזים לחתנים, כיסויים לטלית and
+                ברכונים, so the groom boxes are still in there — they are simply
+                no longer the first thing a stranger meets. The label moved with
+                the destination: a CTA must name where it goes. */}
+            <Link
+              to="/collection/$slug"
+              params={{ slug: "chatan-kala" }}
+              className={`${BTN_GLASS} w-full sm:w-auto`}
+            >
+              לחתן ולכלה
+              <ChevronLeft className="h-4 w-4 shrink-0" aria-hidden="true" />
+            </Link>
           </div>
-        </div>
 
-        {/* Scroll cue. A hero that fills the viewport hides the fact that a
-            shop follows it — on a phone the fold is the whole screen and there
-            is no peek of the next section to imply "keep going". */}
-        <div
-          aria-hidden="true"
-          className="absolute inset-x-0 bottom-4 hidden md:flex justify-center"
-        >
-          <span className="h-9 w-[22px] rounded-full border border-white/45 flex items-start justify-center pt-1.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-white/70 animate-bounce motion-reduce:animate-none" />
-          </span>
+          {/* Position indicator, not a control. The stack is decorative and
+              hidden from the accessibility tree; adding eight focusable buttons
+              would put keyboard stops on something that carries no information,
+              so these report and nothing more. */}
+          <div aria-hidden="true" className="mt-7 flex justify-center gap-2">
+            {HERO_SLIDES.map((src, i) => (
+              <span
+                key={src}
+                className={`h-1 rounded-full transition-all duration-500 motion-reduce:transition-none ${
+                  i === heroSlide ? "w-7 bg-white/90" : "w-1.5 bg-white/45"
+                }`}
+              />
+            ))}
+          </div>
         </div>
       </section>
 
