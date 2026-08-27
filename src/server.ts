@@ -254,7 +254,15 @@ export default {
     // trigger a redirect, or a misconfigured edge could produce a loop.
     const reqUrl = new URL(request.url);
     const forwardedProto = request.headers.get("x-forwarded-proto")?.trim().toLowerCase();
-    const isInsecure = reqUrl.protocol === "http:" || forwardedProto === "http";
+    // localhost is exempt. `vite dev` serves plain http on 127.0.0.1, so
+    // without this the very first request of every local session answers 301 to
+    // https://127.0.0.1:<port>, which nothing is listening on — the dev server
+    // is unusable and the failure looks like a broken machine rather than a
+    // redirect rule. Neither name can ever be a production hostname, so the
+    // canonicalisation loses nothing by skipping them.
+    const isLocalhost = reqUrl.hostname === "localhost" || reqUrl.hostname === "127.0.0.1";
+    const isInsecure =
+      !isLocalhost && (reqUrl.protocol === "http:" || forwardedProto === "http");
     const isWww = reqUrl.hostname === "www.orzadik.com";
     if (isInsecure || isWww) {
       if (isInsecure) reqUrl.protocol = "https:";

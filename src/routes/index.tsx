@@ -964,9 +964,25 @@ function HomePage() {
             a phone takes the 768w or 1024w rendition (~74-167KB) and only a wide
             desktop pays for the full frame. Regenerate the variants with the
             same 768/1024 widths if these are ever re-shot. */}
+        {/* HEIGHT: viewport MINUS the header MINUS a deliberate peek.
+            A plain 100svh (or 92svh) is wrong here and was: SiteHeader is
+            sticky and in flow, so the hero starts BELOW it and a viewport-height
+            frame overflows the fold by exactly the header — 25px on a 390x844
+            phone, 65px on a 1440x900 desktop, both measured. The visitor sees no
+            hint that anything follows, and on the phone the CTA row was pushed
+            into the floating WhatsApp pill.
+
+            So the header comes off, and ~4.5rem of the next section is left
+            showing on purpose: a strip of the section below is the cheapest
+            scroll cue there is, and it costs no pixels of chrome.
+
+            The two header heights are measured, not guessed — 93px, and 137px
+            once the category nav row appears. That row is `hidden lg:flex`
+            (SiteHeader), which is why the breakpoint here is lg and not md.
+            Keep these in step if that row's breakpoint or height moves. */}
         <div
           aria-hidden="true"
-          className="relative block w-full h-[100svh] min-h-[560px] overflow-hidden bg-cream"
+          className="relative block w-full h-[calc(100svh-93px-4.5rem)] min-h-[560px] overflow-hidden bg-cream lg:h-[calc(100svh-137px-5rem)]"
         >
           {HERO_SLIDES.map((src, i) =>
             // Slide 0 renders always and is the LCP paint; the rest mount only
@@ -993,23 +1009,46 @@ function HomePage() {
           )}
         </div>
 
-        {/* Scrim — now confined to the bottom third.
+        {/* Scrim.
             The card is gone at the owner's request ("תמחק את הקוביה הלבנה...
-            זה מפריע לסרטון"), so nothing opaque backs the two buttons and
-            legibility rests entirely here. That makes this the one place on the
-            page where "make it lighter to show more photo" is a WCAG decision,
-            not a taste one.
+            זה מפריע לסרטון"), so nothing opaque backs the copy and legibility
+            rests entirely here. That makes this the one place on the page where
+            "make it lighter to show more photo" is a WCAG decision, not a taste
+            one.
 
-            The arithmetic, against the worst case of a blown-out white frame:
-            light reaching the eye is what survives BOTH the scrim and the
-            button's own tint. At 0.65 and 0.50 that is 0.35 x 0.50 = 0.175, so
-            white glyphs read 1.05/0.225 ≈ 4.7:1 — over the 4.5:1 that button
-            text at 16px needs. Drop either value and it fails; they only work
-            as a pair. Above 34% the scrim is clear, so roughly two thirds of
-            every frame is now untouched photograph. */}
+            THE ARITHMETIC, against the worst case of a blown-out white frame.
+            What reaches the eye through a scrim of opacity α over white is
+            (1-α)·1.0 + α·L(#160F04), and L(#160F04) ≈ 0.006. White glyphs then
+            read 1.05 / (L_bg + 0.05). Small text needs 4.5:1, so:
+
+              L_bg ≤ 1.05/4.5 − 0.05 = 0.183  ⇒  α ≥ 0.82
+
+            0.84 is the working value: L_bg = 0.165, contrast 4.88:1. The old
+            0.72 was sized for two buttons whose own 0.50 tint carried half the
+            budget; body copy has no such backing, so it could not simply be
+            reused.
+
+            THE STOPS ARE IN PIXELS, NOT PERCENT, and that is the load-bearing
+            part. The text block is a fixed ~300px tall; the hero is 560px on a
+            short phone and 1000px+ on a desktop. Percentage stops would either
+            leave the copy unscrimmed on the phone or black out half a desktop
+            frame. Pixels track the copy on both. 300px covers the copy, then
+            170px of ramp dissolves the edge so this reads as a vignette rather
+            than a bar, and everything above 470px is untouched photograph.
+
+            The ramp above 300px was 240px long and is now 170px. NOT a
+            contrast change: no text sits there, so the only thing those pixels
+            were doing was hazing the middle of the frame. Measured, headless,
+            against ALL TWELVE slides at 390px and at 1440px with the copy
+            hidden so only photo+scrim remained: worst case 8.76:1 behind the h1
+            and 12.3:1 behind the body copy. The 0.84 band stays exactly where
+            it is — that value is not tuned to these photographs, it is the
+            arithmetic floor that holds against a pure-white frame, so it
+            survives the next reshoot. Lightening it to fit today's reel is the
+            trade this file has already been burned by once. */}
         <div
           aria-hidden="true"
-          className="absolute inset-0 pointer-events-none bg-[linear-gradient(to_top,rgba(22,15,4,0.72)_0%,rgba(22,15,4,0.65)_14%,rgba(22,15,4,0.30)_24%,transparent_34%)]"
+          className="absolute inset-0 pointer-events-none bg-[linear-gradient(to_top,rgba(22,15,4,0.90)_0px,rgba(22,15,4,0.84)_300px,rgba(22,15,4,0.30)_380px,transparent_470px)]"
         />
         {/* A whisper of brand gold, tying a mixed cool / warm reel to the warm
             identity. Low enough that the linen texture survives it. */}
@@ -1018,56 +1057,98 @@ function HomePage() {
           className="absolute inset-0 pointer-events-none bg-gradient-to-b from-[#7E611E]/10 via-transparent to-[#4A360E]/16"
         />
 
-        {/* The h1 is KEPT, and only visually hidden.
-            The owner asked for the headline block to go, and visually it has.
-            But this is the page's single h1 and the homepage is what the brand
-            name has to resolve to — deleting the element outright would leave
-            the site's most important page with no h1 at all, which is an SEO
-            regression he did not ask for and would not see. sr-only is the
-            standard way to keep the document outline honest while the design
-            carries no visible headline; the text still describes the page
-            truthfully, so it is not cloaking.
-            The eyebrow and the sub-line were DELETED rather than hidden: they
-            are marketing copy, both are stated elsewhere on the page and in the
-            JSON-LD, and burying paragraphs of keywords off-screen is a
-            different thing entirely from keeping one honest heading. */}
-        <h1 className="sr-only">תשמישי קדושה ויודאיקה מהודרת — אור זרוע לצדיק</h1>
+        {/* The selling block.
+            WHAT WAS HERE, AND WHY IT CHANGED
+            Two glass buttons on a photograph, and nothing else. It was clean,
+            and it said nothing: a stranger arriving from a Meta ad learned no
+            product, no promise and no reason to trust the shop, and the page's
+            only h1 was sr-only — so the one sentence describing the business
+            was visible to Google and to no customer. The owner's read was
+            exactly that ("הוא לא מושך לקוחות").
 
-        {/* Two glass doors, nothing else. */}
-        <div className="absolute inset-x-0 bottom-0 flex flex-col items-center px-6 pb-12 md:pb-16">
-          <div className="stagger flex w-full max-w-md flex-col sm:w-auto sm:max-w-none sm:flex-row justify-center gap-3">
-            {/* ChevronLeft, not Right: the document is dir=rtl, so "forward"
-                points LEFT — the same convention the RTL carousel uses when it
-                puts "previous" on the right edge. aria-hidden because the link
-                text already names the destination; the icon is affordance, not
-                information. */}
-            <Link to="/shop" className={`${BTN_GLASS} w-full sm:w-auto`}>
-              לחנות
-              <ChevronLeft className="h-4 w-4 shrink-0" aria-hidden="true" />
-            </Link>
-            {/* Was /category/marazim-chatanim. Same button, same geometry —
-                only the destination moved, and only because 7 of that
-                category's 11 products have no photograph, so the hero's second
-                door opened on a wall of placeholders. /collection/chatan-kala
-                unions חתן כלה, חתונה, מארזים לחתנים, כיסויים לטלית and
-                ברכונים, so the groom boxes are still in there — they are simply
-                no longer the first thing a stranger meets. The label moved with
-                the destination: a CTA must name where it goes. */}
-            <Link
-              to="/collection/$slug"
-              params={{ slug: "chatan-kala" }}
-              className={`${BTN_GLASS} w-full sm:w-auto`}
-            >
-              לחתן ולכלה
-              <ChevronLeft className="h-4 w-4 shrink-0" aria-hidden="true" />
-            </Link>
+            The white card is NOT coming back — that is what he asked to delete,
+            and he was right. The type sits directly on the photograph instead,
+            so the frames still own the screen.
+
+            EVERY CLAIM BELOW IS SOURCED, NONE IS INVENTED. That constraint did
+            real work: the obvious hero line for a shop like this is "משלוח
+            חינם", and this shop has none — FREE_SHIPPING_THRESHOLD is Infinity
+            and shipping is a flat ₪37. A star rating is out too: the code's own
+            note at GOOGLE_PLACE_URL records that marking up the six Google
+            reviews as aggregateRating would breach Google's policy, and putting
+            the number on the hero instead of in markup would not make it more
+            honest. What is left is true, checkable, and still differentiating —
+            a real shop at a real address beats a dropshipper, and the two
+            windows come from CONSUMER_POLICY, the same constants /returns
+            renders, so the hero cannot promise a window the store does not keep.
+
+            The sub-line is the store's own og:description, word for word. */}
+        <div className="absolute inset-x-0 bottom-0 flex flex-col items-center px-5 pb-10 text-center sm:px-6 md:pb-14">
+          <div className="stagger flex w-full max-w-2xl flex-col items-center">
+            <h1 className="font-display text-[1.75rem] font-semibold leading-[1.15] text-white sm:text-4xl md:text-5xl">
+              תשמישי קדושה ויודאיקה מהודרת
+            </h1>
+            <p className="mt-3 max-w-xl text-sm leading-relaxed text-white/95 sm:text-base">
+              טליתות, מארזים לחתנים, כיסויי תפילין ונרתיקי מזוזה — נבחרים בהקפדה
+              על כשרות והידור
+            </p>
+
+            {/* A real <ul>: three parallel facts are a list, and a screen
+                reader announcing "3 פריטים" is useful here rather than noise.
+                Separated by a hairline dot instead of an icon per row — icons
+                cost width the phone does not have, and three glyphs floating on
+                a photograph read as clutter. The dots are aria-hidden so the
+                list is not read as "bullet, bullet, bullet". */}
+            <ul className="mt-5 flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 text-[0.8125rem] text-white/95 sm:gap-x-4 sm:text-sm">
+              <li>חנות ב{BUSINESS.address.split(",").pop()?.trim()}</li>
+              <li aria-hidden="true" className="text-white/40">·</li>
+              <li>ביטול תוך {CONSUMER_POLICY.cancellationDays} יום</li>
+              <li aria-hidden="true" className="text-white/40">·</li>
+              <li>תשלום מאובטח</li>
+            </ul>
+
+            {/* ONE primary, one secondary. Two identical glass buttons gave the
+                eye nothing to follow; a shopper who does not know the shop
+                needs a default, and /shop is it. The solid fill is also the
+                only element here whose contrast does not depend on the scrim —
+                --accent on white is 5.81:1 over any frame beneath it.
+
+                Side by side on the phone too, not stacked: stacking cost 64px
+                of photograph, and both labels are two words. */}
+            <div className="mt-7 flex w-full flex-row justify-center gap-3 text-[0.9375rem] sm:w-auto sm:text-base">
+              {/* ChevronLeft, not Right: the document is dir=rtl, so "forward"
+                  points LEFT — the same convention the RTL carousel uses when it
+                  puts "previous" on the right edge. aria-hidden because the link
+                  text already names the destination; the icon is affordance, not
+                  information. */}
+              <Link to="/shop" className={`${BTN_SOLID} flex-1 whitespace-nowrap px-5 text-inherit sm:flex-none sm:px-8`}>
+                לחנות
+                <ChevronLeft className="h-4 w-4 shrink-0" aria-hidden="true" />
+              </Link>
+              {/* Was /category/marazim-chatanim. Same button, same geometry —
+                  only the destination moved, and only because 7 of that
+                  category's 11 products have no photograph, so the hero's second
+                  door opened on a wall of placeholders. /collection/chatan-kala
+                  unions חתן כלה, חתונה, מארזים לחתנים, כיסויים לטלית and
+                  ברכונים, so the groom boxes are still in there — they are simply
+                  no longer the first thing a stranger meets. The label moved with
+                  the destination: a CTA must name where it goes. */}
+              <Link
+                to="/collection/$slug"
+                params={{ slug: "chatan-kala" }}
+                className={`${BTN_GLASS} flex-1 whitespace-nowrap px-5 text-inherit sm:flex-none sm:px-8`}
+              >
+                לחתן ולכלה
+                <ChevronLeft className="h-4 w-4 shrink-0" aria-hidden="true" />
+              </Link>
+            </div>
           </div>
 
           {/* Position indicator, not a control. The stack is decorative and
-              hidden from the accessibility tree; adding eight focusable buttons
+              hidden from the accessibility tree; adding twelve focusable buttons
               would put keyboard stops on something that carries no information,
               so these report and nothing more. */}
-          <div aria-hidden="true" className="mt-7 flex justify-center gap-2">
+          <div aria-hidden="true" className="mt-6 flex justify-center gap-2">
             {HERO_SLIDES.map((src, i) => (
               <span
                 key={src}
