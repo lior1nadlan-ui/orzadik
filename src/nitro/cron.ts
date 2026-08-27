@@ -24,6 +24,7 @@ import { runReviewRequests } from "@/lib/review-request.functions";
 import { runCampaignTick } from "@/lib/campaigns.functions";
 import { runAbandonedCartReminders } from "@/lib/abandoned-cart.functions";
 import { runCardcomReconciliation } from "@/lib/cardcom-settle.server";
+import { runDataRetentionSweep } from "@/lib/retention.server";
 
 type NitroAppLike = {
   hooks: { hook: (name: string, fn: (payload: any) => unknown) => void };
@@ -43,6 +44,13 @@ const JOBS: Record<string, { name: string; run: () => Promise<unknown> }> = {
   // forever and nothing notices. 10 minutes is well clear of the 15-minute grace
   // window inside the job, so it never races a webhook that is merely in flight.
   "*/10 * * * *": { name: "cardcom-reconcile", run: runCardcomReconciliation },
+  // The first job here that DELETES. Until it existed nothing in the system ever
+  // removed a row, so payment secrets (card token + Israeli ID number) and
+  // abandoned carts (email + cart contents) accumulated with no end date.
+  // 03:40 UTC is chosen to sit alone: it shares no minute with the */5 and */10
+  // ticks, so a slow sweep never contends with a settlement that has money on
+  // it. See src/lib/retention.server.ts for what it keeps and why.
+  "40 3 * * *": { name: "data-retention", run: runDataRetentionSweep },
 };
 
 export default function (nitroApp: NitroAppLike) {
