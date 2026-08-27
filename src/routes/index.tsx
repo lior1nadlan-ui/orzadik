@@ -922,7 +922,11 @@ function HomePage() {
   // on an image that has not been fetched yet.
   useEffect(() => {
     if (!heroRestReady) return;
-    const id = setInterval(() => setHeroSlide((i) => (i + 1) % HERO_SLIDES.length), 5000);
+    // 3s per slide, down from 5s, at the owner's request that the hero move
+    // faster. The cross-fade below shortened to 800ms to match: the fade must
+    // stay well inside the hold, otherwise a slide is still fading in when the
+    // next one starts and the stack reads as a blur rather than as frames.
+    const id = setInterval(() => setHeroSlide((i) => (i + 1) % HERO_SLIDES.length), 3000);
     return () => clearInterval(id);
   }, [heroRestReady]);
 
@@ -1033,7 +1037,7 @@ function HomePage() {
                 srcSet={`${src.replace(".webp", "-768w.webp")} 768w, ${src.replace(".webp", "-1024w.webp")} 1024w, ${src} ${i === 0 ? 1536 : 1086}w`}
                 sizes="100vw"
                 style={{ objectPosition: "50% 28%" }}
-                className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-[1400ms] ease-in-out motion-reduce:transition-none ${
+                className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-[800ms] ease-in-out motion-reduce:transition-none ${
                   i === heroSlide ? "opacity-100" : "opacity-0"
                 }`}
               />
