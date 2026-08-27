@@ -10,6 +10,7 @@ import {
   rotateDaily,
 } from "@/components/home/FeaturedProductsCarousel";
 import { thumbUrl } from "@/lib/img";
+import { HERO_SLIDE_INTERVAL_MS, HERO_FADE_MS } from "@/lib/hero-timing";
 import { MobileCarousel } from "@/components/MobileCarousel";
 import { ProductCard, type ProductCardData } from "@/components/ProductCard";
 import { readRecent } from "@/components/engagement/recently-viewed";
@@ -922,11 +923,13 @@ function HomePage() {
   // on an image that has not been fetched yet.
   useEffect(() => {
     if (!heroRestReady) return;
-    // 3s per slide, down from 5s, at the owner's request that the hero move
-    // faster. The cross-fade below shortened to 800ms to match: the fade must
-    // stay well inside the hold, otherwise a slide is still fading in when the
-    // next one starts and the stack reads as a blur rather than as frames.
-    const id = setInterval(() => setHeroSlide((i) => (i + 1) % HERO_SLIDES.length), 3000);
+    // Interval and fade both come from @/lib/hero-timing, which §4.5 of the
+    // accessibility statement reads too — the published declaration of this
+    // number cannot drift from the number itself.
+    const id = setInterval(
+      () => setHeroSlide((i) => (i + 1) % HERO_SLIDES.length),
+      HERO_SLIDE_INTERVAL_MS,
+    );
     return () => clearInterval(id);
   }, [heroRestReady]);
 
@@ -1036,8 +1039,8 @@ function HomePage() {
                 decoding={i === 0 ? "sync" : "async"}
                 srcSet={`${src.replace(".webp", "-768w.webp")} 768w, ${src.replace(".webp", "-1024w.webp")} 1024w, ${src} ${i === 0 ? 1536 : 1086}w`}
                 sizes="100vw"
-                style={{ objectPosition: "50% 28%" }}
-                className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-[800ms] ease-in-out motion-reduce:transition-none ${
+                style={{ objectPosition: "50% 28%", transitionDuration: `${HERO_FADE_MS}ms` }}
+                className={`absolute inset-0 h-full w-full object-cover transition-opacity ease-in-out motion-reduce:transition-none ${
                   i === heroSlide ? "opacity-100" : "opacity-0"
                 }`}
               />
