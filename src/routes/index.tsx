@@ -976,13 +976,32 @@ function HomePage() {
             showing on purpose: a strip of the section below is the cheapest
             scroll cue there is, and it costs no pixels of chrome.
 
-            The two header heights are measured, not guessed — 93px, and 137px
-            once the category nav row appears. That row is `hidden lg:flex`
-            (SiteHeader), which is why the breakpoint here is lg and not md.
-            Keep these in step if that row's breakpoint or height moves. */}
+            The header heights are MEASURED, not guessed, and there are three of
+            them because SiteHeader has three shapes:
+
+              < lg   121px   club strip (two lines at 390px) + bar
+              lg-xl  125px   the nav row wraps to its own line
+              2xl+    93px   the nav row un-wraps into the bar
+
+            Re-measure whenever SiteHeader's rows change — the 2xl step exists
+            because the nav joins the bar there, and the lg step because it
+            appears at all (`hidden lg:flex`).
+
+            Each value is the LARGEST the header is at that breakpoint, which is
+            the safe direction to be wrong in: over-subtracting only widens the
+            peek, while under-subtracting pushes the hero past the fold and
+            brings back the exact bug this replaced. The phone figure is the one
+            that moves — the club strip wraps to two lines at 390px and would
+            un-wrap if its copy were shortened.
+
+            This is deliberately CSS-only. Reading the real height with a
+            ResizeObserver would never drift, but it cannot run before first
+            paint: the hero would render at the fallback height and then jump,
+            and this element is the LCP paint. A layout shift on the LCP element
+            costs more than the maintenance these three numbers ask for. */}
         <div
           aria-hidden="true"
-          className="relative block w-full h-[calc(100svh-93px-4.5rem)] min-h-[560px] overflow-hidden bg-cream lg:h-[calc(100svh-137px-5rem)]"
+          className="relative block w-full h-[calc(100svh-121px-4.5rem)] min-h-[560px] overflow-hidden bg-cream lg:h-[calc(100svh-125px-5rem)] 2xl:h-[calc(100svh-93px-5rem)]"
         >
           {HERO_SLIDES.map((src, i) =>
             // Slide 0 renders always and is the LCP paint; the rest mount only
@@ -1089,8 +1108,7 @@ function HomePage() {
               תשמישי קדושה ויודאיקה מהודרת
             </h1>
             <p className="mt-3 max-w-xl text-sm leading-relaxed text-white/95 sm:text-base">
-              טליתות, מארזים לחתנים, כיסויי תפילין ונרתיקי מזוזה — נבחרים בהקפדה
-              על כשרות והידור
+              טליתות, מארזים לחתנים, כיסויי תפילין ונרתיקי מזוזה — נבחרים בהקפדה על כשרות והידור
             </p>
 
             {/* A real <ul>: three parallel facts are a list, and a screen
@@ -1101,9 +1119,13 @@ function HomePage() {
                 list is not read as "bullet, bullet, bullet". */}
             <ul className="mt-5 flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 text-[0.8125rem] text-white/95 sm:gap-x-4 sm:text-sm">
               <li>חנות ב{BUSINESS.address.split(",").pop()?.trim()}</li>
-              <li aria-hidden="true" className="text-white/40">·</li>
+              <li aria-hidden="true" className="text-white/40">
+                ·
+              </li>
               <li>ביטול תוך {CONSUMER_POLICY.cancellationDays} יום</li>
-              <li aria-hidden="true" className="text-white/40">·</li>
+              <li aria-hidden="true" className="text-white/40">
+                ·
+              </li>
               <li>תשלום מאובטח</li>
             </ul>
 
@@ -1121,7 +1143,10 @@ function HomePage() {
                   puts "previous" on the right edge. aria-hidden because the link
                   text already names the destination; the icon is affordance, not
                   information. */}
-              <Link to="/shop" className={`${BTN_SOLID} flex-1 whitespace-nowrap px-5 text-inherit sm:flex-none sm:px-8`}>
+              <Link
+                to="/shop"
+                className={`${BTN_SOLID} flex-1 whitespace-nowrap px-5 text-inherit sm:flex-none sm:px-8`}
+              >
                 לחנות
                 <ChevronLeft className="h-4 w-4 shrink-0" aria-hidden="true" />
               </Link>
