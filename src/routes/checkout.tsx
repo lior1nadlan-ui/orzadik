@@ -19,6 +19,7 @@ import { placeOrder } from "@/lib/checkout.functions";
 import { createCardcomPayment } from "@/lib/cardcom.functions";
 import { saveAbandonedCart } from "@/lib/abandoned-cart.functions";
 import { Button } from "@/components/ui/button";
+import { EmptyCartSuggestions } from "@/components/cart/EmptyCartSuggestions";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -226,13 +227,21 @@ function CheckoutPage() {
   }, [form.email, form.name, items, subtotal, user?.id, saveCart]);
 
 
+  // Empty checkout: the same surface /cart already gives this state, not a
+  // thinner one. It was a bare sentence and a link — no heading at all, so this
+  // page rendered with NO <h1> (caught by a headless pass over every route),
+  // and no way onward except back to a 4,648-product shop with no steer.
+  // Meanwhile /cart, which the same shopper passed through one step earlier,
+  // already answered both. The difference was drift, not design.
   if (items.length === 0) {
     return (
       <div className="container mx-auto px-4 py-20">
         <div className="glass mx-auto max-w-lg px-6 py-14 text-center">
-          <p className="mb-4">העגלה ריקה.</p>
-          <Link to="/shop"><Button className="press">חזרה לחנות</Button></Link>
+          <h1 className="font-display text-page font-bold mb-3">העגלה ריקה</h1>
+          <p className="text-muted-foreground mb-6">אי אפשר להמשיך לתשלום בלי מוצרים בעגלה.</p>
+          <Button asChild className="press"><Link to="/shop">חזרה לחנות</Link></Button>
         </div>
+        <EmptyCartSuggestions />
       </div>
     );
   }

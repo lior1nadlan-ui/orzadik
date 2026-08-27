@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { subscribeNewsletter } from "@/lib/newsletter.functions";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,16 @@ import { toast } from "sonner";
 type NewsletterSource = "footer" | "checkout" | "account" | "article" | "home" | "category";
 
 export function NewsletterSignup({ source = "footer" }: { source?: NewsletterSource } = {}) {
+  // The id is GENERATED, not the literal "newsletter-email" it used to be.
+  // This component renders TWICE on the homepage — once in the footer
+  // (SiteHeader.tsx) and once in the club section (routes/index.tsx) — so a
+  // hard-coded id produced two elements sharing one id on the site's most
+  // visited page. `htmlFor` resolves to the FIRST match in the document, so
+  // tapping the footer form's label moved focus to the club section's input,
+  // hundreds of pixels up the page. Measured in a headless browser, not
+  // theorised. useId() is SSR-safe: React emits the same value on the server
+  // and the client, so this does not reintroduce a hydration mismatch.
+  const emailId = useId();
   const subscribe = useServerFn(subscribeNewsletter);
   const [email, setEmail] = useState("");
   const [website, setWebsite] = useState(""); // honeypot
@@ -56,11 +66,11 @@ export function NewsletterSignup({ source = "footer" }: { source?: NewsletterSou
   return (
     <form onSubmit={onSubmit} className="space-y-2">
       <div className="flex gap-2">
-        <label htmlFor="newsletter-email" className="sr-only">
+        <label htmlFor={emailId} className="sr-only">
           כתובת דוא"ל להרשמה לרשימת התפוצה
         </label>
         <Input
-          id="newsletter-email"
+          id={emailId}
           type="email"
           required
           autoComplete="email"

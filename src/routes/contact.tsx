@@ -181,7 +181,7 @@ function ContactPage() {
               בהתאם לחוק הגנת הצרכן — בהודעה בדוא"ל{" "}
               <a
                 href={`mailto:${BUSINESS.email}`}
-                className="text-accent underline underline-offset-4 [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-strong"
+                className="inline-block py-1.5 -my-1.5 text-accent underline underline-offset-4 [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-strong"
               >
                 {BUSINESS.email}
               </a>{" "}
@@ -189,7 +189,7 @@ function ContactPage() {
               והחריגים (כגון פריטים שהותאמו אישית) — ראו את{" "}
               <Link
                 to="/terms"
-                className="text-accent underline underline-offset-4 [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-strong"
+                className="inline-block py-1.5 -my-1.5 text-accent underline underline-offset-4 [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-strong"
               >
                 התקנון ותנאי השימוש
               </Link>

@@ -215,13 +215,13 @@ function AboutPage() {
                   href={GOOGLE_PLACE_URL}
                   target="_blank"
                   rel="noopener"
-                  className="text-sm text-accent underline underline-offset-4 transition-colors duration-200 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-strong"
+                  className="inline-block py-1.5 -my-1.5 text-sm text-accent underline underline-offset-4 transition-colors duration-200 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-strong"
                 >
                   הפרופיל שלנו בגוגל מפות
                 </a>
                 <a
                   href={`tel:${BUSINESS.phone}`}
-                  className="text-sm text-accent underline underline-offset-4 transition-colors duration-200 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-strong"
+                  className="inline-block py-1.5 -my-1.5 text-sm text-accent underline underline-offset-4 transition-colors duration-200 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-strong"
                 >
                   {BUSINESS.phoneDisplay}
                 </a>
