@@ -3,7 +3,7 @@ import { useEffect } from "react";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import { CardSkeleton } from "@/components/Skeletons";
-import { Package, FolderTree, ShoppingBag, ShoppingCart, LayoutDashboard, Star, Users, Mail } from "lucide-react";
+import { Package, FolderTree, ShoppingBag, ShoppingCart, LayoutDashboard, Star, Users, Mail, Send, Store } from "lucide-react";
 
 export const Route = createFileRoute("/admin")({
   beforeLoad: async () => {
@@ -31,6 +31,9 @@ const items = [
   { to: "/admin/abandoned", label: "עגלות נטושות", icon: ShoppingCart },
   { to: "/admin/campaigns", label: "דיוור", icon: Mail },
   { to: "/admin/reviews", label: "חוות דעת", icon: Star },
+  // Reachable only by typing the URL until now — a settings screen nothing
+  // links to is a screen that does not exist.
+  { to: "/admin/telegram", label: "התראות", icon: Send },
 ];
 
 function AdminLayout() {
@@ -65,22 +68,40 @@ function AdminLayout() {
 
   return (
     <div className="container mx-auto px-4 py-6 grid lg:grid-cols-[220px_1fr] gap-6">
-      <aside className="space-y-1">
-        <div className="font-display text-lg font-bold mb-3 text-primary">פאנל ניהול</div>
+      {/* On a phone this was a stacked column of nine links: every admin screen
+          opened to a full height of navigation, and the actual content began
+          below the fold. Under lg it is now one horizontally scrollable row —
+          the whole panel is one thumb-swipe away and the page starts with the
+          page. From lg up it is the sidebar it always was, made sticky so the
+          nav does not scroll away down a long orders table. */}
+      <aside
+        className="-mx-4 flex gap-1 overflow-x-auto px-4 pb-2 lg:mx-0 lg:block lg:space-y-1 lg:overflow-visible lg:px-0 lg:pb-0 lg:sticky lg:top-24 lg:self-start"
+      >
+        <div className="mb-3 hidden font-display text-lg font-bold text-primary lg:block">
+          פאנל ניהול
+        </div>
         {items.map((it) => {
           const active = it.exact ? path === it.to : path.startsWith(it.to);
           return (
             <Link
               key={it.to}
               to={it.to}
-              className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors duration-160 ease-out ${
-                active ? "bg-primary text-primary-foreground" : "[@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"
+              className={`flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-3 py-2.5 text-sm transition-colors duration-160 ease-out lg:py-2 ${
+                active ? "bg-primary text-primary-foreground" : "bg-muted/50 lg:bg-transparent [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"
               }`}
             >
-              <it.icon className="h-4 w-4" /> {it.label}
+              <it.icon className="h-4 w-4 shrink-0" /> {it.label}
             </Link>
           );
         })}
+        {/* The panel had no way back to the shop — the owner had to edit the
+            URL to look at their own storefront. */}
+        <Link
+          to="/"
+          className="flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-3 py-2.5 text-sm text-muted-foreground transition-colors duration-160 ease-out lg:mt-4 lg:py-2 lg:border-t lg:rounded-none lg:pt-4 [@media(hover:hover)_and_(pointer:fine)]:hover:text-foreground"
+        >
+          <Store className="h-4 w-4 shrink-0" /> לחנות
+        </Link>
       </aside>
       <section>
         <Outlet />
