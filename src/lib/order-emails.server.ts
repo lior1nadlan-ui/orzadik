@@ -13,6 +13,7 @@ import {
 } from "@/lib/email.server";
 import { BUSINESS, CONSUMER_POLICY, sellerIdentityLine } from "@/lib/business";
 import { orderItemImageUrl } from "@/lib/order-item-photo";
+import { sendOrderTelegramAlert } from "@/lib/telegram.server";
 
 /**
  * Origin for image URLs in mail. Absolute, always: a mail client has no page to
@@ -105,6 +106,13 @@ export async function sendOrderConfirmationEmails(orderId: string): Promise<bool
     console.error(`[email] order ${orderId} not found — cannot send confirmation`);
     return false;
   }
+  // BEFORE the email-configuration guard, on purpose. The phone alert is the
+  // owner's fastest channel and must not be taken down by an expired Resend key
+  // — the early `return false` below would skip it entirely if it sat lower.
+  // Never throws, and its result is deliberately not part of this function's
+  // return value: that value latches the customer's §14ג(ב) receipt.
+  await sendOrderTelegramAlert(orderId, true);
+
   if (!isEmailConfigured()) {
     console.log("[email] not configured — skipping confirmation for order", order.order_number);
     return false;
@@ -228,6 +236,11 @@ export async function sendOrderConfirmationEmails(orderId: string): Promise<bool
  */
 export async function sendOrderCreatedOwnerAlert(orderId: string) {
   const ownerEmail = process.env.SHOP_OWNER_EMAIL;
+
+  // Same reasoning as in the paid path: above the guard, so the phone alert
+  // survives an email outage. This one is labelled "ממתינה לתשלום".
+  await sendOrderTelegramAlert(orderId, false);
+
   if (!ownerEmail || !isEmailConfigured()) return;
 
   const { data: order } = await supabaseAdmin
