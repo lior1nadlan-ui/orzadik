@@ -133,8 +133,26 @@ const NO_STORE_PREFIXES = [
  * for a few minutes and serves stale while revalidating), and no-store to
  * private pages. Never overrides a Cache-Control a route already set (e.g. the
  * sitemap), and only touches GET HTML responses.
+ *
+ * WHY THE STALE WINDOW IS SHORT, AND MUST STAY SHORT
+ * An HTML document here is NOT independent of the assets it names: it links
+ * /assets/styles-<hash>.css and the hashed route chunks, and a Workers Assets
+ * deploy serves ONLY the hashes in the version it just uploaded. The moment a
+ * deploy lands, every previous hash 404s.
+ *
+ * So a stale HTML document that outlives a deploy is a broken page — not a
+ * slightly old one. The stylesheet 404s, nothing else on the page fails
+ * loudly, and the visitor gets raw unstyled HTML: the skip link visible at the
+ * top, the nav collapsed into run-together text, the sr-only <h1> on screen.
+ * That is exactly what the owner photographed on 2026-08-26, on a day with
+ * four deploys inside three and a half hours against a 24-hour SWR window.
+ *
+ * `s-maxage` bounds the fresh window and `stale-while-revalidate` extends it;
+ * together they are how long a visitor can be handed HTML pointing at deleted
+ * files. Keep their SUM small. 86400 was chosen for a site nobody was
+ * deploying; it has been wrong since the deploy workflow went in.
  */
-function applyCachePolicy(request: Request, response: Response): Response {
+export function applyCachePolicy(request: Request, response: Response): Response {
   if (request.method !== "GET") return response;
   if (response.headers.has("Cache-Control")) return response;
   const ct = response.headers.get("Content-Type") ?? "";
@@ -147,7 +165,7 @@ function applyCachePolicy(request: Request, response: Response): Response {
     "Cache-Control",
     isPrivate
       ? "private, no-store"
-      : "public, max-age=0, s-maxage=300, stale-while-revalidate=86400",
+      : "public, max-age=0, s-maxage=300, stale-while-revalidate=60",
   );
   return new Response(response.body, {
     status: response.status,
