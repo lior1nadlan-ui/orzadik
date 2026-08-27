@@ -136,6 +136,29 @@ const NAV_LINK_CLS = `relative py-1 text-foreground
   [@media(hover:hover)_and_(pointer:fine)]:hover:after:scale-x-100`;
 
 // Plain text links (drawer, footer): a named colour transition, nothing else.
+// Footer list links, measured at 18px tall on a 390px phone with a 15px gap —
+// the smallest touch targets on the site, and there are seventeen of them.
+// They clear WCAG 2.2 SC 2.5.8 (AA) on the 24px spacing exception, so this is a
+// usability fix rather than a conformance one, and it is bought for free:
+// `py-1.5 -my-1.5` grows the hit area by 6px above and below while the negative
+// margin cancels the same 6px from the layout box, so every target goes 18px →
+// 30px. `inline-block` is what makes the padding count at all — vertical
+// padding on an inline element paints but does not enlarge the hit box.
+//
+// The list spacing moved with it, 2.5 → 4, and that pairing is not optional.
+// The rows sat 10px apart; growing each target 6px in both directions closed
+// that to -2px, and a re-measure caught ELEVEN adjacent pairs whose hit areas
+// now overlapped — a tap on the seam would land on the neighbouring link, which
+// is a worse bug than the small target it replaced. 16px of spacing restores a
+// 4px gap. The footer is ~40px taller as a result; that is the honest price of
+// targets you can actually hit, and it is paid once, below the fold.
+//
+// NOT applied to LINK_HOVER_CLS itself: that class is also used inline inside
+// running sentences (TrustBadges, the policy notes), where a block box would
+// break the line.
+const FOOT_LINK_CLS = `inline-block py-1.5 -my-1.5 transition-[color] duration-200 ease-out
+  [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent`;
+
 const LINK_HOVER_CLS = `transition-[color] duration-200 ease-out
   [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent`;
 
@@ -143,7 +166,14 @@ const LINK_HOVER_CLS = `transition-[color] duration-200 ease-out
 // so per the frequency rule they get press feedback and an INSTANT colour swap —
 // `.press` owns transition-property here (it is emitted after Tailwind's own
 // utilities), so pairing it with a colour transition would be a lie.
-const ICON_BTN_CLS = `inline-flex h-10 w-10 items-center justify-center rounded-full
+// 44x44, not 40x40. These five controls (menu, search, cart, favourites,
+// account) are the only navigation a phone gets, they sit on every page, and
+// they were measured at 40x40 in a headless browser. That clears WCAG 2.2
+// SC 2.5.8 (24px, AA) comfortably but sits under the 44px floor that both
+// Apple's HIG and Material set for a primary touch control — and under
+// SC 2.5.5 (AAA). The glyph inside stays h-5 w-5; only the hit area grew, so
+// nothing about the bar's density changes visually.
+const ICON_BTN_CLS = `inline-flex h-11 w-11 items-center justify-center rounded-full
   text-foreground press
   [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent`;
 
@@ -1223,39 +1253,39 @@ export function SiteFooter() {
           <div className="grid gap-10 md:grid-cols-3">
             <div className="text-center md:text-right">
               <div className="text-xs tracking-[0.35em] text-accent uppercase mb-4">קישורים</div>
-              <ul className="space-y-2.5 text-[15px] text-muted-foreground">
+              <ul className="space-y-4 text-[15px] text-muted-foreground">
                 <li>
-                  <Link to="/shop" className={LINK_HOVER_CLS}>
+                  <Link to="/shop" className={FOOT_LINK_CLS}>
                     כל המוצרים
                   </Link>
                 </li>
                 <li>
-                  <Link to="/categories" className={LINK_HOVER_CLS}>
+                  <Link to="/categories" className={FOOT_LINK_CLS}>
                     קטגוריות
                   </Link>
                 </li>
                 <li>
-                  <Link to="/articles" className={LINK_HOVER_CLS}>
+                  <Link to="/articles" className={FOOT_LINK_CLS}>
                     מדריכים ומאמרים
                   </Link>
                 </li>
                 <li>
-                  <Link to="/about" className={LINK_HOVER_CLS}>
+                  <Link to="/about" className={FOOT_LINK_CLS}>
                     אודות
                   </Link>
                 </li>
                 <li>
-                  <Link to="/club" className={LINK_HOVER_CLS}>
+                  <Link to="/club" className={FOOT_LINK_CLS}>
                     מועדון חברים
                   </Link>
                 </li>
                 <li>
-                  <Link to="/track" className={LINK_HOVER_CLS}>
+                  <Link to="/track" className={FOOT_LINK_CLS}>
                     מעקב הזמנה
                   </Link>
                 </li>
                 <li>
-                  <Link to="/contact" className={LINK_HOVER_CLS}>
+                  <Link to="/contact" className={FOOT_LINK_CLS}>
                     צור קשר
                   </Link>
                 </li>
@@ -1263,37 +1293,37 @@ export function SiteFooter() {
             </div>
             <div className="text-center">
               <div className="text-xs tracking-[0.35em] text-accent uppercase mb-4">תקנון האתר</div>
-              <ul className="space-y-2.5 text-[15px] text-muted-foreground">
+              <ul className="space-y-4 text-[15px] text-muted-foreground">
                 {/* Shipping/returns lead the column: they are what a first-time
                   buyer looks for, and each is a short summary of the matching
                   clause in the terms below. */}
                 <li>
-                  <Link to="/shipping" className={LINK_HOVER_CLS}>
+                  <Link to="/shipping" className={FOOT_LINK_CLS}>
                     משלוחים ואספקה
                   </Link>
                 </li>
                 <li>
-                  <Link to="/returns" className={LINK_HOVER_CLS}>
+                  <Link to="/returns" className={FOOT_LINK_CLS}>
                     ביטול והחזרות
                   </Link>
                 </li>
                 <li>
-                  <Link to="/privacy" className={LINK_HOVER_CLS}>
+                  <Link to="/privacy" className={FOOT_LINK_CLS}>
                     מדיניות פרטיות
                   </Link>
                 </li>
                 <li>
-                  <Link to="/accessibility" className={LINK_HOVER_CLS}>
+                  <Link to="/accessibility" className={FOOT_LINK_CLS}>
                     הצהרת נגישות
                   </Link>
                 </li>
                 <li>
-                  <Link to="/terms" className={LINK_HOVER_CLS}>
+                  <Link to="/terms" className={FOOT_LINK_CLS}>
                     תקנון ותנאי שימוש
                   </Link>
                 </li>
                 <li>
-                  <button onClick={openCookieSettings} className={LINK_HOVER_CLS}>
+                  <button onClick={openCookieSettings} className={FOOT_LINK_CLS}>
                     ניהול עוגיות
                   </button>
                 </li>
@@ -1314,12 +1344,19 @@ export function SiteFooter() {
                   {BUSINESS.legalId ? ` · ${BUSINESS.legalId}` : ""}
                 </div>
                 {BUSINESS.address && <div>{BUSINESS.address}</div>}
-                <div>
-                  <a href={`tel:${BUSINESS.phone}`} className={LINK_HOVER_CLS}>
+                {/* text-sm, a step up from the `text-xs` the rest of this
+                  colophon runs at. The phone number and the address are the
+                  only two CONVERSION elements in the footer — a shopper who
+                  wants to ask before buying taps one of them — and they were
+                  the smallest touch targets on the whole site at 14px tall.
+                  The legal identity lines around them are genuinely fine print
+                  and stay at text-xs. */}
+                <div className="text-sm">
+                  <a href={`tel:${BUSINESS.phone}`} className={FOOT_LINK_CLS}>
                     {BUSINESS.phoneDisplay}
                   </a>
                   {" · "}
-                  <a href={`mailto:${BUSINESS.email}`} className={LINK_HOVER_CLS}>
+                  <a href={`mailto:${BUSINESS.email}`} className={FOOT_LINK_CLS}>
                     {BUSINESS.email}
                   </a>
                 </div>
@@ -1352,7 +1389,7 @@ export function SiteFooter() {
                         href={p.url}
                         target="_blank"
                         rel="me noopener noreferrer"
-                        className={LINK_HOVER_CLS}
+                        className={FOOT_LINK_CLS}
                       >
                         {p.label}
                       </a>

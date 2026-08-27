@@ -21,8 +21,14 @@ export type BreadcrumbItemData = {
 // and a pointer-gated hover to --accent so touch devices never get a sticky
 // hover state. Passed to BreadcrumbLink so cn()/twMerge overrides the
 // primitive's default `hover:text-foreground` in one place.
+// `inline-block py-1.5 -my-1.5` for the same reason as the footer links: the
+// crumbs run at text-xs, so "בית" measured 16px tall on a phone — the smallest
+// remaining touch target on the site, and the one a shopper reaches for to get
+// back out of a category. The padding grows the hit area to ~28px; the matching
+// negative margin returns those pixels to the layout box, so the trail keeps its
+// height and its baseline alignment with the separators beside it.
 const LINK_CLS =
-  "transition-[color] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent";
+  "inline-block py-1.5 -my-1.5 transition-[color] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent";
 
 /**
  * RTL-correct breadcrumb trail built on the shadcn breadcrumb primitives.

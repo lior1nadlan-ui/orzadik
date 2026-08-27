@@ -979,7 +979,7 @@ function HomePage() {
             The header heights are MEASURED, not guessed, and there are three of
             them because SiteHeader has three shapes:
 
-              < lg   121px   club strip (two lines at 390px) + bar
+              < lg   125px   club strip (two lines at 390px) + bar
               lg-xl  125px   the nav row wraps to its own line
               2xl+    93px   the nav row un-wraps into the bar
 
@@ -992,7 +992,9 @@ function HomePage() {
             peek, while under-subtracting pushes the hero past the fold and
             brings back the exact bug this replaced. The phone figure is the one
             that moves — the club strip wraps to two lines at 390px and would
-            un-wrap if its copy were shortened.
+            un-wrap if its copy were shortened. It went 121px → 125px when the
+            header's icon controls grew to a 44px hit area; re-measure here
+            whenever SiteHeader's chrome changes, rather than assuming.
 
             This is deliberately CSS-only. Reading the real height with a
             ResizeObserver would never drift, but it cannot run before first
@@ -1001,7 +1003,7 @@ function HomePage() {
             costs more than the maintenance these three numbers ask for. */}
         <div
           aria-hidden="true"
-          className="relative block w-full h-[calc(100svh-121px-4.5rem)] min-h-[560px] overflow-hidden bg-cream lg:h-[calc(100svh-125px-5rem)] 2xl:h-[calc(100svh-93px-5rem)]"
+          className="relative block w-full h-[calc(100svh-125px-4.5rem)] min-h-[560px] overflow-hidden bg-cream lg:h-[calc(100svh-125px-5rem)] 2xl:h-[calc(100svh-93px-5rem)]"
         >
           {HERO_SLIDES.map((src, i) =>
             // Slide 0 renders always and is the LCP paint; the rest mount only
@@ -1232,10 +1234,18 @@ function HomePage() {
                 <Link to="/collection/$slug" params={{ slug: "chatan-kala" }} className={BTN_SOLID}>
                   לכל מתנות החתן והכלה
                 </Link>
+                {/* `inline-block py-1.5 -my-1.5`, here and on the two other
+                  text links on this page (the shop phone number, the Instagram
+                  handle): the padding grows the touch target from 16-20px tall
+                  to ~32px, and the matching negative margin gives the same
+                  6px back to the layout box, so nothing on the page moves.
+                  Vertical padding on a bare inline element paints without
+                  enlarging the hit box at all, which is why `inline-block`
+                  is doing the work rather than the padding alone. */}
                 <Link
                   to="/category/$slug"
                   params={{ slug: "chatan-kala" }}
-                  className="text-sm md:text-base text-accent underline underline-offset-4 transition-colors duration-200 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-strong"
+                  className="inline-block py-1.5 -my-1.5 text-sm md:text-base text-accent underline underline-offset-4 transition-colors duration-200 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-strong"
                 >
                   לכל מוצרי חתן וכלה
                 </Link>
@@ -1492,7 +1502,7 @@ function HomePage() {
               </a>
               <a
                 href={`tel:${BUSINESS.phone}`}
-                className="text-sm text-accent underline underline-offset-4 transition-colors duration-200 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-strong"
+                className="inline-block py-1.5 -my-1.5 text-sm text-accent underline underline-offset-4 transition-colors duration-200 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-strong"
               >
                 {BUSINESS.phoneDisplay}
               </a>
@@ -1702,7 +1712,7 @@ function HomePage() {
                 href={INSTAGRAM_URL}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-accent underline underline-offset-4 transition-[color] duration-200 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-strong"
+                className="inline-block py-1.5 -my-1.5 text-accent underline underline-offset-4 transition-[color] duration-200 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-strong"
               >
                 @or_zarua_latzadik
               </a>
