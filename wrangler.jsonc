@@ -17,6 +17,14 @@
     "SUPABASE_URL": "https://whtjslgrrfzehivrknuv.supabase.co",
     "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_iIXlA6UOH_jEMubtd2nW9A_bG9hPbaF",
     "APP_URL": "https://orzadik.com",
+    // Telegram alerts. The chat id is NOT a secret — it identifies a
+    // conversation and is useless without the bot token, which stays a Worker
+    // secret. It lives here rather than in the dashboard because `wrangler
+    // deploy` REPLACES the Worker's plain-text vars with whatever this file
+    // lists: a var added by hand in the dashboard survives until the next
+    // deploy and then silently disappears, taking the alerts with it. (Secrets
+    // are not touched by a deploy, which is why the token is safe there.)
+    "TELEGRAM_CHAT_ID": "7552125260",
   },
   // Scheduled jobs. Each expression below MUST have a matching key in the JOBS
   // map in src/nitro/cron.ts (Cloudflare hands the schedule back verbatim, so an
