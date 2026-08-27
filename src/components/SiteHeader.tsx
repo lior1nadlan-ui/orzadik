@@ -554,7 +554,27 @@ export function SiteHeader() {
           only band with slack in it: 80px of chrome around a 64px image.
           64px around a 48px logo keeps the same 8px of breathing room and takes
           16px off every route. */}
-          <div className="container mx-auto flex h-14 items-center justify-between px-4">
+          {/* WIDE SCREENS: measured at 1920 on the owner's own monitor.
+          The bar is `justify-between` inside a 1536px container, so the logo
+          pinned to one edge and the icon cluster to the other left ~1160px of
+          nothing between them — nine tenths of the bar was empty. Worse, the
+          nav row underneath was NOT in this container at all: it centred on the
+          full 1920 viewport while the bar centred on 1536, so neither end of
+          the two rows lined up with the other and the whole header read as
+          sloppy rather than airy.
+
+          Both are one fix: the nav moves INSIDE this container, and the
+          container wraps. Below 2xl the nav takes `w-full` and drops to its own
+          line exactly as before — but now bounded by the same edges as the
+          logo. At 2xl it un-wraps into the row and fills the void as the
+          middle column, which also takes the 44px nav row off every route.
+
+          WHY 2xl AND NOT xl: the nav is ~1030px of links. At 2xl (1536px) the
+          container leaves 1127px beside the logo and the icons, so it fits with
+          room to spare; at xl (1280px) only 871px, and it would wrap INSIDE the
+          bar — a two-line bar, which is worse than two clean rows. Measured,
+          not guessed; re-measure if CURATED_CATEGORIES grows. */}
+          <div className="container mx-auto flex min-h-14 flex-wrap items-center justify-between gap-x-6 px-4">
             {/* RTL start (RIGHT): the logo.
             Moved out of the centre at the owner's request. The three-column
             grid existed only to hold it there; with the mark on the leading
@@ -577,8 +597,12 @@ export function SiteHeader() {
               />
             </Link>
 
-            {/* RTL end (LEFT): every control, in one cluster. */}
-            <div className="flex items-center gap-1">
+            {/* RTL end (LEFT): every control, in one cluster.
+            `2xl:order-last` is what keeps it at the LEFT EDGE once the nav
+            joins this row. Without it all three children sit at order 0 and DOM
+            order wins, which put the icons between the logo and the nav — a
+            control cluster stranded in the middle of the bar. */}
+            <div className="flex items-center gap-1 2xl:order-last">
               <div className="flex items-center gap-1">
                 <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
                   <SheetTrigger asChild>
@@ -848,9 +872,8 @@ export function SiteHeader() {
                 )}
               </div>
             </div>
-          </div>
 
-          {/* Desktop nav row — the six deepest shelves with their depth (the full
+            {/* Desktop nav row — the six deepest shelves with their depth (the full
           102-category drawer stays behind the hamburger). Owner: swap items by
           editing CURATED_CATEGORIES above; every slug is a real category
           verified against the live REST API on the date recorded there.
@@ -858,42 +881,43 @@ export function SiteHeader() {
           five chrome links exceed the lg container on one line, and a row that
           wraps to two at 1024px and back to one at xl is a better trade than
           dropping a door. Gap tightens to 5 at lg for the same reason. */}
-          <nav
-            aria-label="ניווט ראשי"
-            className="hidden min-h-11 flex-wrap items-center justify-center gap-x-5 gap-y-1 py-1.5 text-[15px] lg:flex xl:gap-x-7"
-          >
-            <Link to="/shop" className={NAV_LINK_CLS}>
-              חנות
-            </Link>
-            {CURATED_CATEGORIES.map((c) => (
-              <Link
-                key={c.slug}
-                to="/category/$slug"
-                params={{ slug: c.slug }}
-                className={NAV_LINK_CLS}
-              >
-                {c.label}
-                <span className={NAV_COUNT_CLS}>{c.count}</span>
+            <nav
+              aria-label="ניווט ראשי"
+              className="order-last hidden min-h-11 w-full flex-wrap items-center justify-center gap-x-5 gap-y-1 py-1.5 text-[15px] lg:flex xl:gap-x-7 2xl:order-none 2xl:w-auto 2xl:min-h-0 2xl:flex-1 2xl:flex-nowrap 2xl:gap-x-5 2xl:py-0"
+            >
+              <Link to="/shop" className={NAV_LINK_CLS}>
+                חנות
               </Link>
-            ))}
-            <Link to="/categories" className={NAV_LINK_CLS}>
-              כל הקטגוריות
-            </Link>
-            {/* Secondary group — a discovery entry plus the informational
+              {CURATED_CATEGORIES.map((c) => (
+                <Link
+                  key={c.slug}
+                  to="/category/$slug"
+                  params={{ slug: c.slug }}
+                  className={NAV_LINK_CLS}
+                >
+                  {c.label}
+                  <span className={NAV_COUNT_CLS}>{c.count}</span>
+                </Link>
+              ))}
+              <Link to="/categories" className={NAV_LINK_CLS}>
+                כל הקטגוריות
+              </Link>
+              {/* Secondary group — a discovery entry plus the informational
             destinations that only lived in the drawer/footer before. A hairline
             divider sets them off from the curated shopping links so the row
             reads as two clusters. "מתנות לפי אירוע" now opens the seven
             /collection/ hubs directly instead of bouncing through /categories —
             see OccasionMenu for why that matters and why it is a <details>. */}
-            <span aria-hidden="true" className="h-4 w-px bg-border" />
-            <OccasionMenu />
-            <Link to="/articles" className={NAV_LINK_CLS}>
-              מדריכים
-            </Link>
-            <Link to="/about" className={NAV_LINK_CLS}>
-              אודות
-            </Link>
-          </nav>
+              <span aria-hidden="true" className="h-4 w-px bg-border" />
+              <OccasionMenu />
+              <Link to="/articles" className={NAV_LINK_CLS}>
+                מדריכים
+              </Link>
+              <Link to="/about" className={NAV_LINK_CLS}>
+                אודות
+              </Link>
+            </nav>
+          </div>
 
           {/* Bottom edge: full-width gold hairline */}
           <div
