@@ -76,3 +76,30 @@ describe("hero slides ship every file their srcSet names", () => {
     expect(srcset).toContain(slides[0]);
   });
 });
+
+// §4.5 of the accessibility statement DECLARES the carousel's interval to the
+// public. It carried "כל 5 שניות" while the homepage had already moved to 3 —
+// a published declaration under תקנות שוויון זכויות שאינה מתארת את האתר. Both
+// surfaces now read src/lib/hero-timing.ts; these tests fail if either goes
+// back to a literal.
+describe("hero timing is declared once", () => {
+  const A11Y = "src/routes/accessibility.tsx";
+
+  it("the accessibility statement reads the interval from the shared constant", () => {
+    const src = readFileSync(A11Y, "utf8");
+    expect(src).toContain("HERO_SLIDE_INTERVAL_SECONDS");
+    expect(
+      src.match(/מתחלפת בהעברה רכה כל\s*\d/),
+      "§4.5 must not restate the interval as a literal",
+    ).toBeNull();
+  });
+
+  it("the homepage advances on the shared constant, not a literal", () => {
+    const src = readFileSync(ROUTE, "utf8");
+    expect(src).toContain("HERO_SLIDE_INTERVAL_MS");
+    expect(
+      src.match(/setHeroSlide[\s\S]{0,120}?\),\s*\d{3,}\s*\)/),
+      "the hero interval must come from hero-timing.ts",
+    ).toBeNull();
+  });
+});

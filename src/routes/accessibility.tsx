@@ -1,5 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { BUSINESS, LEGAL_LAST_UPDATED } from "@/lib/business";
+// The interval is DECLARED here, so it is read from the same constant the
+// homepage carousel runs on rather than restated as prose that can drift.
+import { HERO_SLIDE_INTERVAL_SECONDS } from "@/lib/hero-timing";
 
 // Stable anchor ids for each section, single-sourced here so the table of
 // contents and the section headings can never drift: the TOC renders from this
@@ -137,7 +140,11 @@ function AccessibilityPage() {
         <h3 className="font-display text-lg mt-4 mb-2">4.5 מולטימדיה וזמן</h3>
         <ul>
           <li>סרטוני הרקע באתר הם דקורטיביים ומושתקים לחלוטין, ואינם מופעלים כאשר מוגדרת במערכת ההפעלה העדפת הפחתת תנועה.</li>
-          <li>מצגת התמונות בראש דף הבית דקורטיבית, מוסתרת מקוראי מסך, ומתחלפת בהעברה רכה כל 5 שניות. כאשר מוגדרת העדפת הפחתת תנועה היא אינה מתחלפת כלל ומוצגת תמונה אחת בלבד.</li>
+          <li>
+            מצגת התמונות בראש דף הבית דקורטיבית, מוסתרת מקוראי מסך, ומתחלפת בהעברה רכה כל{" "}
+            {HERO_SLIDE_INTERVAL_SECONDS} שניות. כאשר מוגדרת העדפת הפחתת תנועה היא אינה מתחלפת כלל
+            ומוצגת תמונה אחת בלבד.
+          </li>
           <li>אין הפעלה אוטומטית של אודיו או וידאו עם סאונד.</li>
           <li>אנימציות לא חיוניות מצומצמות ומכבדות את הגדרת prefers-reduced-motion.</li>
           <li>אין תוכן מהבהב מעל 3 פעמים בשנייה (למניעת התקפי אפילפסיה).</li>
