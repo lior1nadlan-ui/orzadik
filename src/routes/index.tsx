@@ -387,10 +387,21 @@ export const Route = createFileRoute("/")({
         // only href makes the browser fetch the full 1536w frame, and then the
         // element's own srcSet picks the 768w rendition on a phone — two
         // downloads for one LCP paint, which is worse than no preload at all.
-        imagesrcset:
+        //
+        // CAMELCASE, and that is not cosmetic. TanStack's head() hands these to
+        // React as <link> PROPS, and React's prop names for this element are
+        // imageSrcSet / imageSizes / fetchPriority — it renders them to the
+        // lowercase HTML attributes itself. Spelled lowercase, React logged
+        // three "Invalid DOM property" warnings on every single homepage render
+        // (caught in a headless pass over 17 routes; they were the ONLY
+        // app-level console output on the whole site). The attributes happened
+        // to survive to the HTML anyway, so nothing was visibly broken — which
+        // is precisely why it sat there: a permanent warning nobody reads is
+        // where a real error goes to hide.
+        imageSrcSet:
           "/product-photos/drive-2026-08/photo-2026-08-16-17-39-57-768w.webp 768w, /product-photos/drive-2026-08/photo-2026-08-16-17-39-57-1024w.webp 1024w, /product-photos/drive-2026-08/photo-2026-08-16-17-39-57.webp 1536w",
-        imagesizes: "100vw",
-        fetchpriority: "high",
+        imageSizes: "100vw",
+        fetchPriority: "high",
       },
     ],
     scripts: [
