@@ -9,10 +9,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { requireAdmin } from "@/lib/admin-authz.server";
-import {
-  sendOrderShippedEmail,
-  sendOrderConfirmationEmails,
-} from "@/lib/order-emails.server";
+import { sendOrderShippedEmail, sendOrderConfirmationEmails } from "@/lib/order-emails.server";
+import { ORDER_ITEM_PRODUCT_JOIN } from "@/lib/order-item-photo";
 
 const PAGE_SIZE = 25;
 // PostgREST caps unbounded selects at 1000 — the same silent cap that hid 79%
@@ -21,7 +19,10 @@ const DB_PAGE = 1000;
 
 /** Escape PostgREST .or()/.ilike reserved characters in user search input. */
 function sanitizeTerm(raw: string): string {
-  return raw.replace(/[,()%\\]/g, " ").replace(/\s+/g, " ").trim();
+  return raw
+    .replace(/[,()%\\]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 /** CSV field escaping shared by the export functions. */
@@ -180,7 +181,9 @@ export const getDashboardStats = createServerFn({ method: "POST" }).handler(asyn
   // only names and amounts are returned to the widget.
   const byCustomer = new Map<string, { name: string; orders: number; revenue: number }>();
   for (const o of paid) {
-    const key = String(o.customer_email ?? "").trim().toLowerCase();
+    const key = String(o.customer_email ?? "")
+      .trim()
+      .toLowerCase();
     if (!key) continue;
     const cur = byCustomer.get(key) ?? { name: o.customer_name, orders: 0, revenue: 0 };
     cur.orders += 1;
@@ -367,9 +370,7 @@ export const getActionQueue = createServerFn({ method: "POST" }).handler(async (
         );
       } else {
         const d = Math.floor((now - since) / DAY);
-        rows.push(
-          rowFor("ready_to_ship", sinceIso, `שולם ומחכה לאריזה ומשלוח — כבר ${d} ימים 📦`),
-        );
+        rows.push(rowFor("ready_to_ship", sinceIso, `שולם ומחכה לאריזה ומשלוח — כבר ${d} ימים 📦`));
       }
       continue;
     }
@@ -427,7 +428,15 @@ export const getActionQueue = createServerFn({ method: "POST" }).handler(async (
       // abandoned_carts stores no phone — borrow the freshest one from orders
       // (one query for the whole batch), mirroring listAbandonedCarts.
       const emails = [
-        ...new Set(carts.map((c) => String(c.email ?? "").trim().toLowerCase()).filter(Boolean)),
+        ...new Set(
+          carts
+            .map((c) =>
+              String(c.email ?? "")
+                .trim()
+                .toLowerCase(),
+            )
+            .filter(Boolean),
+        ),
       ];
       const phoneByEmail = new Map<string, string>();
       if (emails.length > 0) {
@@ -440,7 +449,9 @@ export const getActionQueue = createServerFn({ method: "POST" }).handler(async (
           console.error("[getActionQueue] cart phones:", pErr);
         } else {
           for (const r of orderRows ?? []) {
-            const key = String(r.customer_email ?? "").trim().toLowerCase();
+            const key = String(r.customer_email ?? "")
+              .trim()
+              .toLowerCase();
             if (key && r.customer_phone && !phoneByEmail.has(key)) {
               phoneByEmail.set(key, r.customer_phone);
             }
@@ -448,7 +459,9 @@ export const getActionQueue = createServerFn({ method: "POST" }).handler(async (
         }
       }
       for (const c of carts) {
-        const key = String(c.email ?? "").trim().toLowerCase();
+        const key = String(c.email ?? "")
+          .trim()
+          .toLowerCase();
         rows.push({
           id: `recover_cart:${c.id}:${today}`,
           type: "recover_cart",
@@ -468,8 +481,7 @@ export const getActionQueue = createServerFn({ method: "POST" }).handler(async (
   // Order by priority; within a tier the longest-waiting action floats up.
   rows.sort(
     (a, b) =>
-      b.priority - a.priority ||
-      new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+      b.priority - a.priority || new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
   );
   return rows.slice(0, QUEUE_CAP);
 });
@@ -502,7 +514,13 @@ export const listOrdersPaged = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) => OrdersFilterSchema.parse(i))
   .handler(async ({ data: f }) => {
     await requireAdmin();
-    let query = supabaseAdmin.from("orders").select("*, order_items(*)", { count: "exact" });
+    // The product join is what lets the order drawer show a thumbnail per line.
+    // The owner could not tell a ₪197 challah cover from a ₪243 one by name
+    // alone on a thirteen-item order; ORDER_ITEM_PRODUCT_JOIN is shared with the
+    // confirmation email so the two surfaces cannot show different pictures.
+    let query = supabaseAdmin
+      .from("orders")
+      .select(`*, order_items(*, ${ORDER_ITEM_PRODUCT_JOIN})`, { count: "exact" });
     query = applyOrderFilters(query, f);
     const from = f.page * PAGE_SIZE;
     const { data, error, count } = await query
@@ -521,15 +539,13 @@ export const exportOrdersCsv = createServerFn({ method: "POST" })
     await requireAdmin();
     const rows: any[] = [];
     for (let from = 0; ; from += DB_PAGE) {
-      let query = supabaseAdmin
-        .from("orders")
-        .select(
-          // variant_label + custom_text are in the select because the CSV is the
-          // sheet the owner packs and engraves from. Without them the export said
-          // "טלית x1" for a line whose whole value is the size and the wording —
-          // the two fields that make the order non-returnable once produced.
-          "order_number, created_at, customer_name, customer_phone, customer_email, customer_address, customer_city, subtotal, shipping, total, status, payment_status, tracking_number, shipping_carrier, notes, is_gift, gift_note, gift_wrap, order_items(product_name, quantity, line_total, variant_label, custom_text)",
-        );
+      let query = supabaseAdmin.from("orders").select(
+        // variant_label + custom_text are in the select because the CSV is the
+        // sheet the owner packs and engraves from. Without them the export said
+        // "טלית x1" for a line whose whole value is the size and the wording —
+        // the two fields that make the order non-returnable once produced.
+        "order_number, created_at, customer_name, customer_phone, customer_email, customer_address, customer_city, subtotal, shipping, total, status, payment_status, tracking_number, shipping_carrier, notes, is_gift, gift_note, gift_wrap, order_items(product_name, quantity, line_total, variant_label, custom_text)",
+      );
       query = applyOrderFilters(query, f);
       const { data, error } = await query
         .order("created_at", { ascending: false })
@@ -540,18 +556,42 @@ export const exportOrdersCsv = createServerFn({ method: "POST" })
     }
 
     const header = [
-      "מספר הזמנה", "תאריך", "לקוח", "טלפון", "אימייל", "כתובת", "עיר",
-      "ביניים", "משלוח", 'סה"כ', "סטטוס", "תשלום", "מעקב", "חברת שילוח", "פריטים", "הערות",
-      "מתנה", "הקדשה", "עטיפה",
+      "מספר הזמנה",
+      "תאריך",
+      "לקוח",
+      "טלפון",
+      "אימייל",
+      "כתובת",
+      "עיר",
+      "ביניים",
+      "משלוח",
+      'סה"כ',
+      "סטטוס",
+      "תשלום",
+      "מעקב",
+      "חברת שילוח",
+      "פריטים",
+      "הערות",
+      "מתנה",
+      "הקדשה",
+      "עטיפה",
     ];
     const lines = rows.map((o) =>
       [
         o.order_number,
         new Date(o.created_at).toLocaleString("he-IL"),
-        o.customer_name, o.customer_phone, o.customer_email,
-        o.customer_address, o.customer_city ?? "",
-        o.subtotal, o.shipping, o.total, o.status, o.payment_status,
-        o.tracking_number ?? "", o.shipping_carrier ?? "",
+        o.customer_name,
+        o.customer_phone,
+        o.customer_email,
+        o.customer_address,
+        o.customer_city ?? "",
+        o.subtotal,
+        o.shipping,
+        o.total,
+        o.status,
+        o.payment_status,
+        o.tracking_number ?? "",
+        o.shipping_carrier ?? "",
         (o.order_items ?? [])
           .map((it: any) =>
             [
@@ -567,7 +607,9 @@ export const exportOrdersCsv = createServerFn({ method: "POST" })
         o.is_gift ? "כן" : "לא",
         o.gift_note ?? "",
         o.gift_wrap ? "כן" : "לא",
-      ].map(csvEsc).join(","),
+      ]
+        .map(csvEsc)
+        .join(","),
     );
     // BOM so Excel opens Hebrew UTF-8 correctly.
     return { csv: "﻿" + [header.join(","), ...lines].join("\r\n"), count: rows.length };
@@ -684,11 +726,18 @@ export function aggregateCustomers(
 ) {
   const byEmail = new Map<string, any>();
   for (const o of orders) {
-    const key = String(o.customer_email ?? "").trim().toLowerCase();
+    const key = String(o.customer_email ?? "")
+      .trim()
+      .toLowerCase();
     if (!key) continue;
     const cur = byEmail.get(key) ?? {
-      email: key, name: o.customer_name, phone: o.customer_phone,
-      orders: 0, paidOrders: 0, ltv: 0, lastOrderAt: o.created_at,
+      email: key,
+      name: o.customer_name,
+      phone: o.customer_phone,
+      orders: 0,
+      paidOrders: 0,
+      ltv: 0,
+      lastOrderAt: o.created_at,
       contactConsent: false,
     };
     cur.orders += 1;
@@ -719,7 +768,9 @@ export function aggregateCustomers(
     rows = rows.filter(
       (c) =>
         c.email.includes(term) ||
-        String(c.name ?? "").toLowerCase().includes(term) ||
+        String(c.name ?? "")
+          .toLowerCase()
+          .includes(term) ||
         String(c.phone ?? "").includes(term),
     );
   }
@@ -775,14 +826,20 @@ export const exportCustomersCsv = createServerFn({ method: "POST" })
     ];
     const lines = rows.map((c) =>
       [
-        c.name, c.email, c.phone,
-        c.orders, c.paidOrders, c.ltv,
+        c.name,
+        c.email,
+        c.phone,
+        c.orders,
+        c.paidOrders,
+        c.ltv,
         new Date(c.lastOrderAt).toLocaleString("he-IL"),
         c.daysSinceLastOrder ?? "",
         SEGMENT_HE[c.segment as CustomerSegment],
         c.dormant ? "כן" : "לא",
         c.contactConsent ? "כן" : "לא",
-      ].map(csvEsc).join(","),
+      ]
+        .map(csvEsc)
+        .join(","),
     );
     // BOM so Excel opens Hebrew UTF-8 correctly.
     return { csv: "﻿" + [header.join(","), ...lines].join("\r\n"), count: rows.length };
@@ -820,7 +877,12 @@ export const addCustomerNote = createServerFn({ method: "POST" })
     z
       .object({
         email: z.string().email(),
-        note: z.string().trim().min(1).max(2000).transform((v) => v.replace(/<[^>]*>/g, "")),
+        note: z
+          .string()
+          .trim()
+          .min(1)
+          .max(2000)
+          .transform((v) => v.replace(/<[^>]*>/g, "")),
       })
       .parse(i),
   )
@@ -913,7 +975,9 @@ export const listAbandonedCarts = createServerFn({ method: "POST" })
         console.error("[listAbandonedCarts] phones:", pErr);
       } else {
         for (const o of orderRows ?? []) {
-          const key = String(o.customer_email ?? "").trim().toLowerCase();
+          const key = String(o.customer_email ?? "")
+            .trim()
+            .toLowerCase();
           if (key && o.customer_phone && !phoneByEmail.has(key)) {
             phoneByEmail.set(key, o.customer_phone);
           }
@@ -1069,7 +1133,7 @@ export const resendOrderConfirmation = createServerFn({ method: "POST" })
       // Leave the stamp exactly as it was: reporting a send that did not happen
       // is the failure mode this whole change exists to remove.
       throw new Error(
-        "שליחת האישור נכשלה. בדקו שכתובת הדוא\"ל של הלקוח תקינה ושהגדרות הדוא\"ל של האתר פעילות.",
+        'שליחת האישור נכשלה. בדקו שכתובת הדוא"ל של הלקוח תקינה ושהגדרות הדוא"ל של האתר פעילות.',
       );
     }
     const { error: stampErr } = await supabaseAdmin
@@ -1164,7 +1228,8 @@ export async function restoreOrderStock(orderId: string): Promise<void> {
     // negative, clamped historically) product stays out-of-stock.
     if (restored > 0) patch.stock_status = "instock";
     const { error: upErr } = await supabaseAdmin.from("products").update(patch).eq("id", p.id);
-    if (upErr) console.error("[restoreOrderStock] update product failed for order:", orderId, upErr);
+    if (upErr)
+      console.error("[restoreOrderStock] update product failed for order:", orderId, upErr);
   }
 }
 
@@ -1178,14 +1243,7 @@ export const updateOrderStatus = createServerFn({ method: "POST" })
     z
       .object({
         order_id: z.string().uuid(),
-        status: z.enum([
-          "pending",
-          "processing",
-          "shipped",
-          "completed",
-          "cancelled",
-          "refunded",
-        ]),
+        status: z.enum(["pending", "processing", "shipped", "completed", "cancelled", "refunded"]),
       })
       .parse(i),
   )
