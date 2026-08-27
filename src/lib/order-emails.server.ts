@@ -3,22 +3,56 @@
 // isn't configured yet, so the checkout flow never breaks.
 
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { sendEmail, emailShell, emailButton, esc, ils, isEmailConfigured } from "@/lib/email.server";
+import {
+  sendEmail,
+  emailShell,
+  emailButton,
+  esc,
+  ils,
+  isEmailConfigured,
+} from "@/lib/email.server";
 import { BUSINESS, CONSUMER_POLICY, sellerIdentityLine } from "@/lib/business";
+import { orderItemImageUrl } from "@/lib/order-item-photo";
+
+/**
+ * Origin for image URLs in mail. Absolute, always: a mail client has no page to
+ * resolve a root-relative src against.
+ */
+const MAIL_ORIGIN = process.env.APP_URL || "https://orzadik.com";
+
+/** 56px on a ~600px email body — big enough to recognise a challah cover from a
+ *  kiddush cup at a glance, small enough that thirteen of them do not turn a
+ *  receipt into a heavy message. Requested at 2x for retina. */
+const MAIL_THUMB_PX = 56;
 
 function itemsRows(items: any[]): string {
   return items
-    .map(
-      (it) => `
+    .map((it) => {
+      const img = orderItemImageUrl(it, MAIL_ORIGIN, MAIL_THUMB_PX * 2);
+      // A NESTED TABLE, not flex or a grid. Outlook renders through Word, which
+      // supports neither; a two-cell table is the one layout every mail client
+      // since the 1990s agrees on. width/height as ATTRIBUTES too, not only in
+      // the style — Outlook ignores CSS dimensions on images, and without them
+      // a 112px source paints at 112px and wrecks the row.
+      const thumb = img
+        ? `<td width="${MAIL_THUMB_PX}" style="padding:8px 10px 8px 0;border-bottom:1px solid #eee;vertical-align:top;">
+             <img src="${esc(img)}" alt="" width="${MAIL_THUMB_PX}" height="${MAIL_THUMB_PX}"
+                  style="display:block;width:${MAIL_THUMB_PX}px;height:${MAIL_THUMB_PX}px;object-fit:contain;border:0;border-radius:6px;background:#F7F4EC;" />
+           </td>`
+        : // The cell is emitted even with no picture so the price column stays on
+          // the same axis down the whole table. A ragged column reads as broken.
+          `<td width="${MAIL_THUMB_PX}" style="padding:8px 10px 8px 0;border-bottom:1px solid #eee;"></td>`;
+      return `
       <tr>
-        <td style="padding:8px 0;border-bottom:1px solid #eee;">
+        ${thumb}
+        <td style="padding:8px 0;border-bottom:1px solid #eee;vertical-align:top;">
           ${esc(it.product_name)} × ${esc(it.quantity)}
           ${it.variant_label ? `<div style="color:#A8862A;font-size:12px;">גודל: ${esc(it.variant_label)}</div>` : ""}
           ${it.custom_text ? `<div style="color:#A8862A;font-size:12px;">✦ ${esc(it.custom_text)}</div>` : ""}
         </td>
-        <td style="padding:8px 0;border-bottom:1px solid #eee;text-align:left;white-space:nowrap;">${ils(it.line_total)}</td>
-      </tr>`,
-    )
+        <td style="padding:8px 0;border-bottom:1px solid #eee;text-align:left;white-space:nowrap;vertical-align:top;">${ils(it.line_total)}</td>
+      </tr>`;
+    })
     .join("");
 }
 
@@ -63,7 +97,7 @@ export async function sendOrderConfirmationEmails(orderId: string): Promise<bool
   const { data: order } = await supabaseAdmin
     .from("orders")
     .select(
-      "id, order_number, customer_name, customer_email, customer_phone, customer_address, customer_city, subtotal, shipping, total, is_gift, gift_note, gift_wrap, order_items(product_name, quantity, line_total, variant_label, custom_text)",
+      "id, order_number, customer_name, customer_email, customer_phone, customer_address, customer_city, subtotal, shipping, total, is_gift, gift_note, gift_wrap, order_items(product_name, quantity, line_total, variant_label, custom_text, products(slug, thumbnail_url))",
     )
     .eq("id", orderId)
     .single();
@@ -100,7 +134,8 @@ export async function sendOrderConfirmationEmails(orderId: string): Promise<bool
     </table>`;
 
   // 1) Customer receipt
-  const customerHtml = emailShell(`
+  const customerHtml = emailShell(
+    `
     <h1 style="font-size:20px;margin:0 0 8px;">תודה על הזמנתך, ${esc(order.customer_name)}! 🎉</h1>
     <p class="oz-muted" style="font-size:14px;color:#555;margin:0 0 16px;">
       קיבלנו את התשלום עבור הזמנה <strong>${esc(order.order_number)}</strong>. נעדכן אותך בהמשך על מצב המשלוח.
@@ -134,7 +169,9 @@ export async function sendOrderConfirmationEmails(orderId: string): Promise<bool
         מוגבלים לביטול לפי החוק.
       </div>
     </div>
-  `, `אישור הזמנה ${order.order_number} — פירוט הפריטים והסכום ששולם.`);
+  `,
+    `אישור הזמנה ${order.order_number} — פירוט הפריטים והסכום ששולם.`,
+  );
   const customerSent = await sendEmail({
     to: order.customer_email,
     subject: `אישור הזמנה ${order.order_number} — אור זרוע לצדיק`,
@@ -144,7 +181,8 @@ export async function sendOrderConfirmationEmails(orderId: string): Promise<bool
 
   // 2) Shop-owner alert
   if (ownerEmail) {
-    const ownerHtml = emailShell(`
+    const ownerHtml = emailShell(
+      `
       <h1 style="font-size:20px;margin:0 0 8px;">התקבלה הזמנה חדשה 🛒</h1>
       <p style="font-size:14px;color:#555;margin:0 0 12px;">הזמנה <strong>${esc(order.order_number)}</strong></p>
       ${giftBlock(order, true)}
@@ -156,7 +194,9 @@ export async function sendOrderConfirmationEmails(orderId: string): Promise<bool
       </table>
       <table style="width:100%;border-collapse:collapse;font-size:14px;">${rows}</table>
       ${totalsBlock}
-    `, `הזמנה ${order.order_number} מ${order.customer_name} — שולם ${ils(order.total)}.`);
+    `,
+      `הזמנה ${order.order_number} מ${order.customer_name} — שולם ${ils(order.total)}.`,
+    );
     await sendEmail({
       to: ownerEmail,
       subject: `הזמנה חדשה ${order.order_number} — ${order.customer_name}`,
@@ -193,14 +233,15 @@ export async function sendOrderCreatedOwnerAlert(orderId: string) {
   const { data: order } = await supabaseAdmin
     .from("orders")
     .select(
-      "order_number, customer_name, customer_email, customer_phone, customer_address, customer_city, notes, subtotal, shipping, total, is_gift, gift_note, gift_wrap, order_items(product_name, quantity, line_total, variant_label, custom_text)",
+      "order_number, customer_name, customer_email, customer_phone, customer_address, customer_city, notes, subtotal, shipping, total, is_gift, gift_note, gift_wrap, order_items(product_name, quantity, line_total, variant_label, custom_text, products(slug, thumbnail_url))",
     )
     .eq("id", orderId)
     .single();
   if (!order) return;
 
   const rows = itemsRows((order.order_items as any[]) ?? []);
-  const html = emailShell(`
+  const html = emailShell(
+    `
     <h1 style="font-size:20px;margin:0 0 8px;">הזמנה חדשה נוצרה 🕐</h1>
     <p style="font-size:14px;margin:0 0 12px;">
       הזמנה <strong>${esc(order.order_number)}</strong> —
@@ -218,7 +259,9 @@ export async function sendOrderCreatedOwnerAlert(orderId: string) {
     <table style="width:100%;border-collapse:collapse;font-size:14px;">${rows}</table>
     <table style="width:100%;font-size:14px;margin-top:12px;">
       <tr><td style="font-weight:bold;">סך הכל</td><td class="oz-gold" style="font-weight:bold;text-align:left;color:#A8862A;">${ils(order.total)}</td></tr>
-    </table>`, `הזמנה ${order.order_number} מ${order.customer_name} — ממתינה לתשלום.`);
+    </table>`,
+    `הזמנה ${order.order_number} מ${order.customer_name} — ממתינה לתשלום.`,
+  );
 
   await sendEmail({
     to: ownerEmail,
@@ -240,7 +283,7 @@ export async function sendOrderShippedEmail(orderId: string) {
   const { data: order } = await supabaseAdmin
     .from("orders")
     .select(
-      "order_number, customer_name, customer_email, customer_address, customer_city, tracking_number, shipping_carrier, is_gift, gift_note, gift_wrap, order_items(product_name, quantity, line_total, variant_label, custom_text)",
+      "order_number, customer_name, customer_email, customer_address, customer_city, tracking_number, shipping_carrier, is_gift, gift_note, gift_wrap, order_items(product_name, quantity, line_total, variant_label, custom_text, products(slug, thumbnail_url))",
     )
     .eq("id", orderId)
     .single();
@@ -254,7 +297,8 @@ export async function sendOrderShippedEmail(orderId: string) {
        </div>`
     : "";
 
-  const html = emailShell(`
+  const html = emailShell(
+    `
     <h1 style="font-size:20px;margin:0 0 8px;">ההזמנה שלך בדרך! 📦</h1>
     <p class="oz-muted" style="font-size:14px;color:#555;margin:0 0 16px;">
       שלום ${esc(order.customer_name)}, הזמנה <strong>${esc(order.order_number)}</strong> נמסרה למשלוח
@@ -266,9 +310,11 @@ export async function sendOrderShippedEmail(orderId: string) {
     ${emailButton("https://orzadik.com/track", "מעקב אחר ההזמנה")}
     <p class="oz-muted" style="font-size:13px;color:#666;margin-top:16px;text-align:center;">
       לשאלות על המשלוח אפשר להשיב למייל הזה ונשמח לעזור.
-    </p>`, order.tracking_number
+    </p>`,
+    order.tracking_number
       ? `הזמנה ${order.order_number} נשלחה — מספר מעקב ${order.tracking_number}.`
-      : `הזמנה ${order.order_number} נמסרה למשלוח.`);
+      : `הזמנה ${order.order_number} נמסרה למשלוח.`,
+  );
 
   // Return what sendEmail actually reported, not an unconditional true: the
   // admin toast reads this value and used to say "מייל נשלח ללקוח 📦" even when
@@ -281,6 +327,7 @@ export async function sendOrderShippedEmail(orderId: string) {
     replyTo: process.env.SHOP_OWNER_EMAIL,
   });
   if (sent) console.log("[email] shipped email sent for", order.order_number);
-  else console.error(`[email] HIGH: shipped email for order ${order.order_number} was NOT delivered.`);
+  else
+    console.error(`[email] HIGH: shipped email for order ${order.order_number} was NOT delivered.`);
   return sent;
 }

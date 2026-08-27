@@ -20,11 +20,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Download, Phone, Mail, MessageCircle, User, RefreshCw } from "lucide-react";
+import { orderItemImageUrl } from "@/lib/order-item-photo";
 
 export const Route = createFileRoute("/admin/orders")({
   // Deep-linkable filters: the dashboard KPIs/chips and the customer card link
   // here with concrete filter states.
-  validateSearch: (s: Record<string, unknown>): { q?: string; status?: string; payment?: string; days?: number } => ({
+  validateSearch: (
+    s: Record<string, unknown>,
+  ): { q?: string; status?: string; payment?: string; days?: number } => ({
     q: typeof s.q === "string" ? s.q : undefined,
     status: typeof s.status === "string" ? s.status : undefined,
     payment: typeof s.payment === "string" ? s.payment : undefined,
@@ -40,7 +43,12 @@ export const Route = createFileRoute("/admin/orders")({
 
 const STATUSES = ["pending", "processing", "shipped", "completed", "cancelled", "refunded"];
 const STATUS_HE: Record<string, string> = {
-  pending: "ממתינה", processing: "בטיפול", shipped: "נשלחה", completed: "הושלמה", cancelled: "בוטלה", refunded: "זוכתה",
+  pending: "ממתינה",
+  processing: "בטיפול",
+  shipped: "נשלחה",
+  completed: "הושלמה",
+  cancelled: "בוטלה",
+  refunded: "זוכתה",
 };
 // `failed` and `pending_charge` are both statuses the CardCom webhook can write.
 // Without them here they rendered as raw English tokens, and with no matching filter
@@ -91,7 +99,11 @@ function PaymentBadge({ status }: { status: string }) {
       : status === "refunded"
         ? "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300"
         : "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300";
-  return <span className={`text-[11px] rounded-full px-2 py-0.5 whitespace-nowrap ${cls}`}>{PAYMENT_HE[status] ?? status}</span>;
+  return (
+    <span className={`text-[11px] rounded-full px-2 py-0.5 whitespace-nowrap ${cls}`}>
+      {PAYMENT_HE[status] ?? status}
+    </span>
+  );
 }
 
 function AdminOrders() {
@@ -233,9 +245,15 @@ function AdminOrders() {
     setShipping(true);
     try {
       const r = await shipOrder({
-        data: { order_id: selected.id, tracking_number: tracking || undefined, carrier: carrier || undefined },
+        data: {
+          order_id: selected.id,
+          tracking_number: tracking || undefined,
+          carrier: carrier || undefined,
+        },
       });
-      toast.success(r.emailSent ? "סומנה כנשלחה ומייל נשלח ללקוח 📦" : "סומנה כנשלחה (מייל כבר נשלח בעבר)");
+      toast.success(
+        r.emailSent ? "סומנה כנשלחה ומייל נשלח ללקוח 📦" : "סומנה כנשלחה (מייל כבר נשלח בעבר)",
+      );
       setSelected(null);
       refresh();
     } catch (e: any) {
@@ -324,18 +342,34 @@ function AdminOrders() {
           onChange={(e) => setQ(e.target.value)}
           className="max-w-xs"
         />
-        <select value={status} onChange={(e) => setStatus(e.target.value)} className="rounded-md border bg-background px-3 py-2 text-sm">
+        <select
+          value={status}
+          onChange={(e) => setStatus(e.target.value)}
+          className="rounded-md border bg-background px-3 py-2 text-sm"
+        >
           <option value="">כל הסטטוסים</option>
-          {STATUSES.map((s) => <option key={s} value={s}>{STATUS_HE[s]}</option>)}
+          {STATUSES.map((s) => (
+            <option key={s} value={s}>
+              {STATUS_HE[s]}
+            </option>
+          ))}
         </select>
-        <select value={payment} onChange={(e) => setPayment(e.target.value)} className="rounded-md border bg-background px-3 py-2 text-sm">
+        <select
+          value={payment}
+          onChange={(e) => setPayment(e.target.value)}
+          className="rounded-md border bg-background px-3 py-2 text-sm"
+        >
           <option value="">כל התשלומים</option>
           <option value="paid">שולם</option>
           <option value="unpaid">לא שולם</option>
           <option value="refunded">זוכה</option>
           <option value="failed">נכשל</option>
         </select>
-        <select value={days} onChange={(e) => setDays(Number(e.target.value))} className="rounded-md border bg-background px-3 py-2 text-sm">
+        <select
+          value={days}
+          onChange={(e) => setDays(Number(e.target.value))}
+          className="rounded-md border bg-background px-3 py-2 text-sm"
+        >
           <option value={0}>כל הזמן</option>
           <option value={7}>7 ימים</option>
           <option value={30}>30 יום</option>
@@ -352,33 +386,73 @@ function AdminOrders() {
           strobe the whole table once a minute on every background poll. The
           !dataUpdatedAt clause keeps the very first mount dimmed, so an empty
           table never reads as an authoritative "אין הזמנות תואמות". */}
-      <div className={`rounded-lg border bg-card overflow-x-auto transition-opacity duration-200 ease-out ${isPlaceholderData || !dataUpdatedAt ? "opacity-60" : ""}`}>
+      <div
+        className={`rounded-lg border bg-card overflow-x-auto transition-opacity duration-200 ease-out ${isPlaceholderData || !dataUpdatedAt ? "opacity-60" : ""}`}
+      >
         <table className="w-full text-sm">
-          <thead className="bg-muted/50"><tr className="text-right">
-            <th className="p-3">מס׳</th><th className="p-3">לקוח</th><th className="p-3">תאריך</th>
-            <th className="p-3">סכום</th><th className="p-3">תשלום</th><th className="p-3">סטטוס</th><th></th>
-          </tr></thead>
+          <thead className="bg-muted/50">
+            <tr className="text-right">
+              <th className="p-3">מס׳</th>
+              <th className="p-3">לקוח</th>
+              <th className="p-3">תאריך</th>
+              <th className="p-3">סכום</th>
+              <th className="p-3">תשלום</th>
+              <th className="p-3">סטטוס</th>
+              <th></th>
+            </tr>
+          </thead>
           <tbody>
             {orders.length === 0 && (
-              <tr><td colSpan={7} className="p-8 text-center text-muted-foreground">אין הזמנות תואמות.</td></tr>
+              <tr>
+                <td colSpan={7} className="p-8 text-center text-muted-foreground">
+                  אין הזמנות תואמות.
+                </td>
+              </tr>
             )}
             {orders.map((o: any) => (
               <tr key={o.id} className={`border-t ${isNew(o) ? "bg-primary/5" : ""}`}>
                 <td className="p-3 font-mono text-xs">
                   {o.order_number}
-                  {o.is_gift && <span className="mr-1" title="מתנה — יש לארוז ולהדפיס הקדשה">🎁</span>}
-                  {isNew(o) && <span className="mr-1 text-[10px] text-primary font-sans font-semibold">חדש</span>}
+                  {o.is_gift && (
+                    <span className="mr-1" title="מתנה — יש לארוז ולהדפיס הקדשה">
+                      🎁
+                    </span>
+                  )}
+                  {isNew(o) && (
+                    <span className="mr-1 text-[10px] text-primary font-sans font-semibold">
+                      חדש
+                    </span>
+                  )}
                 </td>
-                <td className="p-3"><div>{o.customer_name}</div><div className="text-xs text-muted-foreground">{o.customer_phone}</div></td>
-                <td className="p-3 text-xs">{new Date(o.created_at).toLocaleDateString("he-IL")}</td>
-                <td className="p-3 font-bold">{formatILS(Number(o.total))}</td>
-                <td className="p-3"><PaymentBadge status={o.payment_status} /></td>
                 <td className="p-3">
-                  <select value={o.status} onChange={(e) => updateStatus(o, e.target.value)} className="rounded border bg-background px-2 py-1 text-xs">
-                    {STATUSES.map((s) => <option key={s} value={s}>{STATUS_HE[s]}</option>)}
+                  <div>{o.customer_name}</div>
+                  <div className="text-xs text-muted-foreground">{o.customer_phone}</div>
+                </td>
+                <td className="p-3 text-xs">
+                  {new Date(o.created_at).toLocaleDateString("he-IL")}
+                </td>
+                <td className="p-3 font-bold">{formatILS(Number(o.total))}</td>
+                <td className="p-3">
+                  <PaymentBadge status={o.payment_status} />
+                </td>
+                <td className="p-3">
+                  <select
+                    value={o.status}
+                    onChange={(e) => updateStatus(o, e.target.value)}
+                    className="rounded border bg-background px-2 py-1 text-xs"
+                  >
+                    {STATUSES.map((s) => (
+                      <option key={s} value={s}>
+                        {STATUS_HE[s]}
+                      </option>
+                    ))}
                   </select>
                 </td>
-                <td className="p-3"><Button size="sm" variant="outline" onClick={() => setSelected(o)}>פרטים</Button></td>
+                <td className="p-3">
+                  <Button size="sm" variant="outline" onClick={() => setSelected(o)}>
+                    פרטים
+                  </Button>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -388,9 +462,25 @@ function AdminOrders() {
       {/* Pagination */}
       {pages > 1 && (
         <div className="flex items-center justify-center gap-3 mt-4 text-sm">
-          <Button size="sm" variant="outline" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>הקודם</Button>
-          <span>עמוד {page + 1} מתוך {pages}</span>
-          <Button size="sm" variant="outline" disabled={page >= pages - 1} onClick={() => setPage((p) => p + 1)}>הבא</Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={page === 0}
+            onClick={() => setPage((p) => p - 1)}
+          >
+            הקודם
+          </Button>
+          <span>
+            עמוד {page + 1} מתוך {pages}
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={page >= pages - 1}
+            onClick={() => setPage((p) => p + 1)}
+          >
+            הבא
+          </Button>
         </div>
       )}
 
@@ -414,18 +504,37 @@ function AdminOrders() {
               <div className="space-y-3 text-sm">
                 <div className="flex flex-wrap items-center gap-2">
                   <strong>{selected.customer_name}</strong>
-                  <a href={`tel:${selected.customer_phone}`} className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted" title="חיוג">
+                  <a
+                    href={`tel:${selected.customer_phone}`}
+                    className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"
+                    title="חיוג"
+                  >
                     <Phone className="h-3 w-3" /> {selected.customer_phone}
                   </a>
-                  <a href={waForOrder(selected)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted text-emerald-700" title="WhatsApp — הודעה מוכנה לפי סטטוס ההזמנה">
+                  <a
+                    href={waForOrder(selected)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted text-emerald-700"
+                    title="WhatsApp — הודעה מוכנה לפי סטטוס ההזמנה"
+                  >
                     <MessageCircle className="h-3 w-3" /> וואטסאפ
                   </a>
-                  <a href={`mailto:${selected.customer_email}`} className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted" title="אימייל">
+                  <a
+                    href={`mailto:${selected.customer_email}`}
+                    className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"
+                    title="אימייל"
+                  >
                     <Mail className="h-3 w-3" /> {selected.customer_email}
                   </a>
                 </div>
-                <div>{selected.customer_address}{selected.customer_city ? `, ${selected.customer_city}` : ""}</div>
-                {selected.notes && <div className="text-muted-foreground">הערות: {selected.notes}</div>}
+                <div>
+                  {selected.customer_address}
+                  {selected.customer_city ? `, ${selected.customer_city}` : ""}
+                </div>
+                {selected.notes && (
+                  <div className="text-muted-foreground">הערות: {selected.notes}</div>
+                )}
 
                 {selected.is_gift && (
                   <div className="rounded-md hairline-gold bg-card px-3 py-2">
@@ -467,25 +576,71 @@ function AdminOrders() {
                       onChange={(e) => setNoteText(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && submitNote()}
                     />
-                    <Button size="sm" disabled={noteMutation.isPending || !noteText.trim()} onClick={submitNote}>
+                    <Button
+                      size="sm"
+                      disabled={noteMutation.isPending || !noteText.trim()}
+                      onClick={submitNote}
+                    >
                       {noteMutation.isPending ? "שומר..." : "שמור"}
                     </Button>
                   </div>
                 </div>
-                <div className="border-t pt-3 space-y-1">
-                  {selected.order_items.map((it: any) => (
-                    <div key={it.id} className="flex justify-between">
-                      <span>
-                        {it.product_name} × {it.quantity}
-                        {it.variant_label && <span className="text-xs text-muted-foreground"> · {it.variant_label}</span>}
-                        {it.custom_text && <span className="text-xs text-primary"> · ✦ {it.custom_text}</span>}
-                      </span>
-                      <span className="font-medium">{formatILS(Number(it.line_total))}</span>
-                    </div>
-                  ))}
+                {/* Each line carries its photograph. A thirteen-item order came
+                    in at ₪2,001 and the names alone could not answer "what did
+                    they actually buy" — two challah covers at ₪197 and ₪243 read
+                    as nearly the same string, and the picture separates them at
+                    a glance. Same resolver as the confirmation email, so the two
+                    can never disagree about which image belongs to a line.
+                    56px matches the email's thumbnail; the placeholder keeps the
+                    price column on one axis when a product has no photo. */}
+                <div className="border-t pt-3 space-y-2">
+                  {selected.order_items.map((it: any) => {
+                    // "" — a ROOT-RELATIVE path, not an absolute one, and not
+                    // window.location.origin: this component is server-rendered
+                    // and `window` does not exist there. The browser resolves
+                    // "/groom-sets/…" against the page it is already on, which
+                    // is exactly right here. Only the email needs an absolute
+                    // origin, because a mail client has no page to resolve from.
+                    const img = orderItemImageUrl(it, "", 112);
+                    return (
+                      <div key={it.id} className="flex items-start gap-3">
+                        {img ? (
+                          <img
+                            src={img}
+                            alt=""
+                            width={56}
+                            height={56}
+                            loading="lazy"
+                            className="h-14 w-14 shrink-0 rounded-md border border-border object-contain bg-secondary"
+                          />
+                        ) : (
+                          <div
+                            aria-hidden="true"
+                            className="h-14 w-14 shrink-0 rounded-md border border-dashed border-border bg-muted"
+                          />
+                        )}
+                        <span className="min-w-0 flex-1">
+                          {it.product_name} × {it.quantity}
+                          {it.variant_label && (
+                            <span className="text-xs text-muted-foreground">
+                              {" "}
+                              · {it.variant_label}
+                            </span>
+                          )}
+                          {it.custom_text && (
+                            <span className="text-xs text-primary"> · ✦ {it.custom_text}</span>
+                          )}
+                        </span>
+                        <span className="font-medium whitespace-nowrap">
+                          {formatILS(Number(it.line_total))}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
                 <div className="flex justify-between text-lg border-t pt-3 font-bold">
-                  <span>סך הכל</span><span className="text-primary">{formatILS(Number(selected.total))}</span>
+                  <span>סך הכל</span>
+                  <span className="text-primary">{formatILS(Number(selected.total))}</span>
                 </div>
 
                 {/* Confirmation receipt — the §14ג(ב) written confirmation.
@@ -509,7 +664,12 @@ function AdminOrders() {
                         </span>
                       )}
                     </div>
-                    <Button size="sm" variant="outline" disabled={resending} onClick={doResendConfirmation}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={resending}
+                      onClick={doResendConfirmation}
+                    >
                       {resending
                         ? "שולח..."
                         : selected.confirmation_email_sent_at
@@ -524,7 +684,8 @@ function AdminOrders() {
                   <div className="font-semibold">משלוח</div>
                   {selected.shipped_at && (
                     <div className="text-xs text-emerald-700">
-                      ✓ סומנה כנשלחה ללקוח ב-{new Date(selected.shipped_at).toLocaleDateString("he-IL")}
+                      ✓ סומנה כנשלחה ללקוח ב-
+                      {new Date(selected.shipped_at).toLocaleDateString("he-IL")}
                     </div>
                   )}
                   {/* "בהכנה" — the write that makes orders.shipping_status
@@ -535,19 +696,40 @@ function AdminOrders() {
                   {selected.payment_status === "paid" && !selected.shipped_at && (
                     <div className="flex flex-wrap items-center gap-2">
                       {selected.shipping_status === "preparing" ? (
-                        <span className="text-xs text-emerald-700">✓ מסומנת כבהכנה — הלקוח רואה זאת במעקב</span>
+                        <span className="text-xs text-emerald-700">
+                          ✓ מסומנת כבהכנה — הלקוח רואה זאת במעקב
+                        </span>
                       ) : (
-                        <Button size="sm" variant="outline" disabled={preparing} onClick={doPreparing}>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={preparing}
+                          onClick={doPreparing}
+                        >
                           {preparing ? "מעדכן..." : "סמן כבהכנה 🛠"}
                         </Button>
                       )}
                     </div>
                   )}
                   <div className="flex flex-wrap gap-2">
-                    <Input placeholder="מספר מעקב" value={tracking} onChange={(e) => setTracking(e.target.value)} className="max-w-[180px]" />
-                    <Input placeholder="חברת שילוח" value={carrier} onChange={(e) => setCarrier(e.target.value)} className="max-w-[150px]" />
+                    <Input
+                      placeholder="מספר מעקב"
+                      value={tracking}
+                      onChange={(e) => setTracking(e.target.value)}
+                      className="max-w-[180px]"
+                    />
+                    <Input
+                      placeholder="חברת שילוח"
+                      value={carrier}
+                      onChange={(e) => setCarrier(e.target.value)}
+                      className="max-w-[150px]"
+                    />
                     <Button size="sm" disabled={shipping} onClick={doShip}>
-                      {shipping ? "שולח..." : selected.shipped_at ? "עדכן משלוח" : "סמן כנשלחה ושלח מייל ללקוח 📦"}
+                      {shipping
+                        ? "שולח..."
+                        : selected.shipped_at
+                          ? "עדכן משלוח"
+                          : "סמן כנשלחה ושלח מייל ללקוח 📦"}
                     </Button>
                   </div>
                 </div>
@@ -561,7 +743,8 @@ function AdminOrders() {
                         : ""}
                       {!Number(selected.cardcom_tranzaction_id) && (
                         <span className="block text-destructive">
-                          אין מזהה עסקה מקארדקום — זיכוי אוטומטי אינו זמין. בצעו זיכוי ידני בממשק קארדקום.
+                          אין מזהה עסקה מקארדקום — זיכוי אוטומטי אינו זמין. בצעו זיכוי ידני בממשק
+                          קארדקום.
                         </span>
                       )}
                     </div>
@@ -576,7 +759,9 @@ function AdminOrders() {
                   </div>
                 )}
                 {selected.payment_status === "refunded" && (
-                  <div className="border-t pt-3 text-xs font-semibold text-destructive">הזמנה זו זוכתה</div>
+                  <div className="border-t pt-3 text-xs font-semibold text-destructive">
+                    הזמנה זו זוכתה
+                  </div>
                 )}
               </div>
             </>
