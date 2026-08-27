@@ -173,7 +173,7 @@ const LINK_HOVER_CLS = `transition-[color] duration-200 ease-out
 // Apple's HIG and Material set for a primary touch control — and under
 // SC 2.5.5 (AAA). The glyph inside stays h-5 w-5; only the hit area grew, so
 // nothing about the bar's density changes visually.
-const ICON_BTN_CLS = `inline-flex h-11 w-11 items-center justify-center rounded-full
+const ICON_BTN_CLS = `inline-flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-full
   text-foreground press
   [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent`;
 
@@ -599,12 +599,22 @@ export function SiteHeader() {
           logo. At 2xl it un-wraps into the row and fills the void as the
           middle column, which also takes the 44px nav row off every route.
 
+          MOBILE: the container used to wrap at every width with a gap-x-6
+          between the logo and the icon cluster. At 390px the logo (~129px at
+          h-11) plus five 44px buttons plus the gap and padding overflow the
+          row, so the icons wrapped onto a second line and the bar rendered as
+          a lone logo above a stranded icon row. The nav row only exists from
+          lg up, so wrapping below lg has nothing to wrap: the container is
+          flex-nowrap until lg, the gap and side padding tighten below sm, and
+          the logo (h-9) and buttons (40px) step down on the smallest screens
+          so the whole cluster fits one row from 360px up.
+
           WHY 2xl AND NOT xl: the nav is ~1030px of links. At 2xl (1536px) the
           container leaves 1127px beside the logo and the icons, so it fits with
           room to spare; at xl (1280px) only 871px, and it would wrap INSIDE the
           bar — a two-line bar, which is worse than two clean rows. Measured,
           not guessed; re-measure if CURATED_CATEGORIES grows. */}
-          <div className="container mx-auto flex min-h-14 flex-wrap items-center justify-between gap-x-6 px-4">
+          <div className="container mx-auto flex min-h-14 flex-nowrap items-center lg:flex-wrap justify-between gap-x-2 px-3 sm:gap-x-4 sm:px-4 2xl:gap-x-6">
             {/* RTL start (RIGHT): the logo.
             Moved out of the centre at the owner's request. The three-column
             grid existed only to hold it there; with the mark on the leading
@@ -617,13 +627,13 @@ export function SiteHeader() {
             reads: 40px loses it. So the bar tightened to h-14 and the logo did
             NOT shrink with it; going further needs a wordmark-only asset, which
             is a brand decision, not a CSS one. */}
-            <Link to="/" className="flex items-center" aria-label="אור זרוע לצדיק">
+            <Link to="/" className="flex shrink-0 items-center" aria-label="אור זרוע לצדיק">
               <img
                 src={logoUrl}
                 alt="אור זרוע לצדיק"
                 width={586}
                 height={200}
-                className="h-11 w-auto object-contain"
+                className="h-9 w-auto object-contain sm:h-11"
               />
             </Link>
 
@@ -632,7 +642,7 @@ export function SiteHeader() {
             joins this row. Without it all three children sit at order 0 and DOM
             order wins, which put the icons between the logo and the nav — a
             control cluster stranded in the middle of the bar. */}
-            <div className="flex items-center gap-1 2xl:order-last">
+            <div className="flex shrink-0 items-center gap-0.5 sm:gap-1 2xl:order-last">
               <div className="flex items-center gap-1">
                 <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
                   <SheetTrigger asChild>
