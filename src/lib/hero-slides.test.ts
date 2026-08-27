@@ -49,16 +49,24 @@ describe("hero slides ship every file their srcSet names", () => {
     }
   });
 
-  // head() preloads the LCP frame with a hand-written imagesrcset string. If it
+  // head() preloads the LCP frame with a hand-written srcset string. If it
   // drifts from HERO_SLIDES[0], the browser preloads one file and the element
   // then downloads a different one: two fetches for one paint, which is worse
   // than not preloading at all.
+  //
+  // The key is matched as `imageSrcSet`, camelCase, ON PURPOSE. head() hands
+  // these to React as <link> props, and React's prop name is imageSrcSet — it
+  // emits the lowercase HTML attribute itself. The lowercase spelling reached
+  // the HTML too, so it "worked", while React logged an Invalid DOM property
+  // warning on every homepage render. Pinning the spelling here is what makes
+  // that a test failure instead of console noise nobody reads. This assertion
+  // did catch the fix going in, which is the only evidence that it works.
   it("preloads exactly the first slide, and its renditions match", () => {
     const src = readFileSync(ROUTE, "utf8");
     const preload = src.match(
-      /rel: "preload",[\s\S]*?href: "([^"]+)"[\s\S]*?imagesrcset:\s*\n?\s*"([^"]+)"/,
+      /rel: "preload",[\s\S]*?href: "([^"]+)"[\s\S]*?imageSrcSet:\s*\n?\s*"([^"]+)"/,
     );
-    expect(preload, "preload link with imagesrcset not found").not.toBeNull();
+    expect(preload, "preload link with imageSrcSet not found").not.toBeNull();
     const [, href, srcset] = preload!;
 
     expect(href, "preload href must be HERO_SLIDES[0]").toBe(slides[0]);

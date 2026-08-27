@@ -43,6 +43,34 @@ export function isUsableCardcomToken(token: unknown): boolean {
 }
 
 /**
+ * True when a settlement is allowed to persist the cardholder's payment secrets.
+ *
+ * TWO conditions, and the second one is the fix.
+ *
+ * A usable token is necessary (see isUsableCardcomToken) but it was never
+ * sufficient: this write sat ABOVE the `responseCode !== 0` branch, so a
+ * DECLINED transaction that still carried a token wrote a row and the very next
+ * statement marked the order failed. The row holds
+ * `cardcom_token_card_owner_identity_number` — an Israeli ID number — so every
+ * failed payment left one behind.
+ *
+ * Nothing in this codebase ever READS that token. Grepped the whole repository:
+ * one writer (here), one deleter (account.functions.ts, on a user's erasure
+ * request), zero readers. For a payment that failed there is no charge to
+ * dispute and no instrument to reuse — CardCom support is given
+ * cardcom_low_profile_id / cardcom_tranzaction_id, which live on `orders` and
+ * are untouched by this. So the data had no purpose at all, which under
+ * חוק הגנת הפרטיות is the one thing retention cannot survive.
+ *
+ * responseCode 0 is CardCom's success code and covers ChargeOnly as well as
+ * CreateTokenOnly — a token created deliberately with no charge is a SUCCESS,
+ * and is exactly the case that must keep working.
+ */
+export function shouldPersistPaymentSecrets(token: unknown, responseCode: number): boolean {
+  return isUsableCardcomToken(token) && responseCode === 0;
+}
+
+/**
  * True when writing `fields` + `payment_status` would leave the order exactly as
  * it already is.
  *
@@ -166,10 +194,10 @@ export async function settleCardcomOrder(
 
   // Card tokens & cardholder identity go to the server-only secrets table — never
   // stored on the orders table (not client-readable). Written ONLY when a real
-  // token came back: see isUsableCardcomToken for why a truthiness test is not
-  // enough, and why the difference is about the identity number rather than the
-  // token.
-  if (isUsableCardcomToken(tokenInfo?.Token)) {
+  // token came back AND the transaction actually succeeded: see
+  // shouldPersistPaymentSecrets for why the second half of that is not a
+  // tightening-for-its-own-sake but the removal of a real data-retention defect.
+  if (shouldPersistPaymentSecrets(tokenInfo?.Token, responseCode)) {
     const { error: secErr } = await supabaseAdmin.from("order_payment_secrets").upsert({
       order_id: order.id,
       cardcom_token: tokenInfo?.Token ?? null,
