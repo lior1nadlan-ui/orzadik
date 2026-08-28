@@ -54,7 +54,9 @@ export function PageHeader({
       ) : null}
       {note ? (
         <p className="mt-4 inline-flex items-center gap-2 rounded-full bg-card/70 px-4 py-2 text-xs md:text-sm text-muted-foreground hairline">
-          <span aria-hidden="true" className="text-gold">✦</span>
+          <span aria-hidden="true" className="text-gold">
+            ✦
+          </span>
           {note}
         </p>
       ) : null}

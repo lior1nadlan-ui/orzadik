@@ -67,8 +67,8 @@ function AdminTelegram() {
             <div className="rounded-lg border bg-card p-4">
               <h2 className="mb-1 font-semibold">שיחות שדיברו עם הבוט</h2>
               <p className="mb-3 text-sm text-muted-foreground">
-                שלח בדיקה כדי לוודא שזו השיחה הנכונה, ואז העתק את המספר
-                ל-<code>TELEGRAM_CHAT_ID</code> ב-Cloudflare.
+                שלח בדיקה כדי לוודא שזו השיחה הנכונה, ואז העתק את המספר ל-
+                <code>TELEGRAM_CHAT_ID</code> ב-Cloudflare.
               </p>
               <ul className="space-y-2">
                 {data.candidates.map((c) => (

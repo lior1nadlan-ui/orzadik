@@ -41,25 +41,52 @@ export function TrustBadges({ compact }: { compact?: boolean }) {
   return (
     <ul className="mt-4 space-y-2 border-t border-glass-line pt-4 text-xs text-muted-foreground">
       <li className="flex items-center gap-2">
-        <span aria-hidden className="text-accent">🔒</span>
+        <span aria-hidden className="text-accent">
+          🔒
+        </span>
         תשלום מאובטח בכרטיס אשראי בסליקת Cardcom (תקן PCI)
       </li>
       {/* Printed only once the owner confirms what the terminal actually clears
           — see maxPaymentsOffered(). Nothing here is a claim we invent. */}
       {instalments && (
         <li className="flex items-center gap-2">
-          <span aria-hidden className="text-accent">💳</span>
+          <span aria-hidden className="text-accent">
+            💳
+          </span>
           <span>{instalments}</span>
         </li>
       )}
       <li className="flex items-center gap-2">
-        <span aria-hidden className="text-accent">↩️</span>
-        <span>זכות ביטול תוך {CONSUMER_POLICY.cancellationDays} יום מקבלת המוצר (חוק הגנת הצרכן) — ראו <Link to="/returns" className="underline underline-offset-2 transition-[color] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent">ביטול והחזרות</Link>. מוצרים בהתאמה אישית מוגבלים לביטול.</span>
+        <span aria-hidden className="text-accent">
+          ↩️
+        </span>
+        <span>
+          זכות ביטול תוך {CONSUMER_POLICY.cancellationDays} יום מקבלת המוצר (חוק הגנת הצרכן) — ראו{" "}
+          <Link
+            to="/returns"
+            className="underline underline-offset-2 transition-[color] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
+          >
+            ביטול והחזרות
+          </Link>
+          . מוצרים בהתאמה אישית מוגבלים לביטול.
+        </span>
       </li>
       {!compact && (
         <li className="flex items-center gap-2">
-          <span aria-hidden className="text-accent">🚚</span>
-          <span>משלוח עד הבית · אספקה משוערת {CONSUMER_POLICY.deliveryMinDays}-{CONSUMER_POLICY.deliveryMaxDays} ימי עסקים — ראו <Link to="/shipping" className="underline underline-offset-2 transition-[color] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent">משלוחים ואספקה</Link>.</span>
+          <span aria-hidden className="text-accent">
+            🚚
+          </span>
+          <span>
+            משלוח עד הבית · אספקה משוערת {CONSUMER_POLICY.deliveryMinDays}-
+            {CONSUMER_POLICY.deliveryMaxDays} ימי עסקים — ראו{" "}
+            <Link
+              to="/shipping"
+              className="underline underline-offset-2 transition-[color] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
+            >
+              משלוחים ואספקה
+            </Link>
+            .
+          </span>
         </li>
       )}
       {/* Was plain text ("זמינים בוואטסאפ לכל שאלה") AND behind the !compact
@@ -69,7 +96,9 @@ export function TrustBadges({ compact }: { compact?: boolean }) {
           on both pages. Same pattern order.$id.tsx uses; the number comes from
           BUSINESS, never from untrusted content. */}
       <li className="flex items-center gap-2">
-        <span aria-hidden className="text-accent">💬</span>
+        <span aria-hidden className="text-accent">
+          💬
+        </span>
         <span>
           צריכים עזרה?{" "}
           <a

@@ -25,13 +25,15 @@ export function EmptyCartSuggestions() {
 
       const { data, error } = await supabase
         .from("product_categories")
-        .select("products!inner(id, slug, name, price, sale_price, thumbnail_url, is_active, stock_status)")
+        .select(
+          "products!inner(id, slug, name, price, sale_price, thumbnail_url, is_active, stock_status)",
+        )
         .eq("category_id", cat.id)
         .limit(12);
       if (error) throw error;
 
       const out: ProductCardData[] = [];
-      for (const r of (data ?? [])) {
+      for (const r of data ?? []) {
         const p: any = (r as any).products;
         if (!p?.is_active || !p.thumbnail_url || p.stock_status === "outofstock") continue;
         out.push(p);

@@ -34,7 +34,8 @@ export function PrivacyNotice({
     >
       {consequence} המידע נאסף {purpose}. הפרטים נמסרים לספקי השירות המעבדים אותם עבורנו — Supabase
       (אחסון וניהול בסיס הנתונים), Cardcom (סליקת התשלום) ו-Resend (משלוח הודעות דוא"ל) — ולא ייעשה
-      בהם שימוש למטרה אחרת ללא הסכמתך. זכותך לעיין במידע שנשמר עליך ולבקש את תיקונו או מחיקתו זמינה בעמוד{" "}
+      בהם שימוש למטרה אחרת ללא הסכמתך. זכותך לעיין במידע שנשמר עליך ולבקש את תיקונו או מחיקתו זמינה
+      בעמוד{" "}
       <Link
         to="/account"
         className="underline underline-offset-2 transition-[color] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"

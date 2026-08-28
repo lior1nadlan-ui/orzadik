@@ -23,8 +23,7 @@
 
 /** Literal percent-encoded Hebrew category slugs as stored in public.categories. */
 const SIDDURIM = "sidurim"; // סידורים
-const HATAN_MARAZIM =
-  "marazim-chatanim"; // מארזים לחתנים
+const HATAN_MARAZIM = "marazim-chatanim"; // מארזים לחתנים
 
 export type CollectionFaq = { q: string; a: string };
 

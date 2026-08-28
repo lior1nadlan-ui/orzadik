@@ -24,13 +24,7 @@ import { cn } from "@/lib/utils";
  * in styles.css; if those rules are absent the effect is a harmless no-op and
  * the content stays visible.
  */
-export function Reveal({
-  children,
-  className,
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
+export function Reveal({ children, className }: { children: React.ReactNode; className?: string }) {
   const ref = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {

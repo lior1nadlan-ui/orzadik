@@ -100,7 +100,7 @@ function AdminAbandoned() {
   const remindersMutation = useMutation({
     mutationFn: () => runReminders(),
     onSuccess: (r) => {
-      const skipReason = r.skipped ? SKIP_MESSAGES[r.skipped] ?? r.skipped : null;
+      const skipReason = r.skipped ? (SKIP_MESSAGES[r.skipped] ?? r.skipped) : null;
       if (skipReason) {
         toast.warning(skipReason);
       } else {
@@ -151,15 +151,28 @@ function AdminAbandoned() {
         ))}
       </div>
 
-      <div className={`rounded-lg border bg-card overflow-x-auto transition-opacity duration-200 ease-out ${isFetching ? "opacity-60" : ""}`}>
+      <div
+        className={`rounded-lg border bg-card overflow-x-auto transition-opacity duration-200 ease-out ${isFetching ? "opacity-60" : ""}`}
+      >
         <table className="w-full text-sm">
-          <thead className="bg-muted/50"><tr className="text-right">
-            <th className="p-3">תאריך</th><th className="p-3">לקוח</th><th className="p-3">פריטים</th>
-            <th className="p-3">סכום</th><th className="p-3">תזכורת</th><th className="p-3">סטטוס</th><th className="p-3">יצירת קשר</th>
-          </tr></thead>
+          <thead className="bg-muted/50">
+            <tr className="text-right">
+              <th className="p-3">תאריך</th>
+              <th className="p-3">לקוח</th>
+              <th className="p-3">פריטים</th>
+              <th className="p-3">סכום</th>
+              <th className="p-3">תזכורת</th>
+              <th className="p-3">סטטוס</th>
+              <th className="p-3">יצירת קשר</th>
+            </tr>
+          </thead>
           <tbody>
             {carts.length === 0 && (
-              <tr><td colSpan={7} className="p-8 text-center text-muted-foreground">אין עגלות נטושות כרגע.</td></tr>
+              <tr>
+                <td colSpan={7} className="p-8 text-center text-muted-foreground">
+                  אין עגלות נטושות כרגע.
+                </td>
+              </tr>
             )}
             {carts.map((c: any) => {
               const items = (Array.isArray(c.items) ? c.items : []) as CartItem[];
@@ -169,7 +182,10 @@ function AdminAbandoned() {
                   <td className="p-3 text-xs whitespace-nowrap">
                     <div>{new Date(c.created_at).toLocaleDateString("he-IL")}</div>
                     <div className="text-muted-foreground">
-                      {new Date(c.created_at).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" })}
+                      {new Date(c.created_at).toLocaleTimeString("he-IL", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
                     </div>
                   </td>
                   <td className="p-3">
@@ -274,9 +290,25 @@ function AdminAbandoned() {
 
       {pages > 1 && (
         <div className="flex items-center justify-center gap-3 mt-4 text-sm">
-          <Button size="sm" variant="outline" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>הקודם</Button>
-          <span>עמוד {page + 1} מתוך {pages}</span>
-          <Button size="sm" variant="outline" disabled={page >= pages - 1} onClick={() => setPage((p) => p + 1)}>הבא</Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={page === 0}
+            onClick={() => setPage((p) => p - 1)}
+          >
+            הקודם
+          </Button>
+          <span>
+            עמוד {page + 1} מתוך {pages}
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={page >= pages - 1}
+            onClick={() => setPage((p) => p + 1)}
+          >
+            הבא
+          </Button>
         </div>
       )}
     </div>

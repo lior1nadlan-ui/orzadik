@@ -116,8 +116,9 @@ export const trackOrder = createServerFn({ method: "POST" })
     if (!order) throw new Error(NOT_FOUND);
 
     if (
-      String(order.customer_email ?? "").trim().toLowerCase() !==
-      data.email.trim().toLowerCase()
+      String(order.customer_email ?? "")
+        .trim()
+        .toLowerCase() !== data.email.trim().toLowerCase()
     ) {
       throw new Error(NOT_FOUND);
     }

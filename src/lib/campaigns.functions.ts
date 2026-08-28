@@ -76,8 +76,7 @@ type CampaignContent = { subject: string; intro_html: string; content: any };
 
 /** One product's public URL — shared by the HTML card and the plaintext part so
  *  the two can never point somewhere different. */
-const productUrl = (slug: string) =>
-  `https://orzadik.com/product/${encodeURIComponent(slug)}`;
+const productUrl = (slug: string) => `https://orzadik.com/product/${encodeURIComponent(slug)}`;
 
 /** Price line as shown to the reader: the effective (charged) price, or the
  *  call-only note for items priced by the gold rate. */
@@ -128,7 +127,9 @@ function productCards(products: SnapshotProduct[]): string {
  * the law needs it (the subject and the body), not in the preview snippet.
  */
 function campaignPreheader(campaign: Omit<CampaignContent, "subject">): string {
-  const intro = stripHtml(campaign.intro_html ?? "").replace(/\s+/g, " ").trim();
+  const intro = stripHtml(campaign.intro_html ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
   if (intro) return intro.slice(0, 160);
   const products: SnapshotProduct[] = campaign.content?.products ?? [];
   const names = products.map((p) => p.name).filter(Boolean);
@@ -148,7 +149,8 @@ function campaignPreheader(campaign: Omit<CampaignContent, "subject">): string {
 function renderCampaign(campaign: CampaignContent, unsub: string | null): string {
   const products: SnapshotProduct[] = campaign.content?.products ?? [];
   const intro = esc(campaign.intro_html ?? "").replace(/\n/g, "<br>");
-  return emailShell(`
+  return emailShell(
+    `
     <p style="font-size:11px;color:#999;margin:0 0 8px;">פרסומת</p>
     <h1 style="font-size:20px;margin:0 0 12px;">${esc(campaign.subject)}</h1>
     ${intro ? `<div style="font-size:14px;color:#555;line-height:1.7;">${intro}</div>` : ""}
@@ -160,7 +162,9 @@ function renderCampaign(campaign: CampaignContent, unsub: string | null): string
         ${unsub ? `<a href="${esc(unsub)}" style="color:#A8862A;">להסרה מרשימת התפוצה לחצו כאן</a>.` : ""}
       </div>
     </div>
-  `, campaignPreheader(campaign));
+  `,
+    campaignPreheader(campaign),
+  );
 }
 
 /**
@@ -189,9 +193,7 @@ function renderCampaignText(campaign: CampaignContent, unsub: string | null): st
 
   for (const p of products) {
     blocks.push(
-      [p.name, productPriceText(Number(p.price)), "לצפייה במוצר:", productUrl(p.slug)].join(
-        "\n",
-      ),
+      [p.name, productPriceText(Number(p.price)), "לצפייה במוצר:", productUrl(p.slug)].join("\n"),
     );
   }
 
@@ -351,7 +353,10 @@ export const searchCampaignProducts = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) => z.object({ q: z.string().trim().max(120) }).parse(i))
   .handler(async ({ data }) => {
     await requireAdmin();
-    const term = data.q.replace(/[,()%\\]/g, " ").replace(/\s+/g, " ").trim();
+    const term = data.q
+      .replace(/[,()%\\]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
     if (!term) return [];
     const like = `%${term}%`;
     const { data: rows, error } = await supabaseAdmin
@@ -380,7 +385,9 @@ async function buildAudience(): Promise<Array<{ email: string; name: string | nu
       .range(from, from + DB_PAGE - 1);
     if (error) throw new Error("שגיאה בבניית רשימת הנמענים.");
     for (const p of data ?? []) {
-      const email = String(p.email ?? "").trim().toLowerCase();
+      const email = String(p.email ?? "")
+        .trim()
+        .toLowerCase();
       if (email) byEmail.set(email, { email, name: p.full_name ?? null });
     }
     if ((data ?? []).length < DB_PAGE) break;
@@ -396,7 +403,9 @@ async function buildAudience(): Promise<Array<{ email: string; name: string | nu
       .range(from, from + DB_PAGE - 1);
     if (error) throw new Error("שגיאה בבניית רשימת הנמענים.");
     for (const s of data ?? []) {
-      const email = String(s.email ?? "").trim().toLowerCase();
+      const email = String(s.email ?? "")
+        .trim()
+        .toLowerCase();
       if (email) byEmail.set(email, { email, name: s.name ?? null });
     }
     if ((data ?? []).length < DB_PAGE) break;
@@ -407,13 +416,8 @@ async function buildAudience(): Promise<Array<{ email: string; name: string | nu
   // and it must beat a stale newsletter_subscribers row for the same address.
   // Only an explicit false excludes — null/missing means "never asked", which
   // is the normal state of an anonymous newsletter signup.
-  const [suppressed, revoked] = await Promise.all([
-    loadSuppressions(),
-    loadRevokedProfileEmails(),
-  ]);
-  return [...byEmail.values()].filter(
-    (r) => !suppressed.has(r.email) && !revoked.has(r.email),
-  );
+  const [suppressed, revoked] = await Promise.all([loadSuppressions(), loadRevokedProfileEmails()]);
+  return [...byEmail.values()].filter((r) => !suppressed.has(r.email) && !revoked.has(r.email));
 }
 
 /** Addresses of profiles that explicitly turned marketing consent off. */
@@ -428,7 +432,9 @@ async function loadRevokedProfileEmails(): Promise<Set<string>> {
       .range(from, from + DB_PAGE - 1);
     if (error) throw new Error("שגיאה בבניית רשימת הנמענים.");
     for (const r of data ?? []) {
-      const email = String(r.email ?? "").trim().toLowerCase();
+      const email = String(r.email ?? "")
+        .trim()
+        .toLowerCase();
       if (email) out.add(email);
     }
     if ((data ?? []).length < DB_PAGE) break;
@@ -499,7 +505,7 @@ export const sendCampaignTestEmail = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) => TestSendSchema.parse(i))
   .handler(async ({ data }) => {
     await requireAdmin();
-    if (!isEmailConfigured()) throw new Error("שליחת דוא\"ל אינה מוגדרת בשרת.");
+    if (!isEmailConfigured()) throw new Error('שליחת דוא"ל אינה מוגדרת בשרת.');
 
     const email = data.email.trim().toLowerCase();
     const ownerEmail = (process.env.SHOP_OWNER_EMAIL ?? "").trim().toLowerCase();
@@ -542,7 +548,7 @@ export const sendCampaignTestEmail = createServerFn({ method: "POST" })
       replyTo: process.env.SHOP_OWNER_EMAIL,
       headers: message.headers,
     });
-    if (!ok) throw new Error("שליחת הבדיקה נכשלה. בדקו את הגדרות הדוא\"ל ונסו שוב.");
+    if (!ok) throw new Error('שליחת הבדיקה נכשלה. בדקו את הגדרות הדוא"ל ונסו שוב.');
     return { ok: true as const, email };
   });
 
@@ -550,7 +556,7 @@ export const startCampaign = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) => z.object({ id: z.string().uuid() }).parse(i))
   .handler(async ({ data }) => {
     await requireAdmin();
-    if (!isEmailConfigured()) throw new Error("שליחת דוא\"ל אינה מוגדרת בשרת.");
+    if (!isEmailConfigured()) throw new Error('שליחת דוא"ל אינה מוגדרת בשרת.');
     // Without the secret we cannot produce a working unsubscribe link, and a
     // marketing message without one must not be sent at all.
     if (!process.env.UNSUBSCRIBE_SECRET) {
@@ -659,7 +665,8 @@ export async function runCampaignTick(): Promise<CampaignTickResult> {
       failed: 0,
       skipped: 0,
       done: false,
-      error: "שליחת דוא\"ל אינה מוגדרת בשרת (RESEND_API_KEY / ORDER_EMAIL_FROM) — לא נשלחה אף הודעה.",
+      error:
+        'שליחת דוא"ל אינה מוגדרת בשרת (RESEND_API_KEY / ORDER_EMAIL_FROM) — לא נשלחה אף הודעה.',
     };
   }
 
@@ -696,10 +703,10 @@ export async function runCampaignTick(): Promise<CampaignTickResult> {
     .lt("claimed_at", stuckBefore);
   if (recoverErr) console.error("[campaign-tick] stuck-row recovery:", recoverErr);
 
-  const { data: claimed, error: claimErr } = await supabaseAdmin.rpc(
-    "claim_campaign_recipients",
-    { p_campaign_id: campaign.id, p_limit: BATCH },
-  );
+  const { data: claimed, error: claimErr } = await supabaseAdmin.rpc("claim_campaign_recipients", {
+    p_campaign_id: campaign.id,
+    p_limit: BATCH,
+  });
   if (claimErr) {
     console.error("[campaign-tick] claim failed:", claimErr);
     return {
@@ -728,7 +735,10 @@ export async function runCampaignTick(): Promise<CampaignTickResult> {
       await supabaseAdmin
         .from("campaign_recipients")
         .update({ status: "pending", claimed_at: null })
-        .in("id", rows.map((r) => r.id));
+        .in(
+          "id",
+          rows.map((r) => r.id),
+        );
     }
     return {
       status: "claim-failed",
@@ -792,7 +802,8 @@ export async function runCampaignTick(): Promise<CampaignTickResult> {
           : { status: "failed", error: "send failed" },
       )
       .eq("id", row.id);
-    ok ? sent++ : failed++;
+    if (ok) sent++;
+    else failed++;
 
     // Resend allows ~2 req/s. This is I/O wait, not Worker CPU time.
     await sleep(SEND_GAP_MS);

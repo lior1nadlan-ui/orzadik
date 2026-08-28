@@ -18,12 +18,7 @@ import { QueryErrorState } from "@/components/QueryErrorState";
 import { OCCASION_COLLECTIONS } from "@/lib/collections";
 import { BUSINESS } from "@/lib/business";
 import { SITE_DISCOUNT } from "@/lib/pricing";
-import {
-  derivePriceRungs,
-  parsePriceRung,
-  SHIPPING_NOTE,
-  type PriceRung,
-} from "@/lib/facets";
+import { derivePriceRungs, parsePriceRung, SHIPPING_NOTE, type PriceRung } from "@/lib/facets";
 import { cn } from "@/lib/utils";
 
 // "recommended" is the default. It used to be "newest", but 4,184 of the 4,641
@@ -36,8 +31,9 @@ import { cn } from "@/lib/utils";
 type ShopSort = "recommended" | "newest" | "price-asc" | "price-desc" | "name";
 
 function isShopSort(v: unknown): v is ShopSort {
-  return v === "recommended" || v === "newest" || v === "price-asc"
-    || v === "price-desc" || v === "name";
+  return (
+    v === "recommended" || v === "newest" || v === "price-asc" || v === "price-desc" || v === "name"
+  );
 }
 
 const SHOP_SORT_LABELS: Array<{ value: ShopSort; label: string }> = [
@@ -123,7 +119,7 @@ function parsePage(v: unknown): number | undefined {
 // user-typed % or \.
 export function sanitizeTerm(raw: string): string {
   return raw
-    .replace(/[,()%\\]/g, " ")    // strip clause-injection + user-typed % first
+    .replace(/[,()%\\]/g, " ") // strip clause-injection + user-typed % first
     .replace(/["'`׳״‘’“”]/g, "%") // quote family → wildcard
     .replace(/\s+/g, " ")
     .trim();
@@ -192,17 +188,19 @@ const HE_SPELLING_SYNONYMS: Record<string, string> = {
 // no second meaning in a Judaica catalogue.
 
 export function normalizeSearchTerm(raw: string): string {
-  return raw
-    // Maqaf / hyphen / dash between letters → a space. The RPC splits the term
-    // on spaces and bool_ands the words, so "בר-מצווה" arrives as ONE token and
-    // matched 3 rows; as two tokens it matches 105. Any dash the shopper types
-    // is a word separator here, never part of a Hebrew word.
-    .replace(/[-‐-―־]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .split(" ")
-    .map((w) => HE_SPELLING_SYNONYMS[w] ?? w)
-    .join(" ");
+  return (
+    raw
+      // Maqaf / hyphen / dash between letters → a space. The RPC splits the term
+      // on spaces and bool_ands the words, so "בר-מצווה" arrives as ONE token and
+      // matched 3 rows; as two tokens it matches 105. Any dash the shopper types
+      // is a word separator here, never part of a Hebrew word.
+      .replace(/[-‐-―־]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .split(" ")
+      .map((w) => HE_SPELLING_SYNONYMS[w] ?? w)
+      .join(" ")
+  );
 }
 
 type ShopPageData = { rows: ProductCardData[]; total: number; next: number };
@@ -282,7 +280,9 @@ async function fetchShopPage(opts: {
       sort === "name"
         ? q.order("name", { ascending: true })
         : q.order("price", { ascending: sort !== "price-desc" });
-    const { data, error, count } = await q.order("id", { ascending: true }).range(offset, offset + PAGE - 1);
+    const { data, error, count } = await q
+      .order("id", { ascending: true })
+      .range(offset, offset + PAGE - 1);
     if (!error) {
       return {
         rows: (data ?? []) as unknown as ProductCardData[],
@@ -335,9 +335,7 @@ async function fetchShopPage(opts: {
     if (words.length > 1) {
       // Multi-word queries: every word must appear in the SAME field
       // (order-independent) — per-field and() groups nested inside or().
-      const groups = fields.map(
-        (f) => `and(${words.map((w) => `${f}.ilike.%${w}%`).join(",")})`,
-      );
+      const groups = fields.map((f) => `and(${words.map((w) => `${f}.ilike.%${w}%`).join(",")})`);
       query = query.or(groups.join(","));
     } else {
       const like = `%${term}%`;
@@ -416,7 +414,9 @@ export const Route = createFileRoute("/shop")({
   // if it had reached the DB: 0 of the 4,648 active products carry
   // stock_status 'outofstock' and track_stock is false. Dropping it from the
   // schema means a stale "?instock=true" link simply loses the parameter.
-  validateSearch: (s: Record<string, unknown>): { q?: string; sort?: ShopSort; price?: string; page?: number } => ({
+  validateSearch: (
+    s: Record<string, unknown>,
+  ): { q?: string; sort?: ShopSort; price?: string; page?: number } => ({
     q: typeof s.q === "string" ? s.q : undefined,
     // Unknown values narrow to undefined and render as the default ("recommended").
     sort: isShopSort(s.sort) ? s.sort : undefined,
@@ -568,8 +568,7 @@ export const Route = createFileRoute("/shop")({
     // the documented failure mode is that the noindex is applied to the
     // canonical TARGET — which here would be /shop, the listing's own root. A
     // self-canonical keeps the noindex scoped to the degraded URL that earned it.
-    const canonical =
-      paged && page > 1 ? `${SITE}/shop?page=${page}` : `${SITE}/shop`;
+    const canonical = paged && page > 1 ? `${SITE}/shop?page=${page}` : `${SITE}/shop`;
 
     const itemListLd = {
       "@context": "https://schema.org",
@@ -602,9 +601,17 @@ export const Route = createFileRoute("/shop")({
         // first-seen winning (see __root.tsx), so this overrides the site-wide
         // "index, follow".
         ...(emptyPastFirst ? [{ name: "robots", content: "noindex, follow" }] : []),
-        { name: "description", content: "כל מוצרי תשמישי הקדושה והיודאיקה של אור זרוע לצדיק — טליתות, כיסויי טלית ותפילין, נרתיקי מזוזה, גביעי קידוש, חנוכיות, פמוטים ומארזים לחתנים. נבחרים בהקפדה על כשרות והידור, עם משלוח עד הבית." },
+        {
+          name: "description",
+          content:
+            "כל מוצרי תשמישי הקדושה והיודאיקה של אור זרוע לצדיק — טליתות, כיסויי טלית ותפילין, נרתיקי מזוזה, גביעי קידוש, חנוכיות, פמוטים ומארזים לחתנים. נבחרים בהקפדה על כשרות והידור, עם משלוח עד הבית.",
+        },
         { property: "og:title", content: title },
-        { property: "og:description", content: "טליתות, כיסויי טלית ותפילין, נרתיקי מזוזה, גביעי קידוש, חנוכיות ומארזים לחתנים — כל המוצרים במקום אחד." },
+        {
+          property: "og:description",
+          content:
+            "טליתות, כיסויי טלית ותפילין, נרתיקי מזוזה, גביעי קידוש, חנוכיות ומארזים לחתנים — כל המוצרים במקום אחד.",
+        },
         { property: "og:url", content: canonical },
         { property: "og:type", content: "website" },
         { name: "twitter:title", content: title },
@@ -614,8 +621,12 @@ export const Route = createFileRoute("/shop")({
         { rel: "canonical", href: canonical },
         // An empty page is not a member of the prev/next chain — advertising one
         // is what invited crawlers into the dead zone in the first place.
-        ...(paged && !emptyPastFirst && page > 1 ? [{ rel: "prev", href: page - 1 > 1 ? `${SITE}/shop?page=${page - 1}` : `${SITE}/shop` }] : []),
-        ...(paged && !emptyPastFirst && page < lastPage ? [{ rel: "next", href: `${SITE}/shop?page=${page + 1}` }] : []),
+        ...(paged && !emptyPastFirst && page > 1
+          ? [{ rel: "prev", href: page - 1 > 1 ? `${SITE}/shop?page=${page - 1}` : `${SITE}/shop` }]
+          : []),
+        ...(paged && !emptyPastFirst && page < lastPage
+          ? [{ rel: "next", href: `${SITE}/shop?page=${page + 1}` }]
+          : []),
       ],
       scripts: [
         { type: "application/ld+json", children: JSON.stringify(itemListLd) },
@@ -626,7 +637,12 @@ export const Route = createFileRoute("/shop")({
 });
 
 function ShopPage() {
-  const { q: qFromUrl, sort: sortFromUrl, price: priceFromUrl, page: pageFromUrl } = Route.useSearch();
+  const {
+    q: qFromUrl,
+    sort: sortFromUrl,
+    price: priceFromUrl,
+    page: pageFromUrl,
+  } = Route.useSearch();
   const loaderData = Route.useLoaderData();
   const navigate = Route.useNavigate();
   const [q, setQ] = useState(qFromUrl || "");
@@ -672,10 +688,7 @@ function ShopPage() {
       search: (prev) => ({
         ...prev,
         price: clearing ? undefined : id,
-        sort:
-          clearing || RANGE_SORTS.includes(sort)
-            ? prev.sort
-            : ("price-asc" as ShopSort),
+        sort: clearing || RANGE_SORTS.includes(sort) ? prev.sort : ("price-asc" as ShopSort),
         page: undefined,
       }),
       replace: true,
@@ -704,7 +717,7 @@ function ShopPage() {
   }, [q]);
 
   const urlQ = (qFromUrl ?? "").trim();
-    // Push the debounced term INTO the url. Without this the search box filtered the
+  // Push the debounced term INTO the url. Without this the search box filtered the
   // list but never touched the URL, so the <h1> and <title> — which read the URL —
   // said "כל המוצרים" while the page showed "111 תוצאות עבור …", and reload,
   // bookmark, share and Back all silently discarded the search. Guarded on
@@ -720,7 +733,7 @@ function ShopPage() {
     });
   }, [debouncedQ]);
 
-const activeQ = debouncedQ.trim();
+  const activeQ = debouncedQ.trim();
   const term = sanitizeTerm(debouncedQ);
   // While the user is typing a term that is not (yet) in the URL, the ?page=
   // offset belongs to a different result set — restart that search at page 1.
@@ -729,8 +742,14 @@ const activeQ = debouncedQ.trim();
   const pageStart = (page - 1) * PAGE;
 
   const {
-    data, isLoading, isFetching, isError, refetch,
-    fetchNextPage, hasNextPage, isFetchingNextPage,
+    data,
+    isLoading,
+    isFetching,
+    isError,
+    refetch,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
   } = useInfiniteQuery({
     // The rung is part of the key: it is applied in the database, so two rungs
     // are two different result sets and must not share a cache entry.
@@ -785,7 +804,9 @@ const activeQ = debouncedQ.trim();
   // "load more" twice does not get a link back to products they can see.
   const nextPage = Math.min(MAX_PAGE, Math.floor((pageStart + products.length) / PAGE) + 1);
   const hasMorePages = pageStart + products.length < total;
-  const pageSearch = (n: number): { q?: string; sort?: ShopSort; price?: string; page?: number } => ({
+  const pageSearch = (
+    n: number,
+  ): { q?: string; sort?: ShopSort; price?: string; page?: number } => ({
     q: activeQ || undefined,
     sort: sort === "recommended" ? undefined : sort,
     // Page links carry the rung, so paging stays inside the range the shopper
@@ -932,7 +953,9 @@ const activeQ = debouncedQ.trim();
                   )}
                 >
                   <span>{r.label}</span>
-                  <span className={cn("text-xs tabular-nums", active ? "opacity-80" : "opacity-60")}>
+                  <span
+                    className={cn("text-xs tabular-nums", active ? "opacity-80" : "opacity-60")}
+                  >
                     {r.count}
                   </span>
                 </button>
@@ -973,7 +996,11 @@ const activeQ = debouncedQ.trim();
           <h2 className="font-display text-2xl md:text-3xl font-bold mb-3">לא נמצאו מוצרים</h2>
           <p className="text-muted-foreground leading-relaxed">
             {term ? (
-              <>לא מצאנו תוצאות עבור <span className="font-semibold text-foreground">"{rawTerm}"</span>{rung ? " בטווח המחיר הזה" : ""}. נסו מונח חיפוש אחר.</>
+              <>
+                לא מצאנו תוצאות עבור{" "}
+                <span className="font-semibold text-foreground">"{rawTerm}"</span>
+                {rung ? " בטווח המחיר הזה" : ""}. נסו מונח חיפוש אחר.
+              </>
             ) : rung ? (
               // A rung is filtered in the DB, so an empty result here really is
               // empty — say which control emptied it and offer the way back.
@@ -1008,7 +1035,9 @@ const activeQ = debouncedQ.trim();
                 opens a conversation that already says what they were after. */}
             <a
               href={`https://wa.me/${BUSINESS.whatsapp}?text=${encodeURIComponent(
-                term ? `שלום, חיפשתי באתר "${rawTerm}" ולא מצאתי. אפשר עזרה?` : "שלום, אשמח לעזרה במציאת מוצר",
+                term
+                  ? `שלום, חיפשתי באתר "${rawTerm}" ולא מצאתי. אפשר עזרה?`
+                  : "שלום, אשמח לעזרה במציאת מוצר",
               )}`}
               target="_blank"
               rel="noopener noreferrer"
@@ -1045,7 +1074,9 @@ const activeQ = debouncedQ.trim();
         </div>
       ) : (
         <>
-          <div className={`grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 transition-opacity duration-200 ease-out ${isFetching ? "opacity-60" : ""}`}>
+          <div
+            className={`grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 transition-opacity duration-200 ease-out ${isFetching ? "opacity-60" : ""}`}
+          >
             {products.map((p, i) => (
               <ProductCard key={p.id} p={p} eager={i < 4} highPriority={i < 2} />
             ))}
@@ -1063,7 +1094,9 @@ const activeQ = debouncedQ.trim();
                 disabled={isFetchingNextPage}
                 className="press rounded-full bg-card/70 px-8 py-3 text-sm font-medium text-foreground hairline transition-[background-color,color,transform] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:text-background disabled:opacity-60"
               >
-                {isFetchingNextPage ? "טוען..." : `טען עוד מוצרים (${Math.max(0, total - pageStart - products.length)})`}
+                {isFetchingNextPage
+                  ? "טוען..."
+                  : `טען עוד מוצרים (${Math.max(0, total - pageStart - products.length)})`}
               </button>
             </div>
           )}
@@ -1074,7 +1107,10 @@ const activeQ = debouncedQ.trim();
           thing that makes products past the first page reachable by URL for a
           crawler that never clicks "load more". */}
       {(page > 1 || hasMorePages) && (
-        <nav aria-label="ניווט בין עמודי המוצרים" className="mt-10 flex items-center justify-between gap-4">
+        <nav
+          aria-label="ניווט בין עמודי המוצרים"
+          className="mt-10 flex items-center justify-between gap-4"
+        >
           {page > 1 ? (
             <Link to="/shop" search={pageSearch(page - 1)} rel="prev" className={pageLinkClass}>
               הקודם

@@ -68,9 +68,7 @@ describe("every cron schedule is wired on both sides", () => {
   const cronSrc = readFileSync("src/nitro/cron.ts", "utf8");
   const wrangler = readFileSync("wrangler.jsonc", "utf8");
 
-  const jobKeys = [
-    ...cronSrc.matchAll(/^\s*"([^"]+)":\s*\{\s*name:/gm),
-  ].map((m) => m[1]);
+  const jobKeys = [...cronSrc.matchAll(/^\s*"([^"]+)":\s*\{\s*name:/gm)].map((m) => m[1]);
 
   const cronsLine = wrangler.match(/"crons":\s*\[([^\]]*)\]/);
   const triggers = cronsLine ? [...cronsLine[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]) : [];
@@ -85,6 +83,8 @@ describe("every cron schedule is wired on both sides", () => {
   });
 
   it.each(triggers)("trigger %s has a matching job", (t) => {
-    expect(jobKeys, `"${t}" fires but cron.ts maps it to no job — the tick is a no-op`).toContain(t);
+    expect(jobKeys, `"${t}" fires but cron.ts maps it to no job — the tick is a no-op`).toContain(
+      t,
+    );
   });
 });

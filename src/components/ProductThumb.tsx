@@ -119,7 +119,9 @@ export function ProductThumb({
       key={stage}
       src={src}
       srcSet={srcSet}
-      sizes={srcSet ? (sizes ?? "(max-width:640px) 45vw, (max-width:1024px) 30vw, 220px") : undefined}
+      sizes={
+        srcSet ? (sizes ?? "(max-width:640px) 45vw, (max-width:1024px) 30vw, 220px") : undefined
+      }
       alt={alt}
       // Catalogue thumbnails are square; the intrinsic dims reserve the box and
       // kill layout shift. The container's own sizing still drives display size.

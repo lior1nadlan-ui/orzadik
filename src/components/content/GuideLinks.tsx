@@ -38,7 +38,9 @@ export function GuideLinks({
             className="press inline-flex items-center gap-1.5 rounded-full bg-card/70 px-3.5 py-1.5 text-xs text-accent shadow-[inset_0_0_0_1px_var(--glass-line-gold)] transition-[color,box-shadow] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-strong"
           >
             {/* Decorative gold mark, never the only carrier of meaning. */}
-            <span aria-hidden="true" className="text-gold">✦</span>
+            <span aria-hidden="true" className="text-gold">
+              ✦
+            </span>
             {g.title}
           </Link>
         ))}

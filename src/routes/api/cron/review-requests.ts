@@ -13,10 +13,8 @@ import { handleCronRequest } from "@/lib/cron-auth.server";
 export const Route = createFileRoute("/api/cron/review-requests")({
   server: {
     handlers: {
-      POST: async ({ request }) =>
-        handleCronRequest(request, "review-requests", runReviewRequests),
-      GET: async ({ request }) =>
-        handleCronRequest(request, "review-requests", runReviewRequests),
+      POST: async ({ request }) => handleCronRequest(request, "review-requests", runReviewRequests),
+      GET: async ({ request }) => handleCronRequest(request, "review-requests", runReviewRequests),
     },
   },
 });

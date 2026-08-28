@@ -23,7 +23,8 @@ export const Route = createFileRoute("/articles/")({
         { title: "מאמרים וטיפים | אור זרוע לצדיק" },
         {
           name: "description",
-          content: "מאמרים חינוכיים על תשמישי קדושה, טליתות, תפילין, מזוזות, גביעי קידוש וחנוכיות. למדו על הלכות, בחירה וטיפול.",
+          content:
+            "מאמרים חינוכיים על תשמישי קדושה, טליתות, תפילין, מזוזות, גביעי קידוש וחנוכיות. למדו על הלכות, בחירה וטיפול.",
         },
         { property: "og:title", content: "מאמרים וטיפים | אור זרוע לצדיק" },
         {
@@ -159,9 +160,7 @@ function ArticlesListPage() {
             the newsletter's core audience. Value proposition is content, not
             deals. */}
         <section className="mt-14 glass glass-gold [--glass-radius:1.25rem] max-w-xl mx-auto px-6 py-8 text-center">
-          <div className="text-xs tracking-[0.35em] text-accent uppercase mb-2">
-            רשימת התפוצה
-          </div>
+          <div className="text-xs tracking-[0.35em] text-accent uppercase mb-2">רשימת התפוצה</div>
           <p className="text-sm text-muted-foreground mb-4">
             מדריכים ותוכן לקראת החגים, ופריטים חדשים לפני כולם — בלי ספאם.
           </p>

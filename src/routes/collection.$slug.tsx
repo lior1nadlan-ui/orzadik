@@ -66,7 +66,10 @@ async function fetchCollectionProducts(collection: OccasionCollection): Promise<
     // Ordering by an embedded resource is a PostgREST feature; if it is ever
     // rejected on this schema, fall back to a larger unordered pool rather than
     // blanking the collection. Correctness of the listing beats freshness of it.
-    console.warn("[collection/$slug] embedded order unavailable, using unordered pool:", ordered.error);
+    console.warn(
+      "[collection/$slug] embedded order unavailable, using unordered pool:",
+      ordered.error,
+    );
     const { data, error } = await supabase
       .from("product_categories")
       .select(SELECT)

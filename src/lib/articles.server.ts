@@ -29,10 +29,13 @@ async function fetchArticlesWithRetry(maxRetries = 2): Promise<Article[]> {
       if (error) throw error;
       return (data as Article[]) || [];
     } catch (err: any) {
-      if (i === maxRetries || !["ECONNREFUSED", "ETIMEDOUT", "network"].some(m => String(err).includes(m))) {
+      if (
+        i === maxRetries ||
+        !["ECONNREFUSED", "ETIMEDOUT", "network"].some((m) => String(err).includes(m))
+      ) {
         return [];
       }
-      await new Promise(r => setTimeout(r, Math.pow(2, i) * 100));
+      await new Promise((r) => setTimeout(r, Math.pow(2, i) * 100));
     }
   }
   return [];
@@ -51,10 +54,13 @@ async function fetchArticleWithRetry(slug: string, maxRetries = 2): Promise<Arti
       if (error) throw error;
       return (data as Article) || null;
     } catch (err: any) {
-      if (i === maxRetries || !["ECONNREFUSED", "ETIMEDOUT", "network"].some(m => String(err).includes(m))) {
+      if (
+        i === maxRetries ||
+        !["ECONNREFUSED", "ETIMEDOUT", "network"].some((m) => String(err).includes(m))
+      ) {
         return null;
       }
-      await new Promise(r => setTimeout(r, Math.pow(2, i) * 100));
+      await new Promise((r) => setTimeout(r, Math.pow(2, i) * 100));
     }
   }
   return null;
@@ -78,17 +84,16 @@ async function fetchArticlesByCategoryWithRetry(
       if (error) throw error;
       return (data as Article[]) || [];
     } catch (err: any) {
-      if (i === maxRetries || !["ECONNREFUSED", "ETIMEDOUT", "network"].some(m => String(err).includes(m))) {
+      if (
+        i === maxRetries ||
+        !["ECONNREFUSED", "ETIMEDOUT", "network"].some((m) => String(err).includes(m))
+      ) {
         return [];
       }
-      await new Promise(r => setTimeout(r, Math.pow(2, i) * 100));
+      await new Promise((r) => setTimeout(r, Math.pow(2, i) * 100));
     }
   }
   return [];
 }
 
-export {
-  fetchArticlesWithRetry,
-  fetchArticleWithRetry,
-  fetchArticlesByCategoryWithRetry,
-};
+export { fetchArticlesWithRetry, fetchArticleWithRetry, fetchArticlesByCategoryWithRetry };

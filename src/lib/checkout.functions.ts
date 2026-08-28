@@ -51,8 +51,6 @@ const CheckoutSchema = z.object({
     .max(100),
 });
 
-
-
 export const placeOrder = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => CheckoutSchema.parse(input))
   .handler(async ({ data }) => {
@@ -70,7 +68,9 @@ export const placeOrder = createServerFn({ method: "POST" })
     const clientIp = getClientIp(getRequest());
     const { limited: ipLimited } = await checkOrderRateLimitByIp(clientIp);
     if (ipLimited) {
-      throw new Error("יותר מדי ניסיונות הזמנה מהכתובת הזו. אנא המתן ונסה שוב, או צור קשר בוואטסאפ.");
+      throw new Error(
+        "יותר מדי ניסיונות הזמנה מהכתובת הזו. אנא המתן ונסה שוב, או צור קשר בוואטסאפ.",
+      );
     }
 
     // Re-fetch authoritative prices from DB
@@ -79,21 +79,47 @@ export const placeOrder = createServerFn({ method: "POST" })
       .from("products")
       .select("id, name, price, sku, is_active, stock_status")
       .in("id", ids);
-    if (pErr) { console.error("[placeOrder] products fetch:", pErr); throw new Error("שגיאה בטעינת המוצרים. אנא נסה שוב."); }
+    if (pErr) {
+      console.error("[placeOrder] products fetch:", pErr);
+      throw new Error("שגיאה בטעינת המוצרים. אנא נסה שוב.");
+    }
 
     // Fetch any referenced size variants for authoritative variant pricing
     const variantIds = data.items.map((i) => i.variant_id).filter(Boolean) as string[];
-    let variantsById = new Map<string, { id: string; product_id: string; label: string; price: number | null; in_stock: boolean | null }>();
+    let variantsById = new Map<
+      string,
+      {
+        id: string;
+        product_id: string;
+        label: string;
+        price: number | null;
+        in_stock: boolean | null;
+      }
+    >();
     if (variantIds.length > 0) {
       const { data: vrows, error: vErr } = await supabaseAdmin
         .from("product_variants")
         .select("id, product_id, label, price, in_stock")
         .in("id", variantIds);
-      if (vErr) { console.error("[placeOrder] variants fetch:", vErr); throw new Error("שגיאה בטעינת גדלי המוצרים. אנא נסה שוב."); }
+      if (vErr) {
+        console.error("[placeOrder] variants fetch:", vErr);
+        throw new Error("שגיאה בטעינת גדלי המוצרים. אנא נסה שוב.");
+      }
       // in_stock is normalized to a tri-state on purpose: most rows never set
       // it, and an unset size must stay purchasable. Only an explicit false
       // blocks the line below.
-      variantsById = new Map((vrows ?? []).map((v: any) => [v.id as string, { id: v.id, product_id: v.product_id, label: v.label, price: v.price !== null && v.price !== undefined ? Number(v.price) : null, in_stock: typeof v.in_stock === "boolean" ? v.in_stock : null }]));
+      variantsById = new Map(
+        (vrows ?? []).map((v: any) => [
+          v.id as string,
+          {
+            id: v.id,
+            product_id: v.product_id,
+            label: v.label,
+            price: v.price !== null && v.price !== undefined ? Number(v.price) : null,
+            in_stock: typeof v.in_stock === "boolean" ? v.in_stock : null,
+          },
+        ]),
+      );
     }
 
     const byId = new Map(products?.map((p) => [p.id, p]) ?? []);
@@ -126,9 +152,12 @@ export const placeOrder = createServerFn({ method: "POST" })
         throw new Error(`מוצר ללא מחיר תקין: ${p.name}`);
       }
       const unit_price = effectivePrice(basePrice);
-      const methodLabel = i.custom_method === "laser" ? "לייזר" : i.custom_method === "embroidery" ? "רקמה" : null;
+      const methodLabel =
+        i.custom_method === "laser" ? "לייזר" : i.custom_method === "embroidery" ? "רקמה" : null;
       const combinedCustom = i.custom_text
-        ? methodLabel ? `[${methodLabel}] ${i.custom_text}` : i.custom_text
+        ? methodLabel
+          ? `[${methodLabel}] ${i.custom_text}`
+          : i.custom_text
         : null;
       return {
         product_id: p.id,
@@ -154,7 +183,6 @@ export const placeOrder = createServerFn({ method: "POST" })
       isMember = !!prof?.is_member;
     }
 
-
     const rawSubtotal = lineItems.reduce((s, l) => s + l.line_total, 0);
     const subtotal = applyMember(rawSubtotal, isMember);
     const memberDiscount = rawSubtotal - subtotal;
@@ -163,7 +191,9 @@ export const placeOrder = createServerFn({ method: "POST" })
 
     const memberNote = isMember ? `[חבר מועדון — הנחת 5% (${memberDiscount} ₪)]` : "";
     const finalNotes = data.notes
-      ? memberNote ? `${data.notes}\n${memberNote}` : data.notes
+      ? memberNote
+        ? `${data.notes}\n${memberNote}`
+        : data.notes
       : memberNote || null;
 
     const { data: order, error: oErr } = await supabaseAdmin
@@ -188,11 +218,14 @@ export const placeOrder = createServerFn({ method: "POST" })
         // so an unticked-but-typed note can't reach the packing slip.
         is_gift: data.is_gift ?? false,
         gift_wrap: data.is_gift ? (data.gift_wrap ?? false) : false,
-        gift_note: data.is_gift ? (data.gift_note || null) : null,
+        gift_note: data.is_gift ? data.gift_note || null : null,
       })
       .select()
       .single();
-    if (oErr) { console.error("[placeOrder] order insert:", oErr); throw new Error("לא ניתן ליצור את ההזמנה כעת. אנא נסה שוב."); }
+    if (oErr) {
+      console.error("[placeOrder] order insert:", oErr);
+      throw new Error("לא ניתן ליצור את ההזמנה כעת. אנא נסה שוב.");
+    }
 
     const itemsPayload = lineItems.map((l) => ({ ...l, order_id: order.id }));
     const { error: iErr } = await supabaseAdmin.from("order_items").insert(itemsPayload);

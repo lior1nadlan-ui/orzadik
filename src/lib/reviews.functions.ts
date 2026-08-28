@@ -159,7 +159,7 @@ export const getOrderForReview = createServerFn({ method: "POST" })
       // expose only display-safe fields.
       const seen = new Set<string>();
       const products: ReviewOrderProduct[] = [];
-      for (const it of ((order.order_items as any[]) ?? [])) {
+      for (const it of (order.order_items as any[]) ?? []) {
         const pid = it?.product_id;
         if (!pid || seen.has(pid)) continue;
         seen.add(pid);
@@ -251,7 +251,9 @@ export const listPendingReviews = createServerFn({ method: "POST" }).handler(asy
   await requireAdmin();
   const { data, error } = await supabaseAdmin
     .from("reviews")
-    .select("id, product_id, author_name, rating, title, body, is_approved, created_at, products(name, slug)")
+    .select(
+      "id, product_id, author_name, rating, title, body, is_approved, created_at, products(name, slug)",
+    )
     .order("created_at", { ascending: false })
     .limit(200);
   if (error) {

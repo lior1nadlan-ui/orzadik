@@ -41,10 +41,12 @@ async function resolveCallerEmail(
     .select("email")
     .eq("id", userId)
     .maybeSingle();
-  const fromProfile = String(data?.email ?? "").trim().toLowerCase();
+  const fromProfile = String(data?.email ?? "")
+    .trim()
+    .toLowerCase();
   if (fromProfile) return fromProfile;
 
-  throw new Error("לא נמצאה כתובת דוא\"ל לחשבון זה.");
+  throw new Error('לא נמצאה כתובת דוא"ל לחשבון זה.');
 }
 
 /**

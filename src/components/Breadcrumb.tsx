@@ -57,9 +57,7 @@ export function Breadcrumb({ items }: { items: BreadcrumbItemData[] }) {
                 // correctly in RTL (a slash is direction-neutral, so there is no
                 // chevron to flip). BreadcrumbSeparator already sets
                 // role="presentation" + aria-hidden.
-                <BreadcrumbSeparator className="text-muted-foreground/40">
-                  /
-                </BreadcrumbSeparator>
+                <BreadcrumbSeparator className="text-muted-foreground/40">/</BreadcrumbSeparator>
               )}
               <BreadcrumbItem>
                 {isLast ? (

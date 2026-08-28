@@ -18,16 +18,16 @@
  * Mirrors rikmat.com's personalized lineup.
  */
 const BASE_PERSONALIZATION_CATEGORY_SLUGS = new Set<string>([
-  "talit-tefillin-sets",          // כיסויים/סטים לטלית ותפילין (covers merged in, 2026-07 dedupe)
-  "tefillin-cases",               // תיקי תפילין
-  "pvc-bags",                     // תיקי PVC
-  "chalaka-set",                  // סט חלאקה
-  "atara",                        // עטרה
-  "challah-covers",               // כיסויי חלה
-  "bencher-stands",               // מעמדי בנצ'ר (חריטת לייזר)
-  "wedding",                      // חתונה
-  "sidurim",                                                                       // סידורים
-  "marazim-chatanim",   // מארזים לחתנים ובר מצווה
+  "talit-tefillin-sets", // כיסויים/סטים לטלית ותפילין (covers merged in, 2026-07 dedupe)
+  "tefillin-cases", // תיקי תפילין
+  "pvc-bags", // תיקי PVC
+  "chalaka-set", // סט חלאקה
+  "atara", // עטרה
+  "challah-covers", // כיסויי חלה
+  "bencher-stands", // מעמדי בנצ'ר (חריטת לייזר)
+  "wedding", // חתונה
+  "sidurim", // סידורים
+  "marazim-chatanim", // מארזים לחתנים ובר מצווה
   // The ART Judaica import created a second, larger set of slugs for the SAME
   // bag families that were already listed above, and only the small originals
   // were ever gated — so 355 tallit/tefillin bags, the most obviously
@@ -36,9 +36,9 @@ const BASE_PERSONALIZATION_CATEGORY_SLUGS = new Set<string>([
   // `tik-tefilin` the same as `tefillin-cases`.) cross-sells.ts:14-20 records
   // this exact class of bug being fixed there in the 2026-07 dedupe; this file
   // was missed in that pass.
-  "setim-talit-tefilin",          // סטים טלית ותפילין (229 active)
-  "tikei-talit",                  // תיקי טלית (138 active)
-  "tik-tefilin",                  // תיק- תפ (25 active)
+  "setim-talit-tefilin", // סטים טלית ותפילין (229 active)
+  "tikei-talit", // תיקי טלית (138 active)
+  "tik-tefilin", // תיק- תפ (25 active)
   // Deliberately NOT added, verified against the live catalogue:
   //  • `talit-tefilin` — the PARENT of the three above. Holds no tallit
   //    garments (0 found), but does hold 26 metal clips and nylon sleeves.
@@ -135,10 +135,7 @@ export function isPersonalizable(categorySlugs: string[]): boolean {
  *   !NO_PERSONALIZATION_PRODUCT_SLUGS.has(slug) &&
  *   categorySlugs.some((s) => PERSONALIZATION_CATEGORY_SLUGS.has(s))
  */
-export function isPersonalizableProduct(
-  slug: string,
-  categorySlugs: string[],
-): boolean {
+export function isPersonalizableProduct(slug: string, categorySlugs: string[]): boolean {
   return !NO_PERSONALIZATION_PRODUCT_SLUGS.has(slug) && isPersonalizable(categorySlugs);
 }
 
@@ -154,13 +151,9 @@ export function isPersonalizableProduct(
  * copy, which tested `printInsteadOfEmbroidery` before `embroideryOnly`.
  */
 export function personalizationMethod(categorySlugs: string[]): PersonalizationMethod {
-  const printInstead = categorySlugs.some((s) =>
-    PRINT_INSTEAD_OF_EMBROIDERY_CATEGORY_SLUGS.has(s),
-  );
+  const printInstead = categorySlugs.some((s) => PRINT_INSTEAD_OF_EMBROIDERY_CATEGORY_SLUGS.has(s));
   if (printInstead) return "print";
-  const embroideryOnly = categorySlugs.some((s) =>
-    EMBROIDERY_ONLY_CATEGORY_SLUGS.has(s),
-  );
+  const embroideryOnly = categorySlugs.some((s) => EMBROIDERY_ONLY_CATEGORY_SLUGS.has(s));
   if (embroideryOnly) return "embroidery";
   return "both";
 }

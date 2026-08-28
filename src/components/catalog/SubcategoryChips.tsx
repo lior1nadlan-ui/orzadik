@@ -99,9 +99,7 @@ export function SubcategoryChips({
   // The caller already passes undefined in that case — this is the second lock,
   // because the failure mode is invisible in review and expensive in crawl.
   const haveCounts = !!counts && Object.keys(counts).length > 0;
-  const chips = haveCounts
-    ? all.filter((c) => c.slug === slug || (counts![c.slug] ?? 0) > 0)
-    : all;
+  const chips = haveCounts ? all.filter((c) => c.slug === slug || (counts![c.slug] ?? 0) > 0) : all;
 
   if (chips.length === 0) return null;
 

@@ -11,13 +11,13 @@ export const Route = createFileRoute("/contact")({
       {
         name: "description",
         content:
-          "צרו קשר עם אור זרוע לצדיק — טופס פנייה באתר, טלפון, וואטסאפ, דוא\"ל וכתובת. נשמח לעזור בבירורים, בהזמנות מיוחדות ובכל שאלה על תשמישי הקדושה שלנו.",
+          'צרו קשר עם אור זרוע לצדיק — טופס פנייה באתר, טלפון, וואטסאפ, דוא"ל וכתובת. נשמח לעזור בבירורים, בהזמנות מיוחדות ובכל שאלה על תשמישי הקדושה שלנו.',
       },
       { property: "og:title", content: "צור קשר | אור זרוע לצדיק" },
       {
         property: "og:description",
         content:
-          "דרכי יצירת קשר עם אור זרוע לצדיק — טופס פנייה, טלפון, וואטסאפ, דוא\"ל וכתובת בקרית ביאליק.",
+          'דרכי יצירת קשר עם אור זרוע לצדיק — טופס פנייה, טלפון, וואטסאפ, דוא"ל וכתובת בקרית ביאליק.',
       },
       { property: "og:url", content: "https://orzadik.com/contact" },
       { property: "og:type", content: "website" },
@@ -25,7 +25,7 @@ export const Route = createFileRoute("/contact")({
       {
         name: "twitter:description",
         content:
-          "דרכי יצירת קשר עם אור זרוע לצדיק — טופס פנייה, טלפון, וואטסאפ, דוא\"ל וכתובת בקרית ביאליק.",
+          'דרכי יצירת קשר עם אור זרוע לצדיק — טופס פנייה, טלפון, וואטסאפ, דוא"ל וכתובת בקרית ביאליק.',
       },
     ],
     links: [{ rel: "canonical", href: "https://orzadik.com/contact" }],
@@ -61,7 +61,7 @@ export const Route = createFileRoute("/contact")({
           url: "https://orzadik.com/contact",
           inLanguage: "he-IL",
           description:
-            "דרכי יצירת קשר עם אור זרוע לצדיק — טלפון, וואטסאפ, דוא\"ל וכתובת בקרית ביאליק, לבירורים, הזמנות מיוחדות והתאמות אישיות.",
+            'דרכי יצירת קשר עם אור זרוע לצדיק — טלפון, וואטסאפ, דוא"ל וכתובת בקרית ביאליק, לבירורים, הזמנות מיוחדות והתאמות אישיות.',
           isPartOf: { "@id": "https://orzadik.com/#website" },
           about: { "@id": "https://orzadik.com/#organization" },
           publisher: { "@id": "https://orzadik.com/#organization" },
@@ -93,12 +93,16 @@ function ContactPage() {
   return (
     <div className="container mx-auto px-4 py-12 md:py-16 max-w-3xl">
       <header className="mb-10 md:mb-14 text-center">
-        <p className="text-[10px] md:text-xs tracking-[0.35em] text-accent uppercase mb-3">צור קשר</p>
-        <h1 className="font-display text-3xl md:text-5xl tracking-wide text-foreground">צרו איתנו קשר</h1>
+        <p className="text-[10px] md:text-xs tracking-[0.35em] text-accent uppercase mb-3">
+          צור קשר
+        </p>
+        <h1 className="font-display text-3xl md:text-5xl tracking-wide text-foreground">
+          צרו איתנו קשר
+        </h1>
         <div className="gold-rule mx-auto mt-5 w-24" aria-hidden="true" />
         <p className="mt-5 mx-auto max-w-xl text-[15px] leading-relaxed text-muted-foreground">
-          נשמח לעמוד לרשותכם בכל שאלה על המוצרים, בבקשות להתאמה אישית (רקמה או חריטה),
-          בהזמנות מיוחדות ובכל בירור. בחרו את הדרך הנוחה לכם — ונחזור אליכם בהקדם.
+          נשמח לעמוד לרשותכם בכל שאלה על המוצרים, בבקשות להתאמה אישית (רקמה או חריטה), בהזמנות
+          מיוחדות ובכל בירור. בחרו את הדרך הנוחה לכם — ונחזור אליכם בהקדם.
         </p>
       </header>
 
@@ -157,14 +161,14 @@ function ContactPage() {
                 rather than collapsed into one tidy range. */}
             <p className="font-medium">שעות פתיחת החנות</p>
             <p className="mt-1 text-muted-foreground">
-              ראשון-שלישי: 9:30-14:00 ו-16:00-19:00 · רביעי-חמישי: 9:30-12:00 ו-16:00-19:00 ·
-              שישי: 9:30-12:00 · שבת: סגור.
+              ראשון-שלישי: 9:30-14:00 ו-16:00-19:00 · רביעי-חמישי: 9:30-12:00 ו-16:00-19:00 · שישי:
+              9:30-12:00 · שבת: סגור.
             </p>
             <p className="mt-3 font-medium">זמני מענה</p>
             <p className="mt-1 text-muted-foreground">
-              נשתדל להשיב לכל פנייה בהקדם, בדרך כלל תוך יום עסקים אחד.
-              המענה הטלפוני זמין בשעות פתיחת החנות (למעט ערבי חג וחגים).
-              לפניות בדוא"ל ובוואטסאפ ניתן לכתוב בכל שעה ונחזור אליכם בשעות הפעילות.
+              נשתדל להשיב לכל פנייה בהקדם, בדרך כלל תוך יום עסקים אחד. המענה הטלפוני זמין בשעות
+              פתיחת החנות (למעט ערבי חג וחגים). לפניות בדוא"ל ובוואטסאפ ניתן לכתוב בכל שעה ונחזור
+              אליכם בשעות הפעילות.
             </p>
           </div>
         </div>
@@ -177,8 +181,8 @@ function ContactPage() {
           <div className="text-[15px] leading-relaxed text-foreground">
             <p className="font-medium">כיצד לבטל או להחזיר הזמנה</p>
             <p className="mt-1 text-muted-foreground">
-              ניתן לבטל עסקה בכתב עד {CONSUMER_POLICY.cancellationDays} ימים ממועד קבלת המוצר,
-              בהתאם לחוק הגנת הצרכן — בהודעה בדוא"ל{" "}
+              ניתן לבטל עסקה בכתב עד {CONSUMER_POLICY.cancellationDays} ימים ממועד קבלת המוצר, בהתאם
+              לחוק הגנת הצרכן — בהודעה בדוא"ל{" "}
               <a
                 href={`mailto:${BUSINESS.email}`}
                 className="inline-block py-1.5 -my-1.5 text-accent underline underline-offset-4 [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-strong"
@@ -227,11 +231,7 @@ function ContactCard({
 }) {
   const externalProps = external ? { target: "_blank", rel: "noreferrer noopener" } : {};
   return (
-    <a
-      href={href}
-      {...externalProps}
-      className="glass glass-lift flex items-start gap-4 p-5"
-    >
+    <a href={href} {...externalProps} className="glass glass-lift flex items-start gap-4 p-5">
       <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
         {icon}
       </span>

@@ -166,9 +166,7 @@ export const Route = createFileRoute("/sitemap.xml")({
             .filter(Boolean)
             .map((d) => new Date(d as string).getTime())
             .filter((t) => !Number.isNaN(t));
-          const freshest = (
-            contentDates.length ? new Date(Math.max(...contentDates)) : new Date()
-          )
+          const freshest = (contentDates.length ? new Date(Math.max(...contentDates)) : new Date())
             .toISOString()
             .slice(0, 10);
 
@@ -207,7 +205,8 @@ export const Route = createFileRoute("/sitemap.xml")({
             const stock = (x: any) => (x.stock_status !== "outofstock" ? 0 : 1);
             if (img(a) !== img(b)) return img(a) - img(b);
             if (stock(a) !== stock(b)) return stock(a) - stock(b);
-            const pa = Number(a.price ?? 0), pb = Number(b.price ?? 0);
+            const pa = Number(a.price ?? 0),
+              pb = Number(b.price ?? 0);
             if (pa !== pb) return pa - pb;
             return String(a.id ?? "").localeCompare(String(b.id ?? ""));
           };
@@ -257,7 +256,10 @@ export const Route = createFileRoute("/sitemap.xml")({
           });
         } catch (e) {
           const err = e instanceof Error ? e.message : String(e);
-          console.error("[sitemap] generation failed", { error: err, timestamp: new Date().toISOString() });
+          console.error("[sitemap] generation failed", {
+            error: err,
+            timestamp: new Date().toISOString(),
+          });
           return new Response(
             `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"/>`,
             {

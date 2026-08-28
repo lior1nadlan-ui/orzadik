@@ -1,12 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { FeaturedProductsCarousel } from "@/components/home/FeaturedProductsCarousel";
-import {
-  BUSINESS,
-  GOOGLE_PLACE_URL,
-  OPENING_HOURS,
-  openingHoursLabel,
-} from "@/lib/business";
+import { BUSINESS, GOOGLE_PLACE_URL, OPENING_HOURS, openingHoursLabel } from "@/lib/business";
 
 export const Route = createFileRoute("/about")({
   component: AboutPage,
@@ -19,11 +14,18 @@ export const Route = createFileRoute("/about")({
           "אור זרוע לצדיק - חנות תשמישי קדושה ויודאיקה מהודרת. סטי חלאקה, מארזים לחתנים, כיסויי טלית ותפילין, סידורים, גביעי קידוש, חנוכיות ונרתיקי מזוזה — נבחרים בהקפדה על כשרות והידור.",
       },
       { property: "og:title", content: "אודות | אור זרוע לצדיק" },
-      { property: "og:description", content: "חנות תשמישי קדושה ויודאיקה מהודרת: חלאקה, מארזים לחתנים, כיסויי טלית ותפילין, גביעי קידוש, חנוכיות ונרתיקי מזוזה — נבחרים בהקפדה על כשרות והידור." },
+      {
+        property: "og:description",
+        content:
+          "חנות תשמישי קדושה ויודאיקה מהודרת: חלאקה, מארזים לחתנים, כיסויי טלית ותפילין, גביעי קידוש, חנוכיות ונרתיקי מזוזה — נבחרים בהקפדה על כשרות והידור.",
+      },
       { property: "og:url", content: "https://orzadik.com/about" },
       { property: "og:type", content: "website" },
       { name: "twitter:title", content: "אודות | אור זרוע לצדיק" },
-      { name: "twitter:description", content: "חנות תשמישי קדושה ויודאיקה מהודרת — נבחרים בהקפדה על כשרות והידור." },
+      {
+        name: "twitter:description",
+        content: "חנות תשמישי קדושה ויודאיקה מהודרת — נבחרים בהקפדה על כשרות והידור.",
+      },
     ],
     links: [{ rel: "canonical", href: "https://orzadik.com/about" }],
     scripts: [
@@ -109,16 +111,13 @@ function AboutPage() {
               h1 sentence opens the lede below, and every term in the new h1 is
               already published on the page (the shop, the category, and
               "מקרית ביאליק" in the story section) — nothing new is claimed. */}
-          <p className="text-[11px] tracking-[0.4em] uppercase text-accent mb-4">
-            אודות החנות
-          </p>
+          <p className="text-[11px] tracking-[0.4em] uppercase text-accent mb-4">אודות החנות</p>
           <h1 className="font-display text-4xl md:text-5xl font-bold leading-tight mb-5 text-foreground">
             אור זרוע לצדיק — חנות תשמישי קדושה ויודאיקה בקרית ביאליק
           </h1>
           <p className="text-base md:text-lg text-muted-foreground leading-relaxed">
-            תשמישי קדושה ויודאיקה שמלווים את החיים היהודיים — מבריתות וחלאקות,
-            דרך בר מצוות וחתונות, ועד לרגעי השבת והחג בבית. אנחנו כאן עם מוצרים
-            מהודרים ואיכותיים, נבחרים בקפידה.
+            תשמישי קדושה ויודאיקה שמלווים את החיים היהודיים — מבריתות וחלאקות, דרך בר מצוות וחתונות,
+            ועד לרגעי השבת והחג בבית. אנחנו כאן עם מוצרים מהודרים ואיכותיים, נבחרים בקפידה.
           </p>
         </div>
       </section>
@@ -126,37 +125,39 @@ function AboutPage() {
       {/* Story */}
       <section className="container mx-auto px-4 pb-14 max-w-3xl">
         <div className="glass max-w-none space-y-5 px-6 py-10 md:px-12 md:py-12 text-right text-foreground leading-relaxed [--glass-radius:1.25rem]">
-          <h2 className="font-display text-2xl md:text-3xl font-bold text-foreground">הסיפור שלנו</h2>
+          <h2 className="font-display text-2xl md:text-3xl font-bold text-foreground">
+            הסיפור שלנו
+          </h2>
           <p>
             <strong>אור זרוע לצדיק</strong> הוקמה מתוך אהבה אמיתית לתשמישי קדושה ולמסורת היהודית.
-            ראינו את החשיבות של להחזיק בבית פריטים שמלווים את הרגעים הקדושים ביותר —
-            כאלה שעוברים מדור לדור ונשמרים שנים רבות.
+            ראינו את החשיבות של להחזיק בבית פריטים שמלווים את הרגעים הקדושים ביותר — כאלה שעוברים
+            מדור לדור ונשמרים שנים רבות.
           </p>
           <p>
-            שם החנות, <strong>„אור זרוע לצדיק"</strong>, נלקח מן הפסוק בספר תהילים (פרק צ״ז, פס׳ יא):
-            „אוֹר זָרֻעַ לַצַּדִּיק וּלְיִשְׁרֵי־לֵב שִׂמְחָה" — והוא מבטא את רוח החנות: להביא אור,
-            הידור וקדושה אל תוך הבית היהודי.
+            שם החנות, <strong>„אור זרוע לצדיק"</strong>, נלקח מן הפסוק בספר תהילים (פרק צ״ז, פס׳
+            יא): „אוֹר זָרֻעַ לַצַּדִּיק וּלְיִשְׁרֵי־לֵב שִׂמְחָה" — והוא מבטא את רוח החנות: להביא
+            אור, הידור וקדושה אל תוך הבית היהודי.
           </p>
           <p>
-            הקטלוג שלנו מציע מבחר רחב במיוחד: סטי חלאקה לתלת-שנה, מארזים מפוארים לחתנים,
-            כיסויי טלית ותפילין, סידורים מעוצבים, גביעי קידוש מכסף וקריסטל, חנוכיות,
-            נרתיקי מזוזה, פמוטים, נטלות, מעמדי בנצ'ר וכל הדרוש לשולחן השבת ולחגי ישראל.
+            הקטלוג שלנו מציע מבחר רחב במיוחד: סטי חלאקה לתלת-שנה, מארזים מפוארים לחתנים, כיסויי טלית
+            ותפילין, סידורים מעוצבים, גביעי קידוש מכסף וקריסטל, חנוכיות, נרתיקי מזוזה, פמוטים,
+            נטלות, מעמדי בנצ'ר וכל הדרוש לשולחן השבת ולחגי ישראל.
           </p>
           <p>
             הפריטים נבחרים בהקפדה על כשרות והידור, וניתן לרכוש אצלנו גם עם
-            <strong> רקמה אישית או חריטת לייזר</strong> בהתאמה לאירוע — ערך מוסף שהופך
-            מוצר רגיל למתנה אישית ובלתי נשכחת.
+            <strong> רקמה אישית או חריטת לייזר</strong> בהתאמה לאירוע — ערך מוסף שהופך מוצר רגיל
+            למתנה אישית ובלתי נשכחת.
           </p>
           <p className="text-base text-muted-foreground">
-            החנות בבעלות <strong className="text-foreground">ליאור בן עמי</strong> ופועלת מקרית ביאליק (דרך עכו 190).
-            אפשר ליצור איתנו קשר בטלפון{" "}
+            החנות בבעלות <strong className="text-foreground">ליאור בן עמי</strong> ופועלת מקרית
+            ביאליק (דרך עכו 190). אפשר ליצור איתנו קשר בטלפון{" "}
             <a
               href="tel:+972545818486"
               className="text-accent underline-offset-4 [@media(hover:hover)_and_(pointer:fine)]:hover:underline"
             >
               054-581-8486
-            </a>,
-            בוואטסאפ או במייל — נשמח לסייע בבחירה ובהתאמה אישית.
+            </a>
+            , בוואטסאפ או במייל — נשמח לסייע בבחירה ובהתאמה אישית.
           </p>
         </div>
       </section>
@@ -285,7 +286,9 @@ function AboutPage() {
               },
             ].map((it) => (
               <div key={it.t} className="glass glass-lift h-full p-5">
-                <div className="text-gold text-lg mb-2" aria-hidden="true">✦</div>
+                <div className="text-gold text-lg mb-2" aria-hidden="true">
+                  ✦
+                </div>
                 <h3 className="font-display text-lg font-bold mb-2 text-foreground">{it.t}</h3>
                 <p className="text-sm text-muted-foreground leading-relaxed">{it.d}</p>
               </div>
@@ -303,8 +306,7 @@ function AboutPage() {
           בואו להתרשם מהמבחר
         </h2>
         <p className="text-muted-foreground leading-relaxed mb-8">
-          מעל 4,500 פריטים מוקפדים — מתנות לאירועים, רגעים של קדושה לבית
-          וכל מה שצריך להידור מצווה.
+          מעל 4,500 פריטים מוקפדים — מתנות לאירועים, רגעים של קדושה לבית וכל מה שצריך להידור מצווה.
         </p>
         <div className="flex flex-wrap items-center justify-center gap-3">
           <Link to="/shop" className="press inline-block">

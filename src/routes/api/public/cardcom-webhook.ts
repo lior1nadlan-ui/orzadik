@@ -10,7 +10,10 @@ import { getLpResult, settleCardcomOrder } from "@/lib/cardcom-settle.server";
 function getCardcomAllowedList(): string[] | null {
   const raw = process.env.CARDCOM_ALLOWED_IPS;
   if (!raw) return null; // not configured → skip check
-  const list = raw.split(",").map((s) => s.trim()).filter(Boolean);
+  const list = raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
   return list.length > 0 ? list : null;
 }
 
@@ -34,7 +37,8 @@ function ipInAllowlist(ip: string, list: string[]): boolean {
       const [base, bitsStr] = entry.split("/");
       const baseInt = ipv4ToInt(base);
       const bits = Number(bitsStr);
-      if (ipInt === null || baseInt === null || !Number.isInteger(bits) || bits < 0 || bits > 32) continue;
+      if (ipInt === null || baseInt === null || !Number.isInteger(bits) || bits < 0 || bits > 32)
+        continue;
       const mask = bits === 0 ? 0 : (0xffffffff << (32 - bits)) >>> 0;
       if ((ipInt & mask) === (baseInt & mask)) return true;
     } else if (entry === ip) {
@@ -56,8 +60,6 @@ function ipInAllowlist(ip: string, list: string[]): boolean {
  *     GetLpResult IS the validation.
  *  5. Persist Cardcom fields and update order status.
  */
-
-
 
 export const Route = createFileRoute("/api/public/cardcom-webhook")({
   server: {
@@ -91,7 +93,8 @@ export const Route = createFileRoute("/api/public/cardcom-webhook")({
           }
 
           // Do NOT log full payload — may contain customer PII. Log only the LowProfileId.
-          const _lpForLog = payload.LowProfileId ?? payload.lowProfileId ?? payload.lowprofilecode ?? null;
+          const _lpForLog =
+            payload.LowProfileId ?? payload.lowProfileId ?? payload.lowprofilecode ?? null;
           console.log("[cardcom-webhook] received LowProfileId:", _lpForLog);
 
           const lowProfileId =

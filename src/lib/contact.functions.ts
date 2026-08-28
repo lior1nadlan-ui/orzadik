@@ -25,7 +25,7 @@ import { BUSINESS } from "@/lib/business";
 
 const Schema = z.object({
   name: z.string().trim().min(2, "שם קצר מדי").max(200),
-  email: z.string().trim().email("כתובת דוא\"ל לא תקינה").max(255),
+  email: z.string().trim().email('כתובת דוא"ל לא תקינה').max(255),
   // Optional second channel. Loose on purpose — Israeli numbers get typed with
   // dashes, spaces and a leading +972 or 0, and rejecting a valid number is a
   // worse failure here than accepting a malformed one.

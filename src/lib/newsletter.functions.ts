@@ -72,18 +72,16 @@ export async function recordNewsletterConsent(opts: {
   }
 
   // Upsert on the plain unique index. Re-subscribing revives a closed row.
-  const { error: subErr } = await supabaseAdmin
-    .from("newsletter_subscribers")
-    .upsert(
-      {
-        email,
-        name: opts.name || null,
-        source: opts.source,
-        consented_at: now,
-        unsubscribed_at: null,
-      },
-      { onConflict: "email" },
-    );
+  const { error: subErr } = await supabaseAdmin.from("newsletter_subscribers").upsert(
+    {
+      email,
+      name: opts.name || null,
+      source: opts.source,
+      consented_at: now,
+      unsubscribed_at: null,
+    },
+    { onConflict: "email" },
+  );
   if (subErr) throw subErr;
 
   // Fresh consent outranks an old opt-out.
@@ -101,11 +99,11 @@ export async function recordNewsletterConsent(opts: {
   };
   const { error: profErr } = opts.userId
     ? await supabaseAdmin.from("profiles").update(profileUpdate).eq("id", opts.userId)
-    // .eq, not .ilike: `email` is already lowercased (L54) so an exact match
-    // never misses, and .ilike treats `_`/`%` in the local-part as LIKE
-    // wildcards — flipping marketing_consent=true on a look-alike stranger's
-    // profile (e.g. john_doe vs johnXdoe), a §30א opt-in violation.
-    : await supabaseAdmin.from("profiles").update(profileUpdate).eq("email", email);
+    : // .eq, not .ilike: `email` is already lowercased (L54) so an exact match
+      // never misses, and .ilike treats `_`/`%` in the local-part as LIKE
+      // wildcards — flipping marketing_consent=true on a look-alike stranger's
+      // profile (e.g. john_doe vs johnXdoe), a §30א opt-in violation.
+      await supabaseAdmin.from("profiles").update(profileUpdate).eq("email", email);
   if (profErr) console.error("[newsletter] profile consent sync failed:", profErr);
 
   return { suppressed: false };
@@ -121,7 +119,8 @@ export async function sendNewsletterWelcome(email: string, name?: string | null)
     await sendEmail({
       to: email,
       subject: "פרסומת: נרשמת לעדכונים של אור זרוע לצדיק ✨",
-      html: emailShell(`
+      html: emailShell(
+        `
         <p class="oz-muted" style="font-size:11px;color:#999;margin:0 0 8px;">פרסומת</p>
         <h1 style="font-size:20px;margin:0 0 8px;">${name ? esc(name) + ", ב" : "ב"}רוכים הבאים! ✨</h1>
         <p class="oz-muted" style="font-size:14px;color:#555;margin:0 0 16px;">
@@ -135,7 +134,11 @@ export async function sendNewsletterWelcome(email: string, name?: string | null)
             <a class="oz-gold" href="${esc(unsub)}" style="color:#A8862A;">להסרה מרשימת התפוצה לחצו כאן</a>.
           </div>
         </div>
-      `, name ? `${name}, נרשמת לעדכונים — מדריכים ותוכן לחגים, ואפשר להסיר בכל רגע.` : "נרשמת לעדכונים — מדריכים ותוכן לחגים, ואפשר להסיר בכל רגע."),
+      `,
+        name
+          ? `${name}, נרשמת לעדכונים — מדריכים ותוכן לחגים, ואפשר להסיר בכל רגע.`
+          : "נרשמת לעדכונים — מדריכים ותוכן לחגים, ואפשר להסיר בכל רגע.",
+      ),
       replyTo: process.env.SHOP_OWNER_EMAIL,
       // Same opt-out as the footer link, exposed to the mailbox provider so the
       // native "unsubscribe" button works without opening the mail.
@@ -163,7 +166,11 @@ export const subscribeNewsletter = createServerFn({ method: "POST" })
     const email = data.email.trim().toLowerCase();
     let suppressed = false;
     try {
-      ({ suppressed } = await recordNewsletterConsent({ email, name: data.name, source: data.source }));
+      ({ suppressed } = await recordNewsletterConsent({
+        email,
+        name: data.name,
+        source: data.source,
+      }));
     } catch (e) {
       console.error("[newsletter] subscribe failed:", e);
       throw new Error("לא הצלחנו לרשום את הכתובת כעת. אנא נסו שוב.");

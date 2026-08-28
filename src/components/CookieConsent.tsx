@@ -136,7 +136,9 @@ export function CookieConsent() {
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <div className="text-xs font-semibold">עוגיות הכרחיות</div>
-                  <div className="text-[11px] text-muted-foreground">נדרשות לתפעול האתר — תמיד פעילות.</div>
+                  <div className="text-[11px] text-muted-foreground">
+                    נדרשות לתפעול האתר — תמיד פעילות.
+                  </div>
                 </div>
                 <Switch checked disabled aria-label="עוגיות הכרחיות (תמיד פעילות)" />
               </div>
@@ -145,14 +147,22 @@ export function CookieConsent() {
                   <div className="text-xs font-semibold">עוגיות אנליטיקה</div>
                   <div className="text-[11px] text-muted-foreground">מדידת תנועה ושיפור האתר.</div>
                 </div>
-                <Switch checked={analytics} onCheckedChange={setAnalytics} aria-label="עוגיות אנליטיקה" />
+                <Switch
+                  checked={analytics}
+                  onCheckedChange={setAnalytics}
+                  aria-label="עוגיות אנליטיקה"
+                />
               </div>
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <div className="text-xs font-semibold">עוגיות שיווק</div>
                   <div className="text-[11px] text-muted-foreground">התאמת תוכן ומבצעים.</div>
                 </div>
-                <Switch checked={marketing} onCheckedChange={setMarketing} aria-label="עוגיות שיווק" />
+                <Switch
+                  checked={marketing}
+                  onCheckedChange={setMarketing}
+                  aria-label="עוגיות שיווק"
+                />
               </div>
             </div>
 

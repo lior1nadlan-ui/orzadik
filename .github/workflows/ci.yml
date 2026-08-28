@@ -8,11 +8,17 @@
 # four PRs of product photographs sat merged and invisible because nothing
 # published them. Catching it before the merge is the whole point.
 #
-# Deliberately the same two commands as deploy.yml and in the same order, so a
-# green PR means the deploy's gates will pass. `lint` is excluded here for the
-# same reason it is excluded there: several hundred pre-existing prettier
-# violations in the large route files would fail every run from day one. See the
-# note at the top of deploy.yml.
+# The same commands as deploy.yml and in the same order, so a green PR means the
+# deploy's gates will pass.
+#
+# `lint` used to be excluded here (and in deploy.yml) because ~2,000 pre-existing
+# prettier violations in the large route files failed every run from day one. The
+# cost of that exclusion was not the formatting: it was that NO eslint rule ran on
+# this repository at all — react-hooks, no-control-regex, the server-only import
+# guard, every rule that catches an actual bug — because the noise made the
+# command useless. The formatting has since been applied in one pass and the
+# remaining `any`s are warnings, so the gate runs. Warnings do not fail the build;
+# errors do.
 #
 # `build` is NOT repeated here. It is the slowest step by far and it cannot fail
 # independently of typecheck in practice; the deploy still runs it, so a broken
@@ -45,6 +51,9 @@ jobs:
           cache: npm
 
       - run: npm ci
+
+      - name: Lint
+        run: npm run lint
 
       - name: Typecheck
         run: npm run typecheck

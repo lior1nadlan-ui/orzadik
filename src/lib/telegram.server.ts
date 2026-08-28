@@ -95,19 +95,14 @@ function line(label: string, value: unknown): string {
 export function buildOrderMessage(order: any, paid: boolean): string {
   const items: any[] = (order.order_items as any[]) ?? [];
 
-  const head = paid
-    ? `✅ <b>הזמנה חדשה — שולם</b>\n`
-    : `🕐 <b>הזמנה חדשה — ממתינה לתשלום</b>\n`;
+  const head = paid ? `✅ <b>הזמנה חדשה — שולם</b>\n` : `🕐 <b>הזמנה חדשה — ממתינה לתשלום</b>\n`;
 
   let msg = `${head}<b>${esc(order.order_number)}</b>\n\n`;
 
   msg += line("לקוח", order.customer_name);
   msg += line("טלפון", order.customer_phone);
   msg += line("אימייל", order.customer_email);
-  msg += line(
-    "כתובת",
-    [order.customer_address, order.customer_city].filter(Boolean).join(", "),
-  );
+  msg += line("כתובת", [order.customer_address, order.customer_city].filter(Boolean).join(", "));
   msg += line("הערות", order.notes);
 
   if (order.is_gift) {

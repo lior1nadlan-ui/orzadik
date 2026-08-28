@@ -83,13 +83,7 @@ export type ShelfRow = {
 };
 
 /** The default ("shape") plus the explicit sorts a shopper can choose. */
-export type CatalogSort =
-  | "shape"
-  | "price-asc"
-  | "price-desc"
-  | "newest"
-  | "oldest"
-  | "name";
+export type CatalogSort = "shape" | "price-asc" | "price-desc" | "newest" | "oldest" | "name";
 
 /**
  * Per-shelf escape hatch. Value is the sort that shelf opens on instead of
@@ -207,9 +201,7 @@ export function orderShelf<T extends ShelfRow>(rows: T[]): T[] {
       // same treatment the explicit price sorts below already give them.
       const priced = list.filter((p) => p.price > 0);
       const call = list.filter((p) => p.price <= 0);
-      const asc = [...priced].sort(
-        (a, b) => effOf(a) - effOf(b) || byNameThenId(a, b),
-      );
+      const asc = [...priced].sort((a, b) => effOf(a) - effOf(b) || byNameThenId(a, b));
       return [...bisectionOrder(asc.length).map((i) => asc[i]), ...call];
     });
 

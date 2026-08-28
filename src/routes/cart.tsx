@@ -24,7 +24,9 @@ import { Trash2, Minus, Plus } from "lucide-react";
 
 export const Route = createFileRoute("/cart")({
   component: CartPage,
-  head: () => ({ meta: [{ title: "העגלה שלי" }, { name: "robots", content: "noindex, nofollow" }] }),
+  head: () => ({
+    meta: [{ title: "העגלה שלי" }, { name: "robots", content: "noindex, nofollow" }],
+  }),
 });
 
 // Cart revalidation — the CartSnapshot / LineCheck types, evaluateLine,
@@ -180,7 +182,9 @@ function CartPage() {
                 </div>
 
                 {item.variantLabel && (
-                  <div className="text-xs text-muted-foreground mt-1">גודל: {item.variantLabel}</div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    גודל: {item.variantLabel}
+                  </div>
                 )}
 
                 {item.customText && (
@@ -257,11 +261,19 @@ function CartPage() {
                       exactly what the clip drew, since a rounded-full pill and a
                       full-rounded child both clamp to half the same height. */}
                   <div className="inline-flex items-center rounded-full hairline">
-                    <button onClick={() => setQty(k, item.quantity - 1)} className="press relative rounded-s-full px-2.5 py-1.5 before:absolute before:-inset-x-1.5 before:-inset-y-2.5 before:content-[''] [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary" aria-label={`הפחת כמות ${item.name}`}>
+                    <button
+                      onClick={() => setQty(k, item.quantity - 1)}
+                      className="press relative rounded-s-full px-2.5 py-1.5 before:absolute before:-inset-x-1.5 before:-inset-y-2.5 before:content-[''] [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary"
+                      aria-label={`הפחת כמות ${item.name}`}
+                    >
                       <Minus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                     </button>
                     <span className="px-3 text-sm font-medium tabular-nums">{item.quantity}</span>
-                    <button onClick={() => setQty(k, item.quantity + 1)} className="press relative rounded-e-full px-2.5 py-1.5 before:absolute before:-inset-x-1.5 before:-inset-y-2.5 before:content-[''] [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary" aria-label={`הוסף כמות ${item.name}`}>
+                    <button
+                      onClick={() => setQty(k, item.quantity + 1)}
+                      className="press relative rounded-e-full px-2.5 py-1.5 before:absolute before:-inset-x-1.5 before:-inset-y-2.5 before:content-[''] [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary"
+                      aria-label={`הוסף כמות ${item.name}`}
+                    >
                       <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                     </button>
                   </div>
@@ -353,7 +365,9 @@ function CartPage() {
                 34px figure's baseline instead of floating at its cap height. */}
             <div className="flex items-baseline justify-between gap-3 mb-4">
               <span className="text-body font-bold">סך הכל</span>
-              <span className="text-total font-bold text-accent whitespace-nowrap">{formatILS(finalTotal)}</span>
+              <span className="text-total font-bold text-accent whitespace-nowrap">
+                {formatILS(finalTotal)}
+              </span>
             </div>
           </>
         )}
@@ -406,7 +420,10 @@ function CartPage() {
         {!nothingOrderable && (
           <div className="mb-4 rounded-xl hairline-gold bg-secondary/60 px-3 py-2.5 text-start">
             <p className="text-body font-semibold text-foreground">
-              <span className="text-accent" aria-hidden="true">✦</span> עטיפה והקדשה אישית - ללא עלות
+              <span className="text-accent" aria-hidden="true">
+                ✦
+              </span>{" "}
+              עטיפה והקדשה אישית - ללא עלות
             </p>
             <p className="mt-1 text-micro leading-relaxed text-muted-foreground">
               בשלב התשלום אפשר לסמן שזו מתנה, לכתוב הקדשה של עד 300 תווים שתודפס ותצורף למשלוח,

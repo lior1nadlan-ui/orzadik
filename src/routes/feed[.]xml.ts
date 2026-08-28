@@ -63,7 +63,9 @@ async function fetchAllProducts(): Promise<any[]> {
       .from("products")
       // name_norm is here only so the feed can collapse duplicate-name families
       // on exactly the key sitemap.xml groups by — see representatives() below.
-      .select("id, slug, name, description, short_description, price, sku, stock_status, thumbnail_url, name_norm")
+      .select(
+        "id, slug, name, description, short_description, price, sku, stock_status, thumbnail_url, name_norm",
+      )
       .eq("is_active", true)
       .order("id")
       .range(from, from + PAGE - 1);
@@ -126,7 +128,8 @@ function representatives(products: any[]): any[] {
     const stock = (x: any) => (x.stock_status !== "outofstock" ? 0 : 1);
     if (img(a) !== img(b)) return img(a) - img(b);
     if (stock(a) !== stock(b)) return stock(a) - stock(b);
-    const pa = Number(a.price ?? 0), pb = Number(b.price ?? 0);
+    const pa = Number(a.price ?? 0),
+      pb = Number(b.price ?? 0);
     if (pa !== pb) return pa - pb;
     return String(a.id ?? "").localeCompare(String(b.id ?? ""));
   };
@@ -197,7 +200,8 @@ export const Route = createFileRoute("/feed.xml")({
             if (!(effective > 0)) continue;
 
             const title = plain(p.name, 150);
-            const description = plain(p.description || p.short_description || p.name, 5000) || title;
+            const description =
+              plain(p.description || p.short_description || p.name, 5000) || title;
             const link = `${SITE}/product/${encodeURIComponent(p.slug)}`;
             const availability = p.stock_status === "outofstock" ? "out_of_stock" : "in_stock";
             const sku = typeof p.sku === "string" ? p.sku.trim() : "";
@@ -233,7 +237,7 @@ export const Route = createFileRoute("/feed.xml")({
                 // signal for handmade / no-barcode goods and avoids the "missing
                 // gtin" error class.
                 `<g:identifier_exists>no</g:identifier_exists>` +
-              `</item>`,
+                `</item>`,
             );
           }
 
@@ -257,7 +261,10 @@ export const Route = createFileRoute("/feed.xml")({
           });
         } catch (e) {
           const err = e instanceof Error ? e.message : String(e);
-          console.error("[feed] generation failed", { error: err, timestamp: new Date().toISOString() });
+          console.error("[feed] generation failed", {
+            error: err,
+            timestamp: new Date().toISOString(),
+          });
           // Valid-but-empty feed rather than a 500, so a scheduled pull does not
           // wipe the Merchant Center listings on one transient DB hiccup.
           return new Response(

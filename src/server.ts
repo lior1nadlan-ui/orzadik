@@ -12,7 +12,7 @@ let serverEntryPromise: Promise<ServerEntry> | undefined;
 async function getServerEntry(): Promise<ServerEntry> {
   if (!serverEntryPromise) {
     serverEntryPromise = import("@tanstack/react-start/server-entry").then(
-      (m) => ((m as { default?: ServerEntry }).default ?? (m as unknown as ServerEntry)),
+      (m) => (m as { default?: ServerEntry }).default ?? (m as unknown as ServerEntry),
     );
   }
   return serverEntryPromise;
@@ -118,15 +118,7 @@ function applySecurityHeaders(response: Response): Response {
 }
 
 // Private, per-user or state-changing paths must never be shared-cached.
-const NO_STORE_PREFIXES = [
-  "/account",
-  "/cart",
-  "/checkout",
-  "/order",
-  "/admin",
-  "/auth",
-  "/api",
-];
+const NO_STORE_PREFIXES = ["/account", "/cart", "/checkout", "/order", "/admin", "/auth", "/api"];
 
 /**
  * Apply an SEO/perf-friendly Cache-Control to public HTML pages (CDN caches
@@ -159,13 +151,13 @@ export function applyCachePolicy(request: Request, response: Response): Response
   if (!ct.includes("text/html")) return response;
 
   const path = new URL(request.url).pathname;
-  const isPrivate = NO_STORE_PREFIXES.some((p) => path === p || path.startsWith(p + "/") || path.startsWith(p));
+  const isPrivate = NO_STORE_PREFIXES.some(
+    (p) => path === p || path.startsWith(p + "/") || path.startsWith(p),
+  );
   const headers = new Headers(response.headers);
   headers.set(
     "Cache-Control",
-    isPrivate
-      ? "private, no-store"
-      : "public, max-age=0, s-maxage=300, stale-while-revalidate=60",
+    isPrivate ? "private, no-store" : "public, max-age=0, s-maxage=300, stale-while-revalidate=60",
   );
   return new Response(response.body, {
     status: response.status,
@@ -261,8 +253,7 @@ export default {
     // redirect rule. Neither name can ever be a production hostname, so the
     // canonicalisation loses nothing by skipping them.
     const isLocalhost = reqUrl.hostname === "localhost" || reqUrl.hostname === "127.0.0.1";
-    const isInsecure =
-      !isLocalhost && (reqUrl.protocol === "http:" || forwardedProto === "http");
+    const isInsecure = !isLocalhost && (reqUrl.protocol === "http:" || forwardedProto === "http");
     const isWww = reqUrl.hostname === "www.orzadik.com";
     if (isInsecure || isWww) {
       if (isInsecure) reqUrl.protocol = "https:";

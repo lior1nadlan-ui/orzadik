@@ -64,7 +64,10 @@ describe("private paths are never cached", () => {
 
 describe("it stays out of the way", () => {
   it("never overrides a Cache-Control a route already set", () => {
-    const res = applyCachePolicy(get("/sitemap.xml"), html({ "Cache-Control": "public, max-age=3600" }));
+    const res = applyCachePolicy(
+      get("/sitemap.xml"),
+      html({ "Cache-Control": "public, max-age=3600" }),
+    );
     expect(res.headers.get("Cache-Control")).toBe("public, max-age=3600");
   });
 

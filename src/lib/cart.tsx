@@ -1,4 +1,12 @@
-import { createContext, useContext, useEffect, useState, useCallback, useMemo, ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+  useMemo,
+  ReactNode,
+} from "react";
 
 // Price math lives in a single shared module (client + server). Re-exported
 // here so existing `@/lib/cart` imports keep working unchanged.
@@ -37,7 +45,6 @@ export type CartItem = {
   /** Display label for the chosen variant (e.g. size) */
   variantLabel?: string;
 };
-
 
 type CartCtx = {
   items: CartItem[];
@@ -118,7 +125,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
         const merged = [...mine];
         for (const g of guest) {
           const idx = merged.findIndex((m) => lineKey(m) === lineKey(g));
-          if (idx >= 0) merged[idx] = { ...merged[idx], quantity: merged[idx].quantity + g.quantity };
+          if (idx >= 0)
+            merged[idx] = { ...merged[idx], quantity: merged[idx].quantity + g.quantity };
           else merged.push(g);
         }
         setItems(merged);
@@ -145,34 +153,44 @@ export function CartProvider({ children }: { children: ReactNode }) {
   // Stable callback identities — consumers depend on these in effect deps
   // (e.g. the order-confirmation page clears the cart in a useEffect). A fresh
   // identity each render there caused an infinite render loop.
-  const add = useCallback<CartCtx["add"]>((item, qty = 1) => {
-    setItems((cur) => {
-      const k = lineKey(item);
-      const idx = cur.findIndex((c) => lineKey(c) === k);
-      if (idx >= 0) {
-        const next = [...cur];
-        next[idx] = { ...next[idx], quantity: next[idx].quantity + qty };
-        return next;
-      }
-      return [...cur, { ...item, quantity: qty }];
-    });
-    // Fire add_to_cart once per add() call, centrally — every "add to cart"
-    // path (product card, product page, cross-sell, bundle) routes through here,
-    // so there is one place to instrument instead of many. no-ops on SSR / no
-    // gtag+fbq.
-    trackAddToCart({ id: item.productId, name: item.name, price: item.price, quantity: qty });
-    // Persistent confirmation: slide the mini-cart open on every successful add.
-    // openCart is stable, so add()'s identity stays stable across renders.
-    openCart();
-  }, [openCart]);
-  const remove = useCallback<CartCtx["remove"]>((k) => setItems((c) => c.filter((i) => lineKey(i) !== k)), []);
+  const add = useCallback<CartCtx["add"]>(
+    (item, qty = 1) => {
+      setItems((cur) => {
+        const k = lineKey(item);
+        const idx = cur.findIndex((c) => lineKey(c) === k);
+        if (idx >= 0) {
+          const next = [...cur];
+          next[idx] = { ...next[idx], quantity: next[idx].quantity + qty };
+          return next;
+        }
+        return [...cur, { ...item, quantity: qty }];
+      });
+      // Fire add_to_cart once per add() call, centrally — every "add to cart"
+      // path (product card, product page, cross-sell, bundle) routes through here,
+      // so there is one place to instrument instead of many. no-ops on SSR / no
+      // gtag+fbq.
+      trackAddToCart({ id: item.productId, name: item.name, price: item.price, quantity: qty });
+      // Persistent confirmation: slide the mini-cart open on every successful add.
+      // openCart is stable, so add()'s identity stays stable across renders.
+      openCart();
+    },
+    [openCart],
+  );
+  const remove = useCallback<CartCtx["remove"]>(
+    (k) => setItems((c) => c.filter((i) => lineKey(i) !== k)),
+    [],
+  );
   const setQty = useCallback<CartCtx["setQty"]>(
-    (k, qty) => setItems((c) => c.map((i) => (lineKey(i) === k ? { ...i, quantity: Math.max(1, qty) } : i))),
+    (k, qty) =>
+      setItems((c) => c.map((i) => (lineKey(i) === k ? { ...i, quantity: Math.max(1, qty) } : i))),
     [],
   );
   const clear = useCallback<CartCtx["clear"]>(() => setItems([]), []);
   const count = items.reduce((s, i) => s + i.quantity, 0);
-  const subtotalBase = items.reduce((s, i) => s + getDisplayOriginal(i.price, i.salePrice) * i.quantity, 0);
+  const subtotalBase = items.reduce(
+    (s, i) => s + getDisplayOriginal(i.price, i.salePrice) * i.quantity,
+    0,
+  );
   const subtotal = items.reduce((s, i) => s + getEffectivePrice(i.price) * i.quantity, 0);
   const discountAmount = subtotalBase - subtotal;
   const shipping = getShipping(subtotal);
@@ -180,12 +198,41 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   // Memoize so consumers don't re-render on every unrelated provider render.
   const value = useMemo<CartCtx>(
-    () => ({ items, add, remove, setQty, clear, count, isCartOpen, openCart, closeCart, subtotalBase, subtotal, discountAmount, shipping, grandTotal }),
-    [items, add, remove, setQty, clear, count, isCartOpen, openCart, closeCart, subtotalBase, subtotal, discountAmount, shipping, grandTotal],
+    () => ({
+      items,
+      add,
+      remove,
+      setQty,
+      clear,
+      count,
+      isCartOpen,
+      openCart,
+      closeCart,
+      subtotalBase,
+      subtotal,
+      discountAmount,
+      shipping,
+      grandTotal,
+    }),
+    [
+      items,
+      add,
+      remove,
+      setQty,
+      clear,
+      count,
+      isCartOpen,
+      openCart,
+      closeCart,
+      subtotalBase,
+      subtotal,
+      discountAmount,
+      shipping,
+      grandTotal,
+    ],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
-
 }
 
 export function useCart() {
@@ -195,5 +242,9 @@ export function useCart() {
 }
 
 export function formatILS(n: number) {
-  return new Intl.NumberFormat("he-IL", { style: "currency", currency: "ILS", maximumFractionDigits: 0 }).format(n);
+  return new Intl.NumberFormat("he-IL", {
+    style: "currency",
+    currency: "ILS",
+    maximumFractionDigits: 0,
+  }).format(n);
 }

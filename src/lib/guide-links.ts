@@ -190,9 +190,10 @@ export function guidesForCategory(
     seen.add(cur);
     const hit = CATEGORY_GUIDES[cur];
     if (hit) return hit.map((g) => GUIDES[g]).filter(Boolean);
-    cur = hops === 0 && parentSlug !== undefined
-      ? parentSlug
-      : allCats?.find((c) => c.slug === cur)?.parent_slug ?? null;
+    cur =
+      hops === 0 && parentSlug !== undefined
+        ? parentSlug
+        : (allCats?.find((c) => c.slug === cur)?.parent_slug ?? null);
   }
   return [];
 }
@@ -224,5 +225,8 @@ export function categoriesForGuide(guideSlug: string): string[] {
 /** Sibling guides in the same topical cluster, excluding the current one. */
 export function relatedGuides(guideSlug: string): GuideRef[] {
   const cluster = GUIDE_CLUSTERS.find((c) => c.includes(guideSlug)) ?? [];
-  return cluster.filter((g) => g !== guideSlug).map((g) => GUIDES[g]).filter(Boolean);
+  return cluster
+    .filter((g) => g !== guideSlug)
+    .map((g) => GUIDES[g])
+    .filter(Boolean);
 }

@@ -5,7 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Pencil, Trash2, Plus } from "lucide-react";
@@ -121,7 +128,9 @@ function AdminCategories() {
       const { error } = await supabase.from("categories").insert(payload);
       if (error) return toast.error(error.message);
     }
-    toast.success("נשמר"); setOpen(false); setEditing(null);
+    toast.success("נשמר");
+    setOpen(false);
+    setEditing(null);
     qc.invalidateQueries({ queryKey: ["admin-cats"] });
   };
 
@@ -140,9 +149,23 @@ function AdminCategories() {
           קטגוריות ({filtered.length}
           {filtered.length !== cats.length ? ` מתוך ${cats.length}` : ""})
         </h1>
-        <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setEditing(null); }}>
+        <Dialog
+          open={open}
+          onOpenChange={(v) => {
+            setOpen(v);
+            if (!v) setEditing(null);
+          }}
+        >
           <DialogTrigger asChild>
-            <Button onClick={() => { setEditing(null); setOpen(true); }} className="gap-2"><Plus className="h-4 w-4" /> חדש</Button>
+            <Button
+              onClick={() => {
+                setEditing(null);
+                setOpen(true);
+              }}
+              className="gap-2"
+            >
+              <Plus className="h-4 w-4" /> חדש
+            </Button>
           </DialogTrigger>
           <CatDialog key={editing?.id ?? "new"} cat={editing} onSave={onSave} />
         </Dialog>
@@ -152,7 +175,9 @@ function AdminCategories() {
           to find the categories still missing intro copy / SEO text / a banner. */}
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="w-full sm:max-w-xs">
-          <Label htmlFor="cat-search" className="sr-only">חיפוש קטגוריה</Label>
+          <Label htmlFor="cat-search" className="sr-only">
+            חיפוש קטגוריה
+          </Label>
           <Input
             id="cat-search"
             placeholder="חיפוש לפי שם או Slug..."
@@ -176,10 +201,15 @@ function AdminCategories() {
 
       <div className="rounded-lg border bg-card overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="bg-muted/50"><tr className="text-right">
-            <th className="p-3">שם</th><th className="p-3">Slug</th><th className="p-3">סדר</th>
-            <th className="p-3">תוכן לעמוד הקטגוריה</th><th></th>
-          </tr></thead>
+          <thead className="bg-muted/50">
+            <tr className="text-right">
+              <th className="p-3">שם</th>
+              <th className="p-3">Slug</th>
+              <th className="p-3">סדר</th>
+              <th className="p-3">תוכן לעמוד הקטגוריה</th>
+              <th></th>
+            </tr>
+          </thead>
           <tbody>
             {filtered.length === 0 && (
               <tr>
@@ -203,8 +233,19 @@ function AdminCategories() {
                   <Filled on={!!c.image_url} label="תמונה" />
                 </td>
                 <td className="p-3 flex gap-2 justify-end">
-                  <Button size="sm" variant="outline" onClick={() => { setEditing(c); setOpen(true); }}><Pencil className="h-3.5 w-3.5" /></Button>
-                  <Button size="sm" variant="outline" onClick={() => onDelete(c.id)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setEditing(c);
+                      setOpen(true);
+                    }}
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => onDelete(c.id)}>
+                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                  </Button>
                 </td>
               </tr>
             ))}
@@ -233,7 +274,9 @@ function CatDialog({ cat, onSave }: { cat: Cat | null; onSave: (f: Partial<Cat>)
   const descLen = (form.description ?? "").trim().length;
   return (
     <DialogContent className="max-h-[85vh] overflow-y-auto">
-      <DialogHeader><DialogTitle>{cat ? "עריכת קטגוריה" : "קטגוריה חדשה"}</DialogTitle></DialogHeader>
+      <DialogHeader>
+        <DialogTitle>{cat ? "עריכת קטגוריה" : "קטגוריה חדשה"}</DialogTitle>
+      </DialogHeader>
       <div className="space-y-4">
         <div>
           <Label>שם</Label>
@@ -250,10 +293,14 @@ function CatDialog({ cat, onSave }: { cat: Cat | null; onSave: (f: Partial<Cat>)
           <Input
             dir="ltr"
             value={form.slug ?? ""}
-            onChange={(e) => { setSlugTouched(true); setForm((prev) => ({ ...prev, slug: e.target.value })); }}
+            onChange={(e) => {
+              setSlugTouched(true);
+              setForm((prev) => ({ ...prev, slug: e.target.value }));
+            }}
           />
           <p className="mt-1 text-xs text-muted-foreground">
-            כתובת העמוד באנגלית (אותיות קטנות ומקפים). מתמלאת אוטומטית משם הקטגוריה — וניתן לערוך ידנית.
+            כתובת העמוד באנגלית (אותיות קטנות ומקפים). מתמלאת אוטומטית משם הקטגוריה — וניתן לערוך
+            ידנית.
           </p>
         </div>
         <div>
@@ -267,7 +314,9 @@ function CatDialog({ cat, onSave }: { cat: Cat | null; onSave: (f: Partial<Cat>)
             מוצג מתחת לכותרת בעמוד הקטגוריה, ומשמש גם כתיאור המטא (meta description) בתוצאות החיפוש.
             מומלץ עד 160 תווים — גוגל גוזר טקסט ארוך יותר. אם נשאר ריק, נוצר תיאור כללי אוטומטי.
           </p>
-          <p className={`mt-1 text-xs ${descLen > 160 ? "text-destructive" : "text-muted-foreground/70"}`}>
+          <p
+            className={`mt-1 text-xs ${descLen > 160 ? "text-destructive" : "text-muted-foreground/70"}`}
+          >
             {descLen}/160 תווים
           </p>
         </div>
@@ -279,9 +328,9 @@ function CatDialog({ cat, onSave }: { cat: Cat | null; onSave: (f: Partial<Cat>)
             onChange={(e) => setForm({ ...form, long_description: e.target.value })}
           />
           <p className="mt-1 text-xs text-muted-foreground">
-            נכתב בעברית ומוצג בתחתית עמוד הקטגוריה, מתחת למוצרים, תחת הכותרת "קצת על …".
-            זהו התוכן שמנועי החיפוש קוראים — כדאי לכתוב כמה פסקאות ייחודיות לקטגוריה. ירידות שורה נשמרות.
-            אם נשאר ריק, האזור פשוט לא מוצג.
+            נכתב בעברית ומוצג בתחתית עמוד הקטגוריה, מתחת למוצרים, תחת הכותרת "קצת על …". זהו התוכן
+            שמנועי החיפוש קוראים — כדאי לכתוב כמה פסקאות ייחודיות לקטגוריה. ירידות שורה נשמרות. אם
+            נשאר ריק, האזור פשוט לא מוצג.
           </p>
         </div>
         <div>
@@ -306,13 +355,22 @@ function CatDialog({ cat, onSave }: { cat: Cat | null; onSave: (f: Partial<Cat>)
             />
           )}
           <p className="mt-1 text-xs text-muted-foreground">
-            תמונה רחבה שתוצג כבאנר בראש עמוד הקטגוריה (מומלץ יחס 21:8, לדוגמה 1600×700 פיקסלים).
-            אם נשאר ריק, מוצגת כותרת טקסט בלבד.
+            תמונה רחבה שתוצג כבאנר בראש עמוד הקטגוריה (מומלץ יחס 21:8, לדוגמה 1600×700 פיקסלים). אם
+            נשאר ריק, מוצגת כותרת טקסט בלבד.
           </p>
         </div>
-        <div><Label>סדר תצוגה</Label><Input type="number" value={form.sort_order ?? 0} onChange={(e) => setForm({ ...form, sort_order: Number(e.target.value) })} /></div>
+        <div>
+          <Label>סדר תצוגה</Label>
+          <Input
+            type="number"
+            value={form.sort_order ?? 0}
+            onChange={(e) => setForm({ ...form, sort_order: Number(e.target.value) })}
+          />
+        </div>
       </div>
-      <DialogFooter><Button onClick={() => onSave(form)}>שמור</Button></DialogFooter>
+      <DialogFooter>
+        <Button onClick={() => onSave(form)}>שמור</Button>
+      </DialogFooter>
     </DialogContent>
   );
 }

@@ -238,12 +238,36 @@ export function AccessibilityWidget() {
 
         {/* Toggles */}
         <div className="space-y-1.5">
-          <Toggle label="ניגודיות גבוהה" active={settings.contrast} onClick={() => update({ contrast: !settings.contrast })} />
-          <Toggle label="גווני אפור" active={settings.grayscale} onClick={() => update({ grayscale: !settings.grayscale })} />
-          <Toggle label="הדגשת קישורים" active={settings.highlightLinks} onClick={() => update({ highlightLinks: !settings.highlightLinks })} />
-          <Toggle label="גופן קריא" active={settings.readableFont} onClick={() => update({ readableFont: !settings.readableFont })} />
-          <Toggle label="עצירת אנימציות" active={settings.stopAnimations} onClick={() => update({ stopAnimations: !settings.stopAnimations })} />
-          <Toggle label="סמן עכבר גדול" active={settings.bigCursor} onClick={() => update({ bigCursor: !settings.bigCursor })} />
+          <Toggle
+            label="ניגודיות גבוהה"
+            active={settings.contrast}
+            onClick={() => update({ contrast: !settings.contrast })}
+          />
+          <Toggle
+            label="גווני אפור"
+            active={settings.grayscale}
+            onClick={() => update({ grayscale: !settings.grayscale })}
+          />
+          <Toggle
+            label="הדגשת קישורים"
+            active={settings.highlightLinks}
+            onClick={() => update({ highlightLinks: !settings.highlightLinks })}
+          />
+          <Toggle
+            label="גופן קריא"
+            active={settings.readableFont}
+            onClick={() => update({ readableFont: !settings.readableFont })}
+          />
+          <Toggle
+            label="עצירת אנימציות"
+            active={settings.stopAnimations}
+            onClick={() => update({ stopAnimations: !settings.stopAnimations })}
+          />
+          <Toggle
+            label="סמן עכבר גדול"
+            active={settings.bigCursor}
+            onClick={() => update({ bigCursor: !settings.bigCursor })}
+          />
         </div>
 
         <button
@@ -266,7 +290,15 @@ export function AccessibilityWidget() {
   );
 }
 
-function Toggle({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+function Toggle({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
   return (
     // No colour transition alongside `press`: styles.css declares .press later
     // in the utilities layer, so its `transition-property: transform` wins and a
@@ -280,8 +312,8 @@ function Toggle({ label, active, onClick }: { label: string; active: boolean; on
       className={
         "press w-full flex items-center justify-between gap-2 rounded-lg border p-2.5 text-sm font-medium " +
         (active
-          // text-accent on bg-accent/10 over the glass panel = 5.06:1.
-          ? "border-accent/40 bg-accent/10 text-accent"
+          ? // text-accent on bg-accent/10 over the glass panel = 5.06:1.
+            "border-accent/40 bg-accent/10 text-accent"
           : "border-border text-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary")
       }
     >
