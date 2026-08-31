@@ -33,8 +33,9 @@ export function ContactForm() {
   const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
 
-  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-    setForm((f) => ({ ...f, [k]: e.target.value }));
+  const set =
+    (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+      setForm((f) => ({ ...f, [k]: e.target.value }));
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,12 +69,9 @@ export function ContactForm() {
       // be rendered to the visitor as a wall of JSON. Anything JSON-shaped is
       // therefore rejected in favour of the fallback.
       const raw = typeof err?.message === "string" ? err.message.trim() : "";
-      const isOwnMessage =
-        /[֐-׿]/.test(raw) && !raw.startsWith("[") && !raw.startsWith("{");
+      const isOwnMessage = /[֐-׿]/.test(raw) && !raw.startsWith("[") && !raw.startsWith("{");
       setError(
-        isOwnMessage
-          ? raw
-          : "לא הצלחנו לשלוח את ההודעה. נסו שוב, או פנו אלינו בטלפון או בוואטסאפ.",
+        isOwnMessage ? raw : "לא הצלחנו לשלוח את ההודעה. נסו שוב, או פנו אלינו בטלפון או בוואטסאפ.",
       );
     } finally {
       setBusy(false);
@@ -173,8 +171,8 @@ export function ContactForm() {
               className="mt-1.5 bg-card"
             />
             <p id="contact-message-hint" className="mt-1 text-[11px] text-muted-foreground">
-              ספרו לנו במה נוכל לעזור — שאלה על מוצר, בקשת התאמה אישית או בירור על הזמנה קיימת
-              (אפשר לצרף את מספר ההזמנה).
+              ספרו לנו במה נוכל לעזור — שאלה על מוצר, בקשת התאמה אישית או בירור על הזמנה קיימת (אפשר
+              לצרף את מספר ההזמנה).
             </p>
           </div>
 

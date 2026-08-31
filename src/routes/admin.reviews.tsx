@@ -99,9 +99,7 @@ function AdminReviews() {
       ) : reviews.length === 0 ? (
         <div className="text-center py-10 text-muted-foreground">אין חוות דעת.</div>
       ) : visible.length === 0 ? (
-        <div className="text-center py-10 text-muted-foreground">
-          אין חוות דעת שממתינות לאישור.
-        </div>
+        <div className="text-center py-10 text-muted-foreground">אין חוות דעת שממתינות לאישור.</div>
       ) : (
         <div className="space-y-3">
           {visible.map((r: any) => (
@@ -118,9 +116,13 @@ function AdminReviews() {
                         over the card; pending (awaiting action) is the quiet
                         --muted surface. Moderation logic unchanged. */}
                     {r.is_approved ? (
-                      <span className="text-xs font-medium rounded-full bg-accent/10 text-accent px-2 py-0.5">מאושר</span>
+                      <span className="text-xs font-medium rounded-full bg-accent/10 text-accent px-2 py-0.5">
+                        מאושר
+                      </span>
                     ) : (
-                      <span className="text-xs font-medium rounded-full bg-muted text-muted-foreground px-2 py-0.5">ממתין</span>
+                      <span className="text-xs font-medium rounded-full bg-muted text-muted-foreground px-2 py-0.5">
+                        ממתין
+                      </span>
                     )}
                   </div>
                   <div className="text-xs text-muted-foreground mt-1">
@@ -137,21 +139,34 @@ function AdminReviews() {
                         <ExternalLink className="h-3 w-3" />
                       </Link>
                     ) : (
-                      r.products?.name ?? "מוצר"
+                      (r.products?.name ?? "מוצר")
                     )}
                     {" · "}
                     {new Date(r.created_at).toLocaleDateString("he-IL")}
                   </div>
                   {r.title && <div className="mt-2 font-medium text-sm">{r.title}</div>}
-                  {r.body && <p className="mt-1 text-sm text-foreground/80 whitespace-pre-line">{r.body}</p>}
+                  {r.body && (
+                    <p className="mt-1 text-sm text-foreground/80 whitespace-pre-line">{r.body}</p>
+                  )}
                 </div>
                 <div className="flex flex-col gap-2 shrink-0">
                   {r.is_approved ? (
-                    <Button size="sm" variant="outline" onClick={() => onApprove(r.id, false)}>בטל אישור</Button>
+                    <Button size="sm" variant="outline" onClick={() => onApprove(r.id, false)}>
+                      בטל אישור
+                    </Button>
                   ) : (
-                    <Button size="sm" className="press" onClick={() => onApprove(r.id, true)}>אשר ופרסם</Button>
+                    <Button size="sm" className="press" onClick={() => onApprove(r.id, true)}>
+                      אשר ופרסם
+                    </Button>
                   )}
-                  <Button size="sm" variant="ghost" className="text-destructive" onClick={() => onDelete(r.id)}>מחק</Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-destructive"
+                    onClick={() => onDelete(r.id)}
+                  >
+                    מחק
+                  </Button>
                 </div>
               </div>
             </div>

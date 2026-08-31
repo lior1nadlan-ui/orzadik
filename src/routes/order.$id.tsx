@@ -49,7 +49,12 @@ function OrderConfirmationPage() {
     return () => clearTimeout(t);
   }, [justPaid]);
 
-  const { data: order, isLoading, isError, refetch } = useQuery({
+  const {
+    data: order,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ["order", id],
     queryFn: () => loadOrder({ data: { order_id: id } }),
     // Was retry:false — the strictest setting in the app, on its most important
@@ -189,8 +194,16 @@ function OrderConfirmationPage() {
               : "לא הצלחנו לטעון את ההזמנה כרגע. נסו שוב בעוד רגע."}
           </p>
           <div className="flex flex-wrap justify-center gap-3">
-            {!notFound && <Button className="press" onClick={() => refetch()}>נסה שוב</Button>}
-            <Link to="/shop"><Button variant="outline" className="press">חזרה לחנות</Button></Link>
+            {!notFound && (
+              <Button className="press" onClick={() => refetch()}>
+                נסה שוב
+              </Button>
+            )}
+            <Link to="/shop">
+              <Button variant="outline" className="press">
+                חזרה לחנות
+              </Button>
+            </Link>
           </div>
         </div>
       </div>
@@ -215,8 +228,12 @@ function OrderConfirmationPage() {
               <CheckCircle2 className="h-12 w-12 text-accent" />
             </div>
             <h1 className="font-display text-3xl font-bold">תודה על ההזמנה!</h1>
-            <p className="text-muted-foreground mt-2">מספר הזמנה: <span className="font-mono font-bold">{order.order_number}</span></p>
-            <p className="text-sm text-muted-foreground mt-1">קיבלנו את התשלום. אישור הזמנה יישלח לדוא"ל שלך, וכשההזמנה תישלח נעדכן אותך בדוא"ל.</p>
+            <p className="text-muted-foreground mt-2">
+              מספר הזמנה: <span className="font-mono font-bold">{order.order_number}</span>
+            </p>
+            <p className="text-sm text-muted-foreground mt-1">
+              קיבלנו את התשלום. אישור הזמנה יישלח לדוא"ל שלך, וכשההזמנה תישלח נעדכן אותך בדוא"ל.
+            </p>
           </>
         ) : verifying ? (
           <>
@@ -224,8 +241,13 @@ function OrderConfirmationPage() {
               <Loader2 className="h-12 w-12 text-accent animate-spin" aria-hidden="true" />
             </div>
             <h1 className="font-display text-3xl font-bold">מאמתים את התשלום…</h1>
-            <p className="text-muted-foreground mt-2">מספר הזמנה: <span className="font-mono font-bold">{order.order_number}</span></p>
-            <p className="text-sm text-muted-foreground mt-1">רק רגע — אנחנו מאשרים את קליטת התשלום מול חברת הסליקה. העמוד יתעדכן אוטומטית; אין צורך לרענן או לשלם שוב.</p>
+            <p className="text-muted-foreground mt-2">
+              מספר הזמנה: <span className="font-mono font-bold">{order.order_number}</span>
+            </p>
+            <p className="text-sm text-muted-foreground mt-1">
+              רק רגע — אנחנו מאשרים את קליטת התשלום מול חברת הסליקה. העמוד יתעדכן אוטומטית; אין צורך
+              לרענן או לשלם שוב.
+            </p>
           </>
         ) : (
           <>
@@ -241,10 +263,12 @@ function OrderConfirmationPage() {
             <h1 className="font-display text-3xl font-bold">
               {justPaid ? "התשלום התקבל — ממתין לאישור סופי" : "ההזמנה התקבלה — ממתינה לתשלום"}
             </h1>
-            <p className="text-muted-foreground mt-2">מספר הזמנה: <span className="font-mono font-bold">{order.order_number}</span></p>
+            <p className="text-muted-foreground mt-2">
+              מספר הזמנה: <span className="font-mono font-bold">{order.order_number}</span>
+            </p>
             <p className="text-sm text-muted-foreground mt-1">
               {justPaid
-                ? "קיבלנו את התשלום, והאישור מחברת הסליקה עדיין בדרך. זה קורה לפעמים ונסגר מעצמו תוך דקות ספורות — אין צורך לשלם שוב. נשלח אישור בדוא\"ל ברגע שהתשלום ייקלט, ואם משהו לא יסתדר ניצור איתכם קשר."
+                ? 'קיבלנו את התשלום, והאישור מחברת הסליקה עדיין בדרך. זה קורה לפעמים ונסגר מעצמו תוך דקות ספורות — אין צורך לשלם שוב. נשלח אישור בדוא"ל ברגע שהתשלום ייקלט, ואם משהו לא יסתדר ניצור איתכם קשר.'
                 : "טרם נקלט תשלום עבור הזמנה זו. אפשר להשלים את התשלום המאובטח כאן, או ליצור איתנו קשר בוואטסאפ."}
             </p>
             <div className="mt-4 flex flex-wrap justify-center gap-3">
@@ -275,12 +299,16 @@ function OrderConfirmationPage() {
               </a>
               {!justPaid && (
                 <Link to="/cart">
-                  <Button variant="outline" className="press">חזרה לעגלה</Button>
+                  <Button variant="outline" className="press">
+                    חזרה לעגלה
+                  </Button>
                 </Link>
               )}
             </div>
             {retryError && (
-              <p role="alert" className="mt-2 text-sm text-destructive">{retryError}</p>
+              <p role="alert" className="mt-2 text-sm text-destructive">
+                {retryError}
+              </p>
             )}
           </>
         )}
@@ -302,13 +330,17 @@ function OrderConfirmationPage() {
               <span className="min-w-0">
                 {it.product_name} × {it.quantity}
                 {it.variant_label && (
-                  <span className="block text-xs text-muted-foreground">גודל: {it.variant_label}</span>
+                  <span className="block text-xs text-muted-foreground">
+                    גודל: {it.variant_label}
+                  </span>
                 )}
                 {it.custom_text && (
                   <span className="block text-xs text-accent break-words">✦ {it.custom_text}</span>
                 )}
               </span>
-              <span className="font-medium whitespace-nowrap">{formatILS(Number(it.line_total))}</span>
+              <span className="font-medium whitespace-nowrap">
+                {formatILS(Number(it.line_total))}
+              </span>
             </div>
           ))}
         </div>
@@ -333,7 +365,10 @@ function OrderConfirmationPage() {
           /* Inset well inside the glass panel: a gold hairline chip, no second
              shadow stacking on the panel it sits in. */
           <div className="mb-4 rounded-xl hairline-gold bg-secondary/70 px-4 py-3 text-sm">
-            <p>🎁 סימנת את ההזמנה כמתנה{order.gift_wrap ? " — נארוז אותה בעטיפת מתנה חגיגית" : ""}. ללא תוספת מחיר.</p>
+            <p>
+              🎁 סימנת את ההזמנה כמתנה{order.gift_wrap ? " — נארוז אותה בעטיפת מתנה חגיגית" : ""}.
+              ללא תוספת מחיר.
+            </p>
             {order.gift_note && (
               <p className="mt-2 text-muted-foreground">
                 ההקדשה שתודפס: <span className="text-foreground">"{order.gift_note}"</span>
@@ -398,12 +433,16 @@ function OrderConfirmationPage() {
             </li>
             <li className="flex items-start gap-2.5">
               <Package className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
-              <span>אפשר לעקוב אחר מצב ההזמנה בכל עת עם מספר ההזמנה וכתובת הדוא"ל שאיתה בוצעה.</span>
+              <span>
+                אפשר לעקוב אחר מצב ההזמנה בכל עת עם מספר ההזמנה וכתובת הדוא"ל שאיתה בוצעה.
+              </span>
             </li>
           </ul>
           <div className="mt-5 flex flex-wrap gap-3">
             <Link to="/track">
-              <Button variant="outline" className="press">מעקב הזמנה</Button>
+              <Button variant="outline" className="press">
+                מעקב הזמנה
+              </Button>
             </Link>
             <a href={waHref} target="_blank" rel="noopener noreferrer">
               <Button variant="ghost" className="press gap-1.5">
@@ -415,7 +454,11 @@ function OrderConfirmationPage() {
         </div>
       )}
       <div className="mt-6 text-center">
-        <Link to="/shop"><Button variant="outline" className="press">המשך לקנות</Button></Link>
+        <Link to="/shop">
+          <Button variant="outline" className="press">
+            המשך לקנות
+          </Button>
+        </Link>
       </div>
     </div>
   );

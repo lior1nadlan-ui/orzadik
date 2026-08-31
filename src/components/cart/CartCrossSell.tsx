@@ -51,7 +51,7 @@ export function CartCrossSell({
         .select("categories(slug)")
         .in("product_id", productIds);
       const cartSlugs = new Set<string>();
-      for (const r of (cartCats ?? [])) {
+      for (const r of cartCats ?? []) {
         const s = (r as any).categories?.slug;
         if (s) cartSlugs.add(s);
       }
@@ -59,13 +59,12 @@ export function CartCrossSell({
       // 2) Union of cross-sell targets for those categories
       const crossSlugs = new Set<string>();
       for (const s of cartSlugs) {
-        for (const t of (CROSS_SELL_MAP[s] ?? [])) crossSlugs.add(t);
+        for (const t of CROSS_SELL_MAP[s] ?? []) crossSlugs.add(t);
       }
       // 3) Don't suggest categories the cart items are already in
       for (const s of cartSlugs) crossSlugs.delete(s);
-      const targetSlugs = crossSlugs.size > 0
-        ? Array.from(crossSlugs)
-        : [DEFAULT_CROSS_SELL_CATEGORY];
+      const targetSlugs =
+        crossSlugs.size > 0 ? Array.from(crossSlugs) : [DEFAULT_CROSS_SELL_CATEGORY];
 
       // 4) Resolve target slugs → category IDs, then fetch companions
       const { data: cats } = await supabase
@@ -77,7 +76,9 @@ export function CartCrossSell({
 
       const { data, error } = await supabase
         .from("product_categories")
-        .select("products!inner(id, slug, name, price, sale_price, thumbnail_url, is_active, stock_status)")
+        .select(
+          "products!inner(id, slug, name, price, sale_price, thumbnail_url, is_active, stock_status)",
+        )
         .in("category_id", targetIds)
         .limit(40);
       if (error) throw error;
@@ -85,7 +86,7 @@ export function CartCrossSell({
       const inCart = new Set(productIds);
       const seen = new Set<string>();
       const out: ProductCardData[] = [];
-      for (const r of (data ?? [])) {
+      for (const r of data ?? []) {
         const p: any = (r as any).products;
         if (!p?.is_active || !p.thumbnail_url || p.stock_status === "outofstock") continue;
         if (inCart.has(p.id)) continue;

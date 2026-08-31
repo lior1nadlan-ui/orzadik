@@ -55,10 +55,21 @@ export function ProductReviews({
     }
     setSubmitting(true);
     try {
-      await send({ data: { product_id: productId, rating, author_name: name, title: title || null, body: body || null } });
+      await send({
+        data: {
+          product_id: productId,
+          rating,
+          author_name: name,
+          title: title || null,
+          body: body || null,
+        },
+      });
       toast.success("תודה! חוות הדעת התקבלה ותפורסם לאחר אישור.");
       setOpen(false);
-      setName(""); setTitle(""); setBody(""); setRating(5);
+      setName("");
+      setTitle("");
+      setBody("");
+      setRating(5);
       qc.invalidateQueries({ queryKey: ["reviews", productId] });
     } catch (err: any) {
       toast.error(err?.message ?? "שגיאה בשליחת חוות הדעת");
@@ -75,7 +86,9 @@ export function ProductReviews({
       <div className="pt-10">
         <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
           <div>
-            <h2 className="font-display text-2xl md:text-3xl font-bold text-foreground">חוות דעת</h2>
+            <h2 className="font-display text-2xl md:text-3xl font-bold text-foreground">
+              חוות דעת
+            </h2>
             {summary.count > 0 ? (
               <div className="mt-2 flex items-center gap-2">
                 <Stars value={summary.average} size={20} />
@@ -87,10 +100,7 @@ export function ProductReviews({
               <p className="mt-2 text-sm text-muted-foreground">היו הראשונים לחוות דעה על המוצר.</p>
             )}
           </div>
-          <Button
-            type="button"
-            onClick={() => setOpen((v) => !v)}
-          >
+          <Button type="button" onClick={() => setOpen((v) => !v)}>
             כתיבת חוות דעת
           </Button>
         </div>
@@ -104,16 +114,33 @@ export function ProductReviews({
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="rv-name">שם *</Label>
-                <Input id="rv-name" value={name} onChange={(e) => setName(e.target.value)} required maxLength={80} />
+                <Input
+                  id="rv-name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                  maxLength={80}
+                />
               </div>
               <div>
                 <Label htmlFor="rv-title">כותרת</Label>
-                <Input id="rv-title" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} />
+                <Input
+                  id="rv-title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  maxLength={120}
+                />
               </div>
             </div>
             <div>
               <Label htmlFor="rv-body">חוות הדעת</Label>
-              <Textarea id="rv-body" value={body} onChange={(e) => setBody(e.target.value)} maxLength={2000} rows={4} />
+              <Textarea
+                id="rv-body"
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                maxLength={2000}
+                rows={4}
+              />
             </div>
             <div className="flex items-center gap-3">
               <Button type="submit" disabled={submitting}>
@@ -147,7 +174,11 @@ export function ProductReviews({
                   </span>
                 </div>
                 {r.title && <div className="mt-1.5 font-medium text-sm">{r.title}</div>}
-                {r.body && <p className="mt-1 text-sm text-foreground/80 leading-relaxed whitespace-pre-line">{r.body}</p>}
+                {r.body && (
+                  <p className="mt-1 text-sm text-foreground/80 leading-relaxed whitespace-pre-line">
+                    {r.body}
+                  </p>
+                )}
               </li>
             ))}
           </ul>

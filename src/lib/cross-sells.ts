@@ -55,42 +55,42 @@
 // suggestion is an upsell by construction. The ordering lives in
 // src/routes/product.$slug.tsx and is tracked separately.
 
-const SIDDURIM = "sidurim";                   // 79 products, ₪130-186
-const TALITOT = "talitot";                    // 55 טליתות, ₪336-1,572 (the garment, not the bag)
+const SIDDURIM = "sidurim"; // 79 products, ₪130-186
+const TALITOT = "talitot"; // 55 טליתות, ₪336-1,572 (the garment, not the bag)
 // Canonical kippot slug is the ASCII 'kipot' (742+ products). The percent-encoded
 // twin that used to live here was a 14-product import artifact merged into 'kipot'
 // in the 2026-07 dedupe — pointing cross-sells at it meant kippot suggestions were
 // drawn from the tiny twin (and, after the merge, from a deleted category).
-const KIPOT = "kipot";                        // 743 products
-const HATAN = "marazim-chatanim";             // 11 (only 4 have a thumbnail — key only, never a target)
-const YEHUDAIKA = "yehudaika";                // 107 products, ₪61-472
+const KIPOT = "kipot"; // 743 products
+const HATAN = "marazim-chatanim"; // 11 (only 4 have a thumbnail — key only, never a target)
+const YEHUDAIKA = "yehudaika"; // 107 products, ₪61-472
 // Live slugs. The three constants here used to point at categories holding ZERO
 // active products (the percent-encoded חגים and סט-טלית-תפילין import twins, and
 // `wine-dividers`), so those cross-sell slots silently rendered nothing on every
 // matching product page. Repointed to the stocked equivalents.
-const HAGIM = "chagim";                       // 523 products
-const WINE_SETS = "machlekei-yain-setim";     // 40 products
+const HAGIM = "chagim"; // 523 products
+const WINE_SETS = "machlekei-yain-setim"; // 40 products
 const SET_TALIT_TEFILIN = "setim-talit-tefilin"; // 229 products
 
 // Live shelves added in the 2026-08 pass, each holding stock the previous map
 // could not reach. Parent/child overlaps were measured, so none of these is a
 // target of a shelf it is contained in (that target would just be deleted again
 // by the consumer's "don't suggest a category the item is already in" step).
-const TALIT_TEFILIN = "talit-tefilin";        // 465 — parent of every tallit/tefillin shelf
-const TIKEI_TALIT = "tikei-talit";            // 138 תיקי טלית, ₪81-400
-const TIK_TEFILIN = "tik-tefilin";            // 25 תיקי תפילין, ₪325-455
-const ATAROT = "machzikei-talit-atarot";      // 58 עטרות/מחזיקים, ₪15-227
-const KIDUSH = "gviei-kidush";                // 200 — parent of every kiddush-cup shelf
-const NETILAT = "netilat-yadaim";             // 267 נטלות ומים אחרונים, ₪13-538
-const CHALLAH = "challah-covers";             // 128 כיסויי חלה, ₪52-521
+const TALIT_TEFILIN = "talit-tefilin"; // 465 — parent of every tallit/tefillin shelf
+const TIKEI_TALIT = "tikei-talit"; // 138 תיקי טלית, ₪81-400
+const TIK_TEFILIN = "tik-tefilin"; // 25 תיקי תפילין, ₪325-455
+const ATAROT = "machzikei-talit-atarot"; // 58 עטרות/מחזיקים, ₪15-227
+const KIDUSH = "gviei-kidush"; // 200 — parent of every kiddush-cup shelf
+const NETILAT = "netilat-yadaim"; // 267 נטלות ומים אחרונים, ₪13-538
+const CHALLAH = "challah-covers"; // 128 כיסויי חלה, ₪52-521
 const CHALLAH_BOARDS = "karshei-chala-sakinim"; // 79 קרשי חלה, מפיונים, ₪43-955
-const CANDLES = "candlesticks";               // 263 פמוטים, ₪11-1,091
-const BLESSINGS = "blessings";                // 235 ברכות, ₪27-502 (plus 2 outliers at ₪1,737)
-const CHAMSOT = "chamsot";                    // 52 חמסות, ₪39-367
-const TZEDAKA = "kupot-tzedaka";              // 68 קופות צדקה, ₪27-613
-const BENCHERS = "birchonim";                 // 91 ברכונים, ₪23-504
-const SHUL = "beit-knesset-shtenderim";       // 64 שטנדרים ומוצרי בית כנסת, ₪30-1,109
-const MEZUZA_CASES = "plastic";               // 383 נרתיקי מזוזה — parent of every mezuzah shelf
+const CANDLES = "candlesticks"; // 263 פמוטים, ₪11-1,091
+const BLESSINGS = "blessings"; // 235 ברכות, ₪27-502 (plus 2 outliers at ₪1,737)
+const CHAMSOT = "chamsot"; // 52 חמסות, ₪39-367
+const TZEDAKA = "kupot-tzedaka"; // 68 קופות צדקה, ₪27-613
+const BENCHERS = "birchonim"; // 91 ברכונים, ₪23-504
+const SHUL = "beit-knesset-shtenderim"; // 64 שטנדרים ומוצרי בית כנסת, ₪30-1,109
+const MEZUZA_CASES = "plastic"; // 383 נרתיקי מזוזה — parent of every mezuzah shelf
 
 export const CROSS_SELL_MAP: Record<string, string[]> = {
   // --- טלית ותפילין -------------------------------------------------------

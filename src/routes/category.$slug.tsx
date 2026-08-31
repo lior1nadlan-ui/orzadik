@@ -25,11 +25,7 @@ import { GuideLinks } from "@/components/content/GuideLinks";
 // already decide: collapseSameName/orderCatalog own the ORDER of every listing
 // on the site, derivePriceRungs/buildFacetGroups own which controls a shelf is
 // allowed to show. See the header comments in both files for the measurements.
-import {
-  collapseSameName,
-  orderCatalog,
-  type CatalogSort,
-} from "@/lib/catalog-order";
+import { collapseSameName, orderCatalog, type CatalogSort } from "@/lib/catalog-order";
 import {
   buildFacetGroups,
   countSelected,
@@ -91,7 +87,8 @@ const MERGED_CATEGORY_REDIRECTS: Record<string, string> = {
   "%d7%98%d7%9c%d7%99%d7%aa%d7%95%d7%aa-%d7%95%d7%a6%d7%99%d7%a6%d7%99%d7%95%d7%aa": "talitot",
   "%d7%a1%d7%99%d7%93%d7%95%d7%a8%d7%99%d7%9d": "sidurim",
   "%d7%9e%d7%95%d7%a6%d7%a8%d7%99-%d7%99%d7%95%d7%93%d7%90%d7%99%d7%a7%d7%94": "yehudaika",
-  "%d7%9e%d7%95%d7%a6%d7%a8%d7%99-%d7%97%d7%aa%d7%95%d7%a0%d7%94-%d7%95%d7%91%d7%a8-%d7%9e%d7%a6%d7%95%d7%95%d7%94": "marazim-chatanim",
+  "%d7%9e%d7%95%d7%a6%d7%a8%d7%99-%d7%97%d7%aa%d7%95%d7%a0%d7%94-%d7%95%d7%91%d7%a8-%d7%9e%d7%a6%d7%95%d7%95%d7%94":
+    "marazim-chatanim",
 };
 
 // Page through product_categories → active products for one category. PostgREST
@@ -113,7 +110,9 @@ async function fetchCategoryProducts(categoryId: string) {
       // without this route having to invent a derived field name for it.
       // It is the one column added to this select, and it is the reason a
       // 743-row category ships a somewhat larger SSR payload than it did.
-      .select("products!inner(id, slug, name, price, sale_price, thumbnail_url, short_description, is_active, stock_status, created_at)")
+      .select(
+        "products!inner(id, slug, name, price, sale_price, thumbnail_url, short_description, is_active, stock_status, created_at)",
+      )
       .eq("category_id", categoryId)
       .range(from, from + PAGE - 1);
     if (error) throw error;
@@ -203,7 +202,8 @@ async function fetchCategoryWithRetry(slug: string, maxRetries = 2) {
         .eq("slug", slug)
         .maybeSingle();
       if (catErr) throw catErr;
-      if (!cat) return { cat: null, parent: null, products: [] as Row[], allCats: [] as CategoryChipRow[] };
+      if (!cat)
+        return { cat: null, parent: null, products: [] as Row[], allCats: [] as CategoryChipRow[] };
       // These three reads are independent (only `parent` needs the category
       // row's parent_slug, which we already have), so run them in parallel — run
       // serially they were three round-trips landing back-to-back on SSR TTFB.
@@ -239,11 +239,14 @@ async function fetchCategoryWithRetry(slug: string, maxRetries = 2) {
       const allCats = (allCatsRes.data ?? []) as CategoryChipRow[];
       return { cat, parent, products, allCats };
     } catch (err: any) {
-      if (i === maxRetries || !["ECONNREFUSED", "ETIMEDOUT", "network"].some(m => String(err).includes(m))) {
+      if (
+        i === maxRetries ||
+        !["ECONNREFUSED", "ETIMEDOUT", "network"].some((m) => String(err).includes(m))
+      ) {
         // Real error → route error boundary, not a soft-404 "category not found".
         throw err;
       }
-      await new Promise(r => setTimeout(r, Math.pow(2, i) * 100));
+      await new Promise((r) => setTimeout(r, Math.pow(2, i) * 100));
     }
   }
   return { cat: null, parent: null, products: [] as Row[], allCats: [] as CategoryChipRow[] };
@@ -482,7 +485,15 @@ export const Route = createFileRoute("/category/$slug")({
   // correct the day inventory is tracked.
   validateSearch: (
     s: Record<string, unknown>,
-  ): { sort?: string; price?: string; sub?: string; m?: string; c?: string; s?: string; page?: number } => ({
+  ): {
+    sort?: string;
+    price?: string;
+    sub?: string;
+    m?: string;
+    c?: string;
+    s?: string;
+    page?: number;
+  } => ({
     sort: typeof s.sort === "string" ? s.sort : undefined,
     // Every facet value below is read as a STRING and normalised in the
     // component against what this shelf actually offers, so a hand-edited or
@@ -584,7 +595,11 @@ export const Route = createFileRoute("/category/$slug")({
   head: ({ loaderData, params }) => {
     const url = `https://orzadik.com/category/${params.slug}`;
     const cat = loaderData?.cat as any;
-    if (!cat) return { meta: [{ title: "קטגוריה | אור זרוע לצדיק" }], links: [{ rel: "canonical", href: url }] };
+    if (!cat)
+      return {
+        meta: [{ title: "קטגוריה | אור זרוע לצדיק" }],
+        links: [{ rel: "canonical", href: url }],
+      };
     const products = (loaderData?.products ?? []) as any[];
     const parentForDesc = (loaderData?.parent ?? null) as { slug: string; name: string } | null;
 
@@ -611,11 +626,7 @@ export const Route = createFileRoute("/category/$slug")({
     // DEFAULT_VIEW — so head() and the rendered anchors are one list by
     // construction. On a facet URL `filtered` is true and no ItemList is
     // emitted at all, so this list is only ever published when it is exact.
-    const ordered = applyShelfView(
-      shelfCards(products as Row[]),
-      params.slug,
-      DEFAULT_VIEW,
-    );
+    const ordered = applyShelfView(shelfCards(products as Row[]), params.slug, DEFAULT_VIEW);
     const pageStart = (page - 1) * PAGE_SIZE;
     const pageItems = ordered.slice(pageStart, pageStart + PAGE_SIZE);
     const lastPage = Math.max(1, Math.ceil(ordered.length / PAGE_SIZE));
@@ -651,7 +662,12 @@ export const Route = createFileRoute("/category/$slug")({
     const clip = (s: string, max: number) =>
       s.length <= max
         ? s
-        : `${s.slice(0, max).replace(/\s+\S*$/, "").trim() || s.slice(0, max).trim()}…`;
+        : `${
+            s
+              .slice(0, max)
+              .replace(/\s+\S*$/, "")
+              .trim() || s.slice(0, max).trim()
+          }…`;
     // Owner-written copy always wins. The fallback below is only for categories
     // whose `description` is still empty — it is built from facts this page
     // already knows (how many products it actually lists, and where it sits in
@@ -783,7 +799,9 @@ export const Route = createFileRoute("/category/$slug")({
     const crumbs = [
       { name: "בית", item: "https://orzadik.com/" },
       { name: "מוצרים", item: "https://orzadik.com/shop" },
-      ...(parent ? [{ name: parent.name, item: `https://orzadik.com/category/${parent.slug}` }] : []),
+      ...(parent
+        ? [{ name: parent.name, item: `https://orzadik.com/category/${parent.slug}` }]
+        : []),
       { name: cat.name, item: url },
     ];
     const breadcrumbLd = {
@@ -843,9 +861,7 @@ export const Route = createFileRoute("/category/$slug")({
         // The prev/next chain is what turns 93 dead-end pages into a walkable
         // series. Page 2's "prev" is the bare URL, never "?page=1" — that would
         // advertise a second address for a page that already has a canonical one.
-        ...(deep
-          ? [{ rel: "prev", href: page - 1 > 1 ? `${url}?page=${page - 1}` : url }]
-          : []),
+        ...(deep ? [{ rel: "prev", href: page - 1 > 1 ? `${url}?page=${page - 1}` : url }] : []),
         ...(paged && page < lastPage ? [{ rel: "next", href: `${url}?page=${page + 1}` }] : []),
       ],
       // The breadcrumb stays on a noindex page (it is true, and it is the trail
@@ -869,7 +885,12 @@ export const Route = createFileRoute("/category/$slug")({
             { type: "application/ld+json", children: JSON.stringify(breadcrumbLd) },
             ...(deep
               ? []
-              : [{ type: "application/ld+json", children: JSON.stringify(faqJsonLd(categoryFaq(cat.name))) }]),
+              : [
+                  {
+                    type: "application/ld+json",
+                    children: JSON.stringify(faqJsonLd(categoryFaq(cat.name))),
+                  },
+                ]),
           ]
         : [{ type: "application/ld+json", children: JSON.stringify(breadcrumbLd) }],
     };
@@ -1015,7 +1036,9 @@ function CategoryPage() {
     // fallback, exactly as the server render did.
     queryFn: () => fetchShelfProducts(cat!.id, slug),
     // Seed the product grid from the loader so it renders server-side too.
-    initialData: (initialProducts as Row[] | undefined)?.length ? (initialProducts as Row[]) : undefined,
+    initialData: (initialProducts as Row[] | undefined)?.length
+      ? (initialProducts as Row[])
+      : undefined,
   });
 
   // The sub-shelves of this category, read off the SAME ["all-cats"] rows
@@ -1046,7 +1069,14 @@ function CategoryPage() {
   const subs = useMemo(() => {
     if (typeof subFromUrl !== "string" || !subFromUrl.trim()) return [];
     const allowed = new Set(controls.subs.map((c) => c.slug));
-    return [...new Set(subFromUrl.split(",").map((v) => v.trim()).filter((v) => allowed.has(v)))];
+    return [
+      ...new Set(
+        subFromUrl
+          .split(",")
+          .map((v) => v.trim())
+          .filter((v) => allowed.has(v)),
+      ),
+    ];
   }, [subFromUrl, controls.subs]);
   const facets: SelectedFacets = useMemo(() => {
     const bucketsOf = (k: FacetKey) => controls.groups.find((g) => g.key === k)?.buckets ?? [];
@@ -1147,7 +1177,15 @@ function CategoryPage() {
   // "כיפות קטיפה · ₪14-24" stays inside it.
   const pageSearch = (
     n: number,
-  ): { sort?: string; price?: string; sub?: string; m?: string; c?: string; s?: string; page?: number } => ({
+  ): {
+    sort?: string;
+    price?: string;
+    sub?: string;
+    m?: string;
+    c?: string;
+    s?: string;
+    page?: number;
+  } => ({
     sort: sort === "shape" ? undefined : sort,
     price: rung ? (priceFromUrl as string) : undefined,
     sub: join(subs),
@@ -1250,7 +1288,9 @@ function CategoryPage() {
           items={[
             { label: "בית", to: "/" },
             { label: "מוצרים", to: "/shop" },
-            ...(parent ? [{ label: parent.name, to: "/category/$slug", params: { slug: parent.slug } }] : []),
+            ...(parent
+              ? [{ label: parent.name, to: "/category/$slug", params: { slug: parent.slug } }]
+              : []),
             { label: cat?.name ?? slug },
           ]}
         />
@@ -1370,7 +1410,8 @@ function CategoryPage() {
             </h2>
             <div aria-hidden="true" className="gold-rule mx-auto mb-5 w-16" />
             <p className="text-muted-foreground leading-relaxed">
-              אנו עובדים בימים אלו על העלאת המוצרים בקטגוריית <span className="font-semibold text-foreground">{cat?.name ?? ""}</span>.
+              אנו עובדים בימים אלו על העלאת המוצרים בקטגוריית{" "}
+              <span className="font-semibold text-foreground">{cat?.name ?? ""}</span>.
               <br />
               חזרו בקרוב לגלות מבחר חדש ומרגש 💫
             </p>
@@ -1407,14 +1448,16 @@ function CategoryPage() {
                 <div className="mx-auto mb-5 w-14 h-14 rounded-full bg-secondary hairline flex items-center justify-center">
                   <span className="text-3xl">🔍</span>
                 </div>
-                <h2 className="font-display text-2xl md:text-3xl font-bold mb-3">לא נמצאו מוצרים</h2>
+                <h2 className="font-display text-2xl md:text-3xl font-bold mb-3">
+                  לא נמצאו מוצרים
+                </h2>
                 <p className="text-muted-foreground leading-relaxed">
                   {visible.length > 0
-                    // The loader 302s a ?page= past the end of the UNFILTERED
-                    // listing, but a facet shortens the list further, so a shared
-                    // "?sub=kipot-velvet&page=9" can still land past the end. Say
-                    // so and offer the way back rather than showing a blank grid.
-                    ? "אין מוצרים בעמוד הזה."
+                    ? // The loader 302s a ?page= past the end of the UNFILTERED
+                      // listing, but a facet shortens the list further, so a shared
+                      // "?sub=kipot-velvet&page=9" can still land past the end. Say
+                      // so and offer the way back rather than showing a blank grid.
+                      "אין מוצרים בעמוד הזה."
                     : hasFilters
                       ? "אין כרגע מוצרים שתואמים את הסינון בקטגוריה הזו."
                       : "אין כרגע מוצרים בקטגוריה הזו."}
@@ -1438,7 +1481,11 @@ function CategoryPage() {
                   </Link>
                 )}
                 {visible.length === 0 && hasFilters && (
-                  <button type="button" onClick={clearFilters} className={cn(pageLinkClass, "mt-6")}>
+                  <button
+                    type="button"
+                    onClick={clearFilters}
+                    className={cn(pageLinkClass, "mt-6")}
+                  >
                     הצג את כל המוצרים
                   </button>
                 )}
@@ -1474,7 +1521,10 @@ function CategoryPage() {
                 of 93 categories hid 4,637 of their 6,291 cards behind that
                 button with no URL of any kind behind it. */}
             {(page > 1 || hasMorePages) && (
-              <nav aria-label="ניווט בין עמודי הקטגוריה" className="mt-10 flex items-center justify-between gap-4">
+              <nav
+                aria-label="ניווט בין עמודי הקטגוריה"
+                className="mt-10 flex items-center justify-between gap-4"
+              >
                 {page > 1 ? (
                   <Link
                     to="/category/$slug"
@@ -1538,7 +1588,6 @@ function CategoryPage() {
           </div>
         </section>
 
-
         {/* SEO long description — page 1 only.
             This is one essay about the whole category, and it was being shipped
             verbatim on every ?page= URL: on /category/kipot that is the same
@@ -1574,7 +1623,9 @@ function CategoryPage() {
             that matters is the other direction. */}
         {cat?.name && (
           <section className="mt-16 max-w-3xl mx-auto">
-            <h2 className="font-display text-2xl font-bold mb-5 text-center">שאלות נפוצות — {cat.name}</h2>
+            <h2 className="font-display text-2xl font-bold mb-5 text-center">
+              שאלות נפוצות — {cat.name}
+            </h2>
             {/* Native <details>/<summary> stays — the FAQPage JSON-LD in the route
                 head claims this text, so every answer must be in the server HTML.
                 Hairline rules replace the gold borders; the chevron keeps

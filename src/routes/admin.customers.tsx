@@ -136,7 +136,8 @@ function AdminCustomers() {
     queryFn: () => detail({ data: { email: selected.email } }),
   });
 
-  const refreshDetail = () => qc.invalidateQueries({ queryKey: ["admin-customer", selected?.email] });
+  const refreshDetail = () =>
+    qc.invalidateQueries({ queryKey: ["admin-customer", selected?.email] });
 
   const onAddNote = async () => {
     if (!noteText.trim()) return;
@@ -189,8 +190,17 @@ function AdminCustomers() {
       <h1 className="font-display text-2xl font-bold mb-4">לקוחות ({total})</h1>
 
       <div className="flex flex-wrap gap-2 mb-4">
-        <Input placeholder="חיפוש: שם / אימייל / טלפון" value={q} onChange={(e) => setQ(e.target.value)} className="max-w-xs" />
-        <select value={sort} onChange={(e) => setSort(e.target.value as any)} className="rounded-md border bg-background px-3 py-2 text-sm">
+        <Input
+          placeholder="חיפוש: שם / אימייל / טלפון"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          className="max-w-xs"
+        />
+        <select
+          value={sort}
+          onChange={(e) => setSort(e.target.value as any)}
+          className="rounded-md border bg-background px-3 py-2 text-sm"
+        >
           <option value="ltv">לפי סך קניות</option>
           <option value="recent">לפי הזמנה אחרונה</option>
           <option value="orders">לפי מס׳ הזמנות</option>
@@ -232,17 +242,29 @@ function AdminCustomers() {
         })}
       </div>
 
-      <div className={`rounded-lg border bg-card overflow-x-auto transition-opacity duration-200 ease-out ${isFetching ? "opacity-60" : ""}`}>
+      <div
+        className={`rounded-lg border bg-card overflow-x-auto transition-opacity duration-200 ease-out ${isFetching ? "opacity-60" : ""}`}
+      >
         <table className="w-full text-sm">
-          <thead className="bg-muted/50"><tr className="text-right">
-            <th className="p-3">לקוח</th><th className="p-3">קשר</th><th className="p-3">הזמנות</th>
-            <th className="p-3">סך קניות</th><th className="p-3">הזמנה אחרונה</th><th></th>
-          </tr></thead>
+          <thead className="bg-muted/50">
+            <tr className="text-right">
+              <th className="p-3">לקוח</th>
+              <th className="p-3">קשר</th>
+              <th className="p-3">הזמנות</th>
+              <th className="p-3">סך קניות</th>
+              <th className="p-3">הזמנה אחרונה</th>
+              <th></th>
+            </tr>
+          </thead>
           <tbody>
             {customers.length === 0 && (
-              <tr><td colSpan={6} className="p-8 text-center text-muted-foreground">
-                {debouncedQ ? "אין לקוחות תואמים." : "אין עדיין לקוחות — הם יופיעו כאן עם ההזמנה הראשונה."}
-              </td></tr>
+              <tr>
+                <td colSpan={6} className="p-8 text-center text-muted-foreground">
+                  {debouncedQ
+                    ? "אין לקוחות תואמים."
+                    : "אין עדיין לקוחות — הם יופיעו כאן עם ההזמנה הראשונה."}
+                </td>
+              </tr>
             )}
             {customers.map((c: any) => (
               <tr key={c.email} className="border-t">
@@ -267,7 +289,13 @@ function AdminCustomers() {
                 </td>
                 <td className="p-3">
                   <div className="flex gap-1.5">
-                    <a href={`tel:${c.phone}`} className="rounded-full border p-1.5 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted" title={c.phone}><Phone className="h-3.5 w-3.5" /></a>
+                    <a
+                      href={`tel:${c.phone}`}
+                      className="rounded-full border p-1.5 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"
+                      title={c.phone}
+                    >
+                      <Phone className="h-3.5 w-3.5" />
+                    </a>
                     {/* A dormant customer gets the "we missed you" opener
                         instead of the generic hello — same one tap, but the
                         message fits the only thing that is actually different
@@ -285,10 +313,21 @@ function AdminCustomers() {
                     >
                       <MessageCircle className="h-3.5 w-3.5" />
                     </a>
-                    <a href={`mailto:${c.email}`} className="rounded-full border p-1.5 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted" title={c.email}><Mail className="h-3.5 w-3.5" /></a>
+                    <a
+                      href={`mailto:${c.email}`}
+                      className="rounded-full border p-1.5 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"
+                      title={c.email}
+                    >
+                      <Mail className="h-3.5 w-3.5" />
+                    </a>
                   </div>
                 </td>
-                <td className="p-3">{c.orders}{c.paidOrders !== c.orders && <span className="text-xs text-muted-foreground"> ({c.paidOrders} שולמו)</span>}</td>
+                <td className="p-3">
+                  {c.orders}
+                  {c.paidOrders !== c.orders && (
+                    <span className="text-xs text-muted-foreground"> ({c.paidOrders} שולמו)</span>
+                  )}
+                </td>
                 <td className="p-3 font-bold">{formatILS(c.ltv)}</td>
                 <td className="p-3 text-xs">
                   <div>{new Date(c.lastOrderAt).toLocaleDateString("he-IL")}</div>
@@ -296,7 +335,11 @@ function AdminCustomers() {
                     {sinceLabel(c.daysSinceLastOrder)}
                   </div>
                 </td>
-                <td className="p-3"><Button size="sm" variant="outline" onClick={() => setSelected(c)}>כרטיס לקוח</Button></td>
+                <td className="p-3">
+                  <Button size="sm" variant="outline" onClick={() => setSelected(c)}>
+                    כרטיס לקוח
+                  </Button>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -305,9 +348,25 @@ function AdminCustomers() {
 
       {pages > 1 && (
         <div className="flex items-center justify-center gap-3 mt-4 text-sm">
-          <Button size="sm" variant="outline" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>הקודם</Button>
-          <span>עמוד {page + 1} מתוך {pages}</span>
-          <Button size="sm" variant="outline" disabled={page >= pages - 1} onClick={() => setPage((p) => p + 1)}>הבא</Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={page === 0}
+            onClick={() => setPage((p) => p - 1)}
+          >
+            הקודם
+          </Button>
+          <span>
+            עמוד {page + 1} מתוך {pages}
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={page >= pages - 1}
+            onClick={() => setPage((p) => p + 1)}
+          >
+            הבא
+          </Button>
         </div>
       )}
 
@@ -336,7 +395,12 @@ function AdminCustomers() {
               </DialogHeader>
               <div className="space-y-4 text-sm">
                 <div className="flex flex-wrap items-center gap-2">
-                  <a href={`tel:${selected.phone}`} className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"><Phone className="h-3 w-3" /> {selected.phone}</a>
+                  <a
+                    href={`tel:${selected.phone}`}
+                    className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"
+                  >
+                    <Phone className="h-3 w-3" /> {selected.phone}
+                  </a>
                   <a
                     href={
                       (selected.dormant ? waWeMissYou(selected) : waGreeting(selected)) ??
@@ -353,12 +417,27 @@ function AdminCustomers() {
                   >
                     <MessageCircle className="h-3 w-3" /> וואטסאפ
                   </a>
-                  <a href={`mailto:${selected.email}`} className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"><Mail className="h-3 w-3" /> {selected.email}</a>
-                  {selected.contactConsent && <span className="text-[11px] rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5">אישר/ה יצירת קשר</span>}
+                  <a
+                    href={`mailto:${selected.email}`}
+                    className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"
+                  >
+                    <Mail className="h-3 w-3" /> {selected.email}
+                  </a>
+                  {selected.contactConsent && (
+                    <span className="text-[11px] rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5">
+                      אישר/ה יצירת קשר
+                    </span>
+                  )}
                 </div>
                 <div className="grid grid-cols-3 gap-2 text-center">
-                  <div className="rounded-lg border p-3"><div className="text-xs text-muted-foreground">הזמנות</div><div className="text-lg font-bold">{selected.orders}</div></div>
-                  <div className="rounded-lg border p-3"><div className="text-xs text-muted-foreground">סך קניות</div><div className="text-lg font-bold">{formatILS(selected.ltv)}</div></div>
+                  <div className="rounded-lg border p-3">
+                    <div className="text-xs text-muted-foreground">הזמנות</div>
+                    <div className="text-lg font-bold">{selected.orders}</div>
+                  </div>
+                  <div className="rounded-lg border p-3">
+                    <div className="text-xs text-muted-foreground">סך קניות</div>
+                    <div className="text-lg font-bold">{formatILS(selected.ltv)}</div>
+                  </div>
                   <div className="rounded-lg border p-3">
                     <div className="text-xs text-muted-foreground">אחרונה</div>
                     <div className="text-lg font-bold">
@@ -388,17 +467,28 @@ function AdminCustomers() {
                   </div>
                   <div className="space-y-1.5">
                     {(cust?.notes ?? []).map((n: any) => (
-                      <div key={n.id} className="flex items-start justify-between gap-2 rounded-md bg-muted/40 px-3 py-2">
+                      <div
+                        key={n.id}
+                        className="flex items-start justify-between gap-2 rounded-md bg-muted/40 px-3 py-2"
+                      >
                         <div>
                           <div>{n.note}</div>
-                          <div className="text-[11px] text-muted-foreground">{new Date(n.created_at).toLocaleString("he-IL")}</div>
+                          <div className="text-[11px] text-muted-foreground">
+                            {new Date(n.created_at).toLocaleString("he-IL")}
+                          </div>
                         </div>
-                        <button onClick={() => onDeleteNote(n.id)} className="text-muted-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:text-destructive" title="מחק">
+                        <button
+                          onClick={() => onDeleteNote(n.id)}
+                          className="text-muted-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:text-destructive"
+                          title="מחק"
+                        >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       </div>
                     ))}
-                    {(cust?.notes ?? []).length === 0 && <div className="text-xs text-muted-foreground">אין הערות עדיין.</div>}
+                    {(cust?.notes ?? []).length === 0 && (
+                      <div className="text-xs text-muted-foreground">אין הערות עדיין.</div>
+                    )}
                   </div>
                 </div>
 
@@ -410,16 +500,26 @@ function AdminCustomers() {
                       <div key={o.id} className="rounded-md border px-3 py-2">
                         <div className="flex items-center justify-between">
                           <div>
-                            <Link to="/admin/orders" search={{ q: o.order_number }} className="font-mono text-xs underline text-primary">
+                            <Link
+                              to="/admin/orders"
+                              search={{ q: o.order_number }}
+                              className="font-mono text-xs underline text-primary"
+                            >
                               {o.order_number}
                             </Link>
-                            <span className="mx-2 text-xs text-muted-foreground">{new Date(o.created_at).toLocaleDateString("he-IL")}</span>
-                            <span className="text-[11px] rounded-full bg-muted px-2 py-0.5">{PAYMENT_HE[o.payment_status] ?? o.payment_status}</span>
+                            <span className="mx-2 text-xs text-muted-foreground">
+                              {new Date(o.created_at).toLocaleDateString("he-IL")}
+                            </span>
+                            <span className="text-[11px] rounded-full bg-muted px-2 py-0.5">
+                              {PAYMENT_HE[o.payment_status] ?? o.payment_status}
+                            </span>
                           </div>
                           <div className="font-bold">{formatILS(Number(o.total))}</div>
                         </div>
                         <div className="text-xs text-muted-foreground mt-1">
-                          {(o.order_items ?? []).map((it: any) => `${it.product_name} ×${it.quantity}`).join(" · ")}
+                          {(o.order_items ?? [])
+                            .map((it: any) => `${it.product_name} ×${it.quantity}`)
+                            .join(" · ")}
                         </div>
                       </div>
                     ))}

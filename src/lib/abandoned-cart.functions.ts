@@ -22,17 +22,21 @@ import { requireAdmin } from "@/lib/admin-authz.server";
 const Schema = z.object({
   email: z.string().trim().email().max(255),
   name: z.string().trim().max(200).optional().nullable(),
-  items: z.array(z.object({
-    product_id: z.string().uuid(),
-    name: z.string().max(300),
-    price: z.number().min(0),
-    quantity: z.number().int().min(1).max(999),
-    thumbnail: z.string().url().nullable().optional(),
-    slug: z.string().max(300),
-  })).min(1).max(100),
+  items: z
+    .array(
+      z.object({
+        product_id: z.string().uuid(),
+        name: z.string().max(300),
+        price: z.number().min(0),
+        quantity: z.number().int().min(1).max(999),
+        thumbnail: z.string().url().nullable().optional(),
+        slug: z.string().max(300),
+      }),
+    )
+    .min(1)
+    .max(100),
   subtotal: z.number().min(0),
 });
-
 
 /**
  * Save (or upsert) a cart snapshot when a user is on checkout and has provided
@@ -104,7 +108,6 @@ export const saveAbandonedCart = createServerFn({ method: "POST" })
     return { id: row.id };
   });
 
-
 /** How long a cart stays eligible for its first reminder. */
 const MAX_AGE_DAYS = 30;
 
@@ -146,11 +149,7 @@ export type AbandonedCartRunResult = {
   scanned: number;
   /** Sends that came back not-ok. Those carts stay unstamped and retry later. */
   failed?: number;
-  skipped?:
-    | "email-not-configured"
-    | "unsubscribe-secret-missing"
-    | "scan-failed"
-    | "send-failed";
+  skipped?: "email-not-configured" | "unsubscribe-secret-missing" | "scan-failed" | "send-failed";
 };
 
 /**
@@ -248,9 +247,7 @@ export async function runAbandonedCartReminders(): Promise<AbandonedCartRunResul
   //
   // FAIL-CLOSED: if any consent/suppression source errors we send NOTHING rather
   // than risk mailing an address that never consented or has since opted out.
-  const cartEmails = [
-    ...new Set([...first, ...second].map((c) => c.email.toLowerCase())),
-  ];
+  const cartEmails = [...new Set([...first, ...second].map((c) => c.email.toLowerCase()))];
   const consented = new Set<string>();
   if (cartEmails.length > 0) {
     const [profileConsent, newsletterActive, suppressed, revoked] = await Promise.all([
@@ -277,7 +274,10 @@ export async function runAbandonedCartReminders(): Promise<AbandonedCartRunResul
       console.error("[abandoned-cart] consent lookup failed — sending nothing:", consentErr);
       return { sent: 0, scanned, skipped: "scan-failed" };
     }
-    const lower = (v: unknown) => String(v ?? "").trim().toLowerCase();
+    const lower = (v: unknown) =>
+      String(v ?? "")
+        .trim()
+        .toLowerCase();
     const suppressedSet = new Set((suppressed.data ?? []).map((r) => lower(r.email)));
     const revokedSet = new Set((revoked.data ?? []).map((r) => lower(r.email)));
     // profiles.marketing_consent = false is an explicit refusal and beats a
@@ -307,7 +307,13 @@ export async function runAbandonedCartReminders(): Promise<AbandonedCartRunResul
   const runPass = async (
     // `subtotal` is a numeric column — PostgREST can hand it back as a string,
     // hence the union.
-    list: Array<{ id: string; email: string; name: string | null; items: unknown; subtotal: number | string | null }>,
+    list: Array<{
+      id: string;
+      email: string;
+      name: string | null;
+      items: unknown;
+      subtotal: number | string | null;
+    }>,
     stampColumn: "reminder_1_sent_at" | "reminder_2_sent_at",
     subject: string,
     buildHtml: (
@@ -418,7 +424,8 @@ export async function runAbandonedCartReminders(): Promise<AbandonedCartRunResul
           <td style="padding:10px 0;font-weight:bold;">סה״כ מוצרים</td>
           <td style="padding:10px 0;text-align:left;white-space:nowrap;font-weight:bold;">${ils(Number(cart.subtotal) || 0)}</td>
         </tr>`;
-      return emailShell(`
+      return emailShell(
+        `
       <p class="oz-muted" style="font-size:11px;color:#999;margin:0 0 8px;">פרסומת</p>
       <h1 style="font-size:20px;margin:0 0 8px;">שכחתם משהו בעגלה? 🛍️</h1>
       <p class="oz-muted" style="font-size:14px;color:#555;margin:0 0 16px;">
@@ -434,7 +441,9 @@ export async function runAbandonedCartReminders(): Promise<AbandonedCartRunResul
           <a class="oz-gold" href="${esc(unsub)}" style="color:#A8862A;">להסרה מרשימת התפוצה לחצו כאן</a>.
         </div>
       </div>
-    `, `${cart.name ? cart.name + ", " : ""}אלה הפריטים שהיו בעגלה שלכם.`);
+    `,
+        `${cart.name ? cart.name + ", " : ""}אלה הפריטים שהיו בעגלה שלכם.`,
+      );
     },
   );
 
@@ -447,7 +456,8 @@ export async function runAbandonedCartReminders(): Promise<AbandonedCartRunResul
       "reminder_2_sent_at",
       "פרסומת: עדיין חושבים על זה? — אור זרוע לצדיק",
       (cart, unsub) =>
-        emailShell(`
+        emailShell(
+          `
       <p class="oz-muted" style="font-size:11px;color:#999;margin:0 0 8px;">פרסומת</p>
       <h1 style="font-size:20px;margin:0 0 8px;">עדיין חושבים על זה?</h1>
       <p class="oz-muted" style="font-size:14px;color:#555;margin:0 0 16px;">
@@ -461,7 +471,9 @@ export async function runAbandonedCartReminders(): Promise<AbandonedCartRunResul
           <a class="oz-gold" href="${esc(unsub)}" style="color:#A8862A;">להסרה מרשימת התפוצה לחצו כאן</a>.
         </div>
       </div>
-    `, `${cart.name ? cart.name + ", " : ""}התחלתם הזמנה אצלנו — נשמח להשלים אותה יחד.`),
+    `,
+          `${cart.name ? cart.name + ", " : ""}התחלתם הזמנה אצלנו — נשמח להשלים אותה יחד.`,
+        ),
     );
   }
 
@@ -475,7 +487,6 @@ export async function runAbandonedCartReminders(): Promise<AbandonedCartRunResul
     ...(skipped ? { skipped } : {}),
   };
 }
-
 
 /**
  * Admin-triggered "run the sweep now".

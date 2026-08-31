@@ -46,7 +46,11 @@ const MAX_CONSECUTIVE_FAILURES = 5;
 const MAX_AGE_DAYS = 30;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-export async function runReviewRequests(): Promise<{ sent: number; scanned: number; failed?: number }> {
+export async function runReviewRequests(): Promise<{
+  sent: number;
+  scanned: number;
+  failed?: number;
+}> {
   if (!isEmailConfigured()) {
     console.log("[review-request] email not configured — skipping");
     return { sent: 0, scanned: 0 };
@@ -56,9 +60,7 @@ export async function runReviewRequests(): Promise<{ sent: number; scanned: numb
     return { sent: 0, scanned: 0 };
   }
 
-  const cutoff = new Date(
-    Date.now() - DAYS_AFTER_SHIPPING * 24 * 60 * 60 * 1000,
-  ).toISOString();
+  const cutoff = new Date(Date.now() - DAYS_AFTER_SHIPPING * 24 * 60 * 60 * 1000).toISOString();
   // Lower bound on the scan: orders older than this stop being retried. (.gte
   // excludes NULL shipped_at exactly as the existing .lte already does.)
   const floor = new Date(Date.now() - MAX_AGE_DAYS * 24 * 60 * 60 * 1000).toISOString();
@@ -179,7 +181,8 @@ export async function runReviewRequests(): Promise<{ sent: number; scanned: numb
         `<p class="oz-muted" style="font-size:12px;color:#888;text-align:center;margin:6px 0 0;">הקישור מותאם אישית להזמנה שלך.</p>`
       : "";
 
-    const html = emailShell(`
+    const html = emailShell(
+      `
       <h1 style="font-size:20px;margin:0 0 8px;">${esc(order.customer_name)}, איך היה?</h1>
       <p class="oz-muted" style="font-size:14px;color:#555;margin:0 0 16px;">
         ההזמנה <strong>${esc(order.order_number)}</strong> הגיעה אליך — נשמח לשמוע איך היה!
@@ -194,7 +197,9 @@ export async function runReviewRequests(): Promise<{ sent: number; scanned: numb
           <a class="oz-gold" href="${esc(unsub)}" style="color:#A8862A;">להסרה מרשימת התפוצה לחצו כאן</a>.
         </div>
       </div>
-    `, `${order.customer_name}, נשמח לשמוע איך היו המוצרים מהזמנה ${order.order_number}.`);
+    `,
+      `${order.customer_name}, נשמח לשמוע איך היו המוצרים מהזמנה ${order.order_number}.`,
+    );
 
     // Budget reached — the rest keep review_request_sent_at null and go out on
     // the next daily tick.

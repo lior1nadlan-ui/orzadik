@@ -42,37 +42,44 @@ export function esc(s: unknown): string {
  * not a faithful renderer.
  */
 export function htmlToText(html: string): string {
-  return String(html ?? "")
-    .replace(/<!doctype[^>]*>/gi, "")
-    .replace(/<head[\s\S]*?<\/head>/gi, "")
-    .replace(/<style[\s\S]*?<\/style>/gi, "")
-    .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/<!--[\s\S]*?-->/g, "")
-    .replace(/<\/(p|div|tr|h[1-6]|table|li|ul|ol)>/gi, "\n")
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<[^>]+>/g, "")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&zwnj;/gi, "\u200c")
-    .replace(/&#(\d+);/g, (_, n) => {
-      try {
-        return String.fromCodePoint(Number(n));
-      } catch {
-        return "";
-      }
-    })
-    .replace(/&amp;/g, "&")
-    // Invisible scaffolding: zero-width marks, BOM, and the combining range that
-    // includes the spacer's U+034F. Hebrew niqqud (U+05B0+) is outside this.
-    .replace(/[\u200b-\u200f\u2060\ufeff\u034f\u0300-\u036f]/g, "")
-    .replace(/[ \t]+/g, " ")
-    .split("\n")
-    .map((l) => l.trim())
-    .join("\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
+  return (
+    String(html ?? "")
+      .replace(/<!doctype[^>]*>/gi, "")
+      .replace(/<head[\s\S]*?<\/head>/gi, "")
+      .replace(/<style[\s\S]*?<\/style>/gi, "")
+      .replace(/<script[\s\S]*?<\/script>/gi, "")
+      .replace(/<!--[\s\S]*?-->/g, "")
+      .replace(/<\/(p|div|tr|h[1-6]|table|li|ul|ol)>/gi, "\n")
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<[^>]+>/g, "")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&nbsp;/gi, " ")
+      .replace(/&zwnj;/gi, "\u200c")
+      .replace(/&#(\d+);/g, (_, n) => {
+        try {
+          return String.fromCodePoint(Number(n));
+        } catch {
+          return "";
+        }
+      })
+      .replace(/&amp;/g, "&")
+      // Invisible scaffolding: zero-width marks, BOM, and the combining range that
+      // includes the spacer's U+034F. Hebrew niqqud (U+05B0+) is outside this.
+      // no-misleading-character-class fires because the class holds combining
+      // marks that can form a grapheme with the character before them — which is
+      // exactly what this strip is for: the marks are removed individually, on
+      // purpose, and there is no surrounding base character to preserve.
+      // eslint-disable-next-line no-misleading-character-class
+      .replace(/[\u200b-\u200f\u2060\ufeff\u034f\u0300-\u036f]/g, "")
+      .replace(/[ \t]+/g, " ")
+      .split("\n")
+      .map((l) => l.trim())
+      .join("\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim()
+  );
 }
 
 /**
@@ -246,9 +253,7 @@ export async function sendEmail(opts: {
         // multipart/alternative rather than HTML-only.
         text: opts.text ?? htmlToText(opts.html),
         ...(opts.replyTo ? { reply_to: opts.replyTo } : {}),
-        ...(opts.headers && Object.keys(opts.headers).length > 0
-          ? { headers: opts.headers }
-          : {}),
+        ...(opts.headers && Object.keys(opts.headers).length > 0 ? { headers: opts.headers } : {}),
       }),
       signal: controller.signal,
     });

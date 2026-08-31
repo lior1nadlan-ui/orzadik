@@ -18,11 +18,7 @@ export function WhatsAppButton() {
       aria-label="צור קשר בוואטסאפ"
       className="press glass-strong glass-gold fab-float fixed bottom-5 right-5 z-50 inline-flex items-center gap-2 pl-4 pr-3 py-2.5 [--glass-radius:9999px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring motion-safe:[@media(hover:hover)_and_(pointer:fine)]:hover:[transform:scale(1.05)]"
     >
-      <svg
-        viewBox="0 0 32 32"
-        className="h-7 w-7"
-        aria-hidden="true"
-      >
+      <svg viewBox="0 0 32 32" className="h-7 w-7" aria-hidden="true">
         <defs>
           <linearGradient id="wa-gold" x1="0" y1="0" x2="1" y2="1">
             <stop offset="0%" stopColor="#E8C76B" />

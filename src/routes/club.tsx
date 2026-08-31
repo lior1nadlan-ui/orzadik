@@ -16,8 +16,7 @@ export const Route = createFileRoute("/club")({
       { title: "מועדון אור זרוע — חברות חינם" },
       {
         name: "description",
-        content:
-          `הצטרפו בחינם למועדון אור זרוע לצדיק — ${MEMBER_PCT}% הנחה אוטומטית על כל הזמנה, מעקב הזמנות באזור האישי ועדכונים לפני כולם.`,
+        content: `הצטרפו בחינם למועדון אור זרוע לצדיק — ${MEMBER_PCT}% הנחה אוטומטית על כל הזמנה, מעקב הזמנות באזור האישי ועדכונים לפני כולם.`,
       },
       { property: "og:title", content: "מועדון אור זרוע — חברות חינם" },
       {
@@ -87,15 +86,13 @@ function ClubPage() {
             מועדון <span className="text-accent">אור זרוע</span>
           </h1>
           <p className="mx-auto mt-4 max-w-xl text-base md:text-lg text-muted-foreground leading-relaxed">
-            מעקב הזמנות באזור האישי, עטיפת מתנה עם הקדשה, והטבות לחברי מועדון —
-            ללא עלות ובלי אותיות קטנות.
+            מעקב הזמנות באזור האישי, עטיפת מתנה עם הקדשה, והטבות לחברי מועדון — ללא עלות ובלי אותיות
+            קטנות.
           </p>
           <div className="mt-8">
             {user ? (
               <div className="flex flex-col items-center gap-3">
-                <div className="text-lg font-semibold text-accent">
-                  את/ה כבר חבר/ת מועדון ✓
-                </div>
+                <div className="text-lg font-semibold text-accent">את/ה כבר חבר/ת מועדון ✓</div>
                 <Link to="/account" className="press inline-block">
                   <Button className="bg-accent text-accent-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:bg-accent-strong">
                     לאזור האישי

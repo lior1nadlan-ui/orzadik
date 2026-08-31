@@ -43,7 +43,12 @@ export async function notifyShippingCompany(orderId: string) {
 
   // TODO: replace with real carrier API call or transactional email.
   // Log the order id only — customer PII must not persist in Worker logs (CWE-532).
-  console.log("[shipping] would notify carrier for order:", orderId, "items:", payload.items.length);
+  console.log(
+    "[shipping] would notify carrier for order:",
+    orderId,
+    "items:",
+    payload.items.length,
+  );
 
   await supabaseAdmin
     .from("orders")

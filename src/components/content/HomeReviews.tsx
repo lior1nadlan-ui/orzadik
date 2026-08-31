@@ -65,9 +65,7 @@ export function HomeReviews({
     // With SSR data the server already knows there is nothing to show, so the
     // section simply never exists and cannot appear later. Only the degraded
     // path holds space open for a result that is still in flight.
-    return reserveSpace ? (
-      <section aria-hidden="true" className={RESERVED_HEIGHT.trim()} />
-    ) : null;
+    return reserveSpace ? <section aria-hidden="true" className={RESERVED_HEIGHT.trim()} /> : null;
   }
 
   return (
@@ -76,7 +74,11 @@ export function HomeReviews({
       <div className="container mx-auto px-4 py-14 md:py-20">
         <SectionHeader eyebrow="לקוחות ממליצים" title="מה הלקוחות שלנו מספרים" />
 
-        <Carousel dir="rtl" opts={{ align: "start", direction: "rtl" }} className="max-w-6xl mx-auto">
+        <Carousel
+          dir="rtl"
+          opts={{ align: "start", direction: "rtl" }}
+          className="max-w-6xl mx-auto"
+        >
           <CarouselContent>
             {reviews.map((r) => (
               <CarouselItem key={r.id} className="basis-full sm:basis-1/2 lg:basis-1/3">

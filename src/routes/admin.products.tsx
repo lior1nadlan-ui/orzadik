@@ -20,7 +20,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { toast } from "sonner";
@@ -45,17 +50,25 @@ export const Route = createFileRoute("/admin/products")({
   ): { q?: string; health?: HealthFilter; sort?: SortKey; dir?: SortDir } => ({
     q: typeof s.q === "string" && s.q ? s.q : undefined,
     health: s.health === "no-image" || s.health === "out-of-stock" ? s.health : undefined,
-    sort:
-      s.sort === "created_at" || s.sort === "name" || s.sort === "price" ? s.sort : undefined,
+    sort: s.sort === "created_at" || s.sort === "name" || s.sort === "price" ? s.sort : undefined,
     dir: s.dir === "asc" || s.dir === "desc" ? s.dir : undefined,
   }),
   component: AdminProducts,
 });
 
 type Product = {
-  id: string; slug: string; name: string; description: string | null; short_description: string | null;
-  price: number; sale_price: number | null; sku: string | null; stock_status: string;
-  stock_qty: number | null; thumbnail_url: string | null; is_active: boolean;
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  short_description: string | null;
+  price: number;
+  sale_price: number | null;
+  sku: string | null;
+  stock_status: string;
+  stock_qty: number | null;
+  thumbnail_url: string | null;
+  is_active: boolean;
   track_stock: boolean;
 };
 
@@ -120,7 +133,9 @@ function AdminProducts() {
   const loadCategories = useServerFn(listCategoriesForBulk);
   const saveCategories = useServerFn(setProductCategories);
 
-  useEffect(() => { setSearch(qFromUrl ?? ""); }, [qFromUrl]);
+  useEffect(() => {
+    setSearch(qFromUrl ?? "");
+  }, [qFromUrl]);
   useEffect(() => {
     const t = setTimeout(() => setDebounced(search), 300);
     return () => clearTimeout(t);
@@ -129,7 +144,9 @@ function AdminProducts() {
   // A selection only makes sense for rows the admin can currently see — the
   // action applies to ids, not to "the filter", so carrying it across a search
   // or page change would act on rows that scrolled out of view.
-  useEffect(() => { setSelected(new Set()); }, [debounced, page, health, sortKey, sortDir]);
+  useEffect(() => {
+    setSelected(new Set());
+  }, [debounced, page, health, sortKey, sortDir]);
 
   /** Patch the URL so any filtered/sorted view can be bookmarked or shared. */
   const patchSearch = (patch: { health?: HealthFilter; sort?: SortKey; dir?: SortDir }) =>
@@ -140,7 +157,10 @@ function AdminProducts() {
     placeholderData: keepPreviousData,
     queryFn: async () => {
       let query = supabase.from("products").select("*", { count: "exact" });
-      const term = debounced.replace(/[,()%\\]/g, " ").replace(/\s+/g, " ").trim();
+      const term = debounced
+        .replace(/[,()%\\]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
       if (term) {
         const like = `%${term}%`;
         query = query.or(`name.ilike.${like},sku.ilike.${like},slug.ilike.${like}`);
@@ -184,7 +204,8 @@ function AdminProducts() {
   const toggleOne = (id: string) => {
     setSelected((cur) => {
       const next = new Set(cur);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   };
@@ -200,7 +221,8 @@ function AdminProducts() {
     const name = (form.name ?? "").trim();
     const slug = (form.slug ?? "").trim();
     if (!name) return toast.error("יש להזין שם מוצר");
-    if (!slug) return toast.error("יש להזין כתובת (Slug) באנגלית — בלעדיה דף המוצר לא יהיה נגיש ללקוחות");
+    if (!slug)
+      return toast.error("יש להזין כתובת (Slug) באנגלית — בלעדיה דף המוצר לא יהיה נגיש ללקוחות");
     if (!/^[a-z0-9-]+$/.test(slug)) {
       return toast.error("כתובת ה-Slug חייבת להכיל אותיות אנגליות קטנות, ספרות ומקפים בלבד");
     }
@@ -226,9 +248,15 @@ function AdminProducts() {
       const { data: inserted, error } = await supabase
         .from("products")
         .insert({
-          slug, name, price: form.price ?? 0, sale_price: form.sale_price ?? null,
-          sku: form.sku ?? null, description: form.description ?? null, short_description: form.short_description ?? null,
-          thumbnail_url: form.thumbnail_url ?? null, stock_status: form.stock_status ?? "instock",
+          slug,
+          name,
+          price: form.price ?? 0,
+          sale_price: form.sale_price ?? null,
+          sku: form.sku ?? null,
+          description: form.description ?? null,
+          short_description: form.short_description ?? null,
+          thumbnail_url: form.thumbnail_url ?? null,
+          stock_status: form.stock_status ?? "instock",
           is_active: form.is_active ?? true,
           track_stock: form.track_stock ?? false,
           stock_qty: form.stock_qty ?? null,
@@ -256,7 +284,8 @@ function AdminProducts() {
     // Reached only after a successful save — the work is persisted, so drop the
     // unsaved-changes flag before closing.
     productDirtyRef.current = false;
-    setOpen(false); setEditing(null);
+    setOpen(false);
+    setEditing(null);
     qc.invalidateQueries({ queryKey: ["admin-products"] });
     if (productId) qc.invalidateQueries({ queryKey: ["admin-product-cats", productId] });
   };
@@ -280,20 +309,43 @@ function AdminProducts() {
         <Dialog
           open={open}
           onOpenChange={(v) => {
-            if (!v && productDirtyRef.current && !confirm("יש שינויים שלא נשמרו במוצר. לצאת בלי לשמור?")) return;
+            if (
+              !v &&
+              productDirtyRef.current &&
+              !confirm("יש שינויים שלא נשמרו במוצר. לצאת בלי לשמור?")
+            )
+              return;
             setOpen(v);
-            if (!v) { productDirtyRef.current = false; setEditing(null); }
+            if (!v) {
+              productDirtyRef.current = false;
+              setEditing(null);
+            }
           }}
         >
           <DialogTrigger asChild>
-            <Button onClick={() => { setEditing(null); setOpen(true); }} className="gap-2"><Plus className="h-4 w-4" /> חדש</Button>
+            <Button
+              onClick={() => {
+                setEditing(null);
+                setOpen(true);
+              }}
+              className="gap-2"
+            >
+              <Plus className="h-4 w-4" /> חדש
+            </Button>
           </DialogTrigger>
-          <ProductDialog key={editing?.id ?? "new"} product={editing} onSave={onSave} dirtyRef={productDirtyRef} />
+          <ProductDialog
+            key={editing?.id ?? "new"}
+            product={editing}
+            onSave={onSave}
+            dirtyRef={productDirtyRef}
+          />
         </Dialog>
       </div>
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <div className="min-w-[220px] flex-1 max-w-sm">
-          <Label htmlFor="prod-search" className="text-xs text-muted-foreground">חיפוש</Label>
+          <Label htmlFor="prod-search" className="text-xs text-muted-foreground">
+            חיפוש
+          </Label>
           <Input
             id="prod-search"
             placeholder="חיפוש: שם / מק״ט / slug..."
@@ -302,7 +354,9 @@ function AdminProducts() {
           />
         </div>
         <div className="w-56">
-          <Label htmlFor="prod-health" className="text-xs text-muted-foreground">סינון תקינות</Label>
+          <Label htmlFor="prod-health" className="text-xs text-muted-foreground">
+            סינון תקינות
+          </Label>
           <select
             id="prod-health"
             value={health ?? ""}
@@ -317,7 +371,9 @@ function AdminProducts() {
           </select>
         </div>
         <div className="w-56">
-          <Label htmlFor="prod-sort" className="text-xs text-muted-foreground">מיון</Label>
+          <Label htmlFor="prod-sort" className="text-xs text-muted-foreground">
+            מיון
+          </Label>
           <select
             id="prod-sort"
             value={`${sortKey}:${sortDir}`}
@@ -340,7 +396,9 @@ function AdminProducts() {
 
       {health && (
         <div className="mb-4 flex flex-wrap items-center gap-3 rounded-md border border-amber-400/60 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950/20 dark:text-amber-200">
-          <span>מוצגים רק: {HEALTH_HE[health]} · {total} מוצרים</span>
+          <span>
+            מוצגים רק: {HEALTH_HE[health]} · {total} מוצרים
+          </span>
           <Button size="sm" variant="outline" onClick={() => patchSearch({ health: undefined })}>
             הצג את כל המוצרים
           </Button>
@@ -353,11 +411,15 @@ function AdminProducts() {
           <Button size="sm" className="gap-2" onClick={() => setBulkOpen(true)}>
             <Layers className="h-4 w-4" /> פעולות מרובות
           </Button>
-          <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>נקה בחירה</Button>
+          <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
+            נקה בחירה
+          </Button>
         </div>
       )}
 
-      <div className={`rounded-lg border bg-card overflow-x-auto transition-opacity duration-200 ease-out ${isFetching ? "opacity-60" : ""}`}>
+      <div
+        className={`rounded-lg border bg-card overflow-x-auto transition-opacity duration-200 ease-out ${isFetching ? "opacity-60" : ""}`}
+      >
         <table className="w-full text-sm">
           <thead className="bg-muted/50">
             <tr className="text-right">
@@ -394,21 +456,42 @@ function AdminProducts() {
                   />
                 </td>
                 <td className="p-2">
-                  {p.thumbnail_url && <img src={p.thumbnail_url} alt="" loading="lazy" decoding="async" className="h-12 w-12 rounded object-cover" />}
+                  {p.thumbnail_url && (
+                    <img
+                      src={p.thumbnail_url}
+                      alt=""
+                      loading="lazy"
+                      decoding="async"
+                      className="h-12 w-12 rounded object-cover"
+                    />
+                  )}
                 </td>
-                <td className="p-3 max-w-xs"><div className="line-clamp-2">{p.name}</div></td>
+                <td className="p-3 max-w-xs">
+                  <div className="line-clamp-2">{p.name}</div>
+                </td>
                 <td className="p-3 whitespace-nowrap">{formatILS(p.sale_price ?? p.price)}</td>
                 <td className="p-3">
-                  <span className={p.stock_status === "instock" ? "text-green-600" : "text-destructive"}>
+                  <span
+                    className={p.stock_status === "instock" ? "text-green-600" : "text-destructive"}
+                  >
                     {p.stock_status === "instock" ? "במלאי" : "אזל"}
                   </span>
                   {p.track_stock && (
-                    <span className="block text-[11px] text-muted-foreground">במעקב · {p.stock_qty ?? 0}</span>
+                    <span className="block text-[11px] text-muted-foreground">
+                      במעקב · {p.stock_qty ?? 0}
+                    </span>
                   )}
                 </td>
                 <td className="p-3">{p.is_active ? "✓" : "✗"}</td>
                 <td className="p-3 flex gap-2 justify-end">
-                  <Button size="sm" variant="outline" onClick={() => { setEditing(p); setOpen(true); }}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setEditing(p);
+                      setOpen(true);
+                    }}
+                  >
                     <Pencil className="h-3.5 w-3.5" />
                   </Button>
                   <Button size="sm" variant="outline" onClick={() => onDelete(p.id)}>
@@ -422,9 +505,25 @@ function AdminProducts() {
       </div>
       {pages > 1 && (
         <div className="flex items-center justify-center gap-3 mt-4 text-sm">
-          <Button size="sm" variant="outline" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>הקודם</Button>
-          <span>עמוד {page + 1} מתוך {pages}</span>
-          <Button size="sm" variant="outline" disabled={page >= pages - 1} onClick={() => setPage((p) => p + 1)}>הבא</Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={page === 0}
+            onClick={() => setPage((p) => p - 1)}
+          >
+            הקודם
+          </Button>
+          <span>
+            עמוד {page + 1} מתוך {pages}
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={page >= pages - 1}
+            onClick={() => setPage((p) => p + 1)}
+          >
+            הבא
+          </Button>
         </div>
       )}
 
@@ -461,7 +560,11 @@ function AdminProducts() {
 }
 
 function BulkDialog({
-  open, onOpenChange, count, categories, onApply,
+  open,
+  onOpenChange,
+  count,
+  categories,
+  onApply,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -483,12 +586,18 @@ function BulkDialog({
 
   const build = () => {
     switch (kind) {
-      case "price_pct": return { kind, pct };
-      case "price_set": return { kind, price };
-      case "restock": return { kind, qty };
-      case "active": return { kind, value: activeValue };
-      case "stock_status": return { kind, value: stockValue };
-      case "category": return { kind, category_id: categoryId, mode: categoryMode };
+      case "price_pct":
+        return { kind, pct };
+      case "price_set":
+        return { kind, price };
+      case "restock":
+        return { kind, qty };
+      case "active":
+        return { kind, value: activeValue };
+      case "stock_status":
+        return { kind, value: stockValue };
+      case "category":
+        return { kind, category_id: categoryId, mode: categoryMode };
     }
   };
 
@@ -498,13 +607,19 @@ function BulkDialog({
       return;
     }
     setBusy(true);
-    try { await onApply(build()); } finally { setBusy(false); }
+    try {
+      await onApply(build());
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
-        <DialogHeader><DialogTitle>פעולות מרובות · {count} מוצרים</DialogTitle></DialogHeader>
+        <DialogHeader>
+          <DialogTitle>פעולות מרובות · {count} מוצרים</DialogTitle>
+        </DialogHeader>
         <div className="space-y-4">
           <div>
             <Label htmlFor="bulk-kind">פעולה</Label>
@@ -544,14 +659,25 @@ function BulkDialog({
           {kind === "restock" && (
             <div>
               <Label htmlFor="bulk-qty">כמות במלאי</Label>
-              <Input id="bulk-qty" type="number" min={0} value={qty} onChange={(e) => setQty(Number(e.target.value))} />
+              <Input
+                id="bulk-qty"
+                type="number"
+                min={0}
+                value={qty}
+                onChange={(e) => setQty(Number(e.target.value))}
+              />
             </div>
           )}
 
           {kind === "price_pct" && (
             <div>
               <Label htmlFor="bulk-pct">שינוי באחוזים (למשל 10 או 15-)</Label>
-              <Input id="bulk-pct" type="number" value={pct} onChange={(e) => setPct(Number(e.target.value))} />
+              <Input
+                id="bulk-pct"
+                type="number"
+                value={pct}
+                onChange={(e) => setPct(Number(e.target.value))}
+              />
               <p className="mt-1 text-[11px] text-muted-foreground">
                 מוצרים במחיר 0 ("לפי שער הזהב") לא ישונו.
               </p>
@@ -561,7 +687,13 @@ function BulkDialog({
           {kind === "price_set" && (
             <div>
               <Label htmlFor="bulk-price">מחיר אחיד (₪)</Label>
-              <Input id="bulk-price" type="number" min={0} value={price} onChange={(e) => setPrice(Number(e.target.value))} />
+              <Input
+                id="bulk-price"
+                type="number"
+                min={0}
+                value={price}
+                onChange={(e) => setPrice(Number(e.target.value))}
+              />
             </div>
           )}
 
@@ -581,20 +713,26 @@ function BulkDialog({
                 className="flex h-10 w-full rounded-md border bg-background px-3 text-sm"
               >
                 <option value="">— בחרו קטגוריה —</option>
-                {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
               </select>
             </div>
           )}
 
           {isPriceAction && (
             <div className="rounded-md border border-destructive/50 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-              שימו לב: פעולה זו משנה את מחיר המדף של {count} מוצרים ואינה הפיכה בלחיצה אחת.
-              ודאו שהבחירה נכונה לפני האישור.
+              שימו לב: פעולה זו משנה את מחיר המדף של {count} מוצרים ואינה הפיכה בלחיצה אחת. ודאו
+              שהבחירה נכונה לפני האישור.
             </div>
           )}
         </div>
         <DialogFooter>
-          <Button onClick={apply} disabled={busy}>{busy ? "מעדכן..." : `החל על ${count} מוצרים`}</Button>
+          <Button onClick={apply} disabled={busy}>
+            {busy ? "מעדכן..." : `החל על ${count} מוצרים`}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -615,15 +753,31 @@ function ProductDialog({
   // them before saving the product, so edited size prices are never dropped.
   const variantsSaveRef = useRef<null | (() => Promise<boolean>)>(null);
   const [form, setForm] = useState<Partial<Product>>(
-    product ?? { name: "", slug: "", price: 0, stock_status: "instock", is_active: true, track_stock: false }
+    product ?? {
+      name: "",
+      slug: "",
+      price: 0,
+      stock_status: "instock",
+      is_active: true,
+      track_stock: false,
+    },
   );
   // Dirty = the form differs from what the dialog opened with. Derived by
   // comparison rather than by flagging each of the ~12 setForm call sites, so a
   // newly-added field can't quietly escape the guard. The component is remounted
   // per product (key=id), so this seed is always the right baseline.
-  const initialFormRef = useRef(JSON.stringify(
-    product ?? { name: "", slug: "", price: 0, stock_status: "instock", is_active: true, track_stock: false }
-  ));
+  const initialFormRef = useRef(
+    JSON.stringify(
+      product ?? {
+        name: "",
+        slug: "",
+        price: 0,
+        stock_status: "instock",
+        is_active: true,
+        track_stock: false,
+      },
+    ),
+  );
   // An existing product keeps the slug the owner chose — never rewrite it. A new
   // product auto-derives its slug from the name until the owner edits slug itself.
   const [slugTouched, setSlugTouched] = useState(!!product);
@@ -655,7 +809,8 @@ function ProductDialog({
   const toggleCategory = (id: string) =>
     setCategoryIds((cur) => {
       const next = new Set(cur);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
 
@@ -703,7 +858,11 @@ function ProductDialog({
               value={form.name ?? ""}
               onChange={(e) => {
                 const name = e.target.value;
-                setForm((prev) => ({ ...prev, name, slug: slugTouched ? prev.slug : slugify(name) }));
+                setForm((prev) => ({
+                  ...prev,
+                  name,
+                  slug: slugTouched ? prev.slug : slugify(name),
+                }));
               }}
             />
           </div>
@@ -712,21 +871,53 @@ function ProductDialog({
             <Input
               dir="ltr"
               value={form.slug ?? ""}
-              onChange={(e) => { setSlugTouched(true); setForm((prev) => ({ ...prev, slug: e.target.value })); }}
+              onChange={(e) => {
+                setSlugTouched(true);
+                setForm((prev) => ({ ...prev, slug: e.target.value }));
+              }}
             />
             {/* A Hebrew-only name auto-fills nothing (slugify has no Latin form
                 to work from), so say plainly what this field is and what a good
                 value looks like — it is the product's public URL. */}
             <p className="mt-1 text-[11px] text-muted-foreground">
-              כתובת הדף באתר: orzadik.com/product/<span dir="ltr">slug</span> — אותיות אנגליות קטנות, ספרות ומקפים.
-              לדוגמה: <span dir="ltr">mezuza-keramika-lavan</span>
+              כתובת הדף באתר: orzadik.com/product/<span dir="ltr">slug</span> — אותיות אנגליות
+              קטנות, ספרות ומקפים. לדוגמה: <span dir="ltr">mezuza-keramika-lavan</span>
             </p>
           </div>
-          <div><Label>מחיר</Label><Input type="number" step="0.01" value={form.price ?? 0} onChange={(e) => setForm({ ...form, price: Number(e.target.value) })} /></div>
-          <div><Label>מחיר מבצע</Label><Input type="number" step="0.01" value={form.sale_price ?? ""} onChange={(e) => setForm({ ...form, sale_price: e.target.value ? Number(e.target.value) : null })} /></div>
-          <div><Label>מק״ט</Label><Input value={form.sku ?? ""} onChange={(e) => setForm({ ...form, sku: e.target.value })} /></div>
-          <div><Label>סטטוס מלאי</Label>
-            <select value={form.stock_status ?? "instock"} onChange={(e) => setForm({ ...form, stock_status: e.target.value })} className="flex h-10 w-full rounded-md border bg-background px-3 text-sm">
+          <div>
+            <Label>מחיר</Label>
+            <Input
+              type="number"
+              step="0.01"
+              value={form.price ?? 0}
+              onChange={(e) => setForm({ ...form, price: Number(e.target.value) })}
+            />
+          </div>
+          <div>
+            <Label>מחיר מבצע</Label>
+            <Input
+              type="number"
+              step="0.01"
+              value={form.sale_price ?? ""}
+              onChange={(e) =>
+                setForm({ ...form, sale_price: e.target.value ? Number(e.target.value) : null })
+              }
+            />
+          </div>
+          <div>
+            <Label>מק״ט</Label>
+            <Input
+              value={form.sku ?? ""}
+              onChange={(e) => setForm({ ...form, sku: e.target.value })}
+            />
+          </div>
+          <div>
+            <Label>סטטוס מלאי</Label>
+            <select
+              value={form.stock_status ?? "instock"}
+              onChange={(e) => setForm({ ...form, stock_status: e.target.value })}
+              className="flex h-10 w-full rounded-md border bg-background px-3 text-sm"
+            >
               <option value="instock">במלאי</option>
               <option value="outofstock">אזל</option>
             </select>
@@ -779,7 +970,9 @@ function ProductDialog({
               </div>
             </div>
             <div>
-              <Label htmlFor="thumb-url" className="text-xs text-muted-foreground">כתובת תמונה (URL)</Label>
+              <Label htmlFor="thumb-url" className="text-xs text-muted-foreground">
+                כתובת תמונה (URL)
+              </Label>
               <Input
                 id="thumb-url"
                 dir="ltr"
@@ -789,8 +982,22 @@ function ProductDialog({
             </div>
           </div>
         </div>
-        <div><Label>תיאור קצר</Label><Textarea rows={3} value={form.short_description ?? ""} onChange={(e) => setForm({ ...form, short_description: e.target.value })} /></div>
-        <div><Label>תיאור מלא</Label><Textarea rows={6} value={form.description ?? ""} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
+        <div>
+          <Label>תיאור קצר</Label>
+          <Textarea
+            rows={3}
+            value={form.short_description ?? ""}
+            onChange={(e) => setForm({ ...form, short_description: e.target.value })}
+          />
+        </div>
+        <div>
+          <Label>תיאור מלא</Label>
+          <Textarea
+            rows={6}
+            value={form.description ?? ""}
+            onChange={(e) => setForm({ ...form, description: e.target.value })}
+          />
+        </div>
 
         {/* Categories. Assigning here writes product_categories on save, so a new
             product no longer starts orphaned. Replace-set: the saved list is
@@ -827,7 +1034,13 @@ function ProductDialog({
           )}
         </fieldset>
 
-        <div className="flex items-center gap-2"><Switch checked={form.is_active ?? true} onCheckedChange={(v) => setForm({ ...form, is_active: v })} /><Label>פעיל</Label></div>
+        <div className="flex items-center gap-2">
+          <Switch
+            checked={form.is_active ?? true}
+            onCheckedChange={(v) => setForm({ ...form, is_active: v })}
+          />
+          <Label>פעיל</Label>
+        </div>
 
         {/* Inventory. Off by default: with tracking on, a paid order decrements
             stock_qty and flips the product to "אזל" at zero. Leave it off for
@@ -886,9 +1099,14 @@ function ProductDialog({
                 const nameOk = (form.name ?? "").trim();
                 const slugOk = (form.slug ?? "").trim();
                 if (!nameOk) return toast.error("יש להזין שם מוצר");
-                if (!slugOk) return toast.error("יש להזין כתובת (Slug) באנגלית — בלעדיה דף המוצר לא יהיה נגיש ללקוחות");
+                if (!slugOk)
+                  return toast.error(
+                    "יש להזין כתובת (Slug) באנגלית — בלעדיה דף המוצר לא יהיה נגיש ללקוחות",
+                  );
                 if (!/^[a-z0-9-]+$/.test(slugOk)) {
-                  return toast.error("כתובת ה-Slug חייבת להכיל אותיות אנגליות קטנות, ספרות ומקפים בלבד");
+                  return toast.error(
+                    "כתובת ה-Slug חייבת להכיל אותיות אנגליות קטנות, ספרות ומקפים בלבד",
+                  );
                 }
                 // Commit pending size rows — they are the prices checkout
                 // charges. A failed size write aborts, so the dialog stays open
@@ -947,7 +1165,9 @@ function VariantsPanel({
 
   // Seed the editable copy once the server rows land (and again after a save
   // refetch), rather than deriving it during render.
-  useEffect(() => { if (data) setRows(data); }, [data]);
+  useEffect(() => {
+    if (data) setRows(data);
+  }, [data]);
 
   const update = (id: string, patch: Partial<AdminVariantRow>) =>
     setRows((cur) => (cur ?? []).map((r) => (r.id === id ? { ...r, ...patch } : r)));
@@ -1028,7 +1248,8 @@ function VariantsPanel({
 
       {differingCount > 0 && (
         <div className="rounded-md border border-amber-400/70 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900 dark:bg-amber-950/20 dark:text-amber-200">
-          ל־{differingCount} גדלים יש מחיר משלהם, שונה ממחיר המוצר. שינוי מחיר המוצר למעלה לא ישנה אותם.
+          ל־{differingCount} גדלים יש מחיר משלהם, שונה ממחיר המוצר. שינוי מחיר המוצר למעלה לא ישנה
+          אותם.
         </div>
       )}
 
@@ -1043,7 +1264,9 @@ function VariantsPanel({
           >
             <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_130px_90px_auto]">
               <div>
-                <Label htmlFor={`v-label-${r.id}`} className="text-[11px] text-muted-foreground">שם הגודל</Label>
+                <Label htmlFor={`v-label-${r.id}`} className="text-[11px] text-muted-foreground">
+                  שם הגודל
+                </Label>
                 <Input
                   id={`v-label-${r.id}`}
                   value={r.label}
@@ -1051,7 +1274,9 @@ function VariantsPanel({
                 />
               </div>
               <div>
-                <Label htmlFor={`v-price-${r.id}`} className="text-[11px] text-muted-foreground">מחיר הגודל (₪)</Label>
+                <Label htmlFor={`v-price-${r.id}`} className="text-[11px] text-muted-foreground">
+                  מחיר הגודל (₪)
+                </Label>
                 <Input
                   id={`v-price-${r.id}`}
                   type="number"
@@ -1065,7 +1290,9 @@ function VariantsPanel({
                 />
               </div>
               <div>
-                <Label htmlFor={`v-sort-${r.id}`} className="text-[11px] text-muted-foreground">סדר</Label>
+                <Label htmlFor={`v-sort-${r.id}`} className="text-[11px] text-muted-foreground">
+                  סדר
+                </Label>
                 <Input
                   id={`v-sort-${r.id}`}
                   type="number"

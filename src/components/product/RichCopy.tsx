@@ -42,13 +42,15 @@ const INLINE_SPLIT = /(<\/?(?:strong|b|em|i)\s*\/?>)/gi;
  * inline emphasis tags. Anything else is unwrapped, text intact.
  */
 export function normalizeMarkup(raw: string): string {
-  return raw
-    .replace(/<\s*br\s*\/?\s*>/gi, "\n")
-    .replace(/<\s*\/\s*p\s*>\s*<\s*p[^>]*>/gi, "\n\n")
-    .replace(/<\s*\/?\s*(?:p|div|section|h[1-6])[^>]*>/gi, "\n\n")
-    .replace(/<\s*\/?\s*(?:li|tr)[^>]*>/gi, "\n")
-    // Drop every remaining tag that is not one of the inline four.
-    .replace(/<(?!\/?(?:strong|b|em|i)\s*\/?>)[^>]*>/gi, "");
+  return (
+    raw
+      .replace(/<\s*br\s*\/?\s*>/gi, "\n")
+      .replace(/<\s*\/\s*p\s*>\s*<\s*p[^>]*>/gi, "\n\n")
+      .replace(/<\s*\/?\s*(?:p|div|section|h[1-6])[^>]*>/gi, "\n\n")
+      .replace(/<\s*\/?\s*(?:li|tr)[^>]*>/gi, "\n")
+      // Drop every remaining tag that is not one of the inline four.
+      .replace(/<(?!\/?(?:strong|b|em|i)\s*\/?>)[^>]*>/gi, "")
+  );
 }
 
 /** Decode the handful of entities that appear in supplier copy. &amp; last. */
@@ -105,7 +107,10 @@ type SpecPair = { label: string; value: string };
  * Returns null when the paragraph is not a spec line.
  */
 export function parseSpecLine(paragraph: string): SpecPair[] | null {
-  const segments = paragraph.split("|").map((s) => s.trim()).filter(Boolean);
+  const segments = paragraph
+    .split("|")
+    .map((s) => s.trim())
+    .filter(Boolean);
   if (segments.length < 2) return null;
 
   const pairs = segments.map((seg) => {
@@ -160,7 +165,10 @@ export function RichCopy({
   if (!value) return null;
 
   // Blank lines separate paragraphs; a lone newline is a soft break inside one.
-  const paragraphs = value.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+  const paragraphs = value
+    .split(/\n\s*\n/)
+    .map((p) => p.trim())
+    .filter(Boolean);
 
   return (
     <div className={`max-w-none text-foreground ${className}`}>

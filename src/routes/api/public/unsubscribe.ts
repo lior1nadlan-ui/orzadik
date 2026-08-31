@@ -27,7 +27,11 @@ async function handle(request: Request): Promise<Response> {
   const token = (url.searchParams.get("t") || "").trim();
 
   if (!email || !token || !(await verifyUnsubscribeToken(email, token))) {
-    return page("קישור ההסרה אינו תקין", "ייתכן שהקישור פג תוקף. ניתן לנהל את העדפות הדיוור מתוך עמוד החשבון, או לפנות אלינו.", false);
+    return page(
+      "קישור ההסרה אינו תקין",
+      "ייתכן שהקישור פג תוקף. ניתן לנהל את העדפות הדיוור מתוך עמוד החשבון, או לפנות אלינו.",
+      false,
+    );
   }
 
   try {
@@ -35,15 +39,9 @@ async function handle(request: Request): Promise<Response> {
     // exact match cannot miss — while .ilike would treat `_`/`%` in the address
     // as LIKE wildcards and collaterally unsubscribe look-alike addresses.
     // Stop abandoned-cart / marketing reminders for this address.
-    await supabaseAdmin
-      .from("abandoned_carts")
-      .update({ unsubscribed: true })
-      .eq("email", email);
+    await supabaseAdmin.from("abandoned_carts").update({ unsubscribed: true }).eq("email", email);
     // If a registered profile exists, revoke marketing consent too.
-    await supabaseAdmin
-      .from("profiles")
-      .update({ marketing_consent: false })
-      .eq("email", email);
+    await supabaseAdmin.from("profiles").update({ marketing_consent: false }).eq("email", email);
     // Newsletter list: mark the subscription closed rather than deleting it, so
     // the opt-out itself stays auditable (Spam Law §30א).
     await supabaseAdmin
@@ -59,7 +57,11 @@ async function handle(request: Request): Promise<Response> {
       .upsert({ email }, { onConflict: "email", ignoreDuplicates: true });
   } catch (e) {
     console.error("[unsubscribe] update failed:", e);
-    return page("אירעה שגיאה", "לא הצלחנו להשלים את ההסרה כעת. אנא נסו שוב מאוחר יותר או פנו אלינו.", false);
+    return page(
+      "אירעה שגיאה",
+      "לא הצלחנו להשלים את ההסרה כעת. אנא נסו שוב מאוחר יותר או פנו אלינו.",
+      false,
+    );
   }
 
   return page("הוסרתם מרשימת התפוצה", "לא יישלחו אליכם עוד הודעות פרסומיות. תודה!", true);

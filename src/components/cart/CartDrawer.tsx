@@ -26,7 +26,8 @@ import { useCart, formatILS, getEffectivePrice, lineKey } from "@/lib/cart";
 // and touches window/navigation exclusively inside handlers.
 // -----------------------------------------------------------------------------
 export function CartDrawer() {
-  const { items, remove, setQty, count, subtotal, shipping, grandTotal, isCartOpen, closeCart } = useCart();
+  const { items, remove, setQty, count, subtotal, shipping, grandTotal, isCartOpen, closeCart } =
+    useCart();
   const navigate = useNavigate();
 
   // Distinct products in the cart — drives the compact cross-sell strip below.
@@ -73,14 +74,16 @@ export function CartDrawer() {
   };
 
   return (
-    <Sheet open={isCartOpen} onOpenChange={(open) => { if (!open) closeCart(); }}>
+    <Sheet
+      open={isCartOpen}
+      onOpenChange={(open) => {
+        if (!open) closeCart();
+      }}
+    >
       {/* p-0 + a flex column so the item list scrolls between a fixed header and
           a pinned summary. w-96 (24rem) matches the mobile nav drawer; the base
           sm:max-w-sm cap is lifted so the cart rows have room to breathe. */}
-      <SheetContent
-        side="left"
-        className="flex w-[88vw] flex-col gap-0 p-0 sm:w-96 sm:max-w-none"
-      >
+      <SheetContent side="left" className="flex w-[88vw] flex-col gap-0 p-0 sm:w-96 sm:max-w-none">
         {/* A11y live region — the ONE polite status node for the mini-cart. Kept
             here, OUTSIDE the empty/non-empty branch below, so it stays mounted
             even as the last item is removed (a node unmounted in the same commit
@@ -107,7 +110,9 @@ export function CartDrawer() {
             <p className="font-display text-section text-foreground">העגלה ריקה</p>
             <p className="text-body text-muted-foreground">עדיין לא הוספת מוצרים לעגלה.</p>
             <Button asChild className="press mt-2">
-              <Link to="/shop" onClick={closeCart}>התחל לקנות</Link>
+              <Link to="/shop" onClick={closeCart}>
+                התחל לקנות
+              </Link>
             </Button>
           </div>
         ) : (
@@ -166,11 +171,14 @@ export function CartDrawer() {
                       </div>
 
                       {item.variantLabel && (
-                        <div className="mt-0.5 text-meta text-muted-foreground">גודל: {item.variantLabel}</div>
+                        <div className="mt-0.5 text-meta text-muted-foreground">
+                          גודל: {item.variantLabel}
+                        </div>
                       )}
                       {item.customText && (
                         <div className="mt-0.5 text-meta text-accent">
-                          ✦ {item.customMethod === "laser" ? "חריטת לייזר" : "רקמה"}: {item.customText}
+                          ✦ {item.customMethod === "laser" ? "חריטת לייזר" : "רקמה"}:{" "}
+                          {item.customText}
                         </div>
                       )}
 
@@ -197,7 +205,9 @@ export function CartDrawer() {
                           >
                             <Minus className="h-3.5 w-3.5" />
                           </button>
-                          <span className="px-3 text-body font-medium tabular-nums">{item.quantity}</span>
+                          <span className="px-3 text-body font-medium tabular-nums">
+                            {item.quantity}
+                          </span>
                           <button
                             onClick={() => handleSetQty(k, item.quantity + 1)}
                             className="press relative rounded-e-full px-2.5 py-1.5 before:absolute before:-inset-x-1.5 before:-inset-y-2.5 before:content-[''] [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary"
@@ -206,7 +216,9 @@ export function CartDrawer() {
                             <Plus className="h-3.5 w-3.5" />
                           </button>
                         </div>
-                        <div className="text-body font-bold text-accent">{formatILS(effective * item.quantity)}</div>
+                        <div className="text-body font-bold text-accent">
+                          {formatILS(effective * item.quantity)}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -254,7 +266,9 @@ export function CartDrawer() {
                   same way. */}
               <div className="mb-4 flex items-baseline justify-between gap-3">
                 <span className="text-body font-bold">סך הכל</span>
-                <span className="whitespace-nowrap text-total font-bold text-accent">{formatILS(grandTotal)}</span>
+                <span className="whitespace-nowrap text-total font-bold text-accent">
+                  {formatILS(grandTotal)}
+                </span>
               </div>
 
               {/* The two free gift affordances — see the long note at the same
@@ -265,7 +279,10 @@ export function CartDrawer() {
                   catalogue. */}
               <div className="mb-3 text-start">
                 <p className="text-meta font-semibold text-foreground">
-                  <span className="text-accent" aria-hidden="true">✦</span> עטיפה והקדשה אישית - ללא עלות
+                  <span className="text-accent" aria-hidden="true">
+                    ✦
+                  </span>{" "}
+                  עטיפה והקדשה אישית - ללא עלות
                 </p>
                 <p className="mt-0.5 text-micro leading-relaxed text-muted-foreground">
                   אפשר לבחור בשלב התשלום. אינן משפיעות על סכום ההזמנה.

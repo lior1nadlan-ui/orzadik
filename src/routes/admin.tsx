@@ -1,9 +1,27 @@
-import { createFileRoute, Outlet, Link, useNavigate, useRouterState, redirect } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Outlet,
+  Link,
+  useNavigate,
+  useRouterState,
+  redirect,
+} from "@tanstack/react-router";
 import { useEffect } from "react";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import { CardSkeleton } from "@/components/Skeletons";
-import { Package, FolderTree, ShoppingBag, ShoppingCart, LayoutDashboard, Star, Users, Mail, Send, Store } from "lucide-react";
+import {
+  Package,
+  FolderTree,
+  ShoppingBag,
+  ShoppingCart,
+  LayoutDashboard,
+  Star,
+  Users,
+  Mail,
+  Send,
+  Store,
+} from "lucide-react";
 
 export const Route = createFileRoute("/admin")({
   beforeLoad: async () => {
@@ -74,9 +92,7 @@ function AdminLayout() {
           the whole panel is one thumb-swipe away and the page starts with the
           page. From lg up it is the sidebar it always was, made sticky so the
           nav does not scroll away down a long orders table. */}
-      <aside
-        className="-mx-4 flex gap-1 overflow-x-auto px-4 pb-2 lg:mx-0 lg:block lg:space-y-1 lg:overflow-visible lg:px-0 lg:pb-0 lg:sticky lg:top-24 lg:self-start"
-      >
+      <aside className="-mx-4 flex gap-1 overflow-x-auto px-4 pb-2 lg:mx-0 lg:block lg:space-y-1 lg:overflow-visible lg:px-0 lg:pb-0 lg:sticky lg:top-24 lg:self-start">
         <div className="mb-3 hidden font-display text-lg font-bold text-primary lg:block">
           פאנל ניהול
         </div>
@@ -87,7 +103,9 @@ function AdminLayout() {
               key={it.to}
               to={it.to}
               className={`flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-3 py-2.5 text-sm transition-colors duration-160 ease-out lg:py-2 ${
-                active ? "bg-primary text-primary-foreground" : "bg-muted/50 lg:bg-transparent [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"
+                active
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted/50 lg:bg-transparent [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"
               }`}
             >
               <it.icon className="h-4 w-4 shrink-0" /> {it.label}

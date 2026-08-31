@@ -21,10 +21,14 @@ export function PolicyHeader({
 }) {
   return (
     <header className="mb-10 md:mb-14 text-center">
-      <p className="text-[10px] md:text-xs tracking-[0.35em] text-accent uppercase mb-3">{eyebrow}</p>
+      <p className="text-[10px] md:text-xs tracking-[0.35em] text-accent uppercase mb-3">
+        {eyebrow}
+      </p>
       <h1 className="font-display text-3xl md:text-5xl tracking-wide text-foreground">{title}</h1>
       <div className="gold-rule mx-auto mt-5 w-24" aria-hidden="true" />
-      <p className="mt-5 mx-auto max-w-xl text-[15px] leading-relaxed text-muted-foreground">{intro}</p>
+      <p className="mt-5 mx-auto max-w-xl text-[15px] leading-relaxed text-muted-foreground">
+        {intro}
+      </p>
     </header>
   );
 }
@@ -39,7 +43,10 @@ export function PolicySection({
   children: ReactNode;
 }) {
   return (
-    <section id={id} className="mb-9 border-t border-glass-line pt-8 last:mb-0 scroll-mt-24 lg:scroll-mt-32">
+    <section
+      id={id}
+      className="mb-9 border-t border-glass-line pt-8 last:mb-0 scroll-mt-24 lg:scroll-mt-32"
+    >
       <h2 className="font-display text-xl md:text-2xl mb-3 text-foreground">{title}</h2>
       <div className="text-[15px] leading-[1.85] text-foreground space-y-4 [&_ul]:list-disc [&_ul]:pr-5 [&_ul]:space-y-2 [&_a]:text-accent [&_a]:underline [&_a]:underline-offset-4 [&_strong]:font-semibold">
         {children}

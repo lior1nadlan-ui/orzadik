@@ -34,7 +34,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsAdmin(false);
       }
     });
-    supabase.auth.getSession()
+    supabase.auth
+      .getSession()
       .then(({ data }) => {
         setSession(data.session);
       })

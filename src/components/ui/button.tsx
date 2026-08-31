@@ -64,7 +64,7 @@ const buttonVariants = cva(
       // string as BTN_BASE's, and so a reader can check the arithmetic against
       // the 44px floor without knowing --spacing.
       size: {
-        default: "min-h-[2.75rem] px-4 py-2",  // 44px — the floor, everywhere
+        default: "min-h-[2.75rem] px-4 py-2", // 44px — the floor, everywhere
         // 40px. `sm` is the admin-density variant: 40 of its 43 call sites are
         // /admin.* table rows and toolbars, where 44 adds ~4px to every row of a
         // 25-row table. 32 -> 40 clears WCAG 2.5.8 (24px) with 16px to spare and

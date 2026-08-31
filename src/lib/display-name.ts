@@ -134,11 +134,7 @@ export function displayProductName(raw: string | null | undefined): string {
   const withoutSku = s.replace(TRAILING_SKU, "");
   if (withoutSku !== s && !SKU_KEEP_BEFORE.test(withoutSku)) s = withoutSku;
 
-  s = s
-    .replace(/\s+/g, " ")
-    .replace(DANGLING_HEAD, "")
-    .replace(DANGLING_TAIL, "")
-    .trim();
+  s = s.replace(/\s+/g, " ").replace(DANGLING_HEAD, "").replace(DANGLING_TAIL, "").trim();
 
   return s.length > 0 ? s : original;
 }
@@ -190,9 +186,9 @@ type SpecKey = "חומר" | "צבע" | "מידות";
  * they hold no lastIndex state and are safe to share.
  */
 const SPEC_PATTERNS: Record<SpecKey, RegExp> = {
-  "חומר": /חומר\s*:\s*([^|\n\r]+)/,
-  "צבע": /צבע\s*:\s*([^|\n\r]+)/,
-  "מידות": /מידות\s*:\s*([^|\n\r]+)/,
+  חומר: /חומר\s*:\s*([^|\n\r]+)/,
+  צבע: /צבע\s*:\s*([^|\n\r]+)/,
+  מידות: /מידות\s*:\s*([^|\n\r]+)/,
 };
 
 /** Pull one `key: value` out of the house spec line. */
@@ -212,7 +208,10 @@ function specValue(text: string, key: SpecKey): string | null {
  * reader can see, not a claim.
  */
 function compactList(v: string): string {
-  return v.split(/\s*,\s*/).filter(Boolean).join("/");
+  return v
+    .split(/\s*,\s*/)
+    .filter(Boolean)
+    .join("/");
 }
 
 /**
@@ -228,13 +227,15 @@ function compactList(v: string): string {
  * dropped rather than truncated: half a measurement is worse than none.
  */
 function sizeSegment(v: string): string | null {
-  if (/[.!?]/.test(v)) return null;      // a sentence, not a measurement
-  if (v.includes(",")) return null;      // multi-dimension — too long for 171px
+  if (/[.!?]/.test(v)) return null; // a sentence, not a measurement
+  if (v.includes(",")) return null; // multi-dimension — too long for 171px
   // Normalise BEFORE the length guard: this is the field that actually carries
   // "16×21", and the substitution only ever shortens ("16 × 21" -> "16x21").
-  const s = neutralizeBidiDigits(v).replace(/^\s*(?:אורך|גובה|קוטר)\s+/, "").trim();
+  const s = neutralizeBidiDigits(v)
+    .replace(/^\s*(?:אורך|גובה|קוטר)\s+/, "")
+    .trim();
   if (s.length === 0 || s.length > 16) return null;
-  if (!/\d/.test(s)) return null;        // "בינוני" tells a shopper nothing here
+  if (!/\d/.test(s)) return null; // "בינוני" tells a shopper nothing here
   return s;
 }
 

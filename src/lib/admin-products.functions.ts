@@ -163,12 +163,10 @@ export const bulkUpdateProducts = createServerFn({ method: "POST" })
 
       case "category": {
         if (action.mode === "add") {
-          const { error } = await supabaseAdmin
-            .from("product_categories")
-            .upsert(
-              ids.map((id) => ({ product_id: id, category_id: action.category_id })),
-              { onConflict: "product_id,category_id", ignoreDuplicates: true },
-            );
+          const { error } = await supabaseAdmin.from("product_categories").upsert(
+            ids.map((id) => ({ product_id: id, category_id: action.category_id })),
+            { onConflict: "product_id,category_id", ignoreDuplicates: true },
+          );
           if (error) throw new Error("שגיאה בשיוך לקטגוריה.");
         } else {
           const { error } = await supabaseAdmin
@@ -225,7 +223,8 @@ export const listProductVariants = createServerFn({ method: "POST" })
       sku: (v.sku ?? null) as string | null,
       // numeric columns arrive as strings over PostgREST in some drivers.
       price: v.price === null || v.price === undefined ? null : Number(v.price),
-      price_delta: v.price_delta === null || v.price_delta === undefined ? 0 : Number(v.price_delta),
+      price_delta:
+        v.price_delta === null || v.price_delta === undefined ? 0 : Number(v.price_delta),
       // Most rows are unset; anything that isn't an explicit false counts as
       // available — the same rule checkout applies.
       in_stock: v.in_stock !== false,
@@ -448,13 +447,11 @@ export const uploadProductImage = createServerFn({ method: "POST" })
     const ext = IMAGE_EXT[ct];
     const path = `uploads/${crypto.randomUUID()}.${ext}`;
 
-    const { error } = await supabaseAdmin.storage
-      .from("product-images")
-      .upload(path, bytes, {
-        contentType: ct,
-        cacheControl: "31536000",
-        upsert: false,
-      });
+    const { error } = await supabaseAdmin.storage.from("product-images").upload(path, bytes, {
+      contentType: ct,
+      cacheControl: "31536000",
+      upsert: false,
+    });
     if (error) {
       console.error("[uploadProductImage] upload failed:", error);
       throw new Error("שגיאה בהעלאת התמונה.");

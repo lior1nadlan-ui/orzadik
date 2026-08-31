@@ -25,7 +25,11 @@ export const Route = createFileRoute("/accessibility")({
   head: () => ({
     meta: [
       { title: "הצהרת נגישות | אור זרוע לצדיק" },
-      { name: "description", content: "הצהרת הנגישות המלאה של אתר אור זרוע לצדיק לפי ת״י 5568 ברמת AA ו-WCAG 2.1 — התאמות, מגבלות ופרטי רכז נגישות." },
+      {
+        name: "description",
+        content:
+          "הצהרת הנגישות המלאה של אתר אור זרוע לצדיק לפי ת״י 5568 ברמת AA ו-WCAG 2.1 — התאמות, מגבלות ופרטי רכז נגישות.",
+      },
       { property: "og:url", content: "https://orzadik.com/accessibility" },
     ],
     links: [{ rel: "canonical", href: "https://orzadik.com/accessibility" }],
@@ -36,8 +40,12 @@ function AccessibilityPage() {
   return (
     <article className="container mx-auto px-4 py-12 md:py-16 max-w-3xl">
       <header className="mb-10 md:mb-14 text-center">
-        <p className="text-[10px] md:text-xs tracking-[0.35em] text-accent uppercase mb-3">נגישות</p>
-        <h1 className="font-display text-3xl md:text-5xl tracking-wide text-foreground">הצהרת נגישות</h1>
+        <p className="text-[10px] md:text-xs tracking-[0.35em] text-accent uppercase mb-3">
+          נגישות
+        </p>
+        <h1 className="font-display text-3xl md:text-5xl tracking-wide text-foreground">
+          הצהרת נגישות
+        </h1>
         <div className="gold-rule mx-auto mt-5 w-24" aria-hidden="true" />
         <p className="glass mt-5 inline-block px-4 py-1.5 text-xs text-muted-foreground [--glass-radius:9999px]">
           עודכן לאחרונה: {LEGAL_LAST_UPDATED}
@@ -47,7 +55,10 @@ function AccessibilityPage() {
       {/* Compact glass table of contents — pure in-page anchors (no JS), so it
           works server-rendered; each section carries scroll-mt to clear the
           sticky header when jumped to. */}
-      <nav aria-label="תוכן העניינים" className="glass mb-10 md:mb-12 p-5 md:p-6 [--glass-radius:1.25rem]">
+      <nav
+        aria-label="תוכן העניינים"
+        className="glass mb-10 md:mb-12 p-5 md:p-6 [--glass-radius:1.25rem]"
+      >
         <p className="mb-3 text-[11px] tracking-[0.2em] text-accent">תוכן העניינים</p>
         <ul className="grid list-none gap-x-6 gap-y-0.5 sm:grid-cols-2">
           {SECTIONS.map((s) => (
@@ -90,10 +101,10 @@ function AccessibilityPage() {
       <Section title="3. רמת הנגישות באתר">
         <p>
           האתר נבנה במטרה לעמוד בדרישות התקן הישראלי ת"י 5568 ברמת <strong>AA</strong>, המבוסס על
-          הנחיות הנגישות הבינלאומיות WCAG 2.1. עבודות ההנגשה בוצעו על ידי צוות הפיתוח ונבדקות
-          באופן שוטף בכלי בדיקה אוטומטיים ובבדיקות ידניות. למען השקיפות: טרם בוצעה ביקורת נגישות
-          על ידי מורשה נגישות שירות, ולא בוצעה בדיקת תאימות מלאה מול כל אחת מהטכנולוגיות
-          המסייעות. אנו מתקנים ליקויים שמתגלים, ונשמח לקבל דיווח על כל ליקוי שנתקלתם בו.
+          הנחיות הנגישות הבינלאומיות WCAG 2.1. עבודות ההנגשה בוצעו על ידי צוות הפיתוח ונבדקות באופן
+          שוטף בכלי בדיקה אוטומטיים ובבדיקות ידניות. למען השקיפות: טרם בוצעה ביקורת נגישות על ידי
+          מורשה נגישות שירות, ולא בוצעה בדיקת תאימות מלאה מול כל אחת מהטכנולוגיות המסייעות. אנו
+          מתקנים ליקויים שמתגלים, ונשמח לקבל דיווח על כל ליקוי שנתקלתם בו.
         </p>
       </Section>
 
@@ -109,10 +120,15 @@ function AccessibilityPage() {
 
         <h3 className="font-display text-lg mt-4 mb-2">4.2 קוראי מסך וטכנולוגיות מסייעות</h3>
         <ul>
-          <li>מבנה סמנטי ותוויות ARIA שנועדו לתמוך בקוראי המסך הנפוצים (NVDA, JAWS, VoiceOver, TalkBack) — האתר נבנה לפי התקנים שהם נשענים עליהם.</li>
+          <li>
+            מבנה סמנטי ותוויות ARIA שנועדו לתמוך בקוראי המסך הנפוצים (NVDA, JAWS, VoiceOver,
+            TalkBack) — האתר נבנה לפי התקנים שהם נשענים עליהם.
+          </li>
           <li>תיוג סמנטי תקין (HTML5 Semantic) — header, nav, main, footer, article, section.</li>
           <li>היררכיית כותרות תקינה (h1-h6) על כל דף.</li>
-          <li>תוויות ARIA (aria-label, aria-labelledby, aria-describedby) על אלמנטים שדורשים זאת.</li>
+          <li>
+            תוויות ARIA (aria-label, aria-labelledby, aria-describedby) על אלמנטים שדורשים זאת.
+          </li>
           <li>מצבי aria-expanded, aria-current, aria-live לעדכונים דינמיים.</li>
           <li>טקסטים חלופיים (alt) משמעותיים לכל התמונות התוכניות.</li>
           <li>alt ריק (alt="") לתמונות דקורטיביות, כך שקורא המסך מתעלם מהן.</li>
@@ -139,11 +155,15 @@ function AccessibilityPage() {
 
         <h3 className="font-display text-lg mt-4 mb-2">4.5 מולטימדיה וזמן</h3>
         <ul>
-          <li>סרטוני הרקע באתר הם דקורטיביים ומושתקים לחלוטין, ואינם מופעלים כאשר מוגדרת במערכת ההפעלה העדפת הפחתת תנועה.</li>
+          <li>
+            סרטוני הרקע באתר הם דקורטיביים ומושתקים לחלוטין, ואינם מופעלים כאשר מוגדרת במערכת ההפעלה
+            העדפת הפחתת תנועה.
+          </li>
           <li>
             מצגת התמונות בראש דף הבית דקורטיבית, מוסתרת מקוראי מסך, ומתחלפת בהעברה רכה כל{" "}
             {HERO_SLIDE_INTERVAL_SECONDS} שניות. כאשר מוגדרת העדפת הפחתת תנועה היא אינה מתחלפת כלל
-            ומוצגת תמונה אחת בלבד.
+            ומוצגת תמונה אחת בלבד. מתחת למצגת קיים כפתור לעצירת ההחלפה ולהפעלתה מחדש, נגיש במקלדת
+            ובקורא מסך (WCAG 2.2.2).
           </li>
           <li>אין הפעלה אוטומטית של אודיו או וידאו עם סאונד.</li>
           <li>אנימציות לא חיוניות מצומצמות ומכבדות את הגדרת prefers-reduced-motion.</li>
@@ -153,7 +173,10 @@ function AccessibilityPage() {
 
         <h3 className="font-display text-lg mt-4 mb-2">4.6 ניידים ומכשירי מגע</h3>
         <ul>
-          <li>חלק מאזורי המגע (Tap Targets) באתר מוגדרים בגודל מינימלי של 44×44 פיקסלים; ברכיבים אחרים אזור המגע קטן מכך, וההתאמה טרם הושלמה.</li>
+          <li>
+            חלק מאזורי המגע (Tap Targets) באתר מוגדרים בגודל מינימלי של 44×44 פיקסלים; ברכיבים אחרים
+            אזור המגע קטן מכך, וההתאמה טרם הושלמה.
+          </li>
           <li>תמיכה במחוות מגע פשוטות וחלופות לכל מחווה מורכבת.</li>
           <li>תמיכה בכיוונים אנכי ואופקי של המכשיר.</li>
           <li>תאימות מלאה למסכי מגע ולכלי הנגישות של iOS ו-Android.</li>
@@ -161,22 +184,39 @@ function AccessibilityPage() {
 
         <h3 className="font-display text-lg mt-4 mb-2">4.7 תפריט נגישות באתר</h3>
         <ul>
-          <li>בכל עמודי האתר זמין כפתור נגישות קבוע בפינה השמאלית התחתונה, הפותח תפריט התאמות אישיות.</li>
-          <li>התפריט מאפשר: הגדלה והקטנה של גודל הטקסט, מצב ניגודיות גבוהה, תצוגה בגווני אפור, הדגשת קישורים, מעבר לגופן קריא, עצירת אנימציות, וסמן עכבר מוגדל.</li>
-          <li>ההעדפות נשמרות במכשיר שלך וחלות בכל ביקור, וניתן לאפס אותן בלחיצה אחת. התפריט נגיש למקלדת וניתן לסגירה במקש Escape.</li>
+          <li>
+            בכל עמודי האתר זמין כפתור נגישות קבוע בפינה השמאלית התחתונה, הפותח תפריט התאמות אישיות.
+          </li>
+          <li>
+            התפריט מאפשר: הגדלה והקטנה של גודל הטקסט, מצב ניגודיות גבוהה, תצוגה בגווני אפור, הדגשת
+            קישורים, מעבר לגופן קריא, עצירת אנימציות, וסמן עכבר מוגדל.
+          </li>
+          <li>
+            ההעדפות נשמרות במכשיר שלך וחלות בכל ביקור, וניתן לאפס אותן בלחיצה אחת. התפריט נגיש
+            למקלדת וניתן לסגירה במקש Escape.
+          </li>
         </ul>
       </Section>
 
       <Section title="5. דרכי שימוש בכלי הנגישות בדפדפן ובמערכת ההפעלה">
-        <p>
-          בנוסף להתאמות באתר, ניתן להיעזר בכלים מובנים במחשב ובמכשיר הנייד שלך:
-        </p>
+        <p>בנוסף להתאמות באתר, ניתן להיעזר בכלים מובנים במחשב ובמכשיר הנייד שלך:</p>
         <ul>
-          <li><strong>הגדלת תצוגה:</strong> Ctrl + + (Windows) או ⌘ + + (Mac), Ctrl + 0 לאיפוס.</li>
-          <li><strong>קוראי מסך מובנים:</strong> Narrator (Windows), VoiceOver (Mac/iOS), TalkBack (Android).</li>
-          <li><strong>מצב ניגודיות גבוהה:</strong> זמין בהגדרות הנגישות של מערכת ההפעלה.</li>
-          <li><strong>סמן עכבר מוגדל:</strong> דרך הגדרות הנגישות במערכת ההפעלה.</li>
-          <li><strong>הקטנת תנועה:</strong> דרך הגדרות הנגישות (Reduce Motion).</li>
+          <li>
+            <strong>הגדלת תצוגה:</strong> Ctrl + + (Windows) או ⌘ + + (Mac), Ctrl + 0 לאיפוס.
+          </li>
+          <li>
+            <strong>קוראי מסך מובנים:</strong> Narrator (Windows), VoiceOver (Mac/iOS), TalkBack
+            (Android).
+          </li>
+          <li>
+            <strong>מצב ניגודיות גבוהה:</strong> זמין בהגדרות הנגישות של מערכת ההפעלה.
+          </li>
+          <li>
+            <strong>סמן עכבר מוגדל:</strong> דרך הגדרות הנגישות במערכת ההפעלה.
+          </li>
+          <li>
+            <strong>הקטנת תנועה:</strong> דרך הגדרות הנגישות (Reduce Motion).
+          </li>
         </ul>
       </Section>
 
@@ -207,19 +247,41 @@ function AccessibilityPage() {
           לקבלת שירות בדרך מונגשת — ניתן ליצור קשר באחת מהדרכים הבאות:
         </p>
         <ul>
-          <li><strong>שם הרכז:</strong> רכז הנגישות, אור זרוע לצדיק</li>
-          <li><strong>דוא"ל:</strong> <a href={`mailto:${BUSINESS.accessibilityEmail}`} className="text-accent underline-offset-4 [@media(hover:hover)_and_(pointer:fine)]:hover:underline">{BUSINESS.accessibilityEmail}</a></li>
-          <li><strong>טלפון:</strong> <a href={`tel:${BUSINESS.phone}`} className="text-accent underline-offset-4 [@media(hover:hover)_and_(pointer:fine)]:hover:underline">{BUSINESS.phoneDisplay}</a> · ניתן גם להשאיר פנייה דרך <Link to="/contact">עמוד צור קשר</Link>.</li>
+          <li>
+            <strong>שם הרכז:</strong> רכז הנגישות, אור זרוע לצדיק
+          </li>
+          <li>
+            <strong>דוא"ל:</strong>{" "}
+            <a
+              href={`mailto:${BUSINESS.accessibilityEmail}`}
+              className="text-accent underline-offset-4 [@media(hover:hover)_and_(pointer:fine)]:hover:underline"
+            >
+              {BUSINESS.accessibilityEmail}
+            </a>
+          </li>
+          <li>
+            <strong>טלפון:</strong>{" "}
+            <a
+              href={`tel:${BUSINESS.phone}`}
+              className="text-accent underline-offset-4 [@media(hover:hover)_and_(pointer:fine)]:hover:underline"
+            >
+              {BUSINESS.phoneDisplay}
+            </a>{" "}
+            · ניתן גם להשאיר פנייה דרך <Link to="/contact">עמוד צור קשר</Link>.
+          </li>
           {/* Kept in step with /contact and with openingHoursSpecification in
               __root.tsx — all three now state the shop's real Business Profile
               hours. This page is a statutory accessibility declaration under
               תקנות שוויון זכויות, so the response window it publishes has to be
               one the business can actually keep. */}
-          <li><strong>שעות מענה:</strong> ראשון-שלישי 9:30-14:00 ו-16:00-19:00, רביעי-חמישי 9:30-12:00 ו-16:00-19:00, שישי 9:30-12:00 (למעט ערבי חג וחגים).</li>
+          <li>
+            <strong>שעות מענה:</strong> ראשון-שלישי 9:30-14:00 ו-16:00-19:00, רביעי-חמישי 9:30-12:00
+            ו-16:00-19:00, שישי 9:30-12:00 (למעט ערבי חג וחגים).
+          </li>
         </ul>
         <p>
-          אנו מתחייבים להגיב לפניית נגישות תוך זמן סביר ולא יאוחר מ-30 יום ממועד קבלת הפנייה,
-          בהתאם להוראות הדין.
+          אנו מתחייבים להגיב לפניית נגישות תוך זמן סביר ולא יאוחר מ-30 יום ממועד קבלת הפנייה, בהתאם
+          להוראות הדין.
         </p>
       </Section>
 
@@ -251,7 +313,10 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   // so headings and the TOC stay in lockstep without repeating the id at each call.
   const id = SECTIONS.find((s) => s.title === title)?.id;
   return (
-    <section id={id} className="mb-9 border-t border-glass-line pt-8 last:mb-0 scroll-mt-24 lg:scroll-mt-32">
+    <section
+      id={id}
+      className="mb-9 border-t border-glass-line pt-8 last:mb-0 scroll-mt-24 lg:scroll-mt-32"
+    >
       <h2 className="font-display text-xl md:text-2xl mb-3 text-foreground">{title}</h2>
       <div className="text-[15px] leading-[1.85] text-foreground space-y-4 [&_ul]:list-disc [&_ul]:pr-5 [&_ul]:space-y-2 [&_a]:text-accent [&_a]:underline [&_a]:underline-offset-4 [&_strong]:font-semibold">
         {children}

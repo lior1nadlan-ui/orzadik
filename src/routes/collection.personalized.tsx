@@ -66,7 +66,10 @@ async function fetchPersonalizableProducts(): Promise<PersonalizedRow[]> {
     // Ordering by an embedded resource is a PostgREST feature; if it is ever
     // rejected on this schema, fall back to a larger unordered pool rather than
     // blanking the showcase. Correctness of the listing beats freshness of it.
-    console.warn("[collection/personalized] embedded order unavailable, using unordered pool:", ordered.error);
+    console.warn(
+      "[collection/personalized] embedded order unavailable, using unordered pool:",
+      ordered.error,
+    );
     const { data, error } = await supabase
       .from("product_categories")
       .select(SELECT)
@@ -249,21 +252,29 @@ function PersonalizedCollectionPage() {
       <section className="container mx-auto px-4 max-w-5xl">
         <div className="grid gap-6 md:grid-cols-2">
           <div className="glass h-full p-6 md:p-7 [--glass-radius:1.25rem]">
-            <div className="text-gold text-lg mb-2" aria-hidden="true">✦</div>
-            <h2 className="font-display text-xl md:text-2xl font-bold mb-2 text-foreground">רקמת שם</h2>
+            <div className="text-gold text-lg mb-2" aria-hidden="true">
+              ✦
+            </div>
+            <h2 className="font-display text-xl md:text-2xl font-bold mb-2 text-foreground">
+              רקמת שם
+            </h2>
             <p className="text-sm text-muted-foreground leading-relaxed mb-4">
-              רקמה בחוט עדין על כיסויי טלית ותפילין, תיקים וכיסויי חלה — שם, ברכה או
-              הקדשה, בהתאמה לאירוע ולסגנון.
+              רקמה בחוט עדין על כיסויי טלית ותפילין, תיקים וכיסויי חלה — שם, ברכה או הקדשה, בהתאמה
+              לאירוע ולסגנון.
             </p>
             <PersonalizationPreview text="משפחת לוי" method="embroidery" />
           </div>
 
           <div className="glass h-full p-6 md:p-7 [--glass-radius:1.25rem]">
-            <div className="text-gold text-lg mb-2" aria-hidden="true">✦</div>
-            <h2 className="font-display text-xl md:text-2xl font-bold mb-2 text-foreground">חריטת לייזר</h2>
+            <div className="text-gold text-lg mb-2" aria-hidden="true">
+              ✦
+            </div>
+            <h2 className="font-display text-xl md:text-2xl font-bold mb-2 text-foreground">
+              חריטת לייזר
+            </h2>
             <p className="text-sm text-muted-foreground leading-relaxed mb-4">
-              חריטה מדויקת על מעמדי בנצ'ר, סטים ומתנות עץ — לשם, לתאריך או להקדשה
-              שנשמרים לאורך שנים.
+              חריטה מדויקת על מעמדי בנצ'ר, סטים ומתנות עץ — לשם, לתאריך או להקדשה שנשמרים לאורך
+              שנים.
             </p>
             <PersonalizationPreview text="יוסף" method="laser" />
           </div>
@@ -272,8 +283,8 @@ function PersonalizedCollectionPage() {
         {/* Honest coordination note — echoes the site's existing promise so the
             previews above are never read as the exact final result. */}
         <p className="mt-6 text-center text-sm text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-          ✦ ההדמיות להמחשה בלבד. לאחר ההזמנה ניצור איתכם קשר לתיאום הגופן, הצבע
-          והמיקום — כדי שהתוצאה תהיה בדיוק כפי שדמיינתם.
+          ✦ ההדמיות להמחשה בלבד. לאחר ההזמנה ניצור איתכם קשר לתיאום הגופן, הצבע והמיקום — כדי
+          שהתוצאה תהיה בדיוק כפי שדמיינתם.
         </p>
       </section>
 
@@ -299,8 +310,7 @@ function PersonalizedCollectionPage() {
             </div>
             <h3 className="font-display text-2xl md:text-3xl font-bold mb-3">הפריטים בדרך אליכם</h3>
             <p className="text-muted-foreground leading-relaxed mb-6">
-              רוצים פריט עם רקמה או חריטה אישית? עברו על המבחר או פנו אלינו ונשמח
-              לעזור בהתאמה.
+              רוצים פריט עם רקמה או חריטה אישית? עברו על המבחר או פנו אלינו ונשמח לעזור בהתאמה.
             </p>
             <Link
               to="/shop"
@@ -316,8 +326,8 @@ function PersonalizedCollectionPage() {
       {products.length > 0 && (
         <section className="container mx-auto px-4 pt-14 text-center max-w-2xl">
           <p className="text-muted-foreground leading-relaxed mb-6">
-            לא מצאתם בדיוק את מה שחיפשתם? המבחר המלא פתוח לפניכם, ואפשר להוסיף
-            רקמה או חריטה לפריטים המתאימים.
+            לא מצאתם בדיוק את מה שחיפשתם? המבחר המלא פתוח לפניכם, ואפשר להוסיף רקמה או חריטה לפריטים
+            המתאימים.
           </p>
           <Link
             to="/shop"

@@ -31,9 +31,20 @@ import { occasionsForGuide } from "@/lib/guide-links";
 // a table rather than a DOM decode because this module is evaluated in the
 // Cloudflare Workers runtime too, where there is no document.
 const HTML_ENTITIES: Record<string, string> = {
-  quot: '"', apos: "'", amp: "&", lt: "<", gt: ">", nbsp: " ",
-  ldquo: "“", rdquo: "”", lsquo: "‘", rsquo: "’",
-  hellip: "…", middot: "·", deg: "°", shy: "",
+  quot: '"',
+  apos: "'",
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  nbsp: " ",
+  ldquo: "“",
+  rdquo: "”",
+  lsquo: "‘",
+  rsquo: "’",
+  hellip: "…",
+  middot: "·",
+  deg: "°",
+  shy: "",
 };
 
 /** Decodes HTML entities in ALREADY tag-stripped text. Single pass, so a stored
@@ -110,9 +121,7 @@ function articleBodyHtml(bodyHtml: string | null | undefined, hasFaq: boolean): 
   // shopper is using to decide whether an item fits. The guides are the site's
   // best-ranking content, so this is also the text answer engines quote.
   // Replaced with ASCII "x", which is bidi class L and never reorders.
-  return html
-    .replace(/(\d)\s*[–—]\s*(\d)/g, "$1-$2")
-    .replace(/(\d)\s*×\s*(\d)/g, "$1x$2");
+  return html.replace(/(\d)\s*[–—]\s*(\d)/g, "$1-$2").replace(/(\d)\s*×\s*(\d)/g, "$1x$2");
 }
 
 /**
@@ -190,15 +199,40 @@ const ORG_NAME = "אור זרוע לצדיק";
  *  nothing — the exact class of bug that would make this check look present and
  *  do nothing. */
 const COLLECTIVE_BYLINE_WORDS = new Set([
-  "צוות", "הצוות", "מערכת", "המערכת", "הנהלה", "ההנהלה", "מחלקה", "מחלקת",
-  "אתר", "האתר", "חנות", "החנות", "מערכות", "אדמין", "מנהל", "המנהל", "מנהלת",
-  "admin", "administrator", "editorial", "staff", "team", "webmaster", "the",
+  "צוות",
+  "הצוות",
+  "מערכת",
+  "המערכת",
+  "הנהלה",
+  "ההנהלה",
+  "מחלקה",
+  "מחלקת",
+  "אתר",
+  "האתר",
+  "חנות",
+  "החנות",
+  "מערכות",
+  "אדמין",
+  "מנהל",
+  "המנהל",
+  "מנהלת",
+  "admin",
+  "administrator",
+  "editorial",
+  "staff",
+  "team",
+  "webmaster",
+  "the",
 ]);
 
 function articleAuthor(stored: string | null | undefined) {
-  const v = String(stored ?? "").trim().replace(/\s+/g, " ");
+  const v = String(stored ?? "")
+    .trim()
+    .replace(/\s+/g, " ");
   // Strip surrounding punctuation per token so "צוות," still matches "צוות".
-  const tokens = v ? v.split(" ").map((t) => t.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "")) : [];
+  const tokens = v
+    ? v.split(" ").map((t) => t.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, ""))
+    : [];
   const isHouse =
     !v ||
     // Any label wrapping the publisher's own name IS the publisher, whatever
@@ -230,7 +264,9 @@ function articleAuthor(stored: string | null | undefined) {
 async function fetchArticleProducts(categoryId: string): Promise<ProductCardData[]> {
   const { data, error } = await supabase
     .from("product_categories")
-    .select("products!inner(id, slug, name, price, sale_price, thumbnail_url, is_active, stock_status)")
+    .select(
+      "products!inner(id, slug, name, price, sale_price, thumbnail_url, is_active, stock_status)",
+    )
     .eq("category_id", categoryId)
     .limit(24);
   if (error) return [];
@@ -289,7 +325,10 @@ export const Route = createFileRoute("/articles/$slug")({
     const a = loaderData?.article as any;
     const url = `https://orzadik.com/articles/${params.slug}`;
     if (!a) {
-      return { meta: [{ title: "מאמר | אור זרוע לצדיק" }], links: [{ rel: "canonical", href: url }] };
+      return {
+        meta: [{ title: "מאמר | אור זרוע לצדיק" }],
+        links: [{ rel: "canonical", href: url }],
+      };
     }
 
     // Curated, honest Q&A for this guide (undefined for non-guide slugs). The
@@ -397,7 +436,12 @@ export const Route = createFileRoute("/articles/$slug")({
             "@type": "BreadcrumbList",
             itemListElement: [
               { "@type": "ListItem", position: 1, name: "בית", item: "https://orzadik.com/" },
-              { "@type": "ListItem", position: 2, name: "מאמרים", item: "https://orzadik.com/articles" },
+              {
+                "@type": "ListItem",
+                position: 2,
+                name: "מאמרים",
+                item: "https://orzadik.com/articles",
+              },
               { "@type": "ListItem", position: 3, name: a.title_he, item: url },
             ],
           }),
@@ -494,8 +538,7 @@ function ArticleDetailPage() {
   // body, still inside the reading flow and still above the FAQ.
   const bodyHtml = articleBodyHtml(a.body_html, !!faq);
   const cut = occasions.length > 0 ? giftSectionEnd(bodyHtml) : null;
-  const bodyParts =
-    cut === null ? [bodyHtml] : [bodyHtml.slice(0, cut), bodyHtml.slice(cut)];
+  const bodyParts = cut === null ? [bodyHtml] : [bodyHtml.slice(0, cut), bodyHtml.slice(cut)];
 
   // The CTA itself. Rendered between the two halves above (or after the body).
   // Deliberately NOT part of `articleBody` in head(): it is navigation, the same

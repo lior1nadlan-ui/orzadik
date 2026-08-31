@@ -56,8 +56,7 @@ export type CountedCategory = {
 };
 
 /** Active products assigned directly to this row (0 when the embed is absent). */
-export const directProductCount = (c: CountedCategory) =>
-  Number(c.products?.[0]?.count ?? 0);
+export const directProductCount = (c: CountedCategory) => Number(c.products?.[0]?.count ?? 0);
 
 /** Single-row form of the test, for a surface that already knows its own count
  *  (the category page decides its own robots tag with it). */
@@ -135,9 +134,7 @@ export function groupCategoriesByDepth<T extends CountedCategory>(
   const byDepth = (a: T, b: T) =>
     directProductCount(b) - directProductCount(a) || a.slug.localeCompare(b.slug);
   const topSlugs = new Set(listed.filter((c) => !c.parent_slug).map((c) => c.slug));
-  const roots = listed
-    .filter((c) => !c.parent_slug || !topSlugs.has(c.parent_slug))
-    .sort(byDepth);
+  const roots = listed.filter((c) => !c.parent_slug || !topSlugs.has(c.parent_slug)).sort(byDepth);
   return roots.map((parent) => ({
     parent,
     children: listed.filter((c) => c.parent_slug === parent.slug).sort(byDepth),
@@ -154,9 +151,7 @@ async function fetchAllCategories() {
     // The count embed rides along on the same round-trip: this hub used to
     // render every row it got back, so nine dead-end categories were both
     // linked as tiles and named in the ItemList JSON-LD below.
-    .select(
-      `id, slug, name, description, parent_slug, sort_order, ${CATEGORY_COUNT_EMBED}`,
-    )
+    .select(`id, slug, name, description, parent_slug, sort_order, ${CATEGORY_COUNT_EMBED}`)
     // Embedded filter — see CATEGORY_COUNT_EMBED. Without it a category whose
     // products were all deactivated would still count as stocked.
     .eq("products.is_active", true)
@@ -226,11 +221,18 @@ export const Route = createFileRoute("/categories")({
         { title: "קטגוריות המוצרים | אור זרוע לצדיק" },
         { name: "description", content: description },
         { property: "og:title", content: "קטגוריות המוצרים | אור זרוע לצדיק" },
-        { property: "og:description", content: "טליתות, כיסויי טלית ותפילין, נרתיקי מזוזה, גביעי קידוש, חנוכיות, מארזים לחתנים וסטי חלאקה — כל הקטגוריות במקום אחד." },
+        {
+          property: "og:description",
+          content:
+            "טליתות, כיסויי טלית ותפילין, נרתיקי מזוזה, גביעי קידוש, חנוכיות, מארזים לחתנים וסטי חלאקה — כל הקטגוריות במקום אחד.",
+        },
         { property: "og:url", content: url },
         { property: "og:type", content: "website" },
         { name: "twitter:title", content: "קטגוריות המוצרים | אור זרוע לצדיק" },
-        { name: "twitter:description", content: "כל קטגוריות תשמישי הקדושה והיודאיקה במקום אחד — בחרו עולם תוכן והתחילו לקנות." },
+        {
+          name: "twitter:description",
+          content: "כל קטגוריות תשמישי הקדושה והיודאיקה במקום אחד — בחרו עולם תוכן והתחילו לקנות.",
+        },
       ],
       links: [{ rel: "canonical", href: url }],
       scripts: [
@@ -348,7 +350,11 @@ function CategoriesPage() {
                   {directProductCount(c)}
                 </span>
               </Link>
-              {c.description && <div className="text-xs text-muted-foreground mt-1 line-clamp-2">{c.description}</div>}
+              {c.description && (
+                <div className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                  {c.description}
+                </div>
+              )}
               {kids.length > 0 && (
                 <div className="mt-3 flex flex-wrap gap-1.5">
                   {kids.map((k) => (

@@ -24,10 +24,7 @@ type Method = "embroidery" | "laser";
 
 // Per-method material styling. Kept as static style objects (not canvas, not a
 // generated image) so it renders identically on the server and the client.
-const MATERIAL: Record<
-  Method,
-  { panel: CSSProperties; text: CSSProperties }
-> = {
+const MATERIAL: Record<Method, { panel: CSSProperties; text: CSSProperties }> = {
   // Soft linen / fabric. The name reads as raised gold thread: a top highlight
   // and a soft drop below give the stitch its lift. A faint cross-hatch stands
   // in for the weave.
@@ -44,8 +41,7 @@ const MATERIAL: Record<
     },
     text: {
       color: "var(--accent)",
-      textShadow:
-        "0 -1px 0 rgba(255,255,255,0.5), 0 1px 2px rgba(75,58,34,0.42)",
+      textShadow: "0 -1px 0 rgba(255,255,255,0.5), 0 1px 2px rgba(75,58,34,0.42)",
     },
   },
   // Warm wood. Laser marking burns darker than the surface, so the name is a
@@ -63,8 +59,7 @@ const MATERIAL: Record<
     },
     text: {
       color: "#43341E",
-      textShadow:
-        "0 1px 0 rgba(255,255,255,0.5), 0 -1px 1px rgba(0,0,0,0.3)",
+      textShadow: "0 1px 0 rgba(255,255,255,0.5), 0 -1px 1px rgba(0,0,0,0.3)",
     },
   },
 };

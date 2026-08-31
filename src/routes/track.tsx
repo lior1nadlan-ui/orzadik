@@ -27,7 +27,7 @@ export const Route = createFileRoute("/track")({
       {
         name: "description",
         content:
-          "מעקב אחר סטטוס ההזמנה שלכם באור זרוע לצדיק — הזינו מספר הזמנה וכתובת דוא\"ל וקבלו את מצב התשלום והמשלוח.",
+          'מעקב אחר סטטוס ההזמנה שלכם באור זרוע לצדיק — הזינו מספר הזמנה וכתובת דוא"ל וקבלו את מצב התשלום והמשלוח.',
       },
       // Nothing here is worth indexing and the page only ever renders private
       // order data, so keep it out of search results entirely.
@@ -40,7 +40,9 @@ export const Route = createFileRoute("/track")({
 type TrackResult = Awaited<ReturnType<typeof trackOrder>>;
 
 const dt = (v: string | null | undefined) =>
-  v ? new Date(v).toLocaleDateString("he-IL", { day: "numeric", month: "long", year: "numeric" }) : null;
+  v
+    ? new Date(v).toLocaleDateString("he-IL", { day: "numeric", month: "long", year: "numeric" })
+    : null;
 
 function TrackPage() {
   const lookup = useServerFn(trackOrder);
@@ -53,27 +55,20 @@ function TrackPage() {
 
   const order = mutation.data;
   const isPaid = order?.payment_status === "paid";
-  const paymentStuck =
-    !!order && !isPaid && ["unpaid", "failed"].includes(order.payment_status);
+  const paymentStuck = !!order && !isPaid && ["unpaid", "failed"].includes(order.payment_status);
 
   // Store's own WhatsApp, pre-filled with the order number so a payment
   // question lands with context. Built via the shared wa-templates helper on
   // BUSINESS.whatsapp — never a number from untrusted content.
   const payWaHref = order
-    ? waMessage(
-        BUSINESS.whatsapp,
-        `שלום, יש לי שאלה לגבי התשלום על הזמנה ${order.order_number}`,
-      )
+    ? waMessage(BUSINESS.whatsapp, `שלום, יש לי שאלה לגבי התשלום על הזמנה ${order.order_number}`)
     : null;
 
   // Same store WhatsApp, but for the one thing that becomes unfixable once
   // production starts: a typo in an engraving/embroidery line. Mirrors the
   // prefilled pattern order.$id.tsx uses.
   const textWaHref = order
-    ? waMessage(
-        BUSINESS.whatsapp,
-        `שלום, יש טעות בכיתוב שהזמנתי בהזמנה ${order.order_number}`,
-      )
+    ? waMessage(BUSINESS.whatsapp, `שלום, יש טעות בכיתוב שהזמנתי בהזמנה ${order.order_number}`)
     : null;
 
   // Any personalised line in this order? Only then is the "wrong wording?"
@@ -113,8 +108,7 @@ function TrackPage() {
           at: null,
           // Shipped implies prepared, so a later stage never leaves this one
           // blank behind it.
-          done:
-            ["preparing", "shipped", "delivered"].includes(shipStatus) || !!order.shipped_at,
+          done: ["preparing", "shipped", "delivered"].includes(shipStatus) || !!order.shipped_at,
         },
         {
           key: "shipped",
@@ -211,9 +205,9 @@ function TrackPage() {
               <div className="flex items-start gap-2.5">
                 <CreditCard className="h-4 w-4 shrink-0 mt-0.5 text-accent" aria-hidden="true" />
                 <p className="leading-relaxed">
-                  <span className="font-semibold text-accent">ההזמנה ממתינה לתשלום.</span>{" "}
-                  אם ביטלתם בטעות, אפשר להשלים את התשלום על אותה הזמנה בדיוק — בלי למלא
-                  שוב את הפרטים — או לפנות אלינו בוואטסאפ ונשמח לעזור.
+                  <span className="font-semibold text-accent">ההזמנה ממתינה לתשלום.</span> אם ביטלתם
+                  בטעות, אפשר להשלים את התשלום על אותה הזמנה בדיוק — בלי למלא שוב את הפרטים — או
+                  לפנות אלינו בוואטסאפ ונשמח לעזור.
                 </p>
               </div>
               {/* Turn the notice into an action, not a dead end.
@@ -310,9 +304,7 @@ function TrackPage() {
                   {it.variant_label && (
                     <div className="text-xs text-muted-foreground">גודל: {it.variant_label}</div>
                   )}
-                  {it.custom_text && (
-                    <div className="text-xs text-accent">✦ {it.custom_text}</div>
-                  )}
+                  {it.custom_text && <div className="text-xs text-accent">✦ {it.custom_text}</div>}
                 </li>
               ))}
             </ul>
@@ -342,7 +334,10 @@ function TrackPage() {
                 numeric range in RTL. */}
             {isPaid && !order.shipped_at && (
               <div className="mt-1 text-sm text-muted-foreground">
-                <span>זמן אספקה משוער: {CONSUMER_POLICY.deliveryMinDays}-{CONSUMER_POLICY.deliveryMaxDays} ימי עסקים ממועד התשלום.</span>
+                <span>
+                  זמן אספקה משוער: {CONSUMER_POLICY.deliveryMinDays}-
+                  {CONSUMER_POLICY.deliveryMaxDays} ימי עסקים ממועד התשלום.
+                </span>
               </div>
             )}
           </div>

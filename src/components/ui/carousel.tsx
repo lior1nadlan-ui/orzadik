@@ -61,98 +61,99 @@ const Carousel = React.forwardRef<
     },
     ref,
   ) => {
-  const [carouselRef, api] = useEmblaCarousel(
-    {
-      ...opts,
-      axis: orientation === "horizontal" ? "x" : "y",
-    },
-    plugins,
-  );
-  const [canScrollPrev, setCanScrollPrev] = React.useState(false);
-  const [canScrollNext, setCanScrollNext] = React.useState(false);
+    const [carouselRef, api] = useEmblaCarousel(
+      {
+        ...opts,
+        axis: orientation === "horizontal" ? "x" : "y",
+      },
+      plugins,
+    );
+    const [canScrollPrev, setCanScrollPrev] = React.useState(false);
+    const [canScrollNext, setCanScrollNext] = React.useState(false);
 
-  const onSelect = React.useCallback((api: CarouselApi) => {
-    if (!api) {
-      return;
-    }
-
-    setCanScrollPrev(api.canScrollPrev());
-    setCanScrollNext(api.canScrollNext());
-  }, []);
-
-  const scrollPrev = React.useCallback(() => {
-    api?.scrollPrev();
-  }, [api]);
-
-  const scrollNext = React.useCallback(() => {
-    api?.scrollNext();
-  }, [api]);
-
-  const handleKeyDown = React.useCallback(
-    (event: React.KeyboardEvent<HTMLDivElement>) => {
-      // In RTL the strip advances leftward, so the physical arrow keys swap roles.
-      const isRtl = opts?.direction === "rtl";
-      if (event.key === "ArrowLeft") {
-        event.preventDefault();
-        if (isRtl) scrollNext();
-        else scrollPrev();
-      } else if (event.key === "ArrowRight") {
-        event.preventDefault();
-        if (isRtl) scrollPrev();
-        else scrollNext();
+    const onSelect = React.useCallback((api: CarouselApi) => {
+      if (!api) {
+        return;
       }
-    },
-    [opts?.direction, scrollPrev, scrollNext],
-  );
 
-  React.useEffect(() => {
-    if (!api || !setApi) {
-      return;
-    }
+      setCanScrollPrev(api.canScrollPrev());
+      setCanScrollNext(api.canScrollNext());
+    }, []);
 
-    setApi(api);
-  }, [api, setApi]);
+    const scrollPrev = React.useCallback(() => {
+      api?.scrollPrev();
+    }, [api]);
 
-  React.useEffect(() => {
-    if (!api) {
-      return;
-    }
+    const scrollNext = React.useCallback(() => {
+      api?.scrollNext();
+    }, [api]);
 
-    onSelect(api);
-    api.on("reInit", onSelect);
-    api.on("select", onSelect);
+    const handleKeyDown = React.useCallback(
+      (event: React.KeyboardEvent<HTMLDivElement>) => {
+        // In RTL the strip advances leftward, so the physical arrow keys swap roles.
+        const isRtl = opts?.direction === "rtl";
+        if (event.key === "ArrowLeft") {
+          event.preventDefault();
+          if (isRtl) scrollNext();
+          else scrollPrev();
+        } else if (event.key === "ArrowRight") {
+          event.preventDefault();
+          if (isRtl) scrollPrev();
+          else scrollNext();
+        }
+      },
+      [opts?.direction, scrollPrev, scrollNext],
+    );
 
-    return () => {
-      api?.off("select", onSelect);
-    };
-  }, [api, onSelect]);
+    React.useEffect(() => {
+      if (!api || !setApi) {
+        return;
+      }
 
-  return (
-    <CarouselContext.Provider
-      value={{
-        carouselRef,
-        api: api,
-        opts,
-        orientation: orientation || (opts?.axis === "y" ? "vertical" : "horizontal"),
-        scrollPrev,
-        scrollNext,
-        canScrollPrev,
-        canScrollNext,
-      }}
-    >
-      <div
-        ref={ref}
-        onKeyDownCapture={handleKeyDown}
-        className={cn("relative", className)}
-        role="region"
-        aria-roledescription={ariaRoledescription}
-        {...props}
+      setApi(api);
+    }, [api, setApi]);
+
+    React.useEffect(() => {
+      if (!api) {
+        return;
+      }
+
+      onSelect(api);
+      api.on("reInit", onSelect);
+      api.on("select", onSelect);
+
+      return () => {
+        api?.off("select", onSelect);
+      };
+    }, [api, onSelect]);
+
+    return (
+      <CarouselContext.Provider
+        value={{
+          carouselRef,
+          api: api,
+          opts,
+          orientation: orientation || (opts?.axis === "y" ? "vertical" : "horizontal"),
+          scrollPrev,
+          scrollNext,
+          canScrollPrev,
+          canScrollNext,
+        }}
       >
-        {children}
-      </div>
-    </CarouselContext.Provider>
-  );
-});
+        <div
+          ref={ref}
+          onKeyDownCapture={handleKeyDown}
+          className={cn("relative", className)}
+          role="region"
+          aria-roledescription={ariaRoledescription}
+          {...props}
+        >
+          {children}
+        </div>
+      </CarouselContext.Provider>
+    );
+  },
+);
 Carousel.displayName = "Carousel";
 
 const CarouselContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
@@ -209,8 +210,7 @@ CarouselItem.displayName = "CarouselItem";
 // Press feedback (scale .97 / 160ms / ease-out) already comes from the Button
 // base; the `.press` utility is deliberately NOT added because it would reset
 // transition-property to transform-only and drop the named colour transitions.
-const CAROUSEL_ARROW =
-  "glass-strong [--glass-radius:9999px] border-transparent text-foreground";
+const CAROUSEL_ARROW = "glass-strong [--glass-radius:9999px] border-transparent text-foreground";
 
 // In an RTL carousel the strip starts on the right and advances leftward, so
 // "previous" lives on the RIGHT edge with a right-pointing arrow and "next" on

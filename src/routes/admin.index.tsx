@@ -13,8 +13,12 @@ export const Route = createFileRoute("/admin/")({
 });
 
 const STATUS_HE: Record<string, string> = {
-  pending: "ממתינה", processing: "בטיפול", shipped: "נשלחה",
-  completed: "הושלמה", cancelled: "בוטלה", refunded: "זוכתה",
+  pending: "ממתינה",
+  processing: "בטיפול",
+  shipped: "נשלחה",
+  completed: "הושלמה",
+  cancelled: "בוטלה",
+  refunded: "זוכתה",
 };
 const PAYMENT_HE: Record<string, string> = { paid: "שולם", unpaid: "לא שולם", refunded: "זוכה" };
 
@@ -49,7 +53,12 @@ function TrendDelta({ curr, prev }: { curr: number; prev: number }) {
 
 function AdminHome() {
   const load = useServerFn(getDashboardStats);
-  const { data: s, isLoading, isFetching, refetch } = useQuery({
+  const {
+    data: s,
+    isLoading,
+    isFetching,
+    refetch,
+  } = useQuery({
     queryKey: ["admin-dashboard"],
     queryFn: () => load(),
     // Every load runs full-table aggregate scans whose cost grows with order
@@ -75,18 +84,37 @@ function AdminHome() {
     );
   }
 
-  const kpis: { label: string; value: string; sub: string; days?: number; curr?: number; prev?: number }[] = [
+  const kpis: {
+    label: string;
+    value: string;
+    sub: string;
+    days?: number;
+    curr?: number;
+    prev?: number;
+  }[] = [
     {
-      label: "הכנסות היום", value: formatILS(s.revenue.today), sub: `${s.orders.today} הזמנות`,
-      days: 1, curr: s.revenue.today, prev: s.revenue.prevToday,
+      label: "הכנסות היום",
+      value: formatILS(s.revenue.today),
+      sub: `${s.orders.today} הזמנות`,
+      days: 1,
+      curr: s.revenue.today,
+      prev: s.revenue.prevToday,
     },
     {
-      label: "7 ימים", value: formatILS(s.revenue.last7), sub: `${s.orders.last7} הזמנות`,
-      days: 7, curr: s.revenue.last7, prev: s.revenue.prev7,
+      label: "7 ימים",
+      value: formatILS(s.revenue.last7),
+      sub: `${s.orders.last7} הזמנות`,
+      days: 7,
+      curr: s.revenue.last7,
+      prev: s.revenue.prev7,
     },
     {
-      label: "30 יום", value: formatILS(s.revenue.last30), sub: `${s.orders.last30} הזמנות`,
-      days: 30, curr: s.revenue.last30, prev: s.revenue.prev30,
+      label: "30 יום",
+      value: formatILS(s.revenue.last30),
+      sub: `${s.orders.last30} הזמנות`,
+      days: 30,
+      curr: s.revenue.last30,
+      prev: s.revenue.prev30,
     },
     {
       label: 'סה"כ הכנסות',
@@ -190,7 +218,9 @@ function AdminHome() {
                   search={{ health: "no-image" }}
                   className="flex justify-between gap-3 rounded px-1 -mx-1 py-0.5 transition-colors duration-160 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-black/5 dark:[@media(hover:hover)_and_(pointer:fine)]:hover:bg-white/10"
                 >
-                  <span className="underline-offset-2 [@media(hover:hover)_and_(pointer:fine)]:hover:underline">מוצרים פעילים ללא תמונה:</span>
+                  <span className="underline-offset-2 [@media(hover:hover)_and_(pointer:fine)]:hover:underline">
+                    מוצרים פעילים ללא תמונה:
+                  </span>
                   <strong>{s.catalogHealth.noImage}</strong>
                 </Link>
                 <Link
@@ -198,7 +228,9 @@ function AdminHome() {
                   search={{ health: "out-of-stock" }}
                   className="flex justify-between gap-3 rounded px-1 -mx-1 py-0.5 transition-colors duration-160 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-black/5 dark:[@media(hover:hover)_and_(pointer:fine)]:hover:bg-white/10"
                 >
-                  <span className="underline-offset-2 [@media(hover:hover)_and_(pointer:fine)]:hover:underline">מוצרים פעילים שאזלו מהמלאי:</span>
+                  <span className="underline-offset-2 [@media(hover:hover)_and_(pointer:fine)]:hover:underline">
+                    מוצרים פעילים שאזלו מהמלאי:
+                  </span>
                   <strong>{s.catalogHealth.outOfStock}</strong>
                 </Link>
               </div>
@@ -212,7 +244,10 @@ function AdminHome() {
 
       {/* Repeat customers + low stock */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Link to="/admin/customers" className="block rounded-lg border bg-card p-5 transition-colors duration-160 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:border-primary/50">
+        <Link
+          to="/admin/customers"
+          className="block rounded-lg border bg-card p-5 transition-colors duration-160 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:border-primary/50"
+        >
           <div className="text-sm text-muted-foreground">לקוחות חוזרים</div>
           <div className="text-2xl font-bold mt-1">{s.repeat.repeatRate}%</div>
           <div className="text-xs text-muted-foreground mt-1">
@@ -236,7 +271,9 @@ function AdminHome() {
                   <ul className="space-y-1 text-xs">
                     {s.repeat.topCustomers.map((c: any, i: number) => (
                       <li key={i} className="flex justify-between gap-3">
-                        <span className="line-clamp-1">{c.name} · {c.orders} הזמנות</span>
+                        <span className="line-clamp-1">
+                          {c.name} · {c.orders} הזמנות
+                        </span>
                         <strong className="whitespace-nowrap">{formatILS(c.revenue)}</strong>
                       </li>
                     ))}
@@ -250,7 +287,9 @@ function AdminHome() {
         {/* Low stock — only products with tracking enabled. */}
         <div
           className={`rounded-lg border p-5 ${
-            s.lowStock.length > 0 ? "border-amber-400/60 bg-amber-50 dark:bg-amber-950/20" : "bg-card"
+            s.lowStock.length > 0
+              ? "border-amber-400/60 bg-amber-50 dark:bg-amber-950/20"
+              : "bg-card"
           }`}
         >
           <div
@@ -376,7 +415,9 @@ function AdminHome() {
         <div className="rounded-lg border bg-card p-5">
           <div className="flex items-center justify-between mb-3">
             <div className="font-semibold">הזמנות אחרונות</div>
-            <Link to="/admin/orders" className="text-xs text-primary underline">הכל ←</Link>
+            <Link to="/admin/orders" className="text-xs text-primary underline">
+              הכל ←
+            </Link>
           </div>
           {s.recentOrders.length === 0 ? (
             <div className="py-8 text-center text-sm text-muted-foreground">אין עדיין הזמנות.</div>
@@ -419,14 +460,17 @@ function AdminHome() {
           <div className="rounded-lg border bg-card p-5">
             <div className="font-semibold mb-3">מוצרים מובילים (לפי הכנסה)</div>
             {s.topProducts.length === 0 ? (
-              <div className="py-4 text-center text-sm text-muted-foreground">אין עדיין מכירות.</div>
+              <div className="py-4 text-center text-sm text-muted-foreground">
+                אין עדיין מכירות.
+              </div>
             ) : (
               <div className="space-y-1.5 text-sm">
                 {s.topProducts.map((p: any) => (
                   <div key={p.name} className="flex justify-between gap-3">
                     <span className="truncate">{p.name}</span>
                     <span className="whitespace-nowrap text-muted-foreground">
-                      ×{p.qty} · <span className="font-medium text-foreground">{formatILS(p.revenue)}</span>
+                      ×{p.qty} ·{" "}
+                      <span className="font-medium text-foreground">{formatILS(p.revenue)}</span>
                     </span>
                   </div>
                 ))}

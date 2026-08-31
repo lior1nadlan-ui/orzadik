@@ -226,7 +226,6 @@ function CheckoutPage() {
     return () => clearTimeout(t);
   }, [form.email, form.name, items, subtotal, user?.id, saveCart]);
 
-
   // Empty checkout: the same surface /cart already gives this state, not a
   // thinner one. It was a bare sentence and a link — no heading at all, so this
   // page rendered with NO <h1> (caught by a headless pass over every route),
@@ -239,7 +238,9 @@ function CheckoutPage() {
         <div className="glass mx-auto max-w-lg px-6 py-14 text-center">
           <h1 className="font-display text-page font-bold mb-3">העגלה ריקה</h1>
           <p className="text-muted-foreground mb-6">אי אפשר להמשיך לתשלום בלי מוצרים בעגלה.</p>
-          <Button asChild className="press"><Link to="/shop">חזרה לחנות</Link></Button>
+          <Button asChild className="press">
+            <Link to="/shop">חזרה לחנות</Link>
+          </Button>
         </div>
         <EmptyCartSuggestions />
       </div>
@@ -317,15 +318,12 @@ function CheckoutPage() {
           gift_note: isGift ? giftNote || null : null,
           gift_wrap: isGift ? giftWrap : false,
           items: items.map((i) => ({
-
             product_id: i.productId,
             quantity: i.quantity,
             variant_id: i.variantId ?? null,
             custom_text: i.customText ?? null,
             custom_method: i.customMethod ?? null,
           })),
-
-
         },
       });
 
@@ -349,13 +347,19 @@ function CheckoutPage() {
         // The order WAS created — only the payment page failed to open — so the
         // fallback must not claim the order failed. Route via the Hebrew check so
         // an English transport message ("Failed to fetch") can't leak to the UI.
-        const msg = hebrewOrFallback(payErr?.message, "לא הצלחנו לפתוח את עמוד התשלום. ניצור איתך קשר.");
+        const msg = hebrewOrFallback(
+          payErr?.message,
+          "לא הצלחנו לפתוח את עמוד התשלום. ניצור איתך קשר.",
+        );
         setSubmitError(msg);
         toast.error(msg);
         navigate({ to: "/order/$id", params: { id: result.id } });
       }
     } catch (err: any) {
-      const msg = hebrewOrFallback(err?.message, "שגיאה בשליחת ההזמנה, נסו שוב או צרו קשר בוואטסאפ");
+      const msg = hebrewOrFallback(
+        err?.message,
+        "שגיאה בשליחת ההזמנה, נסו שוב או צרו קשר בוואטסאפ",
+      );
       setSubmitError(msg);
       toast.error(msg);
     } finally {
@@ -383,44 +387,136 @@ function CheckoutPage() {
           <div className="lg:hidden mb-4 rounded-xl hairline bg-muted/40 px-4 py-3">
             <div className="flex items-baseline justify-between gap-3 text-sm">
               <span className="text-muted-foreground">
-                {items.length === 1 ? "פריט אחד" : `${items.length} פריטים`} · משלוח {formatILS(shipping)}
+                {items.length === 1 ? "פריט אחד" : `${items.length} פריטים`} · משלוח{" "}
+                {formatILS(shipping)}
               </span>
-              <span className="font-bold text-accent whitespace-nowrap">{formatILS(finalTotal)}</span>
+              <span className="font-bold text-accent whitespace-nowrap">
+                {formatILS(finalTotal)}
+              </span>
             </div>
           </div>
         )}
         <div className="grid md:grid-cols-2 gap-4">
           <div>
             <Label htmlFor="name">שם מלא *</Label>
-            <Input id="name" required maxLength={200} enterKeyHint="next" autoComplete="name" aria-invalid={!!errors.name} aria-describedby={errors.name ? "name-error" : undefined} value={form.name} onChange={(e) => setField("name", e.target.value)} />
-            {errors.name && <p id="name-error" role="alert" className="mt-1 text-xs text-destructive">{errors.name}</p>}
+            <Input
+              id="name"
+              required
+              maxLength={200}
+              enterKeyHint="next"
+              autoComplete="name"
+              aria-invalid={!!errors.name}
+              aria-describedby={errors.name ? "name-error" : undefined}
+              value={form.name}
+              onChange={(e) => setField("name", e.target.value)}
+            />
+            {errors.name && (
+              <p id="name-error" role="alert" className="mt-1 text-xs text-destructive">
+                {errors.name}
+              </p>
+            )}
           </div>
           <div>
             <Label htmlFor="email">אימייל *</Label>
-            <Input id="email" type="email" required maxLength={255} enterKeyHint="next" autoCapitalize="none" autoCorrect="off" autoComplete="email" aria-invalid={!!errors.email} aria-describedby={errors.email ? "email-error" : undefined} value={form.email} onChange={(e) => setField("email", e.target.value)} />
-            {errors.email && <p id="email-error" role="alert" className="mt-1 text-xs text-destructive">{errors.email}</p>}
+            <Input
+              id="email"
+              type="email"
+              required
+              maxLength={255}
+              enterKeyHint="next"
+              autoCapitalize="none"
+              autoCorrect="off"
+              autoComplete="email"
+              aria-invalid={!!errors.email}
+              aria-describedby={errors.email ? "email-error" : undefined}
+              value={form.email}
+              onChange={(e) => setField("email", e.target.value)}
+            />
+            {errors.email && (
+              <p id="email-error" role="alert" className="mt-1 text-xs text-destructive">
+                {errors.email}
+              </p>
+            )}
             <p className="text-[11px] text-muted-foreground mt-1">
-              אם תזין דוא"ל ולא תשלים את ההזמנה, ייתכן שנשמור את הפרטים זמנית כדי לאפשר את השלמתה. ראו <Link to="/privacy" className="underline underline-offset-2 transition-[color] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent">מדיניות פרטיות</Link>.
+              אם תזין דוא"ל ולא תשלים את ההזמנה, ייתכן שנשמור את הפרטים זמנית כדי לאפשר את השלמתה.
+              ראו{" "}
+              <Link
+                to="/privacy"
+                className="underline underline-offset-2 transition-[color] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
+              >
+                מדיניות פרטיות
+              </Link>
+              .
             </p>
           </div>
           <div>
             <Label htmlFor="phone">טלפון *</Label>
-            <Input id="phone" type="tel" inputMode="tel" required maxLength={50} enterKeyHint="next" autoComplete="tel" aria-invalid={!!errors.phone} aria-describedby={errors.phone ? "phone-error" : undefined} value={form.phone} onChange={(e) => setField("phone", e.target.value)} />
-            {errors.phone && <p id="phone-error" role="alert" className="mt-1 text-xs text-destructive">{errors.phone}</p>}
+            <Input
+              id="phone"
+              type="tel"
+              inputMode="tel"
+              required
+              maxLength={50}
+              enterKeyHint="next"
+              autoComplete="tel"
+              aria-invalid={!!errors.phone}
+              aria-describedby={errors.phone ? "phone-error" : undefined}
+              value={form.phone}
+              onChange={(e) => setField("phone", e.target.value)}
+            />
+            {errors.phone && (
+              <p id="phone-error" role="alert" className="mt-1 text-xs text-destructive">
+                {errors.phone}
+              </p>
+            )}
           </div>
           <div>
             <Label htmlFor="city">עיר *</Label>
-            <Input id="city" required maxLength={200} enterKeyHint="next" autoComplete="address-level2" aria-invalid={!!errors.city} aria-describedby={errors.city ? "city-error" : undefined} value={form.city} onChange={(e) => setField("city", e.target.value)} />
-            {errors.city && <p id="city-error" role="alert" className="mt-1 text-xs text-destructive">{errors.city}</p>}
+            <Input
+              id="city"
+              required
+              maxLength={200}
+              enterKeyHint="next"
+              autoComplete="address-level2"
+              aria-invalid={!!errors.city}
+              aria-describedby={errors.city ? "city-error" : undefined}
+              value={form.city}
+              onChange={(e) => setField("city", e.target.value)}
+            />
+            {errors.city && (
+              <p id="city-error" role="alert" className="mt-1 text-xs text-destructive">
+                {errors.city}
+              </p>
+            )}
           </div>
           <div className="md:col-span-2">
             <Label htmlFor="address">כתובת מלאה *</Label>
-            <Input id="address" required maxLength={500} enterKeyHint="done" autoComplete="street-address" aria-invalid={!!errors.address} aria-describedby={errors.address ? "address-error" : undefined} value={form.address} onChange={(e) => setField("address", e.target.value)} />
-            {errors.address && <p id="address-error" role="alert" className="mt-1 text-xs text-destructive">{errors.address}</p>}
+            <Input
+              id="address"
+              required
+              maxLength={500}
+              enterKeyHint="done"
+              autoComplete="street-address"
+              aria-invalid={!!errors.address}
+              aria-describedby={errors.address ? "address-error" : undefined}
+              value={form.address}
+              onChange={(e) => setField("address", e.target.value)}
+            />
+            {errors.address && (
+              <p id="address-error" role="alert" className="mt-1 text-xs text-destructive">
+                {errors.address}
+              </p>
+            )}
           </div>
           <div className="md:col-span-2">
             <Label htmlFor="notes">הערות להזמנה</Label>
-            <Textarea id="notes" maxLength={2000} autoComplete="off" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+            <Textarea
+              id="notes"
+              maxLength={2000}
+              autoComplete="off"
+              value={form.notes}
+              onChange={(e) => setForm({ ...form, notes: e.target.value })}
+            />
           </div>
         </div>
 
@@ -434,7 +530,9 @@ function CheckoutPage() {
               onCheckedChange={(v) => setIsGift(v === true)}
               aria-labelledby="cb-gift-label"
             />
-            <span id="cb-gift-label" className="text-sm font-medium">🎁 זו מתנה</span>
+            <span id="cb-gift-label" className="text-sm font-medium">
+              🎁 זו מתנה
+            </span>
             <span className="text-xs text-accent">ללא תוספת מחיר</span>
           </label>
           {isGift && (
@@ -450,15 +548,17 @@ function CheckoutPage() {
                   onChange={(e) => setGiftNote(e.target.value)}
                   placeholder="למשל: מזל טוב באהבה, משפחת כהן"
                 />
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  {giftNote.length}/300
-                </p>
+                <p className="mt-1 text-[11px] text-muted-foreground">{giftNote.length}/300</p>
                 {/* Read-back: show the dedication exactly as it will be printed,
                     so the buyer can double-check spelling before paying. */}
                 {giftNote.trim() && (
                   <div className="mt-2 rounded-lg hairline-gold bg-secondary/60 px-3 py-2">
-                    <p className="text-[11px] text-muted-foreground">כך תודפס ההקדשה שתצורף למתנה:</p>
-                    <p className="mt-1 whitespace-pre-wrap break-words text-sm text-foreground">"{giftNote}"</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      כך תודפס ההקדשה שתצורף למתנה:
+                    </p>
+                    <p className="mt-1 whitespace-pre-wrap break-words text-sm text-foreground">
+                      "{giftNote}"
+                    </p>
                   </div>
                 )}
               </div>
@@ -468,7 +568,9 @@ function CheckoutPage() {
                   onCheckedChange={(v) => setGiftWrap(v === true)}
                   aria-labelledby="cb-giftwrap-label"
                 />
-                <span id="cb-giftwrap-label" className="text-sm">עטיפת מתנה חגיגית — בחינם</span>
+                <span id="cb-giftwrap-label" className="text-sm">
+                  עטיפת מתנה חגיגית — בחינם
+                </span>
               </label>
               <p className="text-[11px] text-muted-foreground">
                 העטיפה וההקדשה ניתנות ללא עלות ואינן משפיעות על סכום ההזמנה.
@@ -500,9 +602,8 @@ function CheckoutPage() {
             aria-labelledby="cb-consent-label"
           />
           <span id="cb-consent-label" className="text-xs leading-relaxed text-foreground/90">
-            אני מאשר/ת שלצורך טיפול בהזמנה — אישור, תיאום משלוח ובירורים — ייצרו עמי קשר
-            בטלפון או בדוא"ל שמסרתי. הפרטים נדרשים להשלמת ההזמנה ואינם משמשים לדיוור שיווקי
-            ללא הסכמה נפרדת.
+            אני מאשר/ת שלצורך טיפול בהזמנה — אישור, תיאום משלוח ובירורים — ייצרו עמי קשר בטלפון או
+            בדוא"ל שמסרתי. הפרטים נדרשים להשלמת ההזמנה ואינם משמשים לדיוור שיווקי ללא הסכמה נפרדת.
           </span>
         </label>
         {errors.consent && (
@@ -520,7 +621,8 @@ function CheckoutPage() {
             aria-labelledby="cb-marketing-label"
           />
           <span id="cb-marketing-label" className="text-xs leading-relaxed text-muted-foreground">
-            אשמח לקבל דיוור שיווקי — מדריכים, תוכן לקראת החגים ועדכונים בדוא"ל (אופציונלי, ניתן להסרה בכל עת).
+            אשמח לקבל דיוור שיווקי — מדריכים, תוכן לקראת החגים ועדכונים בדוא"ל (אופציונלי, ניתן
+            להסרה בכל עת).
           </span>
         </label>
         <PrivacyNotice context="checkout" />
@@ -539,9 +641,14 @@ function CheckoutPage() {
             reject the whole order. Surface it here and disable the CTA, pointing
             to /cart to remove it — checkout has no per-line remove control. */}
         {blockedCount > 0 && (
-          <p role="alert" className="rounded-xl hairline bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          <p
+            role="alert"
+            className="rounded-xl hairline bg-destructive/10 px-4 py-3 text-sm text-destructive"
+          >
             יש בעגלה פריט שאזל מהמלאי או אינו זמין כרגע.{" "}
-            <Link to="/cart" className="font-semibold underline underline-offset-2">חזרה לעגלה</Link>{" "}
+            <Link to="/cart" className="font-semibold underline underline-offset-2">
+              חזרה לעגלה
+            </Link>{" "}
             להסרתו לפני השלמת התשלום.
           </p>
         )}
@@ -549,7 +656,13 @@ function CheckoutPage() {
             the form stays inert for the rest of the page's life. The `finally`
             is deliberately left alone: the two genuine failure paths still
             restore the button. */}
-        <Button type="submit" size="lg" disabled={submitting || redirecting || blockedCount > 0} aria-busy={submitting || redirecting} className="press w-full">
+        <Button
+          type="submit"
+          size="lg"
+          disabled={submitting || redirecting || blockedCount > 0}
+          aria-busy={submitting || redirecting}
+          className="press w-full"
+        >
           {redirecting
             ? "מעבירים לתשלום מאובטח…"
             : submitting
@@ -559,7 +672,11 @@ function CheckoutPage() {
         {/* Visually-hidden live region: the button-text swap alone isn't reliably
             announced, so read the processing state to assistive tech. */}
         <span className="sr-only" aria-live="polite">
-          {redirecting ? "מעבירים אתכם לעמוד התשלום המאובטח של Cardcom" : submitting ? "מעבד את ההזמנה" : ""}
+          {redirecting
+            ? "מעבירים אתכם לעמוד התשלום המאובטח של Cardcom"
+            : submitting
+              ? "מעבד את ההזמנה"
+              : ""}
         </span>
         {/* Visible hand-off notice. The domain is about to change to
             secure.cardcom.solutions; saying so first is the difference between an
@@ -589,7 +706,7 @@ function CheckoutPage() {
             "do I have to open an account?" is one of the most documented reasons a
             cart is abandoned. One line, at the moment the question is being asked. */}
         <p className="text-center text-[11px] text-muted-foreground">
-            אין צורך בהרשמה — אפשר להשלים את ההזמנה כאורח.
+          אין צורך בהרשמה — אפשר להשלים את ההזמנה כאורח.
         </p>
       </form>
       {/* The summary follows the form in the DOM, with no `order-*` overrides,
@@ -615,18 +732,26 @@ function CheckoutPage() {
             return (
               <div key={lineKey(i)} className={blocked ? "text-sm opacity-55" : "text-sm"}>
                 <div className="flex justify-between">
-                  <span className="line-clamp-1">{i.name} × {i.quantity}</span>
+                  <span className="line-clamp-1">
+                    {i.name} × {i.quantity}
+                  </span>
                   {blocked ? (
-                    <span className="text-xs text-destructive whitespace-nowrap mr-2">אינו זמין</span>
+                    <span className="text-xs text-destructive whitespace-nowrap mr-2">
+                      אינו זמין
+                    </span>
                   ) : (
-                    <span className="font-medium whitespace-nowrap mr-2">{formatILS(linePrice(i) * i.quantity)}</span>
+                    <span className="font-medium whitespace-nowrap mr-2">
+                      {formatILS(linePrice(i) * i.quantity)}
+                    </span>
                   )}
                 </div>
                 {i.variantLabel && (
                   <div className="text-xs text-muted-foreground mt-1">גודל: {i.variantLabel}</div>
                 )}
                 {c?.kind === "price" && (
-                  <div className="text-xs text-muted-foreground mt-1">המחיר עודכן למחיר הנוכחי באתר.</div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    המחיר עודכן למחיר הנוכחי באתר.
+                  </div>
                 )}
                 {i.customText && (
                   <div className="text-xs text-accent">
@@ -639,7 +764,8 @@ function CheckoutPage() {
         </div>
         {nothingOrderable ? (
           <p className="border-t border-glass-line pt-3 text-sm text-muted-foreground">
-            אין כרגע פריטים שניתן להזמין. יש להסיר את הפריטים שאזלו או שאינם זמינים כדי להמשיך בתשלום.
+            אין כרגע פריטים שניתן להזמין. יש להסיר את הפריטים שאזלו או שאינם זמינים כדי להמשיך
+            בתשלום.
           </p>
         ) : (
           <>
@@ -666,9 +792,13 @@ function CheckoutPage() {
             <div className="gold-rule my-4" aria-hidden="true" />
             <div className="flex justify-between text-lg">
               <span className="font-bold">סך הכל</span>
-              <span className="font-bold text-accent whitespace-nowrap">{formatILS(finalTotal)}</span>
+              <span className="font-bold text-accent whitespace-nowrap">
+                {formatILS(finalTotal)}
+              </span>
             </div>
-            <p className="mt-1 text-[11px] text-muted-foreground">כל המחירים בשקלים (₪) וכוללים מע"מ.</p>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              כל המחירים בשקלים (₪) וכוללים מע"מ.
+            </p>
           </>
         )}
         <Link

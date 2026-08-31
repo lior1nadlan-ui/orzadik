@@ -8,14 +8,15 @@
 # anyone noticed. The Vercel checks on those PRs were preview builds only — they
 # are not the live site, which is what made the gap easy to miss.
 #
-# WHAT IT RUNS, AND WHAT IT DELIBERATELY DOES NOT
-# Tests and typecheck gate the deploy. `lint` does NOT, and that is not an
-# oversight: `eslint` reports a few hundred pre-existing prettier violations in
-# the large route files, so gating on it would fail this workflow on its own
-# first run and every deploy after it. Clearing that debt and adding lint here
-# is the right end state; `npm run format` does most of it, but it rewrites
-# thousands of lines across files nobody is otherwise touching, so it wants its
-# own PR rather than riding along with a deploy change.
+# WHAT IT RUNS
+# Lint, tests and typecheck all gate the deploy.
+#
+# `lint` did not, for a while, and the note here said why: a few hundred
+# pre-existing prettier violations in the large route files would have failed
+# this workflow on its own first run. It also said what the right end state was —
+# clear the debt in its own PR, then add the gate. That is what happened: the
+# formatting was applied in one pass, the remaining `any`s are warnings rather
+# than errors, and lint now runs first because it is the fastest of the three.
 #
 # typecheck was in that same excluded list for exactly one commit. The two
 # errors keeping it out were real: ArticleCard passed an interpolated
@@ -52,6 +53,9 @@ jobs:
           cache: npm
 
       - run: npm ci
+
+      - name: Lint
+        run: npm run lint
 
       - name: Typecheck
         run: npm run typecheck

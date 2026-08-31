@@ -21,7 +21,11 @@ export const Route = createFileRoute("/favorites")({
 function FavoritesPage() {
   const { ids, hydrated } = useFavorites();
 
-  const { data: rows = [], isLoading, isSuccess } = useQuery({
+  const {
+    data: rows = [],
+    isLoading,
+    isSuccess,
+  } = useQuery({
     queryKey: ["favorites", ids],
     enabled: ids.length > 0,
     queryFn: async () => {
@@ -57,7 +61,7 @@ function FavoritesPage() {
         <h1 className="font-display text-3xl md:text-4xl font-bold">המועדפים שלי</h1>
         {!showEmpty && (
           <p className="text-sm text-muted-foreground mt-1">
-            {(isSuccess ? rows.length : ids.length)} מוצרים שמורים
+            {isSuccess ? rows.length : ids.length} מוצרים שמורים
           </p>
         )}
       </div>
@@ -65,7 +69,9 @@ function FavoritesPage() {
       {showEmpty ? (
         <div className="glass mx-auto max-w-xl px-6 py-16 text-center space-y-3 [--glass-radius:1.5rem]">
           <p className="text-lg font-medium">עדיין לא שמרת מוצרים</p>
-          <p className="text-sm text-muted-foreground">לחצו על הלב שעל כל מוצר כדי לשמור אותו כאן</p>
+          <p className="text-sm text-muted-foreground">
+            לחצו על הלב שעל כל מוצר כדי לשמור אותו כאן
+          </p>
           {/* --accent is the only gold that is legal as a CTA fill on a light
               ground: white on #7E611E is 5.81:1. The hover was bg-accent/90,
               which composites down to 4.66:1 with no headroom — bg-accent-strong

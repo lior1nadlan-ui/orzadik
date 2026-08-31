@@ -43,18 +43,12 @@ export const deleteMyAccount = createServerFn({ method: "POST" })
     const email = typeof claims.email === "string" ? claims.email.toLowerCase() : null;
 
     // 1. Collect the user's orders so we can scrub their payment secrets.
-    const { data: orders } = await supabaseAdmin
-      .from("orders")
-      .select("id")
-      .eq("user_id", userId);
+    const { data: orders } = await supabaseAdmin.from("orders").select("id").eq("user_id", userId);
     const orderIds = (orders ?? []).map((o) => o.id);
 
     // 2. Remove card tokens for those orders (no longer needed; data minimization).
     if (orderIds.length > 0) {
-      await supabaseAdmin
-        .from("order_payment_secrets")
-        .delete()
-        .in("order_id", orderIds);
+      await supabaseAdmin.from("order_payment_secrets").delete().in("order_id", orderIds);
 
       // 3. Anonymize the orders — keep the financial record, strip personal data,
       //    and unlink from the (about-to-be-deleted) auth user.

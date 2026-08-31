@@ -4,7 +4,7 @@ import { sanitizeHtml } from "./sanitize-html";
 describe("sanitizeHtml — keeps the store's real content intact", () => {
   it("preserves the tag vocabulary actually present in the DB", () => {
     const html =
-      '<h2>כותרת</h2><p>פסקה עם <strong>הדגשה</strong>.</p><ul><li>פריט</li></ul><ol><li>שני</li></ol><br>';
+      "<h2>כותרת</h2><p>פסקה עם <strong>הדגשה</strong>.</p><ul><li>פריט</li></ul><ol><li>שני</li></ol><br>";
     expect(sanitizeHtml(html)).toBe(html);
   });
 
@@ -33,7 +33,7 @@ describe("sanitizeHtml — keeps the store's real content intact", () => {
   });
 
   it("leaves plain text with no markup alone", () => {
-    expect(sanitizeHtml("חומר: קריסטל | מידות: אורך 16 ס\"מ")).toBe(
+    expect(sanitizeHtml('חומר: קריסטל | מידות: אורך 16 ס"מ')).toBe(
       'חומר: קריסטל | מידות: אורך 16 ס"מ',
     );
   });
@@ -47,7 +47,7 @@ describe("sanitizeHtml — strips anything dangerous", () => {
   });
 
   it("removes an unclosed script through end of input", () => {
-    expect(sanitizeHtml('<p>ok</p><script>evil()')).toBe("<p>ok</p>");
+    expect(sanitizeHtml("<p>ok</p><script>evil()")).toBe("<p>ok</p>");
   });
 
   it("removes style, iframe, object, embed with contents", () => {
@@ -64,7 +64,11 @@ describe("sanitizeHtml — strips anything dangerous", () => {
   });
 
   it("drops javascript:, vbscript: and data: hrefs but keeps the text", () => {
-    for (const bad of ["javascript:alert(1)", "vbscript:msgbox", "data:text/html;base64,PHN2Zz4="]) {
+    for (const bad of [
+      "javascript:alert(1)",
+      "vbscript:msgbox",
+      "data:text/html;base64,PHN2Zz4=",
+    ]) {
       const out = sanitizeHtml(`<a href="${bad}">לחצו</a>`);
       expect(out).not.toContain(bad);
       expect(out).toContain("לחצו");
@@ -97,7 +101,8 @@ describe("sanitizeHtml — strips anything dangerous", () => {
   });
 
   it("is idempotent — sanitising twice changes nothing further", () => {
-    const dirty = '<div onclick="x"><p>טקסט <a href="javascript:1">קישור</a></p><script>y</script></div>';
+    const dirty =
+      '<div onclick="x"><p>טקסט <a href="javascript:1">קישור</a></p><script>y</script></div>';
     const once = sanitizeHtml(dirty);
     expect(sanitizeHtml(once)).toBe(once);
   });

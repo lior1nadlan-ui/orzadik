@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, Pause, Play } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   FeaturedProductsCarousel,
@@ -898,6 +898,14 @@ function HomePage() {
   // 0 as a still photograph, which is a complete hero on its own.
   const [heroRestReady, setHeroRestReady] = useState(false);
   const [heroSlide, setHeroSlide] = useState(0);
+  // WCAG 2.2.2 (Pause, Stop, Hide): the reel moves on its own, indefinitely,
+  // and nothing on the page could stop it. prefers-reduced-motion covered the
+  // visitor who has set that preference system-wide; it does nothing for the
+  // one who simply cannot read the copy over motion right now. The control
+  // below is that stop. It starts unpaused, and the pause survives for the life
+  // of the page — deliberately not persisted, since it is a reading aid for
+  // this visit rather than a setting.
+  const [heroPaused, setHeroPaused] = useState(false);
 
   useEffect(() => {
     if (prefersReducedMotion()) return;
@@ -922,7 +930,7 @@ function HomePage() {
   // Advance only once the rest are mounted, so the first cross-fade never lands
   // on an image that has not been fetched yet.
   useEffect(() => {
-    if (!heroRestReady) return;
+    if (!heroRestReady || heroPaused) return;
     // Interval and fade both come from @/lib/hero-timing, which §4.5 of the
     // accessibility statement reads too — the published declaration of this
     // number cannot drift from the number itself.
@@ -931,7 +939,7 @@ function HomePage() {
       HERO_SLIDE_INTERVAL_MS,
     );
     return () => clearInterval(id);
-  }, [heroRestReady]);
+  }, [heroRestReady, heroPaused]);
 
   // Static — rendered at SSR from the curated FEATURED list (slugs hardcoded), so
   // the tiles are in the initial HTML and the section never shifts after hydration.
@@ -1193,15 +1201,39 @@ function HomePage() {
               hidden from the accessibility tree; adding twelve focusable buttons
               would put keyboard stops on something that carries no information,
               so these report and nothing more. */}
-          <div aria-hidden="true" className="mt-6 flex justify-center gap-2">
-            {HERO_SLIDES.map((src, i) => (
-              <span
-                key={src}
-                className={`h-1 rounded-full transition-all duration-500 motion-reduce:transition-none ${
-                  i === heroSlide ? "w-7 bg-white/90" : "w-1.5 bg-white/45"
-                }`}
-              />
-            ))}
+          <div className="mt-6 flex items-center justify-center gap-3">
+            <div aria-hidden="true" className="flex gap-2">
+              {HERO_SLIDES.map((src, i) => (
+                <span
+                  key={src}
+                  className={`h-1 rounded-full transition-all duration-500 motion-reduce:transition-none ${
+                    i === heroSlide ? "w-7 bg-white/90" : "w-1.5 bg-white/45"
+                  }`}
+                />
+              ))}
+            </div>
+            {/* Rendered only once the reel is actually running: before the rest
+                of the slides mount there is no motion to stop, and for a
+                reduced-motion visitor heroRestReady never becomes true, so no
+                control appears for a hero that is a still photograph. That is
+                also why this is not inside the aria-hidden indicator row — the
+                dots report, this one acts, and it needs a name and a keyboard
+                stop. 44px hit area, matching the header's controls. */}
+            {heroRestReady ? (
+              <button
+                type="button"
+                onClick={() => setHeroPaused((p) => !p)}
+                aria-pressed={heroPaused}
+                aria-label={heroPaused ? "הפעל את מצגת התמונות" : "עצור את מצגת התמונות"}
+                className="inline-flex h-11 w-11 items-center justify-center rounded-full text-white/85 transition-colors [@media(hover:hover)_and_(pointer:fine)]:hover:text-white"
+              >
+                {heroPaused ? (
+                  <Play className="h-4 w-4" aria-hidden="true" />
+                ) : (
+                  <Pause className="h-4 w-4" aria-hidden="true" />
+                )}
+              </button>
+            ) : null}
           </div>
         </div>
       </section>

@@ -64,11 +64,7 @@ const RENDER_SEGMENT = "/storage/v1/render/image/public/";
  * URL (external hosts, data: URIs, already-transformed URLs, null/empty), so it
  * is always safe to wrap a `thumbnail_url` with it.
  */
-export function thumbUrl(
-  url: string | null | undefined,
-  width = 400,
-  quality = 75,
-): string | null {
+export function thumbUrl(url: string | null | undefined, width = 400, quality = 75): string | null {
   if (!url) return null;
   if (!url.includes(OBJECT_SEGMENT)) return url;
   const base = url.replace(OBJECT_SEGMENT, RENDER_SEGMENT);

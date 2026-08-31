@@ -41,7 +41,9 @@ function NotFoundComponent() {
           arbitrary page content. */}
       <div className="glass w-full max-w-md p-8 text-center [--glass-radius:1.5rem]">
         {/* The code is decoration, not the heading — the sentence below is. */}
-        <p className="font-display text-7xl font-bold text-accent" aria-hidden="true">404</p>
+        <p className="font-display text-7xl font-bold text-accent" aria-hidden="true">
+          404
+        </p>
         <div className="gold-rule mx-auto mt-5 w-24" aria-hidden="true" />
         <h1 className="mt-5 text-xl font-semibold">העמוד לא נמצא</h1>
         <p className="mt-2 text-sm text-muted-foreground">העמוד שחיפשת לא קיים או הועבר.</p>
@@ -73,7 +75,10 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
         <p className="mt-4 text-sm text-muted-foreground">אירעה שגיאה. אנא נסה שוב.</p>
         <div className="mt-6 flex justify-center gap-2">
           <button
-            onClick={() => { router.invalidate(); reset(); }}
+            onClick={() => {
+              router.invalidate();
+              reset();
+            }}
             className="press rounded-full bg-accent px-5 py-2.5 text-sm font-medium text-accent-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:bg-accent-strong"
           >
             נסה שוב
@@ -112,7 +117,10 @@ function LayoutErrorComponent({ reset }: { error: Error; reset: () => void }) {
         </p>
         <div className="mt-6 flex justify-center gap-2">
           <button
-            onClick={() => { router.invalidate(); reset(); }}
+            onClick={() => {
+              router.invalidate();
+              reset();
+            }}
             className="press rounded-full bg-accent px-5 py-2.5 text-sm font-medium text-accent-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:bg-accent-strong"
           >
             נסה שוב
@@ -177,7 +185,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       // that override WINS: HeadContent dedupes meta by `name`, iterating matches
       // leaf→root with first-seen winning, so the route-level robots is emitted
       // and this root default is skipped on those pages.
-      { name: "robots", content: "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" },
+      {
+        name: "robots",
+        content: "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
+      },
       // Search-engine ownership verification — rendered only when a token is set
       // (fill in src/lib/business.ts). GSC unlocks sitemap submission + indexing.
       ...(BUSINESS.googleSiteVerification
@@ -187,11 +198,20 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         ? [{ name: "msvalidate.01", content: BUSINESS.bingSiteVerification }]
         : []),
       { title: "אור זרוע לצדיק - תשמישי קדושה" },
-      { name: "description", content: "חנות תשמישי קדושה - כלי כסף, כוסות קידוש, חנוכיות, נרתיקי מזוזה ועוד." },
+      {
+        name: "description",
+        content: "חנות תשמישי קדושה - כלי כסף, כוסות קידוש, חנוכיות, נרתיקי מזוזה ועוד.",
+      },
       { property: "og:title", content: "אור זרוע לצדיק - תשמישי קדושה" },
       { name: "twitter:title", content: "אור זרוע לצדיק - תשמישי קדושה" },
-      { property: "og:description", content: "חנות תשמישי קדושה - כלי כסף, כוסות קידוש, חנוכיות, נרתיקי מזוזה ועוד." },
-      { name: "twitter:description", content: "חנות תשמישי קדושה - כלי כסף, כוסות קידוש, חנוכיות, נרתיקי מזוזה ועוד." },
+      {
+        property: "og:description",
+        content: "חנות תשמישי קדושה - כלי כסף, כוסות קידוש, חנוכיות, נרתיקי מזוזה ועוד.",
+      },
+      {
+        name: "twitter:description",
+        content: "חנות תשמישי קדושה - כלי כסף, כוסות קידוש, חנוכיות, נרתיקי מזוזה ועוד.",
+      },
       { property: "og:image", content: "https://orzadik.com/og-default.jpg" },
       // NOTE: no og:image:secure_url / :width / :height here on purpose. og:image
       // is already https, so secure_url is redundant. More importantly, product /
@@ -595,7 +615,11 @@ function RootComponent() {
                 footer below the fold until real content defines the height, so
                 the insertion shifts nothing visible. On pages whose content is
                 taller than the viewport (the normal case) this is inert. */}
-            <main id="main-content" tabIndex={-1} className="min-h-screen flex-1 scroll-mt-24 lg:scroll-mt-32">
+            <main
+              id="main-content"
+              tabIndex={-1}
+              className="min-h-screen flex-1 scroll-mt-24 lg:scroll-mt-32"
+            >
               <RouteErrorBoundary />
             </main>
             <SiteFooter />

@@ -82,8 +82,10 @@ export async function checkOrderRateLimitByIp(
   try {
     const bucket = Math.floor(Date.now() / (windowSeconds * 1000));
     const key = `${namespace}:${ip}:${bucket}`;
-    const { data, error } = await supabaseAdmin
-      .rpc("increment_rate_limit", { p_key: key, p_ttl_seconds: windowSeconds * 2 });
+    const { data, error } = await supabaseAdmin.rpc("increment_rate_limit", {
+      p_key: key,
+      p_ttl_seconds: windowSeconds * 2,
+    });
     if (error) return { limited: false };
     return { limited: (data as number) > maxPerWindow };
   } catch {
@@ -109,8 +111,10 @@ export async function checkTrackRateLimitByIp(
   try {
     const bucket = Math.floor(Date.now() / (windowSeconds * 1000));
     const key = `track:${ip}:${bucket}`;
-    const { data, error } = await supabaseAdmin
-      .rpc("increment_rate_limit", { p_key: key, p_ttl_seconds: windowSeconds * 2 });
+    const { data, error } = await supabaseAdmin.rpc("increment_rate_limit", {
+      p_key: key,
+      p_ttl_seconds: windowSeconds * 2,
+    });
     if (error) return { limited: false };
     return { limited: (data as number) > maxPerWindow };
   } catch {
@@ -136,8 +140,10 @@ export async function checkNewsletterRateLimitByIp(
   try {
     const bucket = Math.floor(Date.now() / (windowSeconds * 1000));
     const key = `newsletter:${ip}:${bucket}`;
-    const { data, error } = await supabaseAdmin
-      .rpc("increment_rate_limit", { p_key: key, p_ttl_seconds: windowSeconds * 2 });
+    const { data, error } = await supabaseAdmin.rpc("increment_rate_limit", {
+      p_key: key,
+      p_ttl_seconds: windowSeconds * 2,
+    });
     if (error) return { limited: false };
     return { limited: (data as number) > maxPerWindow };
   } catch {
@@ -163,8 +169,10 @@ export async function checkContactRateLimitByIp(
   try {
     const bucket = Math.floor(Date.now() / (windowSeconds * 1000));
     const key = `contact:${ip}:${bucket}`;
-    const { data, error } = await supabaseAdmin
-      .rpc("increment_rate_limit", { p_key: key, p_ttl_seconds: windowSeconds * 2 });
+    const { data, error } = await supabaseAdmin.rpc("increment_rate_limit", {
+      p_key: key,
+      p_ttl_seconds: windowSeconds * 2,
+    });
     if (error) return { limited: false };
     return { limited: (data as number) > maxPerWindow };
   } catch {
@@ -187,8 +195,10 @@ export async function checkWebhookRateLimit(
     const bucket = Math.floor(Date.now() / (windowSeconds * 1000));
     const key = `webhook:${ip}:${bucket}`;
 
-    const { data, error } = await supabaseAdmin
-      .rpc("increment_rate_limit", { p_key: key, p_ttl_seconds: windowSeconds * 2 });
+    const { data, error } = await supabaseAdmin.rpc("increment_rate_limit", {
+      p_key: key,
+      p_ttl_seconds: windowSeconds * 2,
+    });
 
     if (error) return { limited: false };
     return { limited: (data as number) > maxPerWindow };

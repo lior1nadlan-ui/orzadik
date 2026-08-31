@@ -24,12 +24,26 @@ import {
 import { formatILS } from "@/lib/cart";
 import { orderStatusHe } from "@/lib/business";
 import { CardSkeleton } from "@/components/Skeletons";
-import { Sparkles, Package, LogOut, ShoppingBag, Mail, Trash2, Download, Pencil } from "lucide-react";
+import {
+  Sparkles,
+  Package,
+  LogOut,
+  ShoppingBag,
+  Mail,
+  Trash2,
+  Download,
+  Pencil,
+} from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/account")({
   component: AccountPage,
-  head: () => ({ meta: [{ title: "החשבון שלי — מועדון אור זרוע" }, { name: "robots", content: "noindex, nofollow" }] }),
+  head: () => ({
+    meta: [
+      { title: "החשבון שלי — מועדון אור זרוע" },
+      { name: "robots", content: "noindex, nofollow" },
+    ],
+  }),
 });
 
 function escHtml(v: unknown): string {
@@ -233,7 +247,9 @@ function AccountPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from("orders")
-        .select("id, order_number, status, total, created_at, payment_status, shipping_status, tracking_number, shipping_carrier")
+        .select(
+          "id, order_number, status, total, created_at, payment_status, shipping_status, tracking_number, shipping_carrier",
+        )
         .eq("user_id", user!.id)
         .order("created_at", { ascending: false })
         .limit(20);
@@ -291,9 +307,7 @@ function AccountPage() {
             <span className="rounded-full bg-accent text-white text-sm font-bold px-4 py-1.5">
               חבר/ת מועדון
             </span>
-            <span className="text-xs text-muted-foreground">
-              ההטבות חלות אוטומטית בכל הזמנה
-            </span>
+            <span className="text-xs text-muted-foreground">ההטבות חלות אוטומטית בכל הזמנה</span>
           </div>
         </div>
         <div className="gold-rule mt-5 md:mt-6" aria-hidden="true" />
@@ -343,7 +357,9 @@ function AccountPage() {
           <Pencil className="h-5 w-5 text-accent mt-0.5" />
           <div>
             <div className="text-sm font-semibold">הפרטים האישיים שלי</div>
-            <p className="text-xs text-muted-foreground mt-1">עדכון הפרטים שלך, ועיון/הורדה של כל המידע שאנו מחזיקים עליך.</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              עדכון הפרטים שלך, ועיון/הורדה של כל המידע שאנו מחזיקים עליך.
+            </p>
           </div>
         </div>
         {/* autoComplete tokens match the ones the checkout form already uses, so
@@ -375,7 +391,9 @@ function AccountPage() {
           <div className="sm:col-span-2">
             {/* This label had no htmlFor and the field had no id, so the two were
                 only visually adjacent — nothing tied them together. */}
-            <Label htmlFor="acc-email" className="text-muted-foreground">דוא"ל</Label>
+            <Label htmlFor="acc-email" className="text-muted-foreground">
+              דוא"ל
+            </Label>
             <Input
               id="acc-email"
               type="email"
@@ -410,8 +428,8 @@ function AccountPage() {
                 id="marketing-consent-desc"
                 className="text-xs text-muted-foreground mt-1 leading-relaxed max-w-md"
               >
-                מדריכים ותוכן לקראת החגים, מוצרים חדשים ועדכונים לחברי מועדון
-                באימייל וב-SMS. ניתן להסיר את ההסכמה בכל עת.
+                מדריכים ותוכן לקראת החגים, מוצרים חדשים ועדכונים לחברי מועדון באימייל וב-SMS. ניתן
+                להסיר את ההסכמה בכל עת.
               </p>
             </div>
           </div>
@@ -485,18 +503,25 @@ function AccountPage() {
                     <div className="min-w-0">
                       <div className="font-medium text-sm">הזמנה #{o.order_number}</div>
                       <div className="text-xs text-muted-foreground">
-                        {new Date(o.created_at).toLocaleDateString("he-IL")} • {orderStatusHe(o.status)}
-                        {o.payment_status === "paid" && <span className="text-accent font-medium"> • שולם</span>}
+                        {new Date(o.created_at).toLocaleDateString("he-IL")} •{" "}
+                        {orderStatusHe(o.status)}
+                        {o.payment_status === "paid" && (
+                          <span className="text-accent font-medium"> • שולם</span>
+                        )}
                       </div>
                       <div className="text-xs mt-1">
                         <span className="text-muted-foreground">משלוח: </span>
-                        <span className="font-medium">{shipLabel[o.shipping_status] ?? o.shipping_status}</span>
+                        <span className="font-medium">
+                          {shipLabel[o.shipping_status] ?? o.shipping_status}
+                        </span>
                         {o.tracking_number && (
                           <span className="text-accent"> • מעקב: {o.tracking_number}</span>
                         )}
                       </div>
                     </div>
-                    <div className="text-sm font-bold text-accent whitespace-nowrap">{formatILS(Number(o.total))}</div>
+                    <div className="text-sm font-bold text-accent whitespace-nowrap">
+                      {formatILS(Number(o.total))}
+                    </div>
                   </Link>
                 );
               })}
@@ -516,8 +541,8 @@ function AccountPage() {
             <div>
               <div className="text-sm font-semibold">מחיקת חשבון</div>
               <p className="text-xs text-muted-foreground mt-1 leading-relaxed max-w-md">
-                מחיקת החשבון תסיר את הפרופיל והמידע האישי שלך. הזמנות עבר יישמרו
-                באופן אנונימי בלבד, כנדרש בחוק לצורכי הנהלת חשבונות. הפעולה אינה הפיכה.
+                מחיקת החשבון תסיר את הפרופיל והמידע האישי שלך. הזמנות עבר יישמרו באופן אנונימי בלבד,
+                כנדרש בחוק לצורכי הנהלת חשבונות. הפעולה אינה הפיכה.
               </p>
             </div>
           </div>
@@ -531,8 +556,8 @@ function AccountPage() {
               <AlertDialogHeader>
                 <AlertDialogTitle>למחוק את החשבון?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  המידע האישי שלך יימחק לצמיתות ולא ניתן לשחזרו. הזמנות עבר יישמרו
-                  באופן אנונימי בלבד כנדרש בחוק. להמשיך?
+                  המידע האישי שלך יימחק לצמיתות ולא ניתן לשחזרו. הזמנות עבר יישמרו באופן אנונימי
+                  בלבד כנדרש בחוק. להמשיך?
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
