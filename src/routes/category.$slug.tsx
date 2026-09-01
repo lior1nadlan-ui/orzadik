@@ -71,14 +71,25 @@ import { ChevronDown, SlidersHorizontal, X } from "lucide-react";
 // `categories.image_url` is NOT orphaned: it still feeds og:image / twitter:image
 // in head() below, and the /categories hub still renders it.
 
-// Old category slugs that were merged into a canonical one (2026-07 dedupe).
-// `talit-tefillin-covers` was a full duplicate of `talit-tefillin-sets` (all 46
-// of its products already lived in sets). Its 46-product page had real crawl
-// presence, so it 301s rather than 404s. The kippot/talitot twins that were also
-// merged carried percent-encoded slugs with no meaningful inbound links, so they
-// are intentionally left to 404 rather than risk a double-encoded redirect target.
+// Old category slugs that redirect to a canonical one — from the 2026-07 dedupe
+// and the 2026-09 rename that corrected part of it.
+//
+// The 2026-07 dedupe folded a `talit-tefillin-covers` category into
+// `talit-tefillin-sets` because their products overlapped. Merging the rows was
+// right; keeping the SETS slug for a page of COVERS was not, and that half is
+// undone below. The kippot/talitot twins merged at the same time carried
+// percent-encoded slugs with no meaningful inbound links, so they are
+// intentionally left to 404 rather than risk a double-encoded redirect target.
 const MERGED_CATEGORY_REDIRECTS: Record<string, string> = {
-  "talit-tefillin-covers": "talit-tefillin-sets",
+  // 2026-09 rename, and it is a CORRECTION of the 2026-07 merge below rather
+  // than a new dedupe. That merge folded the covers category into a slug named
+  // `talit-tefillin-sets` — while a separate, larger sets category
+  // (`setim-talit-tefilin`, 229 products) went on existing. So the URL said
+  // "sets" over a page of 55 covers named "כיסויים לטלית ותפילין", next to a
+  // real sets page. Search Console showed both live and both losing: the covers
+  // page ranked for "כיסוי טלית" and the sets page for "סט טלית ותפילין", each
+  // around position 67, with the URL of one describing the other.
+  "talit-tefillin-sets": "talit-tefillin-covers",
   // 2026-07 slug cleanup: four product-bearing categories carried percent-encoded
   // Hebrew slugs (ugly URLs whose natural form 404'd — the router decodes %d7.. to
   // Hebrew, which never matched the literal-encoded DB slug). Renamed to clean
@@ -514,16 +525,32 @@ export const Route = createFileRoute("/category/$slug")({
   // `location` below).
   loaderDeps: ({ search }) => ({ page: search.page ?? 1 }),
   loader: async ({ params, deps, location }) => {
-    // Categories merged away in the 2026-07 dedupe: 301 old inbound links / index
-    // entries to their canonical so no SEO equity or bookmark 404s. Only clean
-    // ASCII slugs are mapped here (a percent-encoded target would be re-encoded by
-    // the router into a broken double-encoded path).
-    const merged = MERGED_CATEGORY_REDIRECTS[params.slug];
-    if (merged) {
-      throw redirect({ to: "/category/$slug", params: { slug: merged }, statusCode: 301 });
-    }
+    // Categories merged away or renamed: 301 old inbound links / index entries to
+    // their canonical so no SEO equity or bookmark 404s. Only clean ASCII slugs
+    // are mapped here (a percent-encoded target would be re-encoded by the router
+    // into a broken double-encoded path).
+    //
+    // THE REDIRECT FIRES ON A MISS, NOT BEFORE THE FETCH, and that ordering is
+    // load-bearing. It used to run first, which is cheaper by one query — but it
+    // made every rename a two-step deploy with a broken window in between: the
+    // code redirecting old→new is a 404 until the database is renamed, and the
+    // database renamed under the old code is a 404 the other way. Consulting the
+    // map only when the slug does not resolve makes the two independent: whichever
+    // of the pair exists in the database is served, and the other one redirects to
+    // it. That is what made the talit-tefillin-sets → talit-tefillin-covers rename
+    // safe to ship without choreographing deploy against migration.
+    //
+    // A map entry can never loop: a redirect is only issued for a slug that
+    // MISSED, and it always targets a slug that is expected to hit. If the target
+    // misses too, the second pass 404s rather than bouncing.
     const result = await fetchCategoryWithRetry(params.slug);
-    if (!result.cat) throw notFound(); // real HTTP 404 for non-existent categories
+    if (!result.cat) {
+      const merged = MERGED_CATEGORY_REDIRECTS[params.slug];
+      if (merged) {
+        throw redirect({ to: "/category/$slug", params: { slug: merged }, statusCode: 301 });
+      }
+      throw notFound(); // real HTTP 404 for non-existent categories
+    }
 
     // The facets are deliberately NOT loader deps (see above), so read them off
     // the location instead.

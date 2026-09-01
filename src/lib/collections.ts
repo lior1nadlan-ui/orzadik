@@ -65,7 +65,7 @@ export const OCCASION_COLLECTIONS: OccasionCollection[] = [
       "מתנות לבר מצווה במקום אחד: טליתות, סטים לטלית ותפילין, כיסויים ותיקים, סידורים ועטרות. ניתן להוסיף רקמת שם או חריטה אישית בתיאום לאחר ההזמנה.",
     categorySlugs: [
       "talit-tefilin", // טלית ותפילין (קטגוריית-על)
-      "talit-tefillin-sets", // כיסויים/סטים לטלית ותפילין (covers merged in, 2026-07)
+      "talit-tefillin-covers", // כיסויים לטלית ותפילין (renamed from …-sets, 2026-09)
       "tefillin-cases", // תיקי תפילין
       SIDDURIM, // סידורים
       "atara", // עטרה
@@ -94,7 +94,7 @@ export const OCCASION_COLLECTIONS: OccasionCollection[] = [
       "chatan-kala", // חתן כלה
       "wedding", // חתונה
       HATAN_MARAZIM, // מארזים לחתנים
-      "talit-tefillin-sets", // כיסויים/סטים לטלית ותפילין (לטלית החתן; covers merged in, 2026-07)
+      "talit-tefillin-covers", // כיסויים לטלית ותפילין (לטלית החתן; renamed from …-sets, 2026-09)
       "birchonim", // ברכונים (מזכרת לאורחים)
     ],
     faq: [
