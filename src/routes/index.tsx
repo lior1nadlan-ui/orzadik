@@ -109,7 +109,7 @@ const OTHER_CATS_IMAGES: Record<string, string> = {
   mirrors: oc_mirrors,
   "washing-cups": oc_washingCups,
   "%d7%a1%d7%98-%d7%98%d7%9c%d7%99%d7%aa-%d7%aa%d7%a4%d7%99%d7%9c%d7%99%d7%9f": oc_talitTefillinSet,
-  "talit-tefillin-sets": oc_talitTefillinSets,
+  "talit-tefillin-covers": oc_talitTefillinSets,
   "liqueur-sets": oc_liqueurSets,
   atara: oc_atara,
   // "polyrasin-stone" is deliberately absent. The artwork that sat here was an
@@ -554,7 +554,7 @@ const FEATURED: { id: string; slug: string; name: string; img: string; w: number
   },
   {
     id: "f48e44e3-eab6-4281-a09d-cac9a96a8e96",
-    slug: "talit-tefillin-sets",
+    slug: "talit-tefillin-covers",
     name: "כיסויים לטלית ותפילין",
     img: imgTallitTefillinCovers,
     w: 800,
