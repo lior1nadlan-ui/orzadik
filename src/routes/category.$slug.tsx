@@ -888,7 +888,7 @@ export const Route = createFileRoute("/category/$slug")({
               : [
                   {
                     type: "application/ld+json",
-                    children: JSON.stringify(faqJsonLd(categoryFaq(cat.name))),
+                    children: JSON.stringify(faqJsonLd(categoryFaq(cat.name, params.slug))),
                   },
                 ]),
           ]
@@ -1631,7 +1631,7 @@ function CategoryPage() {
                 Hairline rules replace the gold borders; the chevron keeps
                 --accent (5.47:1 on the ground, and an icon only needs 3:1). */}
             <div className="w-full border-t border-glass-line">
-              {categoryFaq(cat.name).map((item, i) => (
+              {categoryFaq(cat.name, slug).map((item, i) => (
                 <details key={i} className="group border-b border-glass-line">
                   <summary className="flex cursor-pointer list-none items-center justify-between gap-3 py-4 text-right font-display text-base font-medium transition-[color] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent [&::-webkit-details-marker]:hidden">
                     <span>{item.q}</span>
