@@ -1132,8 +1132,20 @@ function HomePage() {
             The sub-line is the store's own og:description, word for word. */}
         <div className="absolute inset-x-0 bottom-0 flex flex-col items-center px-5 pb-10 text-center sm:px-6 md:pb-14">
           <div className="stagger flex w-full max-w-2xl flex-col items-center">
-            <h1 className="font-display text-[1.75rem] font-semibold leading-[1.15] text-white sm:text-4xl md:text-5xl">
-              תשמישי קדושה ויודאיקה מהודרת
+            {/* The brand name leads the H1 deliberately, and it is an SEO
+                decision rather than a copy one. The store ranks first for
+                "orzadik" — an invented token nothing else competes for — but
+                the Hebrew name is a verse from תהילים צ״ז, so that query is
+                contested by scripture sites with far more authority. The title
+                tag carried the name; the H1, the strongest heading on the
+                page, did not. This puts it there.
+
+                The size steps down one notch at each breakpoint (was
+                1.75rem/4xl/5xl) so the longer line still holds two rows on a
+                390px phone instead of three, which is what kept the CTA row
+                clear of the fold. */}
+            <h1 className="font-display text-[1.5rem] font-semibold leading-[1.15] text-white sm:text-[2rem] md:text-[2.75rem]">
+              אור זרוע לצדיק — תשמישי קדושה ויודאיקה מהודרת
             </h1>
             <p className="mt-3 max-w-xl text-sm leading-relaxed text-white/95 sm:text-base">
               טליתות, מארזים לחתנים, כיסויי תפילין ונרתיקי מזוזה — נבחרים בהקפדה על כשרות והידור

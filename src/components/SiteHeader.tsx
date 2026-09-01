@@ -1284,6 +1284,14 @@ export function SiteFooter() {
                     אודות
                   </Link>
                 </li>
+                {/* Sitewide footer link, which is what makes the brand-name
+                    page a real part of the site rather than an orphan the
+                    sitemap alone points at. */}
+                <li>
+                  <Link to="/or-zarua-latzadik" className={FOOT_LINK_CLS}>
+                    מקור השם
+                  </Link>
+                </li>
                 <li>
                   <Link to="/club" className={FOOT_LINK_CLS}>
                     מועדון חברים
