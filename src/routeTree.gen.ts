@@ -17,6 +17,7 @@ import { Route as ShippingRouteImport } from './routes/shipping'
 import { Route as ReviewRouteImport } from './routes/review'
 import { Route as ReturnsRouteImport } from './routes/returns'
 import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as OrZaruaLatzadikRouteImport } from './routes/or-zarua-latzadik'
 import { Route as FeedDotxmlRouteImport } from './routes/feed[.]xml'
 import { Route as FavoritesRouteImport } from './routes/favorites'
 import { Route as ContactRouteImport } from './routes/contact'
@@ -91,6 +92,11 @@ const ReturnsRoute = ReturnsRouteImport.update({
 const PrivacyRoute = PrivacyRouteImport.update({
   id: '/privacy',
   path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OrZaruaLatzadikRoute = OrZaruaLatzadikRouteImport.update({
+  id: '/or-zarua-latzadik',
+  path: '/or-zarua-latzadik',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FeedDotxmlRoute = FeedDotxmlRouteImport.update({
@@ -284,6 +290,7 @@ export interface FileRoutesByFullPath {
   '/contact': typeof ContactRoute
   '/favorites': typeof FavoritesRoute
   '/feed.xml': typeof FeedDotxmlRoute
+  '/or-zarua-latzadik': typeof OrZaruaLatzadikRoute
   '/privacy': typeof PrivacyRoute
   '/returns': typeof ReturnsRoute
   '/review': typeof ReviewRoute
@@ -328,6 +335,7 @@ export interface FileRoutesByTo {
   '/contact': typeof ContactRoute
   '/favorites': typeof FavoritesRoute
   '/feed.xml': typeof FeedDotxmlRoute
+  '/or-zarua-latzadik': typeof OrZaruaLatzadikRoute
   '/privacy': typeof PrivacyRoute
   '/returns': typeof ReturnsRoute
   '/review': typeof ReviewRoute
@@ -374,6 +382,7 @@ export interface FileRoutesById {
   '/contact': typeof ContactRoute
   '/favorites': typeof FavoritesRoute
   '/feed.xml': typeof FeedDotxmlRoute
+  '/or-zarua-latzadik': typeof OrZaruaLatzadikRoute
   '/privacy': typeof PrivacyRoute
   '/returns': typeof ReturnsRoute
   '/review': typeof ReviewRoute
@@ -421,6 +430,7 @@ export interface FileRouteTypes {
     | '/contact'
     | '/favorites'
     | '/feed.xml'
+    | '/or-zarua-latzadik'
     | '/privacy'
     | '/returns'
     | '/review'
@@ -465,6 +475,7 @@ export interface FileRouteTypes {
     | '/contact'
     | '/favorites'
     | '/feed.xml'
+    | '/or-zarua-latzadik'
     | '/privacy'
     | '/returns'
     | '/review'
@@ -510,6 +521,7 @@ export interface FileRouteTypes {
     | '/contact'
     | '/favorites'
     | '/feed.xml'
+    | '/or-zarua-latzadik'
     | '/privacy'
     | '/returns'
     | '/review'
@@ -556,6 +568,7 @@ export interface RootRouteChildren {
   ContactRoute: typeof ContactRoute
   FavoritesRoute: typeof FavoritesRoute
   FeedDotxmlRoute: typeof FeedDotxmlRoute
+  OrZaruaLatzadikRoute: typeof OrZaruaLatzadikRoute
   PrivacyRoute: typeof PrivacyRoute
   ReturnsRoute: typeof ReturnsRoute
   ReviewRoute: typeof ReviewRoute
@@ -635,6 +648,13 @@ declare module '@tanstack/react-router' {
       path: '/privacy'
       fullPath: '/privacy'
       preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/or-zarua-latzadik': {
+      id: '/or-zarua-latzadik'
+      path: '/or-zarua-latzadik'
+      fullPath: '/or-zarua-latzadik'
+      preLoaderRoute: typeof OrZaruaLatzadikRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/feed.xml': {
@@ -925,6 +945,7 @@ const rootRouteChildren: RootRouteChildren = {
   ContactRoute: ContactRoute,
   FavoritesRoute: FavoritesRoute,
   FeedDotxmlRoute: FeedDotxmlRoute,
+  OrZaruaLatzadikRoute: OrZaruaLatzadikRoute,
   PrivacyRoute: PrivacyRoute,
   ReturnsRoute: ReturnsRoute,
   ReviewRoute: ReviewRoute,

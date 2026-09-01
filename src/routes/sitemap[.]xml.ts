@@ -17,6 +17,10 @@ const STATIC: Array<{ path: string; freq: string; pri: string }> = [
   { path: "/categories", freq: "weekly", pri: "0.8" },
   { path: "/articles", freq: "weekly", pri: "0.8" },
   { path: "/about", freq: "monthly", pri: "0.5" },
+  // The brand-name page. Priority above the other informational pages because
+  // it is the site's only answer to the Hebrew name itself — see the note at
+  // the top of src/routes/or-zarua-latzadik.tsx.
+  { path: "/or-zarua-latzadik", freq: "monthly", pri: "0.7" },
   { path: "/contact", freq: "monthly", pri: "0.5" },
   // /track is deliberately absent: it is noindex and only ever renders a
   // specific customer's order.
