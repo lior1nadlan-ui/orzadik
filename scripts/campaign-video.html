@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>מחולל סרטון קמפיין — אור זרוע לצדיק</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root { --gold:#b8912f; --ink:#1a1a1a; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:Heebo,system-ui,sans-serif; background:#f6f6f4; color:var(--ink);
+         padding:24px; display:flex; flex-direction:column; align-items:center; }
+  .wrap { width:100%; max-width:980px; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  .sub { color:#666; font-size:14px; margin:0 0 18px; }
+  .bar { display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin-bottom:14px; }
+  button, select, input { font-family:inherit; font-size:14px; padding:9px 14px; border-radius:8px;
+                          border:1px solid #ccc; background:#fff; }
+  button { cursor:pointer; }
+  button.primary { background:var(--ink); color:#fff; border-color:var(--ink); font-weight:700; }
+  button.rec { background:#c0392b; color:#fff; border-color:#c0392b; font-weight:700; }
+  button:disabled { opacity:.45; cursor:default; }
+  label { font-size:14px; display:flex; align-items:center; gap:6px; }
+  #status { font-size:13px; color:#555; margin:10px 0; min-height:20px; }
+  #status.err { color:#b00; font-weight:500; }
+  #status.rec { color:#c0392b; font-weight:700; }
+  canvas { max-height:70vh; width:auto; max-width:100%; border:1px solid #e4e4e4; background:#fff;
+           box-shadow:0 2px 20px rgba(0,0,0,.1); border-radius:4px; }
+  .note { font-size:12.5px; color:#777; line-height:1.6; margin-top:16px;
+          border-top:1px solid #e4e4e4; padding-top:14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>מחולל סרטון קמפיין — אור זרוע לצדיק</h1>
+  <p class="sub">מוצרים מתחלפים במהירות מכל קטגוריות החנות, עם שם החנות קבוע במרכז. מקליט ישירות לקובץ וידאו.</p>
+
+  <div class="bar">
+    <label>פורמט
+      <select id="fmt">
+        <option value="1080x1920">סטורי / רילס 1080×1920</option>
+        <option value="1080x1350">פיד 1080×1350</option>
+        <option value="1080x1080">מרובע 1080×1080</option>
+      </select>
+    </label>
+    <label>אורך
+      <select id="dur">
+        <option value="8">8 שניות</option>
+        <option value="12" selected>12 שניות</option>
+        <option value="15">15 שניות</option>
+      </select>
+    </label>
+    <label>קצב החלפה
+      <select id="speed">
+        <option value="200">רגוע (5 בשנייה)</option>
+        <option value="140" selected>מהיר (7 בשנייה)</option>
+        <option value="100">מהיר מאוד (10 בשנייה)</option>
+      </select>
+    </label>
+    <button id="preview" disabled>תצוגה מקדימה</button>
+    <button id="record" class="rec" disabled>הקלטה והורדה</button>
+  </div>
+
+  <div id="status">טוען תמונות…</div>
+  <canvas id="cv" width="1080" height="1920"></canvas>
+
+  <p class="note">
+    <b>הקלטה רצה בזמן אמת</b> — סרטון של 12 שניות נמשך 12 שניות. אל תעבור לטאב אחר בזמן ההקלטה,
+    הדפדפן מאט קנבס ברקע והסרטון ייצא קטוע.<br>
+    <b>קצב ההבהוב</b> — 10 בשנייה נראה חד אבל עלול להפריע לרגישים לאור, ו-Meta לפעמים מגבילה הפצה של
+    הבהוב מהיר. 7 בשנייה הוא פשרה בטוחה. כל הפריימים על רקע לבן, כך שאין קפיצות בהירות חדות.
+  </p>
+</div>
+
+<script>
+const BASE = "https://whtjslgrrfzehivrknuv.supabase.co/storage/v1/object/public/product-images/";
+const PATHS = ["catalog/82379_4.webp","catalog/83549_4.webp","catalog/47242_1.webp","catalog/41098_1.webp","opt/76cfe0e64b188e9924b22aba.webp","catalog/67745_4.webp","catalog/83428_4.webp","catalog/48833_1.webp","catalog/50061_4.webp","catalog/60177_1.webp","catalog/47228_1.webp","catalog/67869_2.webp","catalog/67721_1.webp","catalog/60019_3.webp","catalog/10505_1.webp","catalog/10480_1.webp","catalog/19307_1.webp","catalog/82710_4.webp","opt/791049e015d7a2662318111f.webp","catalog/35858_1.webp","catalog/67119_1.webp","catalog/80409_4.webp","opt/2ca142cae050727949249445.webp","catalog/44912_4.webp","opt/3bb841addf1e461bd99a73c4.webp","catalog/81737_1.webp","catalog/55763_4.webp","catalog/48230_1.webp","catalog/35946_4.webp","catalog/66716_4.webp","catalog/41318_4.webp","catalog/42291_4.webp","catalog/55799_1.webp","catalog/44978_1.webp","opt/ac3a8b1b590f0a7d766c0933.webp","catalog/66564_1.webp","catalog/82800_4.webp","catalog/81049_4.webp","opt/b5791af53883923434b64c01.webp","catalog/81179_4.webp","catalog/41050_1.webp","catalog/65097_4.webp","opt/c4168dae2ea0932a8b19af51.webp","catalog/42076_1.webp","catalog/45714_4.webp","catalog/66960_1.webp","catalog/66818_1.webp","catalog/67728_3.webp","catalog/67109_1.webp","catalog/67048_1.webp","opt/8a22359c3fca02fbc0f3bf86.webp","opt/e3960af8ada28e44c0c0fb50.webp","catalog/80898_3.webp","opt/0e67bcac517c4ec23f40cd30.webp","catalog/35855_1.webp","catalog/49238_1.webp","catalog/67719_1.webp","catalog/82772_4.webp","opt/6af911bdc812a6f4afdb559b.webp","catalog/43370_1.webp","opt/cc21fec6509210b1086cf210.webp","catalog/81667_4.webp","catalog/83449_1.webp","catalog/48223_1.webp","catalog/41434_4.webp","opt/42af4c0c22725ee5d9922e5a.webp","catalog/47106_1.webp","catalog/80326_3.webp","catalog/49173_1.webp","opt/d87fbd7494dca85967aa7005.webp","catalog/80726_1.webp","catalog/50090_1.webp","catalog/48027_1.webp","catalog/48644_1.webp","catalog/49723_1.webp","catalog/65096_4.webp","catalog/59811_4.webp","catalog/41294_4.webp","catalog/45246_3.webp","catalog/60964_4.webp","catalog/66526_1.webp","opt/a93af100953e7b98936adf5a.webp","catalog/67650_3.webp","opt/c68c716da0ef41e4b77f9635.webp","opt/0a182c4b29716da0db509118.webp","catalog/82387_4.webp","catalog/20913_1.webp","catalog/35695_4.webp","catalog/80483_4.webp","catalog/67317_1.webp","catalog/42381_4.webp","opt/0d4e85ef1f59ddb8c903cf4e.webp","catalog/20928_1.webp","catalog/67085_1.webp","opt/695aa373d209c3e1319f5ab2.webp","catalog/81692_4.webp","catalog/40912_1.webp","catalog/82519_4.webp","catalog/80915_4.webp","opt/0ce86b2d552909406337e259.webp","catalog/46823_1.webp","catalog/80324_4.webp","catalog/83733_4.webp","catalog/67260_1.webp","opt/e165552993389808f076adec.webp","catalog/82906_4.webp","catalog/41319_1.webp","catalog/55794_4.webp","catalog/48102_1.webp","catalog/46772_1.webp","catalog/65099_4.webp","catalog/82734_4.webp","catalog/42233_4.webp","catalog/50063_4.webp","catalog/67722_1.webp","catalog/90872_1.webp","opt/2b976b615013c86293836790.webp","opt/b150e19be04098a1abbaef1d.webp","opt/734a91cd0f4f08f922bdcebf.webp","catalog/17201_1.webp","catalog/82349_4.webp","catalog/24817_1.webp","catalog/35852_1.webp","catalog/40925_1.webp","catalog/66216_1.webp","catalog/82779_4.webp","opt/9c81336450c9855c5031fa8b.webp","catalog/24819_1.webp","catalog/41488_4.webp","opt/ada640b946bf273c2cb1832a.webp","catalog/45541_1.webp","catalog/55739_4.webp","opt/300996e63269a29faa2c45ac.webp","catalog/47823_4.webp","catalog/82766_4.webp","catalog/35951_1.webp","catalog/81972_4.webp","catalog/49172_1.webp","catalog/66471_1.webp","opt/acc0aad6793b66e57207bb4c.webp","catalog/80997_1.webp","catalog/42502_2.webp","catalog/82003_4.webp","catalog/40510_1.webp","catalog/81577_4.webp","catalog/65092_4.webp","catalog/59876_4.webp","catalog/41295_4.webp","catalog/42547_3.webp","catalog/67155_1.webp","catalog/66685_1.webp","opt/e1a5af9cedfb5eeba87e3a4f.webp","opt/84cc1c7d25db040ab0057e78.webp","catalog/18727_1.webp","catalog/19093_1.webp","catalog/46343_4.webp","catalog/20048_1.webp","catalog/35848_1.webp","catalog/40552_1.webp","catalog/67315_1.webp","catalog/55833_4.webp","opt/32efc1e0b5dbd3301b2f27df.webp","catalog/89535_1.webp","opt/91abf560e06ad77ac7c4d6db.webp","catalog/48187_1.webp","catalog/55745_4.webp","catalog/82522_4.webp","catalog/49836_4.webp","catalog/41505_1.webp","catalog/50070_1.webp","catalog/82368_4.webp","catalog/41349_3.webp","catalog/67704_1.webp","opt/8f547c507630ee4e4da6bd6a.webp","catalog/80699_1.webp","catalog/81158_4.webp","catalog/83292_4.webp","catalog/43950_1.webp","catalog/40600_1.webp","catalog/65095_4.webp","catalog/82370_4.webp","catalog/49312_4.webp","catalog/42205_4.webp","catalog/66933_1.webp","catalog/46403_1.webp","opt/67de1d7ba3080dde4ad95b4f.webp","catalog/18726_1.webp","catalog/15211_1.webp","catalog/46344_4.webp","catalog/24763_4.webp","catalog/35999_2.webp","catalog/46981_1.webp","catalog/67314_1.webp","opt/e2657cc2e9a007d6bc7ec3c3.webp","catalog/22009_1.webp","catalog/67024_1.webp","opt/e4d6347785f3739a898d1d38.webp","catalog/48105_1.webp","catalog/47447_4.webp","catalog/66645_1.webp","catalog/42649_1.webp","catalog/41722_2.webp","catalog/50067_1.webp","catalog/84186_4.webp","catalog/81617_4.webp","catalog/67261_1.webp","opt/95508215d4d0fbfb0208a917.webp","catalog/80694_1.webp","catalog/46644_4.webp","catalog/48865_1.webp","opt/fd4fa96726d32adcf88e11d8.webp","opt/3c874d688c6b6c75f16aaadb.webp","catalog/65094_4.webp","catalog/41125_1.webp","catalog/41292_1.webp","catalog/82046_4.webp","opt/056334cb6bac07f6558b809d.webp","catalog/66115_1.webp","opt/a205906404173e6906315754.webp","catalog/18551_1.webp","catalog/14956_1.webp","catalog/81664_4.webp","catalog/21785_1.webp","catalog/35996_2.webp","catalog/83313_4.webp","catalog/66991_1.webp","catalog/83133_3.webp","catalog/53363_4.webp","catalog/43600_1.webp","catalog/82788_4.webp","catalog/80958_1.webp","catalog/83635_4.webp","catalog/80026_1.webp","catalog/82373_1.webp","catalog/42665_4.webp","catalog/54029_4.webp","catalog/65676_1.webp","opt/e0fa2dcadee87ccfa0e18d13.webp","catalog/49355_1.webp"];
+
+const cv = document.getElementById("cv"), ctx = cv.getContext("2d");
+const statusEl = document.getElementById("status");
+let pool = [], tainted = false, running = false;
+
+const S = (id) => document.getElementById(id);
+function setStatus(t, cls) { statusEl.textContent = t; statusEl.className = cls || ""; }
+
+function load(path) {
+  return new Promise(res => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => res(img);
+    img.onerror = () => res(null);
+    img.src = BASE + path;
+  });
+}
+
+/* אותו סינון כמו במחולל התמונה: שוליים כמעט-לבנים, ומרכז שיש בו מוצר שרואים.
+   בלי המבחן השני הסרטון מתמלא בקופסאות אריזה לבנות — פריים ריק שמהבהב. */
+function isUsable(img) {
+  const N = 64, c = document.createElement("canvas");
+  c.width = c.height = N;
+  const x = c.getContext("2d", { willReadFrequently: true });
+  x.drawImage(img, 0, 0, N, N);
+  let d;
+  try { d = x.getImageData(0, 0, N, N).data; } catch (e) { tainted = true; return true; }
+  const px = (ix, iy) => { const i = (iy * N + ix) * 4; return [d[i], d[i+1], d[i+2]]; };
+
+  let ep = 0, et = 0;
+  const edge = (ix, iy) => { const [r,g,b] = px(ix,iy); et++;
+    if (Math.min(r,g,b) > 236 && Math.max(r,g,b) - Math.min(r,g,b) < 14) ep++; };
+  for (let i = 0; i < N; i++) { edge(i,0); edge(i,N-1); edge(0,i); edge(N-1,i); edge(i,2); edge(2,i); }
+  if (ep / et <= 0.9) return false;
+
+  const a = Math.round(N * 0.18), z = N - a;
+  let ink = 0, strong = 0, n = 0;
+  for (let iy = a; iy < z; iy++) for (let ix = a; ix < z; ix++) {
+    const [r,g,b] = px(ix,iy), mn = Math.min(r,g,b), mx = Math.max(r,g,b);
+    n++;
+    if (mn < 225 || mx - mn > 25) ink++;
+    if (mn < 200) strong++;
+  }
+  return ink / n > 0.15 && strong / n > 0.06;
+}
+
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+/* מוצר יחיד ממורכז, עם זום עדין לאורך זמן החשיפה שלו כדי שהפריים לא יהיה סטטי לגמרי. */
+function drawProduct(img, W, H, grow) {
+  const box = Math.min(W, H) * 0.92 * (1 + grow * 0.05);
+  const r = Math.min(box / img.width, box / img.height);
+  const w = img.width * r, h = img.height * r;
+  ctx.drawImage(img, (W - w) / 2, (H - h) / 2, w, h);
+}
+
+/* הפאנל יושב במרכז האנכי. בסטורי זה גם האזור הבטוח: מעל 250px ומתחת ל-340px
+   האחרונים יושב הממשק של אינסטגרם ומכסה כל דבר שנמצא שם. */
+function drawBrand(W, H, alpha, showUrl) {
+  if (alpha <= 0) return;
+  ctx.save();
+  ctx.globalAlpha = Math.min(1, alpha);
+
+  const pw = Math.min(W * 0.86, 940), ph = Math.min(H * 0.26, 330);
+  const px = (W - pw) / 2, py = (H - ph) / 2;
+
+  const g = ctx.createRadialGradient(W/2, H/2, ph*0.35, W/2, H/2, Math.max(W,H)*0.55);
+  g.addColorStop(0, "rgba(255,255,255,.95)");
+  g.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.save();
+  ctx.shadowColor = "rgba(0,0,0,.14)";
+  ctx.shadowBlur = 48;
+  ctx.shadowOffsetY = 10;
+  ctx.fillStyle = "#fff";
+  roundRect(px, py, pw, ph, 10);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.strokeStyle = "#b8912f";
+  ctx.lineWidth = 2.5;
+  roundRect(px + 12, py + 12, pw - 24, ph - 24, 6);
+  ctx.stroke();
+
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const cx = W / 2, u = ph / 100;
+
+  ctx.fillStyle = "#1a1a1a";
+  ctx.font = `900 ${u*23}px Heebo, sans-serif`;
+  ctx.fillText("אור זרוע לצדיק", cx, py + ph * (showUrl ? 0.31 : 0.36));
+
+  ctx.strokeStyle = "#b8912f";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(cx - pw*0.15, py + ph * (showUrl ? 0.47 : 0.53));
+  ctx.lineTo(cx + pw*0.15, py + ph * (showUrl ? 0.47 : 0.53));
+  ctx.stroke();
+
+  ctx.fillStyle = "#b8912f";
+  ctx.font = `700 ${u*12}px Heebo, sans-serif`;
+  ctx.fillText("חנות ליודאיקה מהודרת", cx, py + ph * (showUrl ? 0.62 : 0.70));
+
+  if (showUrl) {
+    ctx.fillStyle = "#666";
+    ctx.font = `500 ${u*9}px Heebo, sans-serif`;
+    ctx.fillText("orzadik.com  ·  משלוח עד הבית בכל הארץ", cx, py + ph * 0.83);
+  }
+  ctx.restore();
+}
+
+function play(recorder) {
+  return new Promise(resolve => {
+    const [W, H] = S("fmt").value.split("x").map(Number);
+    cv.width = W; cv.height = H;
+
+    const total = Number(S("dur").value) * 1000;
+    const flash = Number(S("speed").value);
+    const INTRO = 700, OUTRO = 1800;      // פתיח על לבן, וסיום שנעצר על פריים אחד
+    const order = pool.slice().sort(() => Math.random() - 0.5);
+
+    const t0 = performance.now();
+    let lastIdx = -1;
+
+    function frame(now) {
+      const t = now - t0;
+      if (t >= total) { resolve(); return; }
+
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, W, H);
+
+      if (t > INTRO) {
+        const tt = t - INTRO;
+        const inOutro = t > total - OUTRO;
+        // בסיום מקפיאים על המוצר האחרון במקום להמשיך להבהב אל תוך הקאט
+        const idx = inOutro ? lastIdx
+                            : Math.floor(tt / flash) % order.length;
+        lastIdx = idx < 0 ? 0 : idx;
+        const grow = inOutro ? 1 : (tt % flash) / flash;
+        drawProduct(order[lastIdx], W, H, grow);
+      }
+
+      const fadeIn = Math.min(1, t / INTRO);
+      drawBrand(W, H, fadeIn, t > total - OUTRO);
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  });
+}
+
+function pickMime() {
+  const want = ["video/mp4;codecs=avc1.42E01E", "video/mp4",
+                "video/webm;codecs=vp9", "video/webm"];
+  for (const m of want) if (MediaRecorder.isTypeSupported(m)) return m;
+  return "";
+}
+
+S("preview").onclick = async () => {
+  if (running) return;
+  running = true;
+  setStatus("מנגן תצוגה מקדימה…");
+  await play(null);
+  running = false;
+  setStatus("התצוגה הסתיימה. אם זה נראה טוב — לחץ הקלטה והורדה.");
+};
+
+S("record").onclick = async () => {
+  if (running) return;
+  running = true;
+  const mime = pickMime();
+  if (!mime) { setStatus("הדפדפן לא תומך בהקלטת וידאו. נסה Chrome עדכני.", "err"); running = false; return; }
+
+  const stream = cv.captureStream(30);
+  let rec;
+  try { rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 8_000_000 }); }
+  catch (e) { setStatus("ההקלטה נכשלה: " + e.message, "err"); running = false; return; }
+
+  const chunks = [];
+  rec.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+  const done = new Promise(r => { rec.onstop = r; });
+
+  rec.start();
+  setStatus("מקליט… אל תעבור טאב עד הסוף.", "rec");
+  await play(rec);
+  rec.stop();
+  await done;
+
+  const ext = mime.startsWith("video/mp4") ? "mp4" : "webm";
+  const blob = new Blob(chunks, { type: mime });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `orzadik-campaign-${S("fmt").value}.${ext}`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+
+  running = false;
+  setStatus(`הורד: ${ext.toUpperCase()}, ${(blob.size/1048576).toFixed(1)}MB.` +
+            (ext === "webm" ? "  ⚠️ הדפדפן הקליט WebM ולא MP4 — Meta מעדיפה MP4, תשלח לי ואבדוק." : ""));
+};
+
+(async () => {
+  try { await document.fonts.load('900 60px Heebo'); await document.fonts.load('700 30px Heebo'); } catch (e) {}
+  let done = 0;
+  const imgs = await Promise.all(PATHS.map(async p => {
+    const img = await load(p);
+    setStatus(`טוען תמונות… ${++done}/${PATHS.length}`);
+    return img;
+  }));
+  const ok = imgs.filter(Boolean);
+  if (!ok.length) { setStatus("אף תמונה לא נטענה — בדוק חיבור לאינטרנט.", "err"); return; }
+  pool = ok.filter(isUsable);
+  if (pool.length < 20) pool = ok;
+  S("preview").disabled = false;
+  S("record").disabled = false;
+  setStatus(`מוכן — ${pool.length} מוצרים בסרטון.` +
+            (tainted ? "  ⚠️ הדפדפן חסם קריאת פיקסלים, הסינון לא רץ." : ""));
+})();
+</script>
+</body>
+</html>
