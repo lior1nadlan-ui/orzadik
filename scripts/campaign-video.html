@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>מחולל סרטון קמפיין — אור זרוע לצדיק</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root { --gold:#b8912f; --ink:#1a1a1a; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:Heebo,system-ui,sans-serif; background:#f6f6f4; color:var(--ink);
+         padding:24px; display:flex; flex-direction:column; align-items:center; }
+  .wrap { width:100%; max-width:1040px; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  .sub { color:#666; font-size:14px; margin:0 0 18px; }
+  .bar { display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin-bottom:12px; }
+  button, select { font-family:inherit; font-size:14px; padding:9px 14px; border-radius:8px;
+                   border:1px solid #ccc; background:#fff; }
+  button { cursor:pointer; }
+  button.rec { background:#c0392b; color:#fff; border-color:#c0392b; font-weight:700; }
+  button:disabled { opacity:.45; cursor:default; }
+  label { font-size:14px; display:flex; align-items:center; gap:6px; }
+  #status { font-size:13px; color:#555; margin:10px 0 4px; min-height:20px; }
+  #status.err { color:#b00; font-weight:500; }
+  #status.rec { color:#c0392b; font-weight:700; }
+  #calc { font-size:13px; color:#1a1a1a; background:#fff; border:1px solid #e4e4e4;
+          border-radius:8px; padding:10px 14px; margin-bottom:14px; }
+  #calc b { color:var(--gold); }
+  canvas { max-height:66vh; width:auto; max-width:100%; border:1px solid #e4e4e4; background:#fff;
+           box-shadow:0 2px 20px rgba(0,0,0,.1); border-radius:4px; }
+  .note { font-size:12.5px; color:#777; line-height:1.6; margin-top:16px;
+          border-top:1px solid #e4e4e4; padding-top:14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>מחולל סרטון קמפיין — אור זרוע לצדיק</h1>
+  <p class="sub">שולף את המוצרים ישירות מהמסד בזמן אמת, מסנן לתמונות על רקע לבן שרואים בהן מוצר, ומרכיב סרטון.</p>
+
+  <div class="bar">
+    <label>כמה תמונות
+      <select id="count">
+        <option value="600">600</option>
+        <option value="1000">1000</option>
+        <option value="1500" selected>1500</option>
+        <option value="2600">הכול (~2,590)</option>
+      </select>
+    </label>
+    <label>סוג
+      <select id="uniq">
+        <option value="all" selected>כולל וריאנטים (צבע / גודל)</option>
+        <option value="fam">רק פריטים שונים (~595)</option>
+      </select>
+    </label>
+    <label>פורמט
+      <select id="fmt">
+        <option value="1080x1920">סטורי / רילס 1080×1920</option>
+        <option value="1080x1350">פיד 1080×1350</option>
+        <option value="1080x1080">מרובע 1080×1080</option>
+      </select>
+    </label>
+    <label>סגנון
+      <select id="mode">
+        <option value="mosaic" selected>פסיפס</option>
+        <option value="single">מסך מלא</option>
+      </select>
+    </label>
+    <label>צפיפות
+      <select id="cols">
+        <option value="3">3 בשורה</option>
+        <option value="4">4 בשורה</option>
+        <option value="5" selected>5 בשורה</option>
+        <option value="6">6 בשורה</option>
+        <option value="8">8 בשורה — זעיר</option>
+      </select>
+    </label>
+    <label>אורך
+      <select id="dur">
+        <option value="12">12 שניות</option>
+        <option value="20">20 שניות</option>
+        <option value="30" selected>30 שניות</option>
+        <option value="45">45 שניות</option>
+        <option value="60">60 שניות</option>
+      </select>
+    </label>
+    <label>מהירות
+      <select id="speed">
+        <option value="1600">רגוע</option>
+        <option value="1000">מהיר</option>
+        <option value="650" selected>מהיר מאוד</option>
+        <option value="400">מטורף</option>
+      </select>
+    </label>
+    <button id="preview" disabled>תצוגה מקדימה</button>
+    <button id="record" class="rec" disabled>הקלטה והורדה</button>
+  </div>
+
+  <div id="calc">—</div>
+  <div id="status">מתחבר למסד…</div>
+  <canvas id="cv" width="1080" height="1920"></canvas>
+
+  <p class="note">
+    <b>למה פסיפס.</b> להראות הרבה מוצרים מהר עדיף בהחלפת משבצות בהיסט זמן ביניהן מאשר בהבהוב
+    תמונה אחת על כל המסך: העין רואה תנועה מתמדת ועשרות מוצרים בכל רגע, בלי סטרוב שמפריע
+    לרגישים לאור ו-Meta לעיתים מגבילה את הפצתו.<br>
+    <b>מספר התמונות מול מה שנראה בפועל.</b> השורה הכתומה למעלה מחשבת כמה מוצרים באמת יספיקו
+    להופיע לפי האורך, הצפיפות והמהירות שבחרת. אם המספר קטן מכמות התמונות שנטענו — הסרטון פשוט
+    יסתיים לפני שהגיע לכולן. הגדל אורך, צפיפות או מהירות.<br>
+    <b>הקלטה בזמן אמת</b> — סרטון של 30 שניות נמשך 30 שניות. אל תעבור טאב, הדפדפן מאט קנבס ברקע.
+  </p>
+</div>
+
+<script>
+const SUPA = "https://whtjslgrrfzehivrknuv.supabase.co";
+// מפתח פרסום ציבורי — אותו מפתח שהאתר עצמו שולח מהדפדפן. RLS מתיר ל-anon
+// לקרוא מוצרים פעילים ותמונות מוצר בלבד, ותו לא.
+const KEY  = "sb_publishable_iIXlA6UOH_jEMubtd2nW9A_bG9hPbaF";
+const BASE = SUPA + "/storage/v1/object/public/product-images/";
+const THUMB = 256;   // כל תמונה מוקטנת לפני שמירה בזיכרון
+
+const cv = document.getElementById("cv"), ctx = cv.getContext("2d");
+const S = (id) => document.getElementById(id);
+let rows = [], pool = [], loadedFor = "", running = false, tainted = false;
+
+function setStatus(t, cls) { S("status").textContent = t; S("status").className = cls || ""; }
+
+/* כמה מוצרים באמת יספיקו לעבור על המסך בהגדרות הנוכחיות. בלי החישוב הזה
+   קל לבחור 1500 תמונות ולקבל סרטון שמראה 300 מהן. */
+function updateCalc() {
+  const [W, H] = S("fmt").value.split("x").map(Number);
+  const mosaic = S("mode").value === "mosaic";
+  const cols = mosaic ? Number(S("cols").value) : 1;
+  const tile = W / cols;
+  const n = mosaic ? cols * Math.ceil(H / tile) : 1;
+  const step = Number(S("speed").value);
+  const secs = Number(S("dur").value);
+  const usable = Math.max(0, secs * 1000 - 700 - 1800);
+  const shown = n + Math.floor(usable / step) * n;
+  const rate = Math.round(n / (step / 1000));
+  S("calc").innerHTML = `על המסך <b>${n}</b> משבצות בו-זמנית · כ-<b>${rate}</b> מוצרים מתחלפים בשנייה · ` +
+    `לאורך הסרטון יופיעו כ-<b>${shown.toLocaleString("he-IL")}</b> מוצרים` +
+    (pool.length ? ` · נטענו <b>${pool.length.toLocaleString("he-IL")}</b> תמונות` : "");
+}
+["fmt","mode","cols","dur","speed"].forEach(id => S(id).onchange = () => {
+  S("cols").disabled = S("mode").value !== "mosaic";
+  updateCalc();
+});
+
+/* שליפה ישירה מ-PostgREST. product_images מוטבע כמערך, ונלקחת התמונה
+   הראשונה לפי sort_order — אותה תמונה שהאתר מציג ככרטיס המוצר. */
+async function fetchRows(limit) {
+  const url = `${SUPA}/rest/v1/products?select=name,price,product_images(url,sort_order)` +
+              `&is_active=eq.true&price=gt.0&order=price.desc&limit=${limit}`;
+  const r = await fetch(url, { headers: { apikey: KEY, Authorization: "Bearer " + KEY } });
+  if (!r.ok) throw new Error(`Supabase ${r.status}: ${await r.text()}`);
+  const data = await r.json();
+  return data
+    .map(p => {
+      const imgs = (p.product_images || []).slice()
+        .sort((a, b) => (a.sort_order ?? 1e9) - (b.sort_order ?? 1e9));
+      return imgs.length ? { name: p.name || "", url: imgs[0].url } : null;
+    })
+    .filter(Boolean);
+}
+
+function fam(name) { return name.split(/\s+/).slice(0, 3).join(" "); }
+
+async function toThumb(url) {
+  try {
+    const res = await fetch(url, { mode: "cors" });
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    // הקטנה בזמן הפענוח: 1500 תמונות בגודל מלא היו תופסות כמה ג'יגה-בייט
+    return await createImageBitmap(blob, {
+      resizeWidth: THUMB, resizeHeight: THUMB, resizeQuality: "high"
+    });
+  } catch (e) { return null; }
+}
+
+/* שוליים כמעט-לבנים, ומרכז שיש בו מוצר שרואים. בלי המבחן השני עוברות
+   עשרות תמונות של קופסאות אריזה לבנות — רקע לבן, מוצר לבן, ריבוע ריק. */
+const probe = document.createElement("canvas");
+probe.width = probe.height = 64;
+const pctx = probe.getContext("2d", { willReadFrequently: true });
+function isUsable(bmp) {
+  const N = 64;
+  pctx.clearRect(0, 0, N, N);
+  pctx.drawImage(bmp, 0, 0, N, N);
+  let d;
+  try { d = pctx.getImageData(0, 0, N, N).data; } catch (e) { tainted = true; return true; }
+  const px = (ix, iy) => { const i = (iy * N + ix) * 4; return [d[i], d[i+1], d[i+2]]; };
+
+  let ep = 0, et = 0;
+  const edge = (ix, iy) => { const [r,g,b] = px(ix,iy); et++;
+    if (Math.min(r,g,b) > 236 && Math.max(r,g,b) - Math.min(r,g,b) < 14) ep++; };
+  for (let i = 0; i < N; i++) { edge(i,0); edge(i,N-1); edge(0,i); edge(N-1,i); edge(i,2); edge(2,i); }
+  if (ep / et <= 0.9) return false;
+
+  const a = Math.round(N * 0.18), z = N - a;
+  let ink = 0, strong = 0, n = 0;
+  for (let iy = a; iy < z; iy++) for (let ix = a; ix < z; ix++) {
+    const [r,g,b] = px(ix,iy), mn = Math.min(r,g,b), mx = Math.max(r,g,b);
+    n++;
+    if (mn < 225 || mx - mn > 25) ink++;
+    if (mn < 200) strong++;
+  }
+  return ink / n > 0.15 && strong / n > 0.06;
+}
+
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function fit(bmp, cx, cy, box, scale) {
+  const b = box * scale;
+  const r = Math.min(b / bmp.width, b / bmp.height);
+  const w = bmp.width * r, h = bmp.height * r;
+  ctx.drawImage(bmp, cx - w / 2, cy - h / 2, w, h);
+}
+
+/* הפאנל יושב במרכז האנכי — בסטורי זה גם האזור הבטוח: 250 הפיקסלים העליונים
+   וכ-340 התחתונים מכוסים בממשק של אינסטגרם. */
+function drawBrand(W, H, alpha, showUrl) {
+  if (alpha <= 0) return;
+  ctx.save();
+  ctx.globalAlpha = Math.min(1, alpha);
+
+  const pw = Math.min(W * 0.86, 940), ph = Math.min(H * 0.26, 330);
+  const px = (W - pw) / 2, py = (H - ph) / 2;
+
+  const g = ctx.createRadialGradient(W/2, H/2, ph*0.35, W/2, H/2, Math.max(W,H)*0.55);
+  g.addColorStop(0, "rgba(255,255,255,.95)");
+  g.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.save();
+  ctx.shadowColor = "rgba(0,0,0,.14)";
+  ctx.shadowBlur = 48;
+  ctx.shadowOffsetY = 10;
+  ctx.fillStyle = "#fff";
+  roundRect(px, py, pw, ph, 10);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.strokeStyle = "#b8912f";
+  ctx.lineWidth = 2.5;
+  roundRect(px + 12, py + 12, pw - 24, ph - 24, 6);
+  ctx.stroke();
+
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const cx = W / 2, u = ph / 100;
+
+  ctx.fillStyle = "#1a1a1a";
+  ctx.font = `900 ${u*23}px Heebo, sans-serif`;
+  ctx.fillText("אור זרוע לצדיק", cx, py + ph * (showUrl ? 0.31 : 0.36));
+
+  ctx.strokeStyle = "#b8912f";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(cx - pw*0.15, py + ph * (showUrl ? 0.47 : 0.53));
+  ctx.lineTo(cx + pw*0.15, py + ph * (showUrl ? 0.47 : 0.53));
+  ctx.stroke();
+
+  ctx.fillStyle = "#b8912f";
+  ctx.font = `700 ${u*12}px Heebo, sans-serif`;
+  ctx.fillText("חנות ליודאיקה מהודרת", cx, py + ph * (showUrl ? 0.62 : 0.70));
+
+  if (showUrl) {
+    ctx.fillStyle = "#666";
+    ctx.font = `500 ${u*9}px Heebo, sans-serif`;
+    ctx.fillText("orzadik.com  ·  משלוח עד הבית בכל הארץ", cx, py + ph * 0.83);
+  }
+  ctx.restore();
+}
+
+function play() {
+  return new Promise(resolve => {
+    const [W, H] = S("fmt").value.split("x").map(Number);
+    cv.width = W; cv.height = H;
+
+    const total = Number(S("dur").value) * 1000;
+    const step  = Number(S("speed").value);
+    const mosaic = S("mode").value === "mosaic";
+    const INTRO = 700, OUTRO = 1800;
+
+    const cols = mosaic ? Number(S("cols").value) : 1;
+    const tile = W / cols;
+    const rowsN = mosaic ? Math.ceil(H / tile) : 1;
+    const n = cols * rowsN;
+
+    // סדר אקראי, כך שווריאנטים של אותו פריט לא נופלים זה ליד זה
+    const order = pool.slice();
+    for (let i = order.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [order[i], order[j]] = [order[j], order[i]];
+    }
+
+    // לכל משבצת היסט זמן משלה, כך שההחלפות מתפזרות במקום לקרות יחד.
+    // זה מה שהופך "הרבה מוצרים מהר" לתנועה רציפה ולא להבהוב.
+    const slot = new Array(n), born = new Array(n), nextAt = new Array(n);
+    let cursor = 0;
+    const take = () => order[cursor++ % order.length];
+    for (let i = 0; i < n; i++) {
+      slot[i] = take();
+      born[i] = 0;
+      nextAt[i] = INTRO + (mosaic ? (i * step / n) : 0) + step;
+    }
+
+    const t0 = performance.now();
+    function frame(now) {
+      const t = now - t0;
+      if (t >= total) { resolve(); return; }
+
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, W, H);
+
+      const frozen = t > total - OUTRO;
+      if (t > INTRO) {
+        for (let i = 0; i < n; i++) {
+          if (!frozen && t >= nextAt[i]) { slot[i] = take(); born[i] = t; nextAt[i] = t + step; }
+          const age = Math.min(1, (t - born[i]) / 260);
+          const ease = 1 - Math.pow(1 - age, 3);
+          const cx = mosaic ? (i % cols) * tile + tile / 2 : W / 2;
+          const cy = mosaic ? Math.floor(i / cols) * tile + tile / 2 : H / 2;
+          const box = mosaic ? tile * 0.86 : Math.min(W, H) * 0.9;
+          ctx.save();
+          ctx.globalAlpha = 0.25 + 0.75 * ease;
+          fit(slot[i], cx, cy, box, 0.94 + 0.06 * ease);
+          ctx.restore();
+        }
+      }
+
+      drawBrand(W, H, Math.min(1, t / INTRO), frozen);
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  });
+}
+
+function pickMime() {
+  for (const m of ["video/mp4;codecs=avc1.42E01E", "video/mp4",
+                   "video/webm;codecs=vp9", "video/webm"])
+    if (MediaRecorder.isTypeSupported(m)) return m;
+  return "";
+}
+
+async function ensureLoaded() {
+  const key = S("count").value + "|" + S("uniq").value;
+  if (key === loadedFor && pool.length) return;
+
+  S("preview").disabled = S("record").disabled = true;
+  const want = Number(S("count").value);
+
+  setStatus("שולף רשימת מוצרים…");
+  if (!rows.length) rows = await fetchRows(2600);
+
+  let list = rows;
+  if (S("uniq").value === "fam") {
+    const seen = new Set();
+    list = rows.filter(r => { const f = fam(r.name); if (seen.has(f)) return false; seen.add(f); return true; });
+  }
+  list = list.slice(0, want);
+
+  // טעינה במקביל מוגבל: 2,600 בקשות בבת אחת מחניקות את הדפדפן
+  const out = [];
+  let i = 0, done = 0, rejected = 0;
+  async function worker() {
+    while (i < list.length) {
+      const my = i++;
+      const bmp = await toThumb(BASE + list[my].url.split("/product-images/").pop());
+      if (bmp) { if (isUsable(bmp)) out.push(bmp); else { rejected++; bmp.close?.(); } }
+      if (++done % 25 === 0 || done === list.length)
+        setStatus(`טוען תמונות… ${done}/${list.length} · ${out.length} עברו סינון`);
+    }
+  }
+  await Promise.all(Array.from({ length: 20 }, worker));
+
+  pool = out;
+  loadedFor = key;
+  if (!pool.length) { setStatus("אף תמונה לא עברה — בדוק חיבור.", "err"); return; }
+  S("preview").disabled = S("record").disabled = false;
+  setStatus(`מוכן — ${pool.length.toLocaleString("he-IL")} תמונות בסרטון ` +
+            `(${rejected.toLocaleString("he-IL")} נפסלו: רקע לא לבן או ריבוע ריק).` +
+            (tainted ? "  ⚠️ הדפדפן חסם קריאת פיקסלים, הסינון לא רץ." : ""));
+  updateCalc();
+}
+
+S("count").onchange = S("uniq").onchange = () => { setStatus("לחץ תצוגה מקדימה כדי לטעון מחדש."); };
+
+S("preview").onclick = async () => {
+  if (running) return;
+  running = true;
+  try {
+    await ensureLoaded();
+    if (pool.length) { setStatus("מנגן תצוגה מקדימה…"); await play();
+      setStatus("התצוגה הסתיימה. אם זה נראה טוב — לחץ הקלטה והורדה."); }
+  } catch (e) { setStatus("שגיאה: " + e.message, "err"); }
+  running = false;
+};
+
+S("record").onclick = async () => {
+  if (running) return;
+  running = true;
+  try {
+    await ensureLoaded();
+    if (!pool.length) { running = false; return; }
+    const mime = pickMime();
+    if (!mime) { setStatus("הדפדפן לא תומך בהקלטת וידאו. נסה Chrome עדכני.", "err"); running = false; return; }
+
+    const stream = cv.captureStream(30);
+    const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 10_000_000 });
+    const chunks = [];
+    rec.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+    const done = new Promise(r => { rec.onstop = r; });
+
+    rec.start();
+    setStatus("מקליט… אל תעבור טאב עד הסוף.", "rec");
+    await play();
+    rec.stop();
+    await done;
+
+    const ext = mime.startsWith("video/mp4") ? "mp4" : "webm";
+    const blob = new Blob(chunks, { type: mime });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `orzadik-campaign-${S("fmt").value}-${S("dur").value}s.${ext}`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+
+    setStatus(`הורד: ${ext.toUpperCase()}, ${(blob.size/1048576).toFixed(1)}MB.` +
+              (ext === "webm" ? "  ⚠️ הדפדפן הקליט WebM ולא MP4 — Meta מעדיפה MP4, תשלח לי ואבדוק." : ""));
+  } catch (e) { setStatus("שגיאה: " + e.message, "err"); }
+  running = false;
+};
+
+(async () => {
+  try { await document.fonts.load('900 60px Heebo'); await document.fonts.load('700 30px Heebo'); } catch (e) {}
+  updateCalc();
+  setStatus("מוכן. לחץ תצוגה מקדימה — הטעינה הראשונה לוקחת זמן.");
+  S("preview").disabled = S("record").disabled = false;
+})();
+</script>
+</body>
+</html>
