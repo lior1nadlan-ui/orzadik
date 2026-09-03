@@ -11,14 +11,13 @@
   * { box-sizing:border-box; }
   body { margin:0; font-family:Heebo,system-ui,sans-serif; background:#f6f6f4; color:var(--ink);
          padding:24px; display:flex; flex-direction:column; align-items:center; }
-  .wrap { width:100%; max-width:980px; }
+  .wrap { width:100%; max-width:1000px; }
   h1 { font-size:20px; margin:0 0 4px; }
   .sub { color:#666; font-size:14px; margin:0 0 18px; }
   .bar { display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin-bottom:14px; }
-  button, select, input { font-family:inherit; font-size:14px; padding:9px 14px; border-radius:8px;
-                          border:1px solid #ccc; background:#fff; }
+  button, select { font-family:inherit; font-size:14px; padding:9px 14px; border-radius:8px;
+                   border:1px solid #ccc; background:#fff; }
   button { cursor:pointer; }
-  button.primary { background:var(--ink); color:#fff; border-color:var(--ink); font-weight:700; }
   button.rec { background:#c0392b; color:#fff; border-color:#c0392b; font-weight:700; }
   button:disabled { opacity:.45; cursor:default; }
   label { font-size:14px; display:flex; align-items:center; gap:6px; }
@@ -34,7 +33,7 @@
 <body>
 <div class="wrap">
   <h1>מחולל סרטון קמפיין — אור זרוע לצדיק</h1>
-  <p class="sub">מוצרים מתחלפים במהירות מכל קטגוריות החנות, עם שם החנות קבוע במרכז. מקליט ישירות לקובץ וידאו.</p>
+  <p class="sub">516 מוצרים מכל קטגוריות החנות, מתחלפים על המסך, עם שם החנות קבוע במרכז.</p>
 
   <div class="bar">
     <label>פורמט
@@ -44,6 +43,20 @@
         <option value="1080x1080">מרובע 1080×1080</option>
       </select>
     </label>
+    <label>סגנון
+      <select id="mode">
+        <option value="mosaic" selected>פסיפס — הרבה מוצרים יחד</option>
+        <option value="single">מסך מלא — מוצר אחד בכל רגע</option>
+      </select>
+    </label>
+    <label>צפיפות
+      <select id="cols">
+        <option value="3">3 בשורה — גדול</option>
+        <option value="4" selected>4 בשורה</option>
+        <option value="5">5 בשורה — צפוף</option>
+        <option value="6">6 בשורה — צפוף מאוד</option>
+      </select>
+    </label>
     <label>אורך
       <select id="dur">
         <option value="8">8 שניות</option>
@@ -51,11 +64,12 @@
         <option value="15">15 שניות</option>
       </select>
     </label>
-    <label>קצב החלפה
+    <label>מהירות
       <select id="speed">
-        <option value="200">רגוע (5 בשנייה)</option>
-        <option value="140" selected>מהיר (7 בשנייה)</option>
-        <option value="100">מהיר מאוד (10 בשנייה)</option>
+        <option value="1600">רגוע</option>
+        <option value="1000" selected>מהיר</option>
+        <option value="650">מהיר מאוד</option>
+        <option value="400">מטורף</option>
       </select>
     </label>
     <button id="preview" disabled>תצוגה מקדימה</button>
@@ -66,16 +80,65 @@
   <canvas id="cv" width="1080" height="1920"></canvas>
 
   <p class="note">
+    <b>למה פסיפס ולא מוצר אחד מהבהב.</b> כדי להראות הרבה מוצרים מהר, עדיף להחליף הרבה משבצות
+    בהיסט זמן ביניהן מאשר להבהב תמונה אחת על כל המסך. העין רואה תנועה מתמדת ועשרות מוצרים בכל
+    רגע, בלי סטרוב — שמפריע לרגישים לאור, ו-Meta לעיתים מגבילה הפצה שלו. במצב "פסיפס" ובצפיפות
+    4 עם מהירות "מהיר" מתחלפים כ-28 מוצרים בשנייה, אבל כל משבצת בנפרד מתחלפת פעם בשנייה בלבד.<br>
     <b>הקלטה רצה בזמן אמת</b> — סרטון של 12 שניות נמשך 12 שניות. אל תעבור לטאב אחר בזמן ההקלטה,
-    הדפדפן מאט קנבס ברקע והסרטון ייצא קטוע.<br>
-    <b>קצב ההבהוב</b> — 10 בשנייה נראה חד אבל עלול להפריע לרגישים לאור, ו-Meta לפעמים מגבילה הפצה של
-    הבהוב מהיר. 7 בשנייה הוא פשרה בטוחה. כל הפריימים על רקע לבן, כך שאין קפיצות בהירות חדות.
+    הדפדפן מאט קנבס ברקע והסרטון ייצא קטוע.
   </p>
 </div>
 
 <script>
 const BASE = "https://whtjslgrrfzehivrknuv.supabase.co/storage/v1/object/public/product-images/";
-const PATHS = ["catalog/82379_4.webp","catalog/83549_4.webp","catalog/47242_1.webp","catalog/41098_1.webp","opt/76cfe0e64b188e9924b22aba.webp","catalog/67745_4.webp","catalog/83428_4.webp","catalog/48833_1.webp","catalog/50061_4.webp","catalog/60177_1.webp","catalog/47228_1.webp","catalog/67869_2.webp","catalog/67721_1.webp","catalog/60019_3.webp","catalog/10505_1.webp","catalog/10480_1.webp","catalog/19307_1.webp","catalog/82710_4.webp","opt/791049e015d7a2662318111f.webp","catalog/35858_1.webp","catalog/67119_1.webp","catalog/80409_4.webp","opt/2ca142cae050727949249445.webp","catalog/44912_4.webp","opt/3bb841addf1e461bd99a73c4.webp","catalog/81737_1.webp","catalog/55763_4.webp","catalog/48230_1.webp","catalog/35946_4.webp","catalog/66716_4.webp","catalog/41318_4.webp","catalog/42291_4.webp","catalog/55799_1.webp","catalog/44978_1.webp","opt/ac3a8b1b590f0a7d766c0933.webp","catalog/66564_1.webp","catalog/82800_4.webp","catalog/81049_4.webp","opt/b5791af53883923434b64c01.webp","catalog/81179_4.webp","catalog/41050_1.webp","catalog/65097_4.webp","opt/c4168dae2ea0932a8b19af51.webp","catalog/42076_1.webp","catalog/45714_4.webp","catalog/66960_1.webp","catalog/66818_1.webp","catalog/67728_3.webp","catalog/67109_1.webp","catalog/67048_1.webp","opt/8a22359c3fca02fbc0f3bf86.webp","opt/e3960af8ada28e44c0c0fb50.webp","catalog/80898_3.webp","opt/0e67bcac517c4ec23f40cd30.webp","catalog/35855_1.webp","catalog/49238_1.webp","catalog/67719_1.webp","catalog/82772_4.webp","opt/6af911bdc812a6f4afdb559b.webp","catalog/43370_1.webp","opt/cc21fec6509210b1086cf210.webp","catalog/81667_4.webp","catalog/83449_1.webp","catalog/48223_1.webp","catalog/41434_4.webp","opt/42af4c0c22725ee5d9922e5a.webp","catalog/47106_1.webp","catalog/80326_3.webp","catalog/49173_1.webp","opt/d87fbd7494dca85967aa7005.webp","catalog/80726_1.webp","catalog/50090_1.webp","catalog/48027_1.webp","catalog/48644_1.webp","catalog/49723_1.webp","catalog/65096_4.webp","catalog/59811_4.webp","catalog/41294_4.webp","catalog/45246_3.webp","catalog/60964_4.webp","catalog/66526_1.webp","opt/a93af100953e7b98936adf5a.webp","catalog/67650_3.webp","opt/c68c716da0ef41e4b77f9635.webp","opt/0a182c4b29716da0db509118.webp","catalog/82387_4.webp","catalog/20913_1.webp","catalog/35695_4.webp","catalog/80483_4.webp","catalog/67317_1.webp","catalog/42381_4.webp","opt/0d4e85ef1f59ddb8c903cf4e.webp","catalog/20928_1.webp","catalog/67085_1.webp","opt/695aa373d209c3e1319f5ab2.webp","catalog/81692_4.webp","catalog/40912_1.webp","catalog/82519_4.webp","catalog/80915_4.webp","opt/0ce86b2d552909406337e259.webp","catalog/46823_1.webp","catalog/80324_4.webp","catalog/83733_4.webp","catalog/67260_1.webp","opt/e165552993389808f076adec.webp","catalog/82906_4.webp","catalog/41319_1.webp","catalog/55794_4.webp","catalog/48102_1.webp","catalog/46772_1.webp","catalog/65099_4.webp","catalog/82734_4.webp","catalog/42233_4.webp","catalog/50063_4.webp","catalog/67722_1.webp","catalog/90872_1.webp","opt/2b976b615013c86293836790.webp","opt/b150e19be04098a1abbaef1d.webp","opt/734a91cd0f4f08f922bdcebf.webp","catalog/17201_1.webp","catalog/82349_4.webp","catalog/24817_1.webp","catalog/35852_1.webp","catalog/40925_1.webp","catalog/66216_1.webp","catalog/82779_4.webp","opt/9c81336450c9855c5031fa8b.webp","catalog/24819_1.webp","catalog/41488_4.webp","opt/ada640b946bf273c2cb1832a.webp","catalog/45541_1.webp","catalog/55739_4.webp","opt/300996e63269a29faa2c45ac.webp","catalog/47823_4.webp","catalog/82766_4.webp","catalog/35951_1.webp","catalog/81972_4.webp","catalog/49172_1.webp","catalog/66471_1.webp","opt/acc0aad6793b66e57207bb4c.webp","catalog/80997_1.webp","catalog/42502_2.webp","catalog/82003_4.webp","catalog/40510_1.webp","catalog/81577_4.webp","catalog/65092_4.webp","catalog/59876_4.webp","catalog/41295_4.webp","catalog/42547_3.webp","catalog/67155_1.webp","catalog/66685_1.webp","opt/e1a5af9cedfb5eeba87e3a4f.webp","opt/84cc1c7d25db040ab0057e78.webp","catalog/18727_1.webp","catalog/19093_1.webp","catalog/46343_4.webp","catalog/20048_1.webp","catalog/35848_1.webp","catalog/40552_1.webp","catalog/67315_1.webp","catalog/55833_4.webp","opt/32efc1e0b5dbd3301b2f27df.webp","catalog/89535_1.webp","opt/91abf560e06ad77ac7c4d6db.webp","catalog/48187_1.webp","catalog/55745_4.webp","catalog/82522_4.webp","catalog/49836_4.webp","catalog/41505_1.webp","catalog/50070_1.webp","catalog/82368_4.webp","catalog/41349_3.webp","catalog/67704_1.webp","opt/8f547c507630ee4e4da6bd6a.webp","catalog/80699_1.webp","catalog/81158_4.webp","catalog/83292_4.webp","catalog/43950_1.webp","catalog/40600_1.webp","catalog/65095_4.webp","catalog/82370_4.webp","catalog/49312_4.webp","catalog/42205_4.webp","catalog/66933_1.webp","catalog/46403_1.webp","opt/67de1d7ba3080dde4ad95b4f.webp","catalog/18726_1.webp","catalog/15211_1.webp","catalog/46344_4.webp","catalog/24763_4.webp","catalog/35999_2.webp","catalog/46981_1.webp","catalog/67314_1.webp","opt/e2657cc2e9a007d6bc7ec3c3.webp","catalog/22009_1.webp","catalog/67024_1.webp","opt/e4d6347785f3739a898d1d38.webp","catalog/48105_1.webp","catalog/47447_4.webp","catalog/66645_1.webp","catalog/42649_1.webp","catalog/41722_2.webp","catalog/50067_1.webp","catalog/84186_4.webp","catalog/81617_4.webp","catalog/67261_1.webp","opt/95508215d4d0fbfb0208a917.webp","catalog/80694_1.webp","catalog/46644_4.webp","catalog/48865_1.webp","opt/fd4fa96726d32adcf88e11d8.webp","opt/3c874d688c6b6c75f16aaadb.webp","catalog/65094_4.webp","catalog/41125_1.webp","catalog/41292_1.webp","catalog/82046_4.webp","opt/056334cb6bac07f6558b809d.webp","catalog/66115_1.webp","opt/a205906404173e6906315754.webp","catalog/18551_1.webp","catalog/14956_1.webp","catalog/81664_4.webp","catalog/21785_1.webp","catalog/35996_2.webp","catalog/83313_4.webp","catalog/66991_1.webp","catalog/83133_3.webp","catalog/53363_4.webp","catalog/43600_1.webp","catalog/82788_4.webp","catalog/80958_1.webp","catalog/83635_4.webp","catalog/80026_1.webp","catalog/82373_1.webp","catalog/42665_4.webp","catalog/54029_4.webp","catalog/65676_1.webp","opt/e0fa2dcadee87ccfa0e18d13.webp","catalog/49355_1.webp"];
+
+/* מוצר מוביל מכל קטגוריה, במחזוריות (rn קודם, cat אחריו) — כך שמוצרים סמוכים
+   ברשימה באים מקטגוריות שונות. ווריאנטים של אותו פריט (אותן שלוש מילים ראשונות
+   בשם) נכנסים פעם אחת. הקידומת מקוצרת: c = catalog/, o = opt/. */
+const PATHS = `oeb07cbc0450fad911dbca4eb c83653_4 c83127_4 c47238_1 c81179_4 o9f2e95fcb27c966cdf0955d6 o1ea86ec0a733cdd10a8f2061 o76cfe0e64b188e9924b22aba o83435ce58095732c1911825c c65096_4 c67742_4 c82432_4
+c50061_4 c48833_1 c46032_1 of14fddba44b48641f5c7a621 c66561_1 c60177_1 c66564_1 c47228_1 c67869_2 c44978_1 c60019_3 c10480_1
+c10506_1 c19313_1 c18959_2 c18967_1 c10107_1 c19307_1 c66452_1 c82387_4 o2d82334757a76fca4b91192b c24533_1 c23805_1 c24301_1
+c20618_1 o791049e015d7a2662318111f c22009_1 c56029_1 c35852_1 c66443_1 c35856_1 c41098_1 o1f774ef952beccad10d2f401 oea671c7078b7874573e61968 c67115_1 o95508215d4d0fbfb0208a917
+c82771_4 odcb7a312089bf2d35edff41c o0e67bcac517c4ec23f40cd30 c83664_1 c67085_1 o3bb841addf1e461bd99a73c4 ob150e19be04098a1abbaef1d c81736_1 c81679_1 c59766_1 c55763_4 c40472_4
+oa107e76493ec1291fb752cf3 c48246_1 c35946_4 c66716_4 oe9afd7a842c2256100d2c390 c80726_1 c40462_4 o8cb34702346c31557cc03afd c42291_4 c55799_1 c80072_4 c60174_1
+oacc0aad6793b66e57207bb4c c67721_1 oac3a8b1b590f0a7d766c0933 c90899_1 c80997_1 c82378_4 c81049_4 ob5791af53883923434b64c01 o749be3fdd488e524d471dc3f c40600_1 c40200_4 c65099_4
+oc4168dae2ea0932a8b19af51 c42076_1 c45714_4 c48176_1 oa78cc0a6a1e3b9d00dc223c9 c51675_4 c66965_1 c66753_1 c67728_3 o84cc1c7d25db040ab0057e78 o734a91cd0f4f08f922bdcebf o0a182c4b29716da0db509118
+c66858_1 c82711_4 o770dafd74378d106ef632485 c23769_1 c24180_1 c24365_1 c24317_1 c47662_1 c35695_4 c49238_1 of9505bb400196ee2a7c49fc8 c67719_1
+ofd4fa96726d32adcf88e11d8 c82605_4 o6af911bdc812a6f4afdb559b c82069_1 c89535_1 occ21fec6509210b1086cf210 o76613b7aae001e2e95602af7 c81689_4 c53322_2 c83449_1 c55312_1 o6b07febf1a526dc9299cc5e9
+c48240_1 c80915_4 o42af4c0c22725ee5d9922e5a oa8d5d9bf07af6828f23fecbc c49355_1 c46823_1 o69c5b44a00c30e7cfa30b4fd c80327_4 c49173_1 c80326_3 c83177_4 c66962_1
+c67155_1 od87fbd7494dca85967aa7005 c90898_1 c82904_4 c82799_4 c48027_1 c48644_1 o3c874d688c6b6c75f16aaadb o14f0d4d1c8c079c9d25a00f5 c41050_1 c42776_1 c58621_1
+c59811_4 c42233_4 c45246_3 c45582_1 oe6595f3cb51e3751213e624b c80698_1 c60964_4 o6198f8e895668b556e65f4ff oc68c716da0ef41e4b77f9635 c18726_1 c17201_1 ofd43b7b27c55e0e3d556ffb0
+c80898_3 o3f5c1a05a7d6034b12e51004 c23513_1 c24181_1 c24364_1 c20928_1 c23365_1 c35846_1 c66919_1 c35848_1 c80483_4 c67317_1
+c82423_4 o9c81336450c9855c5031fa8b c20913_1 c83721_1 c43370_1 o695aa373d209c3e1319f5ab2 oa205906404173e6906315754 c48187_1 c45541_1 c55745_4 o93a9ec7d23f47572fe35f087 c82518_4
+c48659_1 o0ce86b2d552909406337e259 o6ba4aad0bd1ac3d04a0e992f c90130_1 c50071_1 c81971_4 c83733_4 c81975_4 c80856_4 o8f547c507630ee4e4da6bd6a c67704_1 oe165552993389808f076adec
+c41319_1 c82008_4 c82003_4 c48102_1 oacafd5af414aea9b3596ef4b c49723_1 c80692_4 c59876_4 c41294_4 c42547_3 c47483_1 oe0fa2dcadee87ccfa0e18d13
+c66466_1 c90872_1 c18550_1 c19088_1 c46344_4 o03889c46ef6b9d2923e94476 c23980_1 c24541_1 c24055_1 c20048_1 c24482_1 c35996_2
+c40926_1 c49025_1 c42381_4 o32efc1e0b5dbd3301b2f27df c85420_1 c83094_4 oada640b946bf273c2cb1832a c66872_1 c40912_1 o0bc09495e767922c02bc1589 o39471613371d5c98c3ad9f4c c82522_4
+c49836_4 c41505_1 o2b5cf77944c8191dc53e38ef c90634_1 c80907_1 c80858_4 c49172_1 c82997_4 c67156_1 c82906_4 c81159_4 c48866_1
+c82176_1 c43950_1 c46772_1 of9e9c795fcb769979638828d of8cad908bbfbc1ad1f235d3e c41295_4 c42205_4 c83182_4 o50846be563dcb9d8fa802063 o5717389cd3a91b55888338ee c66685_1 oa93af100953e7b98936adf5a
+c18727_1 c18317_1 c16394_1 c81664_4 o632f9ff613d8701bccebe1ff c21661_1 c23721_1 c22292_4 c24681_1 c35999_2 c40552_1 c67122_1
+c83131_4 c24763_4 c53363_4 o127a3a64f876080d67f4b6a1 c48105_1 c55739_4 odd9f2d581bbd1090cad33d8f o300996e63269a29faa2c45ac c42667_4 c41722_2 o8c82aaf7d85d3df6a5259334 c82195_4
+c59491_4 c41349_3 c48153_4 c82175_1 c48865_1 c40510_1 c81577_4 c40407_4 c41125_1 c49312_4 c82046_4 c85993_1
+c51564_4 o67de1d7ba3080dde4ad95b4f c66115_1 c19191_1 c15614_1 c58525_1 o486f47510aa0f21564fcfa4f c29438_1 c20400_1 c23404_1 c35847_1 c35966_4
+c46981_1 c83105_4 c67025_1 ofc6ba42626fb29124588fa8a c43601_1 c43600_1 c47447_4 o22973ed82a0719d5a997d8de c67193_2 c83635_4 c67602_1 oefc896d68eb9180348f5df9b
+c47910_1 c81618_4 c82951_4 c60392_1 c50045_1 c57579_4 c40660_1 c47374_4 c82241_4 c40798_4 c81947_4 c46403_1
+c53706_1 c65060_1 c52968_1 o29a17e27ebd1ae66831c03a2 c23733_1 c21166_1 o4df265d0d2918b6252f355da c66941_1 c81833_4 c82246_3 c21131_1 c67763_2
+c82788_4 ode2a8681d00f03dae620560d c80959_1 c42668_4 c48334_1 oc8290aea67b7e9d2ee6d363a c42665_4 c54029_4 c42666_4 c49867_1 c83359_4 c48867_1
+c46951_1 c81338_4 c83198_4 c82035_4 c59495_1 c40489_1 c18398_1 c82178_4 o39df306aef016c40a4a80cf2 c29752_1 c22923_1 c35738_1
+c35824_1 c82456_1 c67715_3 c50008_4 c42843_1 c80074_1 c67776_1 c40904_1 c49171_1 c81842_4 c57580_4 o8b970af2849b715077dfdd58
+c89515_4 c48223_1 c41286_4 c50621_3 c67261_1 c9946_1 c18932_1 c83503_4 c23613_1 c35926_2 c82889_4 c82018_4
+c56198_4 c55650_4 c44077_1 c81188_1 c41805_1 c44321_1 c53303_4 c82953_4 c44979_1 c83292_4 c83395_4 c80482_4
+c46767_1 c42628_1 c48230_1 c47373_4 c81784_4 c18322_1 c56375_4 c29435_1 c24254_1 c24722_1 c35739_1 c46232_1
+c82839_4 o07fec84c49911a87495b93dc c85543_4 c50039_4 c63208_1 c81623_1 c55462_1 c56187_3 c81829_4 c63246_1 c46769_4 c83293_4
+c41292_1 c80335_4 c66923_1 c19030_1 c82406_4 o077f9c92b7f2a7a902a3ea99 c29436_1 c23403_1 c35701_1 c46859_1 c81466_4 c49696_4
+c80649_1 c512_2 c81891_4 c66998_1 c84186_4 c49230_1 c46768_4 c59873_4 c47265_4 c81989_3 c80065_4 o14047b1cd84674e06f83f87a
+c20095_1 c35920_1 c35833_4 c49548_1 ocf05b7bcddc708af9f46d689 ob427e7f8b85fe3960ae7eed2 c60598_1 c48546_1 c53176_4 c46284_1 c83324_4 c40925_1
+c47089_1 c81014_4 c49304_4 c81982_3 c42806_3 o5e1ae1fa5cafd429df72d234 oaebae4d2ce0c58379aee401b c35905_4 c35844_4 c49324_1 c67552_4 c82078_4
+c60578_1 c49196_4 c80951_1 c55798_4 c83930_4 c57569_1 c81803_4 c18883_2 c81609_3 oe2657cc2e9a007d6bc7ec3c3 c24668_4 of309c2f66686bf080d527b6e
+c49356_1 c47176_1 c50040_4 c65981_1 c47454_4 c82385_4 c81810_4 c40722_1 c80672_4 c82202_4 c58524_1 c80450_4
+c82248_4 c24239_1 o6bf231ee0d3456c6c8b114f6 c35710_1 c81544_4 c81521_4 c66366_1 o17c661c0797e6bef4f247f56 c80855_4 c55794_4 c40081_1 c43761_1
+c41606_4 c65061_1 c55307_3 c24748_1 c24155_1 c35708_1 c80160_4 c81104_4 c66689_1 c81793_3 c82894_4 c80332_1`.trim().split(/\s+/)
+  .map(t => (t[0] === "c" ? "catalog/" : "opt/") + t.slice(1) + ".webp");
 
 const cv = document.getElementById("cv"), ctx = cv.getContext("2d");
 const statusEl = document.getElementById("status");
@@ -94,8 +157,8 @@ function load(path) {
   });
 }
 
-/* אותו סינון כמו במחולל התמונה: שוליים כמעט-לבנים, ומרכז שיש בו מוצר שרואים.
-   בלי המבחן השני הסרטון מתמלא בקופסאות אריזה לבנות — פריים ריק שמהבהב. */
+/* שוליים כמעט-לבנים, ומרכז שיש בו מוצר שרואים. בלי המבחן השני עוברות עשרות
+   תמונות של קופסאות אריזה לבנות — רקע לבן, מוצר לבן, ריבוע ריק. */
 function isUsable(img) {
   const N = 64, c = document.createElement("canvas");
   c.width = c.height = N;
@@ -132,16 +195,15 @@ function roundRect(x, y, w, h, r) {
   ctx.closePath();
 }
 
-/* מוצר יחיד ממורכז, עם זום עדין לאורך זמן החשיפה שלו כדי שהפריים לא יהיה סטטי לגמרי. */
-function drawProduct(img, W, H, grow) {
-  const box = Math.min(W, H) * 0.92 * (1 + grow * 0.05);
-  const r = Math.min(box / img.width, box / img.height);
+function fit(img, cx, cy, box, scale) {
+  const b = box * scale;
+  const r = Math.min(b / img.width, b / img.height);
   const w = img.width * r, h = img.height * r;
-  ctx.drawImage(img, (W - w) / 2, (H - h) / 2, w, h);
+  ctx.drawImage(img, cx - w / 2, cy - h / 2, w, h);
 }
 
-/* הפאנל יושב במרכז האנכי. בסטורי זה גם האזור הבטוח: מעל 250px ומתחת ל-340px
-   האחרונים יושב הממשק של אינסטגרם ומכסה כל דבר שנמצא שם. */
+/* הפאנל יושב במרכז האנכי. בסטורי זה גם האזור הבטוח: 250 הפיקסלים העליונים
+   וכ-340 התחתונים מכוסים בממשק של אינסטגרם. */
 function drawBrand(W, H, alpha, showUrl) {
   if (alpha <= 0) return;
   ctx.save();
@@ -197,19 +259,33 @@ function drawBrand(W, H, alpha, showUrl) {
   ctx.restore();
 }
 
-function play(recorder) {
+function play() {
   return new Promise(resolve => {
     const [W, H] = S("fmt").value.split("x").map(Number);
     cv.width = W; cv.height = H;
 
     const total = Number(S("dur").value) * 1000;
-    const flash = Number(S("speed").value);
-    const INTRO = 700, OUTRO = 1800;      // פתיח על לבן, וסיום שנעצר על פריים אחד
-    const order = pool.slice().sort(() => Math.random() - 0.5);
+    const step  = Number(S("speed").value);
+    const mosaic = S("mode").value === "mosaic";
+    const INTRO = 700, OUTRO = 1800;
+
+    const cols = mosaic ? Number(S("cols").value) : 1;
+    const tile = W / cols;
+    const rows = mosaic ? Math.ceil(H / tile) : 1;
+    const n = cols * rows;
+
+    // כל משבצת מקבלת היסט משלה, כך שההחלפות מתפזרות על פני המחזור במקום
+    // לקרות יחד. זה מה שהופך "הרבה מוצרים מהר" לתנועה רציפה ולא להבהוב.
+    const slot = new Array(n), born = new Array(n), nextAt = new Array(n);
+    let cursor = 0;
+    const take = () => pool[cursor++ % pool.length];
+    for (let i = 0; i < n; i++) {
+      slot[i] = take();
+      born[i] = 0;
+      nextAt[i] = INTRO + (mosaic ? (i * step / n) : 0) + step;
+    }
 
     const t0 = performance.now();
-    let lastIdx = -1;
-
     function frame(now) {
       const t = now - t0;
       if (t >= total) { resolve(); return; }
@@ -217,19 +293,23 @@ function play(recorder) {
       ctx.fillStyle = "#fff";
       ctx.fillRect(0, 0, W, H);
 
+      const frozen = t > total - OUTRO;
       if (t > INTRO) {
-        const tt = t - INTRO;
-        const inOutro = t > total - OUTRO;
-        // בסיום מקפיאים על המוצר האחרון במקום להמשיך להבהב אל תוך הקאט
-        const idx = inOutro ? lastIdx
-                            : Math.floor(tt / flash) % order.length;
-        lastIdx = idx < 0 ? 0 : idx;
-        const grow = inOutro ? 1 : (tt % flash) / flash;
-        drawProduct(order[lastIdx], W, H, grow);
+        for (let i = 0; i < n; i++) {
+          if (!frozen && t >= nextAt[i]) { slot[i] = take(); born[i] = t; nextAt[i] = t + step; }
+          const age = Math.min(1, (t - born[i]) / 260);      // כניסה רכה, בלי קאט חד
+          const ease = 1 - Math.pow(1 - age, 3);
+          const cx = mosaic ? (i % cols) * tile + tile / 2 : W / 2;
+          const cy = mosaic ? Math.floor(i / cols) * tile + tile / 2 : H / 2;
+          const box = mosaic ? tile * 0.84 : Math.min(W, H) * 0.9;
+          ctx.save();
+          ctx.globalAlpha = 0.25 + 0.75 * ease;
+          fit(slot[i], cx, cy, box, 0.94 + 0.06 * ease);
+          ctx.restore();
+        }
       }
 
-      const fadeIn = Math.min(1, t / INTRO);
-      drawBrand(W, H, fadeIn, t > total - OUTRO);
+      drawBrand(W, H, Math.min(1, t / INTRO), frozen);
       requestAnimationFrame(frame);
     }
     requestAnimationFrame(frame);
@@ -237,17 +317,19 @@ function play(recorder) {
 }
 
 function pickMime() {
-  const want = ["video/mp4;codecs=avc1.42E01E", "video/mp4",
-                "video/webm;codecs=vp9", "video/webm"];
-  for (const m of want) if (MediaRecorder.isTypeSupported(m)) return m;
+  for (const m of ["video/mp4;codecs=avc1.42E01E", "video/mp4",
+                   "video/webm;codecs=vp9", "video/webm"])
+    if (MediaRecorder.isTypeSupported(m)) return m;
   return "";
 }
+
+S("mode").onchange = () => { S("cols").disabled = S("mode").value !== "mosaic"; };
 
 S("preview").onclick = async () => {
   if (running) return;
   running = true;
   setStatus("מנגן תצוגה מקדימה…");
-  await play(null);
+  await play();
   running = false;
   setStatus("התצוגה הסתיימה. אם זה נראה טוב — לחץ הקלטה והורדה.");
 };
@@ -260,7 +342,7 @@ S("record").onclick = async () => {
 
   const stream = cv.captureStream(30);
   let rec;
-  try { rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 8_000_000 }); }
+  try { rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 10_000_000 }); }
   catch (e) { setStatus("ההקלטה נכשלה: " + e.message, "err"); running = false; return; }
 
   const chunks = [];
@@ -269,7 +351,7 @@ S("record").onclick = async () => {
 
   rec.start();
   setStatus("מקליט… אל תעבור טאב עד הסוף.", "rec");
-  await play(rec);
+  await play();
   rec.stop();
   await done;
 
@@ -291,16 +373,16 @@ S("record").onclick = async () => {
   let done = 0;
   const imgs = await Promise.all(PATHS.map(async p => {
     const img = await load(p);
-    setStatus(`טוען תמונות… ${++done}/${PATHS.length}`);
+    if (++done % 10 === 0 || done === PATHS.length) setStatus(`טוען תמונות… ${done}/${PATHS.length}`);
     return img;
   }));
   const ok = imgs.filter(Boolean);
   if (!ok.length) { setStatus("אף תמונה לא נטענה — בדוק חיבור לאינטרנט.", "err"); return; }
   pool = ok.filter(isUsable);
-  if (pool.length < 20) pool = ok;
+  if (pool.length < 40) pool = ok;
   S("preview").disabled = false;
   S("record").disabled = false;
-  setStatus(`מוכן — ${pool.length} מוצרים בסרטון.` +
+  setStatus(`מוכן — ${pool.length} מוצרים עברו את הסינון מתוך ${PATHS.length}.` +
             (tainted ? "  ⚠️ הדפדפן חסם קריאת פיקסלים, הסינון לא רץ." : ""));
 })();
 </script>
