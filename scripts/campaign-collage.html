@@ -1,6 +1,8 @@
 <!doctype html>
 <!--
   מחולל תמונת הקמפיין: רשת של תמונות מוצר על רקע לבן עם כיתוב החנות במרכז.
+  הרשימה נבנית ממוצר מוביל בכל קטגוריה במחזוריות, לא לפי מחיר בלבד — מיון
+  לפי מחיר מרכז את הרשת במשפחות בודדות והיא יוצאת חדגונית.
 
   למה זה קובץ HTML שנפתח מקומית ולא סקריפט: התמונות יושבות באחסון של
   Supabase, וסביבת ה-CI/הסוכן חסומה מגישה יוצאת אליו. הדפדפן של המשתמש
@@ -10,19 +12,24 @@
   לרענון רשימת המוצרים (למשל אחרי שינויי מחירים), הרץ מול פרויקט orzadik
   והדבק את התוצאה ל-PATHS:
 
-    with ranked as (
-      select distinct on (p.name) p.name, p.price, pi.url
-      from products p
-      join lateral (
-        select url from product_images where product_id = p.id
-        order by sort_order nulls last, created_at limit 1
-      ) pi on true
+    with cats(name) as (values ('כיפות'),('נטלות'),('פמוטים'),('טלית ותפילין'), /* … */ ('סכינים')),
+    prod as (
+      select c.name cat, p.id, p.price,
+             array_to_string((string_to_array(p.name,' '))[1:4],' ') fam,
+             (select url from product_images pi where pi.product_id = p.id
+              order by sort_order nulls last, created_at limit 1) url
+      from cats c
+      join categories cc on cc.name = c.name
+      join product_categories pc on pc.category_id = cc.id
+      join products p on p.id = pc.product_id
       where p.is_active and p.price > 0
-      order by p.name, p.price desc
-    )
+    ),
+    dedup as (select distinct on (cat, fam) * from prod where url is not null
+              order by cat, fam, price desc),
+    ranked as (select *, row_number() over (partition by cat order by price desc) rn from dedup)
     select json_agg(replace(url, 'https://whtjslgrrfzehivrknuv.supabase.co'
-             || '/storage/v1/object/public/product-images/', '') order by price desc)
-    from (select * from ranked order by price desc limit 200) t;
+             || '/storage/v1/object/public/product-images/', '') order by rn, cat)
+    from ranked where rn <= 7;   -- rn קודם: מחזוריות בין קטגוריות
 -->
 <html lang="he" dir="rtl">
 <head>
@@ -53,7 +60,7 @@
 
 <h1>מחולל תמונת קמפיין — אור זרוע לצדיק</h1>
 <p class="sub">
-  בוחר אוטומטית את המוצרים היקרים ביותר שהתמונה שלהם על רקע לבן, ומרכיב מהם תמונה אחת עם הכיתוב במרכז.
+  בוחר מוצר מוביל מכל קטגוריה — כיפה, טלית, נטלה, חנוכייה, גביע, מזוזה וכן הלאה — מסנן לתמונות על רקע לבן שרואים בהן מוצר, ומרכיב מהן תמונה אחת עם הכיתוב במרכז.
 </p>
 
 <div class="bar">
@@ -75,9 +82,11 @@
 <script>
 const BASE = "https://whtjslgrrfzehivrknuv.supabase.co/storage/v1/object/public/product-images/";
 
-// המוצרים הפעילים היקרים ביותר שיש להם תמונה, מסודרים לפי מחיר יורד.
-// הרשימה רחבה בכוונה — הסינון לרקע לבן קורה בדפדפן ומוריד חלק מהן.
-const PATHS = ["catalog/83549_4.webp","catalog/50061_4.webp","catalog/45714_4.webp","opt/3bb841addf1e461bd99a73c4.webp","catalog/35946_4.webp","catalog/42291_4.webp","catalog/80915_4.webp","catalog/41434_4.webp","catalog/45246_3.webp","opt/8c82aaf7d85d3df6a5259334.webp","opt/a8d5d9bf07af6828f23fecbc.webp","opt/2b5cf77944c8191dc53e38ef.webp","opt/6ba4aad0bd1ac3d04a0e992f.webp","opt/e9afd7a842c2256100d2c390.webp","opt/cc21fec6509210b1086cf210.webp","opt/268be8a2f53c0e28124f62ee.webp","opt/4998feab0c8866231aa714b8.webp","catalog/82076_4.webp","catalog/50063_4.webp","opt/082e02498319f102a6506c3a.webp","opt/fc4ff4fe22e0640e1bc2b362.webp","catalog/66716_4.webp","catalog/80326_3.webp","opt/2a6589885aceabbdfb3ff9aa.webp","opt/2744496dc86208f868377352.webp","opt/eaf2a3e08b1966d9192f2d6c.webp","catalog/42547_3.webp","catalog/82050_4.webp","catalog/82049_4.webp","catalog/42205_4.webp","catalog/82387_4.webp","catalog/82710_4.webp","catalog/82711_4.webp","catalog/80898_3.webp","catalog/82349_4.webp","catalog/82044_4.webp","catalog/40637_3.webp","catalog/82046_4.webp","catalog/81975_4.webp","catalog/80324_4.webp","catalog/42610_3.webp","catalog/81971_4.webp","catalog/81972_4.webp","catalog/81976_4.webp","catalog/81974_4.webp","catalog/46344_4.webp","catalog/58525_1.webp","catalog/81664_4.webp","catalog/46343_4.webp","catalog/82241_4.webp","catalog/82641_4.webp","catalog/82047_4.webp","catalog/82643_4.webp","catalog/42546_1.webp","catalog/82048_4.webp","catalog/82045_4.webp","opt/e7d51cc3a03aa899796b7db2.webp","opt/a592a260270507da4992c827.webp","opt/c7b2297394422434e2669f50.webp","opt/e5bdbdde0d9a3910f475a41b.webp","opt/a6b353dac8dd42cf91314567.webp","opt/67311e28aea33912d078547c.webp","catalog/67115_1.webp","catalog/82638_4.webp","catalog/48224_1.webp","catalog/48240_1.webp","catalog/82645_4.webp","catalog/48246_1.webp","catalog/48230_1.webp","catalog/48223_1.webp","catalog/52968_1.webp","catalog/42545_1.webp","catalog/81834_4.webp","catalog/42389_1.webp","catalog/47823_4.webp","catalog/42649_1.webp","catalog/81791_4.webp","catalog/48661_1.webp","catalog/49836_4.webp","catalog/42667_4.webp","catalog/48659_1.webp","catalog/41853_4.webp","catalog/81179_4.webp","catalog/41098_1.webp","catalog/82374_4.webp","catalog/80901_4.webp","catalog/82378_4.webp","catalog/80897_3.webp","catalog/82799_4.webp","catalog/82379_4.webp","catalog/83503_4.webp","catalog/81194_4.webp","catalog/80895_4.webp","catalog/82434_4.webp","catalog/80896_3.webp","catalog/83641_4.webp","catalog/80850_4.webp","catalog/82375_4.webp","catalog/80761_1.webp","catalog/83653_4.webp","catalog/50090_1.webp","catalog/82800_4.webp","catalog/82178_4.webp","catalog/80764_4.webp","catalog/81049_4.webp","catalog/83635_4.webp","catalog/42668_4.webp","catalog/82524_4.webp","catalog/82525_4.webp","catalog/82522_4.webp","catalog/82204_4.webp","catalog/82202_4.webp","catalog/42587_2.webp","opt/300996e63269a29faa2c45ac.webp","catalog/82518_4.webp","catalog/82519_4.webp","catalog/82432_4.webp","catalog/82035_4.webp","catalog/82056_4.webp","catalog/55799_1.webp","catalog/82051_4.webp","catalog/82523_4.webp","catalog/67719_1.webp","catalog/67114_1.webp","catalog/80072_4.webp","opt/2d82334757a76fca4b91192b.webp","opt/770dafd74378d106ef632485.webp","opt/695aa373d209c3e1319f5ab2.webp","catalog/56375_4.webp","catalog/41319_1.webp","catalog/48027_1.webp","catalog/50039_4.webp","opt/c4168dae2ea0932a8b19af51.webp","catalog/59815_4.webp","catalog/50621_3.webp","catalog/60177_1.webp","catalog/60174_1.webp","catalog/82773_4.webp","catalog/43861_4.webp","catalog/81808_4.webp","catalog/80913_4.webp","catalog/43862_4.webp","catalog/82605_4.webp","catalog/80409_4.webp","catalog/42502_2.webp","catalog/67718_1.webp","catalog/80858_4.webp","catalog/67113_1.webp","catalog/67869_2.webp","catalog/82368_4.webp","catalog/60019_3.webp","catalog/40563_3.webp","catalog/82734_4.webp","catalog/80383_3.webp","catalog/81784_4.webp","catalog/81753_4.webp","catalog/80444_4.webp","catalog/81084_4.webp","catalog/81083_4.webp","catalog/80339_3.webp","catalog/80386_4.webp","catalog/83398_4.webp","catalog/49696_4.webp","catalog/66858_1.webp","catalog/66452_1.webp","opt/3f5c1a05a7d6034b12e51004.webp","opt/06fb3bc2ecb4539589f70406.webp","opt/3f4e8f558bd597a334fc404e.webp","catalog/65540_1.webp","catalog/66235_1.webp","catalog/65541_1.webp","catalog/67241_1.webp","catalog/66677_1.webp","catalog/67040_1.webp","catalog/66967_1.webp","catalog/66962_1.webp","catalog/66965_1.webp","catalog/66961_1.webp","catalog/66959_1.webp","catalog/66960_1.webp","catalog/67108_1.webp","catalog/66678_1.webp","catalog/40462_4.webp","catalog/40094_1.webp","catalog/41318_4.webp","catalog/80561_3.webp","catalog/81801_4.webp","catalog/59814_4.webp","catalog/81989_3.webp","catalog/40650_4.webp","catalog/81741_4.webp","catalog/41979_4.webp","catalog/41981_4.webp","catalog/82887_4.webp","catalog/40550_4.webp","catalog/81800_3.webp","catalog/42544_1.webp","catalog/80335_4.webp","catalog/81982_3.webp","opt/b427e7f8b85fe3960ae7eed2.webp"];
+// מוצר מוביל מכל אחת מ-38 קטגוריות, במחזוריות: השכן של כיפה הוא נטלה,
+// של נטלה חנוכייה וכן הלאה. מיון לפי מחיר בלבד היה מרכז את כל הרשת
+// במשפחות בודדות — בעיקר סטי חלאקה וקופסאות אריזה, שכולן נראות אותו דבר.
+// ווריאנטים של אותו פריט (אותו שם עד המילה הרביעית) נופלים כאן פעם אחת.
+const PATHS = ["catalog/82379_4.webp","catalog/83549_4.webp","catalog/47242_1.webp","catalog/41098_1.webp","opt/76cfe0e64b188e9924b22aba.webp","catalog/67745_4.webp","catalog/83428_4.webp","catalog/48833_1.webp","catalog/50061_4.webp","catalog/60177_1.webp","catalog/47228_1.webp","catalog/67869_2.webp","catalog/67721_1.webp","catalog/60019_3.webp","catalog/10505_1.webp","catalog/10480_1.webp","catalog/19307_1.webp","catalog/82710_4.webp","opt/791049e015d7a2662318111f.webp","catalog/35858_1.webp","catalog/67119_1.webp","catalog/80409_4.webp","opt/2ca142cae050727949249445.webp","catalog/44912_4.webp","opt/3bb841addf1e461bd99a73c4.webp","catalog/81737_1.webp","catalog/55763_4.webp","catalog/48230_1.webp","catalog/35946_4.webp","catalog/66716_4.webp","catalog/41318_4.webp","catalog/42291_4.webp","catalog/55799_1.webp","catalog/44978_1.webp","opt/ac3a8b1b590f0a7d766c0933.webp","catalog/66564_1.webp","catalog/82800_4.webp","catalog/81049_4.webp","opt/b5791af53883923434b64c01.webp","catalog/81179_4.webp","catalog/41050_1.webp","catalog/65097_4.webp","opt/c4168dae2ea0932a8b19af51.webp","catalog/42076_1.webp","catalog/45714_4.webp","catalog/66960_1.webp","catalog/66818_1.webp","catalog/67728_3.webp","catalog/67109_1.webp","catalog/67048_1.webp","opt/8a22359c3fca02fbc0f3bf86.webp","opt/e3960af8ada28e44c0c0fb50.webp","catalog/80898_3.webp","opt/0e67bcac517c4ec23f40cd30.webp","catalog/35855_1.webp","catalog/49238_1.webp","catalog/67719_1.webp","catalog/82772_4.webp","opt/6af911bdc812a6f4afdb559b.webp","catalog/43370_1.webp","opt/cc21fec6509210b1086cf210.webp","catalog/81667_4.webp","catalog/83449_1.webp","catalog/48223_1.webp","catalog/41434_4.webp","opt/42af4c0c22725ee5d9922e5a.webp","catalog/47106_1.webp","catalog/80326_3.webp","catalog/49173_1.webp","opt/d87fbd7494dca85967aa7005.webp","catalog/80726_1.webp","catalog/50090_1.webp","catalog/48027_1.webp","catalog/48644_1.webp","catalog/49723_1.webp","catalog/65096_4.webp","catalog/59811_4.webp","catalog/41294_4.webp","catalog/45246_3.webp","catalog/60964_4.webp","catalog/66526_1.webp","opt/a93af100953e7b98936adf5a.webp","catalog/67650_3.webp","opt/c68c716da0ef41e4b77f9635.webp","opt/0a182c4b29716da0db509118.webp","catalog/82387_4.webp","catalog/20913_1.webp","catalog/35695_4.webp","catalog/80483_4.webp","catalog/67317_1.webp","catalog/42381_4.webp","opt/0d4e85ef1f59ddb8c903cf4e.webp","catalog/20928_1.webp","catalog/67085_1.webp","opt/695aa373d209c3e1319f5ab2.webp","catalog/81692_4.webp","catalog/40912_1.webp","catalog/82519_4.webp","catalog/80915_4.webp","opt/0ce86b2d552909406337e259.webp","catalog/46823_1.webp","catalog/80324_4.webp","catalog/83733_4.webp","catalog/67260_1.webp","opt/e165552993389808f076adec.webp","catalog/82906_4.webp","catalog/41319_1.webp","catalog/55794_4.webp","catalog/48102_1.webp","catalog/46772_1.webp","catalog/65099_4.webp","catalog/82734_4.webp","catalog/42233_4.webp","catalog/50063_4.webp","catalog/67722_1.webp","catalog/90872_1.webp","opt/2b976b615013c86293836790.webp","opt/b150e19be04098a1abbaef1d.webp","opt/734a91cd0f4f08f922bdcebf.webp","catalog/17201_1.webp","catalog/82349_4.webp","catalog/24817_1.webp","catalog/35852_1.webp","catalog/40925_1.webp","catalog/66216_1.webp","catalog/82779_4.webp","opt/9c81336450c9855c5031fa8b.webp","catalog/24819_1.webp","catalog/41488_4.webp","opt/ada640b946bf273c2cb1832a.webp","catalog/45541_1.webp","catalog/55739_4.webp","opt/300996e63269a29faa2c45ac.webp","catalog/47823_4.webp","catalog/82766_4.webp","catalog/35951_1.webp","catalog/81972_4.webp","catalog/49172_1.webp","catalog/66471_1.webp","opt/acc0aad6793b66e57207bb4c.webp","catalog/80997_1.webp","catalog/42502_2.webp","catalog/82003_4.webp","catalog/40510_1.webp","catalog/81577_4.webp","catalog/65092_4.webp","catalog/59876_4.webp","catalog/41295_4.webp","catalog/42547_3.webp","catalog/67155_1.webp","catalog/66685_1.webp","opt/e1a5af9cedfb5eeba87e3a4f.webp","opt/84cc1c7d25db040ab0057e78.webp","catalog/18727_1.webp","catalog/19093_1.webp","catalog/46343_4.webp","catalog/20048_1.webp","catalog/35848_1.webp","catalog/40552_1.webp","catalog/67315_1.webp","catalog/55833_4.webp","opt/32efc1e0b5dbd3301b2f27df.webp","catalog/89535_1.webp","opt/91abf560e06ad77ac7c4d6db.webp","catalog/48187_1.webp","catalog/55745_4.webp","catalog/82522_4.webp","catalog/49836_4.webp","catalog/41505_1.webp","catalog/50070_1.webp","catalog/82368_4.webp","catalog/41349_3.webp","catalog/67704_1.webp","opt/8f547c507630ee4e4da6bd6a.webp","catalog/80699_1.webp","catalog/81158_4.webp","catalog/83292_4.webp","catalog/43950_1.webp","catalog/40600_1.webp","catalog/65095_4.webp","catalog/82370_4.webp","catalog/49312_4.webp","catalog/42205_4.webp","catalog/66933_1.webp","catalog/46403_1.webp","opt/67de1d7ba3080dde4ad95b4f.webp","catalog/18726_1.webp","catalog/15211_1.webp","catalog/46344_4.webp","catalog/24763_4.webp","catalog/35999_2.webp","catalog/46981_1.webp","catalog/67314_1.webp","opt/e2657cc2e9a007d6bc7ec3c3.webp","catalog/22009_1.webp","catalog/67024_1.webp","opt/e4d6347785f3739a898d1d38.webp","catalog/48105_1.webp","catalog/47447_4.webp","catalog/66645_1.webp","catalog/42649_1.webp","catalog/41722_2.webp","catalog/50067_1.webp","catalog/84186_4.webp","catalog/81617_4.webp","catalog/67261_1.webp","opt/95508215d4d0fbfb0208a917.webp","catalog/80694_1.webp","catalog/46644_4.webp","catalog/48865_1.webp","opt/fd4fa96726d32adcf88e11d8.webp","opt/3c874d688c6b6c75f16aaadb.webp","catalog/65094_4.webp","catalog/41125_1.webp","catalog/41292_1.webp","catalog/82046_4.webp","opt/056334cb6bac07f6558b809d.webp","catalog/66115_1.webp","opt/a205906404173e6906315754.webp","catalog/18551_1.webp","catalog/14956_1.webp","catalog/81664_4.webp","catalog/21785_1.webp","catalog/35996_2.webp","catalog/83313_4.webp","catalog/66991_1.webp","catalog/83133_3.webp","catalog/53363_4.webp","catalog/43600_1.webp","catalog/82788_4.webp","catalog/80958_1.webp","catalog/83635_4.webp","catalog/80026_1.webp","catalog/82373_1.webp","catalog/42665_4.webp","catalog/54029_4.webp","catalog/65676_1.webp","opt/e0fa2dcadee87ccfa0e18d13.webp","catalog/49355_1.webp"];
 
 const statusEl = document.getElementById("status");
 const cv = document.getElementById("cv");
@@ -97,10 +106,16 @@ function load(path) {
   });
 }
 
-/* מבחן רקע לבן: דוגם את פיקסלי המסגרת של התמונה ודורש שרובם המכריע
-   יהיו כמעט-לבנים ונטולי גוון. מוצר שצולם על שולחן, על בד או בתפאורה
-   ייפסל כאן — וזה בדיוק מה שמבקשים, כי רק רקע אחיד נראה מקצועי ברשת. */
-function isWhiteBg(img) {
+/* שני מבחנים, ושניהם נחוצים.
+
+   מסגרת: דורש שפיקסלי השוליים יהיו כמעט-לבנים ונטולי גוון. מוצר שצולם
+   על שולחן, על בד או בתפאורה נופל כאן.
+
+   מרכז: דורש שיהיה בתמונה מוצר שרואים. המבחן הראשון לבדו העביר עשרות
+   צילומי קופסאות ושקיות אריזה לבנות — טכנית "רקע לבן", ויזואלית ריבוע
+   ריק — והרשת יצאה כמעט כולה מהן. לכן נדרש גם שבאזור המרכזי יהיה חלק
+   מספיק של פיקסלים כהים או צבעוניים באמת. */
+function isUsable(img) {
   const S = 64, c = document.createElement("canvas");
   c.width = c.height = S;
   const x = c.getContext("2d", { willReadFrequently: true });
@@ -108,15 +123,26 @@ function isWhiteBg(img) {
   let d;
   try { d = x.getImageData(0, 0, S, S).data; }
   catch (e) { tainted = true; return true; }   // חסימת CORS — לא ניתן לסנן
-  let pass = 0, total = 0;
-  const at = (px, py) => {
-    const i = (py * S + px) * 4, r = d[i], g = d[i+1], b = d[i+2];
-    total++;
-    const mx = Math.max(r,g,b), mn = Math.min(r,g,b);
-    if (mn > 236 && mx - mn < 14) pass++;
+
+  const px = (ix, iy) => { const i = (iy * S + ix) * 4; return [d[i], d[i+1], d[i+2]]; };
+
+  let edgePass = 0, edgeTotal = 0;
+  const edge = (ix, iy) => {
+    const [r,g,b] = px(ix,iy); edgeTotal++;
+    if (Math.min(r,g,b) > 236 && Math.max(r,g,b) - Math.min(r,g,b) < 14) edgePass++;
   };
-  for (let i = 0; i < S; i++) { at(i,0); at(i,S-1); at(0,i); at(S-1,i); at(i,2); at(2,i); }
-  return pass / total > 0.9;
+  for (let i = 0; i < S; i++) { edge(i,0); edge(i,S-1); edge(0,i); edge(S-1,i); edge(i,2); edge(2,i); }
+  if (edgePass / edgeTotal <= 0.9) return false;
+
+  const a = Math.round(S * 0.18), z = S - a;
+  let ink = 0, strong = 0, n = 0;
+  for (let iy = a; iy < z; iy++) for (let ix = a; ix < z; ix++) {
+    const [r,g,b] = px(ix,iy), mn = Math.min(r,g,b), mx = Math.max(r,g,b);
+    n++;
+    if (mn < 225 || mx - mn > 25) ink++;    // שונה מלבן בכלל
+    if (mn < 200) strong++;                 // כהה או רווי באמת
+  }
+  return ink / n > 0.15 && strong / n > 0.06;
 }
 
 function drawTile(img, x, y, s) {
@@ -201,7 +227,7 @@ function render() {
   ctx.fillText("orzadik.com  ·  משלוח עד הבית בכל הארץ", cxm, py + ph*0.90);
 
   const shown = Math.min(rows * cols, pool.length);
-  setStatus(`מוכן — ${whiteBg.length} מוצרים על רקע לבן, ${shown} אריחים בתמונה.` +
+  setStatus(`מוכן — ${whiteBg.length} מוצרים עברו את הסינון (רקע לבן + מוצר שרואים), ${shown} אריחים בתמונה.` +
             (tainted ? "  ⚠️ הדפדפן חסם קריאת פיקסלים, לכן הסינון לרקע לבן לא רץ." : ""));
 }
 
@@ -244,7 +270,7 @@ document.getElementById("dl").onclick = () => {
   }));
   const ok = imgs.filter(Boolean);
   if (!ok.length) { setStatus("אף תמונה לא נטענה — בדוק חיבור לאינטרנט.", true); return; }
-  whiteBg = ok.filter(isWhiteBg);
+  whiteBg = ok.filter(isUsable);
   if (whiteBg.length < 20) whiteBg = ok;   // סינון אגרסיבי מדי — עדיף להראות משהו
   document.getElementById("dl").disabled = false;
   render();
