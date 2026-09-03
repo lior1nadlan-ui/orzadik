@@ -84,6 +84,13 @@
         <option value="60">60 שניות</option>
       </select>
     </label>
+    <label>איכות
+      <select id="qual">
+        <option value="250">חסכוני</option>
+        <option value="550" selected>מאוזן</option>
+        <option value="1100">מקסימלי</option>
+      </select>
+    </label>
     <label>מהירות
       <select id="speed">
         <option value="1600">רגוע</option>
@@ -117,9 +124,19 @@ const SUPA = "https://whtjslgrrfzehivrknuv.supabase.co";
 // לקרוא מוצרים פעילים ותמונות מוצר בלבד, ותו לא.
 const KEY  = "sb_publishable_iIXlA6UOH_jEMubtd2nW9A_bG9hPbaF";
 const BASE = SUPA + "/storage/v1/object/public/product-images/";
-const THUMB = 256;   // כל תמונה מוקטנת לפני שמירה בזיכרון
+/* גודל התמונה השמורה בזיכרון. היה קבוע על 256 והוא זה שהגביל את החדות:
+   משבצת של 3 בשורה היא 360 פיקסלים, כלומר מקור של 256 נמתח כלפי מעלה.
+   הגודל נגזר עכשיו מתקציב זיכרון חלקי מספר התמונות — N תמונות בגודל
+   S תופסות N·S²·4 בתים, ולכן S = √(תקציב / 4N). */
+function thumbSize(count) {
+  const budgetMB = Number(S("qual").value);
+  const s = Math.sqrt((budgetMB * 1048576) / (4 * Math.max(1, count)));
+  return Math.max(224, Math.min(768, Math.round(s / 32) * 32));
+}
 
 const cv = document.getElementById("cv"), ctx = cv.getContext("2d");
+ctx.imageSmoothingEnabled = true;
+ctx.imageSmoothingQuality = "high";
 const S = (id) => document.getElementById(id);
 let rows = [], pool = [], loadedFor = "", running = false, tainted = false;
 
@@ -138,11 +155,17 @@ function updateCalc() {
   const usable = Math.max(0, secs * 1000 - 700 - 1800);
   const shown = n + Math.floor(usable / step) * n;
   const rate = Math.round(n / (step / 1000));
+  const src = thumbSize(Number(S("count").value));
+  const tilePx = Math.round(mosaic ? tile : Math.min(W, H) * 0.9);
+  const soft = src < tilePx;
   S("calc").innerHTML = `על המסך <b>${n}</b> משבצות בו-זמנית · כ-<b>${rate}</b> מוצרים מתחלפים בשנייה · ` +
     `לאורך הסרטון יופיעו כ-<b>${shown.toLocaleString("he-IL")}</b> מוצרים` +
-    (pool.length ? ` · נטענו <b>${pool.length.toLocaleString("he-IL")}</b> תמונות` : "");
+    (pool.length ? ` · נטענו <b>${pool.length.toLocaleString("he-IL")}</b> תמונות` : "") +
+    `<br>משבצת בסרטון <b>${tilePx}px</b> · מקור בזיכרון <b>${src}px</b>` +
+    (soft ? ` — <b style="color:#b00">המקור קטן מהמשבצת, התמונה תימתח.</b> העלה איכות או הקטן את מספר התמונות.`
+          : " — חד.");
 }
-["fmt","mode","cols","dur","speed"].forEach(id => S(id).onchange = () => {
+["fmt","mode","cols","dur","speed","qual"].forEach(id => S(id).onchange = () => {
   S("cols").disabled = S("mode").value !== "mosaic";
   updateCalc();
 });
@@ -166,14 +189,14 @@ async function fetchRows(limit) {
 
 function fam(name) { return name.split(/\s+/).slice(0, 3).join(" "); }
 
-async function toThumb(url) {
+async function toThumb(url, size) {
   try {
     const res = await fetch(url, { mode: "cors" });
     if (!res.ok) return null;
     const blob = await res.blob();
     // הקטנה בזמן הפענוח: 1500 תמונות בגודל מלא היו תופסות כמה ג'יגה-בייט
     return await createImageBitmap(blob, {
-      resizeWidth: THUMB, resizeHeight: THUMB, resizeQuality: "high"
+      resizeWidth: size, resizeHeight: size, resizeQuality: "high"
     });
   } catch (e) { return null; }
 }
@@ -286,6 +309,8 @@ function play() {
   return new Promise(resolve => {
     const [W, H] = S("fmt").value.split("x").map(Number);
     cv.width = W; cv.height = H;
+    ctx.imageSmoothingEnabled = true;      // שינוי גודל הקנבס מאפס את ההקשר
+    ctx.imageSmoothingQuality = "high";
 
     const total = Number(S("dur").value) * 1000;
     const step  = Number(S("speed").value);
@@ -354,7 +379,7 @@ function pickMime() {
 }
 
 async function ensureLoaded() {
-  const key = S("count").value + "|" + S("uniq").value;
+  const key = S("count").value + "|" + S("uniq").value + "|" + S("qual").value;
   if (key === loadedFor && pool.length) return;
 
   S("preview").disabled = S("record").disabled = true;
@@ -371,15 +396,16 @@ async function ensureLoaded() {
   list = list.slice(0, want);
 
   // טעינה במקביל מוגבל: 2,600 בקשות בבת אחת מחניקות את הדפדפן
+  const size = thumbSize(list.length);
   const out = [];
   let i = 0, done = 0, rejected = 0;
   async function worker() {
     while (i < list.length) {
       const my = i++;
-      const bmp = await toThumb(BASE + list[my].url.split("/product-images/").pop());
+      const bmp = await toThumb(BASE + list[my].url.split("/product-images/").pop(), size);
       if (bmp) { if (isUsable(bmp)) out.push(bmp); else { rejected++; bmp.close?.(); } }
       if (++done % 25 === 0 || done === list.length)
-        setStatus(`טוען תמונות… ${done}/${list.length} · ${out.length} עברו סינון`);
+        setStatus(`טוען תמונות ב-${size}px… ${done}/${list.length} · ${out.length} עברו סינון`);
     }
   }
   await Promise.all(Array.from({ length: 20 }, worker));
@@ -394,6 +420,7 @@ async function ensureLoaded() {
   updateCalc();
 }
 
+S("qual").addEventListener("change", () => { loadedFor = ""; });
 S("count").onchange = S("uniq").onchange = () => { setStatus("לחץ תצוגה מקדימה כדי לטעון מחדש."); };
 
 S("preview").onclick = async () => {
@@ -416,8 +443,11 @@ S("record").onclick = async () => {
     const mime = pickMime();
     if (!mime) { setStatus("הדפדפן לא תומך בהקלטת וידאו. נסה Chrome עדכני.", "err"); running = false; return; }
 
+    // 30 fps מספיק לתנועה הזו; הביט-רייט הוא מה שקובע כמה פרטים שורדים
+    // בקידוד, ובפסיפס צפוף כל פריים הוא כמעט תמונה חדשה לגמרי.
     const stream = cv.captureStream(30);
-    const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 10_000_000 });
+    const bitrate = { "250": 12_000_000, "550": 20_000_000, "1100": 30_000_000 }[S("qual").value];
+    const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: bitrate });
     const chunks = [];
     rec.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
     const done = new Promise(r => { rec.onstop = r; });
