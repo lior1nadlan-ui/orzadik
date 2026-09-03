@@ -11,20 +11,23 @@
   * { box-sizing:border-box; }
   body { margin:0; font-family:Heebo,system-ui,sans-serif; background:#f6f6f4; color:var(--ink);
          padding:24px; display:flex; flex-direction:column; align-items:center; }
-  .wrap { width:100%; max-width:1000px; }
+  .wrap { width:100%; max-width:1040px; }
   h1 { font-size:20px; margin:0 0 4px; }
   .sub { color:#666; font-size:14px; margin:0 0 18px; }
-  .bar { display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin-bottom:14px; }
+  .bar { display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin-bottom:12px; }
   button, select { font-family:inherit; font-size:14px; padding:9px 14px; border-radius:8px;
                    border:1px solid #ccc; background:#fff; }
   button { cursor:pointer; }
   button.rec { background:#c0392b; color:#fff; border-color:#c0392b; font-weight:700; }
   button:disabled { opacity:.45; cursor:default; }
   label { font-size:14px; display:flex; align-items:center; gap:6px; }
-  #status { font-size:13px; color:#555; margin:10px 0; min-height:20px; }
+  #status { font-size:13px; color:#555; margin:10px 0 4px; min-height:20px; }
   #status.err { color:#b00; font-weight:500; }
   #status.rec { color:#c0392b; font-weight:700; }
-  canvas { max-height:70vh; width:auto; max-width:100%; border:1px solid #e4e4e4; background:#fff;
+  #calc { font-size:13px; color:#1a1a1a; background:#fff; border:1px solid #e4e4e4;
+          border-radius:8px; padding:10px 14px; margin-bottom:14px; }
+  #calc b { color:var(--gold); }
+  canvas { max-height:66vh; width:auto; max-width:100%; border:1px solid #e4e4e4; background:#fff;
            box-shadow:0 2px 20px rgba(0,0,0,.1); border-radius:4px; }
   .note { font-size:12.5px; color:#777; line-height:1.6; margin-top:16px;
           border-top:1px solid #e4e4e4; padding-top:14px; }
@@ -33,9 +36,23 @@
 <body>
 <div class="wrap">
   <h1>מחולל סרטון קמפיין — אור זרוע לצדיק</h1>
-  <p class="sub">516 מוצרים מכל קטגוריות החנות, מתחלפים על המסך, עם שם החנות קבוע במרכז.</p>
+  <p class="sub">שולף את המוצרים ישירות מהמסד בזמן אמת, מסנן לתמונות על רקע לבן שרואים בהן מוצר, ומרכיב סרטון.</p>
 
   <div class="bar">
+    <label>כמה תמונות
+      <select id="count">
+        <option value="600">600</option>
+        <option value="1000">1000</option>
+        <option value="1500" selected>1500</option>
+        <option value="2600">הכול (~2,590)</option>
+      </select>
+    </label>
+    <label>סוג
+      <select id="uniq">
+        <option value="all" selected>כולל וריאנטים (צבע / גודל)</option>
+        <option value="fam">רק פריטים שונים (~595)</option>
+      </select>
+    </label>
     <label>פורמט
       <select id="fmt">
         <option value="1080x1920">סטורי / רילס 1080×1920</option>
@@ -45,30 +62,33 @@
     </label>
     <label>סגנון
       <select id="mode">
-        <option value="mosaic" selected>פסיפס — הרבה מוצרים יחד</option>
-        <option value="single">מסך מלא — מוצר אחד בכל רגע</option>
+        <option value="mosaic" selected>פסיפס</option>
+        <option value="single">מסך מלא</option>
       </select>
     </label>
     <label>צפיפות
       <select id="cols">
-        <option value="3">3 בשורה — גדול</option>
-        <option value="4" selected>4 בשורה</option>
-        <option value="5">5 בשורה — צפוף</option>
-        <option value="6">6 בשורה — צפוף מאוד</option>
+        <option value="3">3 בשורה</option>
+        <option value="4">4 בשורה</option>
+        <option value="5" selected>5 בשורה</option>
+        <option value="6">6 בשורה</option>
+        <option value="8">8 בשורה — זעיר</option>
       </select>
     </label>
     <label>אורך
       <select id="dur">
-        <option value="8">8 שניות</option>
-        <option value="12" selected>12 שניות</option>
-        <option value="15">15 שניות</option>
+        <option value="12">12 שניות</option>
+        <option value="20">20 שניות</option>
+        <option value="30" selected>30 שניות</option>
+        <option value="45">45 שניות</option>
+        <option value="60">60 שניות</option>
       </select>
     </label>
     <label>מהירות
       <select id="speed">
         <option value="1600">רגוע</option>
-        <option value="1000" selected>מהיר</option>
-        <option value="650">מהיר מאוד</option>
+        <option value="1000">מהיר</option>
+        <option value="650" selected>מהיר מאוד</option>
         <option value="400">מטורף</option>
       </select>
     </label>
@@ -76,96 +96,99 @@
     <button id="record" class="rec" disabled>הקלטה והורדה</button>
   </div>
 
-  <div id="status">טוען תמונות…</div>
+  <div id="calc">—</div>
+  <div id="status">מתחבר למסד…</div>
   <canvas id="cv" width="1080" height="1920"></canvas>
 
   <p class="note">
-    <b>למה פסיפס ולא מוצר אחד מהבהב.</b> כדי להראות הרבה מוצרים מהר, עדיף להחליף הרבה משבצות
-    בהיסט זמן ביניהן מאשר להבהב תמונה אחת על כל המסך. העין רואה תנועה מתמדת ועשרות מוצרים בכל
-    רגע, בלי סטרוב — שמפריע לרגישים לאור, ו-Meta לעיתים מגבילה הפצה שלו. במצב "פסיפס" ובצפיפות
-    4 עם מהירות "מהיר" מתחלפים כ-28 מוצרים בשנייה, אבל כל משבצת בנפרד מתחלפת פעם בשנייה בלבד.<br>
-    <b>הקלטה רצה בזמן אמת</b> — סרטון של 12 שניות נמשך 12 שניות. אל תעבור לטאב אחר בזמן ההקלטה,
-    הדפדפן מאט קנבס ברקע והסרטון ייצא קטוע.
+    <b>למה פסיפס.</b> להראות הרבה מוצרים מהר עדיף בהחלפת משבצות בהיסט זמן ביניהן מאשר בהבהוב
+    תמונה אחת על כל המסך: העין רואה תנועה מתמדת ועשרות מוצרים בכל רגע, בלי סטרוב שמפריע
+    לרגישים לאור ו-Meta לעיתים מגבילה את הפצתו.<br>
+    <b>מספר התמונות מול מה שנראה בפועל.</b> השורה הכתומה למעלה מחשבת כמה מוצרים באמת יספיקו
+    להופיע לפי האורך, הצפיפות והמהירות שבחרת. אם המספר קטן מכמות התמונות שנטענו — הסרטון פשוט
+    יסתיים לפני שהגיע לכולן. הגדל אורך, צפיפות או מהירות.<br>
+    <b>הקלטה בזמן אמת</b> — סרטון של 30 שניות נמשך 30 שניות. אל תעבור טאב, הדפדפן מאט קנבס ברקע.
   </p>
 </div>
 
 <script>
-const BASE = "https://whtjslgrrfzehivrknuv.supabase.co/storage/v1/object/public/product-images/";
-
-/* מוצר מוביל מכל קטגוריה, במחזוריות (rn קודם, cat אחריו) — כך שמוצרים סמוכים
-   ברשימה באים מקטגוריות שונות. ווריאנטים של אותו פריט (אותן שלוש מילים ראשונות
-   בשם) נכנסים פעם אחת. הקידומת מקוצרת: c = catalog/, o = opt/. */
-const PATHS = `oeb07cbc0450fad911dbca4eb c83653_4 c83127_4 c47238_1 c81179_4 o9f2e95fcb27c966cdf0955d6 o1ea86ec0a733cdd10a8f2061 o76cfe0e64b188e9924b22aba o83435ce58095732c1911825c c65096_4 c67742_4 c82432_4
-c50061_4 c48833_1 c46032_1 of14fddba44b48641f5c7a621 c66561_1 c60177_1 c66564_1 c47228_1 c67869_2 c44978_1 c60019_3 c10480_1
-c10506_1 c19313_1 c18959_2 c18967_1 c10107_1 c19307_1 c66452_1 c82387_4 o2d82334757a76fca4b91192b c24533_1 c23805_1 c24301_1
-c20618_1 o791049e015d7a2662318111f c22009_1 c56029_1 c35852_1 c66443_1 c35856_1 c41098_1 o1f774ef952beccad10d2f401 oea671c7078b7874573e61968 c67115_1 o95508215d4d0fbfb0208a917
-c82771_4 odcb7a312089bf2d35edff41c o0e67bcac517c4ec23f40cd30 c83664_1 c67085_1 o3bb841addf1e461bd99a73c4 ob150e19be04098a1abbaef1d c81736_1 c81679_1 c59766_1 c55763_4 c40472_4
-oa107e76493ec1291fb752cf3 c48246_1 c35946_4 c66716_4 oe9afd7a842c2256100d2c390 c80726_1 c40462_4 o8cb34702346c31557cc03afd c42291_4 c55799_1 c80072_4 c60174_1
-oacc0aad6793b66e57207bb4c c67721_1 oac3a8b1b590f0a7d766c0933 c90899_1 c80997_1 c82378_4 c81049_4 ob5791af53883923434b64c01 o749be3fdd488e524d471dc3f c40600_1 c40200_4 c65099_4
-oc4168dae2ea0932a8b19af51 c42076_1 c45714_4 c48176_1 oa78cc0a6a1e3b9d00dc223c9 c51675_4 c66965_1 c66753_1 c67728_3 o84cc1c7d25db040ab0057e78 o734a91cd0f4f08f922bdcebf o0a182c4b29716da0db509118
-c66858_1 c82711_4 o770dafd74378d106ef632485 c23769_1 c24180_1 c24365_1 c24317_1 c47662_1 c35695_4 c49238_1 of9505bb400196ee2a7c49fc8 c67719_1
-ofd4fa96726d32adcf88e11d8 c82605_4 o6af911bdc812a6f4afdb559b c82069_1 c89535_1 occ21fec6509210b1086cf210 o76613b7aae001e2e95602af7 c81689_4 c53322_2 c83449_1 c55312_1 o6b07febf1a526dc9299cc5e9
-c48240_1 c80915_4 o42af4c0c22725ee5d9922e5a oa8d5d9bf07af6828f23fecbc c49355_1 c46823_1 o69c5b44a00c30e7cfa30b4fd c80327_4 c49173_1 c80326_3 c83177_4 c66962_1
-c67155_1 od87fbd7494dca85967aa7005 c90898_1 c82904_4 c82799_4 c48027_1 c48644_1 o3c874d688c6b6c75f16aaadb o14f0d4d1c8c079c9d25a00f5 c41050_1 c42776_1 c58621_1
-c59811_4 c42233_4 c45246_3 c45582_1 oe6595f3cb51e3751213e624b c80698_1 c60964_4 o6198f8e895668b556e65f4ff oc68c716da0ef41e4b77f9635 c18726_1 c17201_1 ofd43b7b27c55e0e3d556ffb0
-c80898_3 o3f5c1a05a7d6034b12e51004 c23513_1 c24181_1 c24364_1 c20928_1 c23365_1 c35846_1 c66919_1 c35848_1 c80483_4 c67317_1
-c82423_4 o9c81336450c9855c5031fa8b c20913_1 c83721_1 c43370_1 o695aa373d209c3e1319f5ab2 oa205906404173e6906315754 c48187_1 c45541_1 c55745_4 o93a9ec7d23f47572fe35f087 c82518_4
-c48659_1 o0ce86b2d552909406337e259 o6ba4aad0bd1ac3d04a0e992f c90130_1 c50071_1 c81971_4 c83733_4 c81975_4 c80856_4 o8f547c507630ee4e4da6bd6a c67704_1 oe165552993389808f076adec
-c41319_1 c82008_4 c82003_4 c48102_1 oacafd5af414aea9b3596ef4b c49723_1 c80692_4 c59876_4 c41294_4 c42547_3 c47483_1 oe0fa2dcadee87ccfa0e18d13
-c66466_1 c90872_1 c18550_1 c19088_1 c46344_4 o03889c46ef6b9d2923e94476 c23980_1 c24541_1 c24055_1 c20048_1 c24482_1 c35996_2
-c40926_1 c49025_1 c42381_4 o32efc1e0b5dbd3301b2f27df c85420_1 c83094_4 oada640b946bf273c2cb1832a c66872_1 c40912_1 o0bc09495e767922c02bc1589 o39471613371d5c98c3ad9f4c c82522_4
-c49836_4 c41505_1 o2b5cf77944c8191dc53e38ef c90634_1 c80907_1 c80858_4 c49172_1 c82997_4 c67156_1 c82906_4 c81159_4 c48866_1
-c82176_1 c43950_1 c46772_1 of9e9c795fcb769979638828d of8cad908bbfbc1ad1f235d3e c41295_4 c42205_4 c83182_4 o50846be563dcb9d8fa802063 o5717389cd3a91b55888338ee c66685_1 oa93af100953e7b98936adf5a
-c18727_1 c18317_1 c16394_1 c81664_4 o632f9ff613d8701bccebe1ff c21661_1 c23721_1 c22292_4 c24681_1 c35999_2 c40552_1 c67122_1
-c83131_4 c24763_4 c53363_4 o127a3a64f876080d67f4b6a1 c48105_1 c55739_4 odd9f2d581bbd1090cad33d8f o300996e63269a29faa2c45ac c42667_4 c41722_2 o8c82aaf7d85d3df6a5259334 c82195_4
-c59491_4 c41349_3 c48153_4 c82175_1 c48865_1 c40510_1 c81577_4 c40407_4 c41125_1 c49312_4 c82046_4 c85993_1
-c51564_4 o67de1d7ba3080dde4ad95b4f c66115_1 c19191_1 c15614_1 c58525_1 o486f47510aa0f21564fcfa4f c29438_1 c20400_1 c23404_1 c35847_1 c35966_4
-c46981_1 c83105_4 c67025_1 ofc6ba42626fb29124588fa8a c43601_1 c43600_1 c47447_4 o22973ed82a0719d5a997d8de c67193_2 c83635_4 c67602_1 oefc896d68eb9180348f5df9b
-c47910_1 c81618_4 c82951_4 c60392_1 c50045_1 c57579_4 c40660_1 c47374_4 c82241_4 c40798_4 c81947_4 c46403_1
-c53706_1 c65060_1 c52968_1 o29a17e27ebd1ae66831c03a2 c23733_1 c21166_1 o4df265d0d2918b6252f355da c66941_1 c81833_4 c82246_3 c21131_1 c67763_2
-c82788_4 ode2a8681d00f03dae620560d c80959_1 c42668_4 c48334_1 oc8290aea67b7e9d2ee6d363a c42665_4 c54029_4 c42666_4 c49867_1 c83359_4 c48867_1
-c46951_1 c81338_4 c83198_4 c82035_4 c59495_1 c40489_1 c18398_1 c82178_4 o39df306aef016c40a4a80cf2 c29752_1 c22923_1 c35738_1
-c35824_1 c82456_1 c67715_3 c50008_4 c42843_1 c80074_1 c67776_1 c40904_1 c49171_1 c81842_4 c57580_4 o8b970af2849b715077dfdd58
-c89515_4 c48223_1 c41286_4 c50621_3 c67261_1 c9946_1 c18932_1 c83503_4 c23613_1 c35926_2 c82889_4 c82018_4
-c56198_4 c55650_4 c44077_1 c81188_1 c41805_1 c44321_1 c53303_4 c82953_4 c44979_1 c83292_4 c83395_4 c80482_4
-c46767_1 c42628_1 c48230_1 c47373_4 c81784_4 c18322_1 c56375_4 c29435_1 c24254_1 c24722_1 c35739_1 c46232_1
-c82839_4 o07fec84c49911a87495b93dc c85543_4 c50039_4 c63208_1 c81623_1 c55462_1 c56187_3 c81829_4 c63246_1 c46769_4 c83293_4
-c41292_1 c80335_4 c66923_1 c19030_1 c82406_4 o077f9c92b7f2a7a902a3ea99 c29436_1 c23403_1 c35701_1 c46859_1 c81466_4 c49696_4
-c80649_1 c512_2 c81891_4 c66998_1 c84186_4 c49230_1 c46768_4 c59873_4 c47265_4 c81989_3 c80065_4 o14047b1cd84674e06f83f87a
-c20095_1 c35920_1 c35833_4 c49548_1 ocf05b7bcddc708af9f46d689 ob427e7f8b85fe3960ae7eed2 c60598_1 c48546_1 c53176_4 c46284_1 c83324_4 c40925_1
-c47089_1 c81014_4 c49304_4 c81982_3 c42806_3 o5e1ae1fa5cafd429df72d234 oaebae4d2ce0c58379aee401b c35905_4 c35844_4 c49324_1 c67552_4 c82078_4
-c60578_1 c49196_4 c80951_1 c55798_4 c83930_4 c57569_1 c81803_4 c18883_2 c81609_3 oe2657cc2e9a007d6bc7ec3c3 c24668_4 of309c2f66686bf080d527b6e
-c49356_1 c47176_1 c50040_4 c65981_1 c47454_4 c82385_4 c81810_4 c40722_1 c80672_4 c82202_4 c58524_1 c80450_4
-c82248_4 c24239_1 o6bf231ee0d3456c6c8b114f6 c35710_1 c81544_4 c81521_4 c66366_1 o17c661c0797e6bef4f247f56 c80855_4 c55794_4 c40081_1 c43761_1
-c41606_4 c65061_1 c55307_3 c24748_1 c24155_1 c35708_1 c80160_4 c81104_4 c66689_1 c81793_3 c82894_4 c80332_1`.trim().split(/\s+/)
-  .map(t => (t[0] === "c" ? "catalog/" : "opt/") + t.slice(1) + ".webp");
+const SUPA = "https://whtjslgrrfzehivrknuv.supabase.co";
+// מפתח פרסום ציבורי — אותו מפתח שהאתר עצמו שולח מהדפדפן. RLS מתיר ל-anon
+// לקרוא מוצרים פעילים ותמונות מוצר בלבד, ותו לא.
+const KEY  = "sb_publishable_iIXlA6UOH_jEMubtd2nW9A_bG9hPbaF";
+const BASE = SUPA + "/storage/v1/object/public/product-images/";
+const THUMB = 256;   // כל תמונה מוקטנת לפני שמירה בזיכרון
 
 const cv = document.getElementById("cv"), ctx = cv.getContext("2d");
-const statusEl = document.getElementById("status");
-let pool = [], tainted = false, running = false;
-
 const S = (id) => document.getElementById(id);
-function setStatus(t, cls) { statusEl.textContent = t; statusEl.className = cls || ""; }
+let rows = [], pool = [], loadedFor = "", running = false, tainted = false;
 
-function load(path) {
-  return new Promise(res => {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => res(img);
-    img.onerror = () => res(null);
-    img.src = BASE + path;
-  });
+function setStatus(t, cls) { S("status").textContent = t; S("status").className = cls || ""; }
+
+/* כמה מוצרים באמת יספיקו לעבור על המסך בהגדרות הנוכחיות. בלי החישוב הזה
+   קל לבחור 1500 תמונות ולקבל סרטון שמראה 300 מהן. */
+function updateCalc() {
+  const [W, H] = S("fmt").value.split("x").map(Number);
+  const mosaic = S("mode").value === "mosaic";
+  const cols = mosaic ? Number(S("cols").value) : 1;
+  const tile = W / cols;
+  const n = mosaic ? cols * Math.ceil(H / tile) : 1;
+  const step = Number(S("speed").value);
+  const secs = Number(S("dur").value);
+  const usable = Math.max(0, secs * 1000 - 700 - 1800);
+  const shown = n + Math.floor(usable / step) * n;
+  const rate = Math.round(n / (step / 1000));
+  S("calc").innerHTML = `על המסך <b>${n}</b> משבצות בו-זמנית · כ-<b>${rate}</b> מוצרים מתחלפים בשנייה · ` +
+    `לאורך הסרטון יופיעו כ-<b>${shown.toLocaleString("he-IL")}</b> מוצרים` +
+    (pool.length ? ` · נטענו <b>${pool.length.toLocaleString("he-IL")}</b> תמונות` : "");
+}
+["fmt","mode","cols","dur","speed"].forEach(id => S(id).onchange = () => {
+  S("cols").disabled = S("mode").value !== "mosaic";
+  updateCalc();
+});
+
+/* שליפה ישירה מ-PostgREST. product_images מוטבע כמערך, ונלקחת התמונה
+   הראשונה לפי sort_order — אותה תמונה שהאתר מציג ככרטיס המוצר. */
+async function fetchRows(limit) {
+  const url = `${SUPA}/rest/v1/products?select=name,price,product_images(url,sort_order)` +
+              `&is_active=eq.true&price=gt.0&order=price.desc&limit=${limit}`;
+  const r = await fetch(url, { headers: { apikey: KEY, Authorization: "Bearer " + KEY } });
+  if (!r.ok) throw new Error(`Supabase ${r.status}: ${await r.text()}`);
+  const data = await r.json();
+  return data
+    .map(p => {
+      const imgs = (p.product_images || []).slice()
+        .sort((a, b) => (a.sort_order ?? 1e9) - (b.sort_order ?? 1e9));
+      return imgs.length ? { name: p.name || "", url: imgs[0].url } : null;
+    })
+    .filter(Boolean);
 }
 
-/* שוליים כמעט-לבנים, ומרכז שיש בו מוצר שרואים. בלי המבחן השני עוברות עשרות
-   תמונות של קופסאות אריזה לבנות — רקע לבן, מוצר לבן, ריבוע ריק. */
-function isUsable(img) {
-  const N = 64, c = document.createElement("canvas");
-  c.width = c.height = N;
-  const x = c.getContext("2d", { willReadFrequently: true });
-  x.drawImage(img, 0, 0, N, N);
+function fam(name) { return name.split(/\s+/).slice(0, 3).join(" "); }
+
+async function toThumb(url) {
+  try {
+    const res = await fetch(url, { mode: "cors" });
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    // הקטנה בזמן הפענוח: 1500 תמונות בגודל מלא היו תופסות כמה ג'יגה-בייט
+    return await createImageBitmap(blob, {
+      resizeWidth: THUMB, resizeHeight: THUMB, resizeQuality: "high"
+    });
+  } catch (e) { return null; }
+}
+
+/* שוליים כמעט-לבנים, ומרכז שיש בו מוצר שרואים. בלי המבחן השני עוברות
+   עשרות תמונות של קופסאות אריזה לבנות — רקע לבן, מוצר לבן, ריבוע ריק. */
+const probe = document.createElement("canvas");
+probe.width = probe.height = 64;
+const pctx = probe.getContext("2d", { willReadFrequently: true });
+function isUsable(bmp) {
+  const N = 64;
+  pctx.clearRect(0, 0, N, N);
+  pctx.drawImage(bmp, 0, 0, N, N);
   let d;
-  try { d = x.getImageData(0, 0, N, N).data; } catch (e) { tainted = true; return true; }
+  try { d = pctx.getImageData(0, 0, N, N).data; } catch (e) { tainted = true; return true; }
   const px = (ix, iy) => { const i = (iy * N + ix) * 4; return [d[i], d[i+1], d[i+2]]; };
 
   let ep = 0, et = 0;
@@ -195,14 +218,14 @@ function roundRect(x, y, w, h, r) {
   ctx.closePath();
 }
 
-function fit(img, cx, cy, box, scale) {
+function fit(bmp, cx, cy, box, scale) {
   const b = box * scale;
-  const r = Math.min(b / img.width, b / img.height);
-  const w = img.width * r, h = img.height * r;
-  ctx.drawImage(img, cx - w / 2, cy - h / 2, w, h);
+  const r = Math.min(b / bmp.width, b / bmp.height);
+  const w = bmp.width * r, h = bmp.height * r;
+  ctx.drawImage(bmp, cx - w / 2, cy - h / 2, w, h);
 }
 
-/* הפאנל יושב במרכז האנכי. בסטורי זה גם האזור הבטוח: 250 הפיקסלים העליונים
+/* הפאנל יושב במרכז האנכי — בסטורי זה גם האזור הבטוח: 250 הפיקסלים העליונים
    וכ-340 התחתונים מכוסים בממשק של אינסטגרם. */
 function drawBrand(W, H, alpha, showUrl) {
   if (alpha <= 0) return;
@@ -271,14 +294,21 @@ function play() {
 
     const cols = mosaic ? Number(S("cols").value) : 1;
     const tile = W / cols;
-    const rows = mosaic ? Math.ceil(H / tile) : 1;
-    const n = cols * rows;
+    const rowsN = mosaic ? Math.ceil(H / tile) : 1;
+    const n = cols * rowsN;
 
-    // כל משבצת מקבלת היסט משלה, כך שההחלפות מתפזרות על פני המחזור במקום
-    // לקרות יחד. זה מה שהופך "הרבה מוצרים מהר" לתנועה רציפה ולא להבהוב.
+    // סדר אקראי, כך שווריאנטים של אותו פריט לא נופלים זה ליד זה
+    const order = pool.slice();
+    for (let i = order.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [order[i], order[j]] = [order[j], order[i]];
+    }
+
+    // לכל משבצת היסט זמן משלה, כך שההחלפות מתפזרות במקום לקרות יחד.
+    // זה מה שהופך "הרבה מוצרים מהר" לתנועה רציפה ולא להבהוב.
     const slot = new Array(n), born = new Array(n), nextAt = new Array(n);
     let cursor = 0;
-    const take = () => pool[cursor++ % pool.length];
+    const take = () => order[cursor++ % order.length];
     for (let i = 0; i < n; i++) {
       slot[i] = take();
       born[i] = 0;
@@ -297,11 +327,11 @@ function play() {
       if (t > INTRO) {
         for (let i = 0; i < n; i++) {
           if (!frozen && t >= nextAt[i]) { slot[i] = take(); born[i] = t; nextAt[i] = t + step; }
-          const age = Math.min(1, (t - born[i]) / 260);      // כניסה רכה, בלי קאט חד
+          const age = Math.min(1, (t - born[i]) / 260);
           const ease = 1 - Math.pow(1 - age, 3);
           const cx = mosaic ? (i % cols) * tile + tile / 2 : W / 2;
           const cy = mosaic ? Math.floor(i / cols) * tile + tile / 2 : H / 2;
-          const box = mosaic ? tile * 0.84 : Math.min(W, H) * 0.9;
+          const box = mosaic ? tile * 0.86 : Math.min(W, H) * 0.9;
           ctx.save();
           ctx.globalAlpha = 0.25 + 0.75 * ease;
           fit(slot[i], cx, cy, box, 0.94 + 0.06 * ease);
@@ -323,67 +353,100 @@ function pickMime() {
   return "";
 }
 
-S("mode").onchange = () => { S("cols").disabled = S("mode").value !== "mosaic"; };
+async function ensureLoaded() {
+  const key = S("count").value + "|" + S("uniq").value;
+  if (key === loadedFor && pool.length) return;
+
+  S("preview").disabled = S("record").disabled = true;
+  const want = Number(S("count").value);
+
+  setStatus("שולף רשימת מוצרים…");
+  if (!rows.length) rows = await fetchRows(2600);
+
+  let list = rows;
+  if (S("uniq").value === "fam") {
+    const seen = new Set();
+    list = rows.filter(r => { const f = fam(r.name); if (seen.has(f)) return false; seen.add(f); return true; });
+  }
+  list = list.slice(0, want);
+
+  // טעינה במקביל מוגבל: 2,600 בקשות בבת אחת מחניקות את הדפדפן
+  const out = [];
+  let i = 0, done = 0, rejected = 0;
+  async function worker() {
+    while (i < list.length) {
+      const my = i++;
+      const bmp = await toThumb(BASE + list[my].url.split("/product-images/").pop());
+      if (bmp) { if (isUsable(bmp)) out.push(bmp); else { rejected++; bmp.close?.(); } }
+      if (++done % 25 === 0 || done === list.length)
+        setStatus(`טוען תמונות… ${done}/${list.length} · ${out.length} עברו סינון`);
+    }
+  }
+  await Promise.all(Array.from({ length: 20 }, worker));
+
+  pool = out;
+  loadedFor = key;
+  if (!pool.length) { setStatus("אף תמונה לא עברה — בדוק חיבור.", "err"); return; }
+  S("preview").disabled = S("record").disabled = false;
+  setStatus(`מוכן — ${pool.length.toLocaleString("he-IL")} תמונות בסרטון ` +
+            `(${rejected.toLocaleString("he-IL")} נפסלו: רקע לא לבן או ריבוע ריק).` +
+            (tainted ? "  ⚠️ הדפדפן חסם קריאת פיקסלים, הסינון לא רץ." : ""));
+  updateCalc();
+}
+
+S("count").onchange = S("uniq").onchange = () => { setStatus("לחץ תצוגה מקדימה כדי לטעון מחדש."); };
 
 S("preview").onclick = async () => {
   if (running) return;
   running = true;
-  setStatus("מנגן תצוגה מקדימה…");
-  await play();
+  try {
+    await ensureLoaded();
+    if (pool.length) { setStatus("מנגן תצוגה מקדימה…"); await play();
+      setStatus("התצוגה הסתיימה. אם זה נראה טוב — לחץ הקלטה והורדה."); }
+  } catch (e) { setStatus("שגיאה: " + e.message, "err"); }
   running = false;
-  setStatus("התצוגה הסתיימה. אם זה נראה טוב — לחץ הקלטה והורדה.");
 };
 
 S("record").onclick = async () => {
   if (running) return;
   running = true;
-  const mime = pickMime();
-  if (!mime) { setStatus("הדפדפן לא תומך בהקלטת וידאו. נסה Chrome עדכני.", "err"); running = false; return; }
+  try {
+    await ensureLoaded();
+    if (!pool.length) { running = false; return; }
+    const mime = pickMime();
+    if (!mime) { setStatus("הדפדפן לא תומך בהקלטת וידאו. נסה Chrome עדכני.", "err"); running = false; return; }
 
-  const stream = cv.captureStream(30);
-  let rec;
-  try { rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 10_000_000 }); }
-  catch (e) { setStatus("ההקלטה נכשלה: " + e.message, "err"); running = false; return; }
+    const stream = cv.captureStream(30);
+    const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 10_000_000 });
+    const chunks = [];
+    rec.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+    const done = new Promise(r => { rec.onstop = r; });
 
-  const chunks = [];
-  rec.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
-  const done = new Promise(r => { rec.onstop = r; });
+    rec.start();
+    setStatus("מקליט… אל תעבור טאב עד הסוף.", "rec");
+    await play();
+    rec.stop();
+    await done;
 
-  rec.start();
-  setStatus("מקליט… אל תעבור טאב עד הסוף.", "rec");
-  await play();
-  rec.stop();
-  await done;
+    const ext = mime.startsWith("video/mp4") ? "mp4" : "webm";
+    const blob = new Blob(chunks, { type: mime });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `orzadik-campaign-${S("fmt").value}-${S("dur").value}s.${ext}`;
+    a.click();
+    URL.revokeObjectURL(a.href);
 
-  const ext = mime.startsWith("video/mp4") ? "mp4" : "webm";
-  const blob = new Blob(chunks, { type: mime });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = `orzadik-campaign-${S("fmt").value}.${ext}`;
-  a.click();
-  URL.revokeObjectURL(a.href);
-
+    setStatus(`הורד: ${ext.toUpperCase()}, ${(blob.size/1048576).toFixed(1)}MB.` +
+              (ext === "webm" ? "  ⚠️ הדפדפן הקליט WebM ולא MP4 — Meta מעדיפה MP4, תשלח לי ואבדוק." : ""));
+  } catch (e) { setStatus("שגיאה: " + e.message, "err"); }
   running = false;
-  setStatus(`הורד: ${ext.toUpperCase()}, ${(blob.size/1048576).toFixed(1)}MB.` +
-            (ext === "webm" ? "  ⚠️ הדפדפן הקליט WebM ולא MP4 — Meta מעדיפה MP4, תשלח לי ואבדוק." : ""));
 };
 
 (async () => {
   try { await document.fonts.load('900 60px Heebo'); await document.fonts.load('700 30px Heebo'); } catch (e) {}
-  let done = 0;
-  const imgs = await Promise.all(PATHS.map(async p => {
-    const img = await load(p);
-    if (++done % 10 === 0 || done === PATHS.length) setStatus(`טוען תמונות… ${done}/${PATHS.length}`);
-    return img;
-  }));
-  const ok = imgs.filter(Boolean);
-  if (!ok.length) { setStatus("אף תמונה לא נטענה — בדוק חיבור לאינטרנט.", "err"); return; }
-  pool = ok.filter(isUsable);
-  if (pool.length < 40) pool = ok;
-  S("preview").disabled = false;
-  S("record").disabled = false;
-  setStatus(`מוכן — ${pool.length} מוצרים עברו את הסינון מתוך ${PATHS.length}.` +
-            (tainted ? "  ⚠️ הדפדפן חסם קריאת פיקסלים, הסינון לא רץ." : ""));
+  updateCalc();
+  setStatus("מוכן. לחץ תצוגה מקדימה — הטעינה הראשונה לוקחת זמן.");
+  S("preview").disabled = S("record").disabled = false;
 })();
 </script>
 </body>
