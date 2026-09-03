@@ -1,0 +1,254 @@
+<!doctype html>
+<!--
+  מחולל תמונת הקמפיין: רשת של תמונות מוצר על רקע לבן עם כיתוב החנות במרכז.
+
+  למה זה קובץ HTML שנפתח מקומית ולא סקריפט: התמונות יושבות באחסון של
+  Supabase, וסביבת ה-CI/הסוכן חסומה מגישה יוצאת אליו. הדפדפן של המשתמש
+  לעומת זאת מגיע אליהן, ובו-זמנית הוא גם מה שיודע לקרוא פיקסלים — וזה
+  התנאי לסינון לרקע לבן, כי אין בקטלוג שום שדה שמסמן אותו.
+
+  לרענון רשימת המוצרים (למשל אחרי שינויי מחירים), הרץ מול פרויקט orzadik
+  והדבק את התוצאה ל-PATHS:
+
+    with ranked as (
+      select distinct on (p.name) p.name, p.price, pi.url
+      from products p
+      join lateral (
+        select url from product_images where product_id = p.id
+        order by sort_order nulls last, created_at limit 1
+      ) pi on true
+      where p.is_active and p.price > 0
+      order by p.name, p.price desc
+    )
+    select json_agg(replace(url, 'https://whtjslgrrfzehivrknuv.supabase.co'
+             || '/storage/v1/object/public/product-images/', '') order by price desc)
+    from (select * from ranked order by price desc limit 200) t;
+-->
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>מחולל תמונת קמפיין — אור זרוע לצדיק</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root { --gold:#b8912f; --ink:#1a1a1a; --line:#e4e4e4; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:Heebo,system-ui,sans-serif; background:#f6f6f4; color:var(--ink); padding:24px; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  .sub { color:#666; font-size:14px; margin:0 0 20px; }
+  .bar { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:16px; }
+  button, select { font-family:inherit; font-size:14px; padding:9px 16px; border-radius:8px;
+                   border:1px solid #ccc; background:#fff; cursor:pointer; }
+  button.primary { background:var(--ink); color:#fff; border-color:var(--ink); font-weight:700; }
+  button:disabled { opacity:.5; cursor:default; }
+  #status { font-size:13px; color:#555; margin-bottom:12px; min-height:20px; }
+  #status.err { color:#b00; font-weight:500; }
+  canvas { max-width:100%; height:auto; border:1px solid var(--line); background:#fff;
+           box-shadow:0 2px 16px rgba(0,0,0,.08); border-radius:4px; }
+  label { font-size:14px; }
+</style>
+</head>
+<body>
+
+<h1>מחולל תמונת קמפיין — אור זרוע לצדיק</h1>
+<p class="sub">
+  בוחר אוטומטית את המוצרים היקרים ביותר שהתמונה שלהם על רקע לבן, ומרכיב מהם תמונה אחת עם הכיתוב במרכז.
+</p>
+
+<div class="bar">
+  <label>פורמט:
+    <select id="fmt">
+      <option value="1080x1080">מרובע 1080×1080 (פיד)</option>
+      <option value="1080x1350">לאורך 1080×1350 (פיד)</option>
+      <option value="1080x1920">סטורי 1080×1920</option>
+      <option value="1200x628">רחב 1200×628 (לינק)</option>
+    </select>
+  </label>
+  <button id="shuffle">בחירה אחרת</button>
+  <button id="dl" class="primary" disabled>הורדת PNG</button>
+</div>
+
+<div id="status">טוען תמונות…</div>
+<canvas id="cv" width="1080" height="1080"></canvas>
+
+<script>
+const BASE = "https://whtjslgrrfzehivrknuv.supabase.co/storage/v1/object/public/product-images/";
+
+// המוצרים הפעילים היקרים ביותר שיש להם תמונה, מסודרים לפי מחיר יורד.
+// הרשימה רחבה בכוונה — הסינון לרקע לבן קורה בדפדפן ומוריד חלק מהן.
+const PATHS = ["catalog/83549_4.webp","catalog/50061_4.webp","catalog/45714_4.webp","opt/3bb841addf1e461bd99a73c4.webp","catalog/35946_4.webp","catalog/42291_4.webp","catalog/80915_4.webp","catalog/41434_4.webp","catalog/45246_3.webp","opt/8c82aaf7d85d3df6a5259334.webp","opt/a8d5d9bf07af6828f23fecbc.webp","opt/2b5cf77944c8191dc53e38ef.webp","opt/6ba4aad0bd1ac3d04a0e992f.webp","opt/e9afd7a842c2256100d2c390.webp","opt/cc21fec6509210b1086cf210.webp","opt/268be8a2f53c0e28124f62ee.webp","opt/4998feab0c8866231aa714b8.webp","catalog/82076_4.webp","catalog/50063_4.webp","opt/082e02498319f102a6506c3a.webp","opt/fc4ff4fe22e0640e1bc2b362.webp","catalog/66716_4.webp","catalog/80326_3.webp","opt/2a6589885aceabbdfb3ff9aa.webp","opt/2744496dc86208f868377352.webp","opt/eaf2a3e08b1966d9192f2d6c.webp","catalog/42547_3.webp","catalog/82050_4.webp","catalog/82049_4.webp","catalog/42205_4.webp","catalog/82387_4.webp","catalog/82710_4.webp","catalog/82711_4.webp","catalog/80898_3.webp","catalog/82349_4.webp","catalog/82044_4.webp","catalog/40637_3.webp","catalog/82046_4.webp","catalog/81975_4.webp","catalog/80324_4.webp","catalog/42610_3.webp","catalog/81971_4.webp","catalog/81972_4.webp","catalog/81976_4.webp","catalog/81974_4.webp","catalog/46344_4.webp","catalog/58525_1.webp","catalog/81664_4.webp","catalog/46343_4.webp","catalog/82241_4.webp","catalog/82641_4.webp","catalog/82047_4.webp","catalog/82643_4.webp","catalog/42546_1.webp","catalog/82048_4.webp","catalog/82045_4.webp","opt/e7d51cc3a03aa899796b7db2.webp","opt/a592a260270507da4992c827.webp","opt/c7b2297394422434e2669f50.webp","opt/e5bdbdde0d9a3910f475a41b.webp","opt/a6b353dac8dd42cf91314567.webp","opt/67311e28aea33912d078547c.webp","catalog/67115_1.webp","catalog/82638_4.webp","catalog/48224_1.webp","catalog/48240_1.webp","catalog/82645_4.webp","catalog/48246_1.webp","catalog/48230_1.webp","catalog/48223_1.webp","catalog/52968_1.webp","catalog/42545_1.webp","catalog/81834_4.webp","catalog/42389_1.webp","catalog/47823_4.webp","catalog/42649_1.webp","catalog/81791_4.webp","catalog/48661_1.webp","catalog/49836_4.webp","catalog/42667_4.webp","catalog/48659_1.webp","catalog/41853_4.webp","catalog/81179_4.webp","catalog/41098_1.webp","catalog/82374_4.webp","catalog/80901_4.webp","catalog/82378_4.webp","catalog/80897_3.webp","catalog/82799_4.webp","catalog/82379_4.webp","catalog/83503_4.webp","catalog/81194_4.webp","catalog/80895_4.webp","catalog/82434_4.webp","catalog/80896_3.webp","catalog/83641_4.webp","catalog/80850_4.webp","catalog/82375_4.webp","catalog/80761_1.webp","catalog/83653_4.webp","catalog/50090_1.webp","catalog/82800_4.webp","catalog/82178_4.webp","catalog/80764_4.webp","catalog/81049_4.webp","catalog/83635_4.webp","catalog/42668_4.webp","catalog/82524_4.webp","catalog/82525_4.webp","catalog/82522_4.webp","catalog/82204_4.webp","catalog/82202_4.webp","catalog/42587_2.webp","opt/300996e63269a29faa2c45ac.webp","catalog/82518_4.webp","catalog/82519_4.webp","catalog/82432_4.webp","catalog/82035_4.webp","catalog/82056_4.webp","catalog/55799_1.webp","catalog/82051_4.webp","catalog/82523_4.webp","catalog/67719_1.webp","catalog/67114_1.webp","catalog/80072_4.webp","opt/2d82334757a76fca4b91192b.webp","opt/770dafd74378d106ef632485.webp","opt/695aa373d209c3e1319f5ab2.webp","catalog/56375_4.webp","catalog/41319_1.webp","catalog/48027_1.webp","catalog/50039_4.webp","opt/c4168dae2ea0932a8b19af51.webp","catalog/59815_4.webp","catalog/50621_3.webp","catalog/60177_1.webp","catalog/60174_1.webp","catalog/82773_4.webp","catalog/43861_4.webp","catalog/81808_4.webp","catalog/80913_4.webp","catalog/43862_4.webp","catalog/82605_4.webp","catalog/80409_4.webp","catalog/42502_2.webp","catalog/67718_1.webp","catalog/80858_4.webp","catalog/67113_1.webp","catalog/67869_2.webp","catalog/82368_4.webp","catalog/60019_3.webp","catalog/40563_3.webp","catalog/82734_4.webp","catalog/80383_3.webp","catalog/81784_4.webp","catalog/81753_4.webp","catalog/80444_4.webp","catalog/81084_4.webp","catalog/81083_4.webp","catalog/80339_3.webp","catalog/80386_4.webp","catalog/83398_4.webp","catalog/49696_4.webp","catalog/66858_1.webp","catalog/66452_1.webp","opt/3f5c1a05a7d6034b12e51004.webp","opt/06fb3bc2ecb4539589f70406.webp","opt/3f4e8f558bd597a334fc404e.webp","catalog/65540_1.webp","catalog/66235_1.webp","catalog/65541_1.webp","catalog/67241_1.webp","catalog/66677_1.webp","catalog/67040_1.webp","catalog/66967_1.webp","catalog/66962_1.webp","catalog/66965_1.webp","catalog/66961_1.webp","catalog/66959_1.webp","catalog/66960_1.webp","catalog/67108_1.webp","catalog/66678_1.webp","catalog/40462_4.webp","catalog/40094_1.webp","catalog/41318_4.webp","catalog/80561_3.webp","catalog/81801_4.webp","catalog/59814_4.webp","catalog/81989_3.webp","catalog/40650_4.webp","catalog/81741_4.webp","catalog/41979_4.webp","catalog/41981_4.webp","catalog/82887_4.webp","catalog/40550_4.webp","catalog/81800_3.webp","catalog/42544_1.webp","catalog/80335_4.webp","catalog/81982_3.webp","opt/b427e7f8b85fe3960ae7eed2.webp"];
+
+const statusEl = document.getElementById("status");
+const cv = document.getElementById("cv");
+const ctx = cv.getContext("2d");
+let whiteBg = [];   // התמונות שעברו את מבחן הרקע הלבן, לפי סדר המחיר
+let tainted = false;
+
+function setStatus(t, err) { statusEl.textContent = t; statusEl.className = err ? "err" : ""; }
+
+function load(path) {
+  return new Promise(res => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => res(img);
+    img.onerror = () => res(null);
+    img.src = BASE + path;
+  });
+}
+
+/* מבחן רקע לבן: דוגם את פיקסלי המסגרת של התמונה ודורש שרובם המכריע
+   יהיו כמעט-לבנים ונטולי גוון. מוצר שצולם על שולחן, על בד או בתפאורה
+   ייפסל כאן — וזה בדיוק מה שמבקשים, כי רק רקע אחיד נראה מקצועי ברשת. */
+function isWhiteBg(img) {
+  const S = 64, c = document.createElement("canvas");
+  c.width = c.height = S;
+  const x = c.getContext("2d", { willReadFrequently: true });
+  x.drawImage(img, 0, 0, S, S);
+  let d;
+  try { d = x.getImageData(0, 0, S, S).data; }
+  catch (e) { tainted = true; return true; }   // חסימת CORS — לא ניתן לסנן
+  let pass = 0, total = 0;
+  const at = (px, py) => {
+    const i = (py * S + px) * 4, r = d[i], g = d[i+1], b = d[i+2];
+    total++;
+    const mx = Math.max(r,g,b), mn = Math.min(r,g,b);
+    if (mn > 236 && mx - mn < 14) pass++;
+  };
+  for (let i = 0; i < S; i++) { at(i,0); at(i,S-1); at(0,i); at(S-1,i); at(i,2); at(2,i); }
+  return pass / total > 0.9;
+}
+
+function drawTile(img, x, y, s) {
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(x, y, s, s);
+  const pad = s * 0.07, box = s - pad * 2;
+  const r = Math.min(box / img.width, box / img.height);
+  const w = img.width * r, h = img.height * r;
+  ctx.drawImage(img, x + (s - w) / 2, y + (s - h) / 2, w, h);
+}
+
+function render() {
+  const [W, H] = document.getElementById("fmt").value.split("x").map(Number);
+  cv.width = W; cv.height = H;
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, W, H);
+
+  if (!whiteBg.length) return;
+
+  // גודל אריח שנותן לפחות 50 מוצרים גלויים בכל פורמט
+  const cols = W >= H ? (W / H > 1.5 ? 12 : 9) : 8;
+  const s = W / cols;
+  const rows = Math.ceil(H / s);
+
+  const pool = whiteBg.slice();
+  let k = 0;
+  for (let ry = 0; ry < rows; ry++)
+    for (let cx = 0; cx < cols; cx++)
+      drawTile(pool[k++ % pool.length], cx * s, ry * s, s);
+
+  // קווי הפרדה עדינים — בלעדיהם מוצרים לבנים סמוכים נמרחים זה לזה
+  ctx.strokeStyle = "#ededed";
+  ctx.lineWidth = 1;
+  for (let cx = 1; cx < cols; cx++) { ctx.beginPath(); ctx.moveTo(cx*s,0); ctx.lineTo(cx*s,H); ctx.stroke(); }
+  for (let ry = 1; ry < rows; ry++) { ctx.beginPath(); ctx.moveTo(0,ry*s); ctx.lineTo(W,ry*s); ctx.stroke(); }
+
+  // הצללה עדינה מסביב לפאנל, כדי שהכיתוב יישב על משהו ולא יצוף
+  const pw = Math.min(W * 0.84, 920), ph = Math.min(H * 0.34, 330);
+  const px = (W - pw) / 2, py = (H - ph) / 2;
+  const g = ctx.createRadialGradient(W/2, H/2, ph*0.4, W/2, H/2, Math.max(W,H)*0.62);
+  g.addColorStop(0, "rgba(255,255,255,.92)");
+  g.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.save();
+  ctx.shadowColor = "rgba(0,0,0,.13)";
+  ctx.shadowBlur = 46;
+  ctx.shadowOffsetY = 10;
+  ctx.fillStyle = "#fff";
+  roundRect(px, py, pw, ph, 10);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.strokeStyle = "#b8912f";
+  ctx.lineWidth = 2.5;
+  roundRect(px + 12, py + 12, pw - 24, ph - 24, 6);
+  ctx.stroke();
+
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const cxm = W / 2, u = ph / 100;
+
+  ctx.fillStyle = "#1a1a1a";
+  ctx.font = `900 ${u*20}px Heebo, sans-serif`;
+  ctx.fillText("חנות מוצרי יודאיקה", cxm, py + ph*0.31);
+  ctx.fillText("ותשמישי קדושה", cxm, py + ph*0.53);
+
+  ctx.strokeStyle = "#b8912f";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(cxm - pw*0.16, py + ph*0.665);
+  ctx.lineTo(cxm + pw*0.16, py + ph*0.665);
+  ctx.stroke();
+
+  ctx.fillStyle = "#b8912f";
+  ctx.font = `700 ${u*11}px Heebo, sans-serif`;
+  ctx.fillText("אור זרוע לצדיק", cxm, py + ph*0.785);
+
+  ctx.fillStyle = "#666";
+  ctx.font = `500 ${u*7.5}px Heebo, sans-serif`;
+  ctx.fillText("orzadik.com  ·  משלוח עד הבית בכל הארץ", cxm, py + ph*0.90);
+
+  const shown = Math.min(rows * cols, pool.length);
+  setStatus(`מוכן — ${whiteBg.length} מוצרים על רקע לבן, ${shown} אריחים בתמונה.` +
+            (tainted ? "  ⚠️ הדפדפן חסם קריאת פיקסלים, לכן הסינון לרקע לבן לא רץ." : ""));
+}
+
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+document.getElementById("shuffle").onclick = () => {
+  for (let i = whiteBg.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [whiteBg[i], whiteBg[j]] = [whiteBg[j], whiteBg[i]];
+  }
+  render();
+};
+document.getElementById("fmt").onchange = render;
+document.getElementById("dl").onclick = () => {
+  cv.toBlob(b => {
+    if (!b) { setStatus("הדפדפן חסם את ההורדה (CORS). צלם מסך של התצוגה במקום.", true); return; }
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(b);
+    a.download = "orzadik-campaign-" + document.getElementById("fmt").value + ".png";
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }, "image/png");
+};
+
+(async () => {
+  try { await document.fonts.load('900 40px Heebo'); await document.fonts.load('700 20px Heebo'); } catch (e) {}
+  let done = 0;
+  const imgs = await Promise.all(PATHS.map(async p => {
+    const img = await load(p);
+    setStatus(`טוען תמונות… ${++done}/${PATHS.length}`);
+    return img;
+  }));
+  const ok = imgs.filter(Boolean);
+  if (!ok.length) { setStatus("אף תמונה לא נטענה — בדוק חיבור לאינטרנט.", true); return; }
+  whiteBg = ok.filter(isWhiteBg);
+  if (whiteBg.length < 20) whiteBg = ok;   // סינון אגרסיבי מדי — עדיף להראות משהו
+  document.getElementById("dl").disabled = false;
+  render();
+})();
+</script>
+</body>
+</html>
