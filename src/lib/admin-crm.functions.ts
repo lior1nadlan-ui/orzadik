@@ -10,6 +10,7 @@ import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { requireAdmin } from "@/lib/admin-authz.server";
 import { sendOrderShippedEmail, sendOrderConfirmationEmails } from "@/lib/order-emails.server";
+import { sendOrderTelegramAlert } from "@/lib/telegram.server";
 import { ORDER_ITEM_PRODUCT_JOIN } from "@/lib/order-item-photo";
 
 const PAGE_SIZE = 25;
@@ -1145,6 +1146,46 @@ export const resendOrderConfirmation = createServerFn({ method: "POST" })
       // implying the customer got nothing.
       console.error("[resendOrderConfirmation] stamp failed for order:", order.id, stampErr);
     }
+    return { ok: true, sentAt: new Date().toISOString() };
+  });
+
+/**
+ * Manual resend for the owner's Telegram alert, mirroring resendOrderConfirmation
+ * above. sendOrderTelegramAlert() fails silently into the Worker log — the
+ * owner never otherwise learns a bad bot token or a removed chat cost them a
+ * "don't miss an order" alert — so /admin/orders shows a warning whenever the
+ * matching telegram_*_alert_sent_at column is null, and this is what its
+ * resend button calls.
+ *
+ * `paid` selects WHICH of the two alerts to resend (mirrors the distinction
+ * sendOrderTelegramAlert itself makes): the "order created" alert is valid for
+ * any order, while the "paid" alert only makes sense once payment_status is
+ * actually paid.
+ */
+export const resendOrderTelegramAlert = createServerFn({ method: "POST" })
+  .inputValidator((i: unknown) =>
+    z.object({ order_id: z.string().uuid(), paid: z.boolean() }).parse(i),
+  )
+  .handler(async ({ data }) => {
+    await requireAdmin();
+    const { data: order, error } = await supabaseAdmin
+      .from("orders")
+      .select("id, payment_status")
+      .eq("id", data.order_id)
+      .maybeSingle();
+    if (error || !order) throw new Error("הזמנה לא נמצאה.");
+    if (data.paid && order.payment_status !== "paid") {
+      throw new Error("התראת תשלום נשלחת רק להזמנה ששולמה בפועל.");
+    }
+
+    const sent = await sendOrderTelegramAlert(order.id, data.paid);
+    if (!sent) {
+      throw new Error(
+        "שליחת ההתראה לטלגרם נכשלה. בדקו את החיבור בעמוד 'התראות טלגרם' (טוקן ומזהה שיחה).",
+      );
+    }
+    // sendOrderTelegramAlert stamps the matching column on success itself —
+    // nothing left to write here, just report it truthfully.
     return { ok: true, sentAt: new Date().toISOString() };
   });
 
