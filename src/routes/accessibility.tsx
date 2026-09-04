@@ -1,8 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { BUSINESS, LEGAL_LAST_UPDATED } from "@/lib/business";
-// The interval is DECLARED here, so it is read from the same constant the
-// homepage carousel runs on rather than restated as prose that can drift.
-import { HERO_SLIDE_INTERVAL_SECONDS } from "@/lib/hero-timing";
 
 // Stable anchor ids for each section, single-sourced here so the table of
 // contents and the section headings can never drift: the TOC renders from this
@@ -160,10 +157,9 @@ function AccessibilityPage() {
             העדפת הפחתת תנועה.
           </li>
           <li>
-            מצגת התמונות בראש דף הבית דקורטיבית, מוסתרת מקוראי מסך, ומתחלפת בהעברה רכה כל{" "}
-            {HERO_SLIDE_INTERVAL_SECONDS} שניות. כאשר מוגדרת העדפת הפחתת תנועה היא אינה מתחלפת כלל
-            ומוצגת תמונה אחת בלבד. מתחת למצגת קיים כפתור לעצירת ההחלפה ולהפעלתה מחדש, נגיש במקלדת
-            ובקורא מסך (WCAG 2.2.2).
+            סרטון הרקע בראש דף הבית דקורטיבי, מוסתר מקוראי מסך, ומתנגן בלולאה ברקע ללא סאונד. כאשר
+            מוגדרת העדפת הפחתת תנועה הוא אינו מתנגן כלל ומוצגת תמונת פתיחה אחת בלבד. לצד הסרטון קיים
+            כפתור לעצירת הניגון ולהפעלתו מחדש, נגיש במקלדת ובקורא מסך (WCAG 2.2.2).
           </li>
           <li>אין הפעלה אוטומטית של אודיו או וידאו עם סאונד.</li>
           <li>אנימציות לא חיוניות מצומצמות ומכבדות את הגדרת prefers-reduced-motion.</li>
