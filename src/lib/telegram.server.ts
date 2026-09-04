@@ -13,6 +13,13 @@
 // NEVER THROWS. Every entry point is wrapped, because both call sites sit in
 // the checkout and settlement paths — a Telegram outage must never fail an
 // order or release the confirmation latch. A failure logs and returns false.
+//
+// FAILURE VISIBILITY. A returned `false` used to be logged to the Worker and
+// nowhere else — invisible to the owner, who is exactly the person a failed
+// "don't miss an order" alert matters to. orders.telegram_created_alert_sent_at
+// / telegram_paid_alert_sent_at are stamped on a successful send and stay NULL
+// on failure, which is what lets /admin/orders show a warning + resend action,
+// mirroring confirmation_email_sent_at for the customer's receipt.
 
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { orderItemImageUrl } from "@/lib/order-item-photo";
@@ -155,6 +162,12 @@ function chunk<T>(arr: T[], size: number): T[][] {
  * Returns whether the DETAILS message went out. The photos are a bonus: they
  * are sent after, and a photo failure never turns a delivered alert into a
  * reported failure.
+ *
+ * On success, stamps telegram_created_alert_sent_at (paid=false) or
+ * telegram_paid_alert_sent_at (paid=true) — the latch /admin/orders reads to
+ * show a warning + resend button when this returns false. The stamp write
+ * itself is best-effort: its failure is logged but must not turn a delivered
+ * alert into a reported one, so it never affects the return value.
  */
 export async function sendOrderTelegramAlert(orderId: string, paid: boolean): Promise<boolean> {
   try {
@@ -185,6 +198,25 @@ export async function sendOrderTelegramAlert(orderId: string, paid: boolean): Pr
       parse_mode: "HTML",
       disable_web_page_preview: true,
     });
+
+    if (sent) {
+      const now = new Date().toISOString();
+      // Two literal branches, not a computed key: the generated Supabase types
+      // reject an { [x: string]: string } update object outright.
+      const { error: stampErr } = paid
+        ? await supabaseAdmin
+            .from("orders")
+            .update({ telegram_paid_alert_sent_at: now })
+            .eq("id", orderId)
+        : await supabaseAdmin
+            .from("orders")
+            .update({ telegram_created_alert_sent_at: now })
+            .eq("id", orderId);
+      if (stampErr) {
+        const column = paid ? "telegram_paid_alert_sent_at" : "telegram_created_alert_sent_at";
+        console.error(`[telegram] failed to stamp ${column} for order ${orderId}:`, stampErr);
+      }
+    }
 
     const items = (order.order_items as any[]) ?? [];
     const photos = items

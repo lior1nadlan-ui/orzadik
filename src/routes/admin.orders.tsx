@@ -12,6 +12,7 @@ import {
   updateOrderStatus,
   markOrderPreparing,
   resendOrderConfirmation,
+  resendOrderTelegramAlert,
 } from "@/lib/admin-crm.functions";
 import { waThankYou, waShipped, waFollowUpUnpaid } from "@/lib/wa-templates";
 import { useEffect, useState } from "react";
@@ -117,6 +118,7 @@ function AdminOrders() {
   const setOrderStatus = useServerFn(updateOrderStatus);
   const setPreparingFn = useServerFn(markOrderPreparing);
   const resendConfirmation = useServerFn(resendOrderConfirmation);
+  const resendTelegram = useServerFn(resendOrderTelegramAlert);
   const custNotesFn = useServerFn(listCustomerNotes);
   const addNoteFn = useServerFn(addCustomerNote);
 
@@ -140,6 +142,9 @@ function AdminOrders() {
   const [shipping, setShipping] = useState(false);
   const [preparing, setPreparing] = useState(false);
   const [resending, setResending] = useState(false);
+  // Which Telegram alert is currently being (re)sent, if any — "created" or
+  // "paid" — so the two resend buttons can show independent loading states.
+  const [resendingTelegram, setResendingTelegram] = useState<"created" | "paid" | null>(null);
   const [noteText, setNoteText] = useState("");
   useEffect(() => {
     setTracking(selected?.tracking_number ?? "");
@@ -288,6 +293,20 @@ function AdminOrders() {
       toast.error(e?.message ?? "שליחת האישור נכשלה");
     } finally {
       setResending(false);
+    }
+  };
+
+  const doResendTelegram = async (paid: boolean) => {
+    setResendingTelegram(paid ? "paid" : "created");
+    try {
+      await resendTelegram({ data: { order_id: selected.id, paid } });
+      toast.success("התראת הטלגרם נשלחה שוב 📲");
+      setSelected(null);
+      refresh();
+    } catch (e: any) {
+      toast.error(e?.message ?? "שליחת ההתראה נכשלה");
+    } finally {
+      setResendingTelegram(null);
     }
   };
 
@@ -678,6 +697,65 @@ function AdminOrders() {
                     </Button>
                   </div>
                 )}
+
+                {/* Telegram alerts to the owner — the phone channel, and the one
+                    most likely to be checked first. sendOrderTelegramAlert fails
+                    silently into the Worker log (bad/revoked token, bot removed
+                    from its chat, a network blip), so telegram_*_alert_sent_at is
+                    the same kind of latch confirmation_email_sent_at is above:
+                    NULL means the owner's alert did not actually go out. The
+                    "created" alert applies to every order; the "paid" one only
+                    once payment_status is actually paid. */}
+                <div className="border-t pt-3 space-y-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="text-xs">
+                      {selected.telegram_created_alert_sent_at ? (
+                        <span className="text-emerald-700">
+                          ✓ התראת טלגרם (הזמנה נוצרה) נשלחה ב-
+                          {new Date(selected.telegram_created_alert_sent_at).toLocaleString(
+                            "he-IL",
+                          )}
+                        </span>
+                      ) : (
+                        <span className="text-destructive">
+                          ⚠ התראת טלגרם על יצירת ההזמנה לא נשלחה.
+                        </span>
+                      )}
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={resendingTelegram === "created"}
+                      onClick={() => doResendTelegram(false)}
+                    >
+                      {resendingTelegram === "created" ? "שולח..." : "שלח שוב 📲"}
+                    </Button>
+                  </div>
+                  {selected.payment_status === "paid" && (
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="text-xs">
+                        {selected.telegram_paid_alert_sent_at ? (
+                          <span className="text-emerald-700">
+                            ✓ התראת טלגרם (שולם) נשלחה ב-
+                            {new Date(selected.telegram_paid_alert_sent_at).toLocaleString("he-IL")}
+                          </span>
+                        ) : (
+                          <span className="text-destructive">
+                            ⚠ התראת טלגרם על התשלום לא נשלחה.
+                          </span>
+                        )}
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={resendingTelegram === "paid"}
+                        onClick={() => doResendTelegram(true)}
+                      >
+                        {resendingTelegram === "paid" ? "שולח..." : "שלח שוב 📲"}
+                      </Button>
+                    </div>
+                  )}
+                </div>
 
                 {/* Shipping */}
                 <div className="border-t pt-3 space-y-2">
