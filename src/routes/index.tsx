@@ -50,10 +50,15 @@ import imgTallitTefillinCovers from "@/assets/cat-tallit-tefillin-covers.webp";
 import imgJudaica from "@/assets/cat-judaica.webp";
 import igPost1 from "@/assets/ig/post-1.jpg";
 import igReel1 from "@/assets/ig/reel-1.mp4";
+import igReel1Poster from "@/assets/ig/reel-1-poster.webp";
 import igReel2 from "@/assets/ig/reel-2.mp4";
+import igReel2Poster from "@/assets/ig/reel-2-poster.webp";
 import igReel3 from "@/assets/ig/reel-3.mp4";
+import igReel3Poster from "@/assets/ig/reel-3-poster.webp";
 import igReel4 from "@/assets/ig/reel-4.mp4";
+import igReel4Poster from "@/assets/ig/reel-4-poster.webp";
 import igReel5 from "@/assets/ig/reel-5.mp4";
+import igReel5Poster from "@/assets/ig/reel-5-poster.webp";
 
 import oc_aluminum from "@/assets/other-cats/aluminum.webp";
 import oc_accessories from "@/assets/other-cats/accessories.webp";
@@ -1995,22 +2000,33 @@ function OtherCategoriesSection({
 // deliberately not presented as one (see the gallery section above).
 // `w`/`h` are the still's intrinsic pixels (src/assets/ig/post-1.jpg is
 // 1080×1350); the tile's aspect-[4/5] box + object-cover own the layout.
-const GALLERY_MEDIA: { type: "video" | "image"; src: string; w?: number; h?: number }[] = [
-  { type: "video", src: igReel1 },
-  { type: "video", src: igReel2 },
+// Each reel's `poster` is a real frame extracted from that exact clip, not a
+// generic placeholder, so there is no blank tile while a slow connection
+// buffers the video after it scrolls into view.
+const GALLERY_MEDIA: {
+  type: "video" | "image";
+  src: string;
+  poster?: string;
+  w?: number;
+  h?: number;
+}[] = [
+  { type: "video", src: igReel1, poster: igReel1Poster },
+  { type: "video", src: igReel2, poster: igReel2Poster },
   { type: "image", src: igPost1, w: 1080, h: 1350 },
-  { type: "video", src: igReel3 },
-  { type: "video", src: igReel4 },
-  { type: "video", src: igReel5 },
+  { type: "video", src: igReel3, poster: igReel3Poster },
+  { type: "video", src: igReel4, poster: igReel4Poster },
+  { type: "video", src: igReel5, poster: igReel5Poster },
 ];
 
 const INSTAGRAM_URL = "https://www.instagram.com/or_zarua_latzadik/";
 
 /**
  * Reel that only downloads and plays once it scrolls near the viewport.
- * Avoids fetching ~23MB of below-the-fold video on initial page load.
+ * Avoids fetching ~23MB of below-the-fold video on initial page load. The
+ * poster (a real frame from the same clip, ~30-130KB) is shown immediately
+ * so the tile is never a blank/bg-muted square while the clip buffers.
  */
-function LazyReel({ src }: { src: string }) {
+function LazyReel({ src, poster }: { src: string; poster?: string }) {
   const ref = useRef<HTMLVideoElement | null>(null);
   const [visible, setVisible] = useState(false);
 
@@ -2039,11 +2055,13 @@ function LazyReel({ src }: { src: string }) {
     <video
       ref={ref}
       src={visible ? src : undefined}
+      poster={poster}
       muted
       loop
       playsInline
       // "metadata" once visible so the first frame paints even when reduced
-      // motion skips play(); "none" keeps the initial page load light.
+      // motion skips play(); "none" keeps the initial page load light. The
+      // poster covers both cases visually either way.
       preload={visible ? "metadata" : "none"}
       className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 ease-out motion-safe:[@media(hover:hover)_and_(pointer:fine)]:group-hover:scale-105"
     />
@@ -2073,7 +2091,7 @@ function StoreGallery() {
               className="group relative block aspect-[4/5] overflow-hidden rounded-lg bg-muted shadow-[var(--shadow-card)]"
             >
               {m.type === "video" ? (
-                <LazyReel src={m.src} />
+                <LazyReel src={m.src} poster={m.poster} />
               ) : (
                 <img
                   src={m.src}
