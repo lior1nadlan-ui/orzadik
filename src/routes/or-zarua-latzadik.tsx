@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { ChevronDown } from "lucide-react";
 import { BUSINESS } from "@/lib/business";
 
 // The Hebrew brand query is a VERSE, and that is the whole problem this page
@@ -27,6 +28,36 @@ const TITLE = "אור זרוע לצדיק — פירוש הפסוק, מקורו,
 const DESCRIPTION =
   'אור זרוע לצדיק ולישרי לב שמחה (תהילים צ״ז, יא) — משמעות הפסוק, מקומו בפרק, אמירתו לפני כל נדרי ביום הכיפורים, וספר „אור זרוע". וגם: למה חנות תשמישי הקדושה בקרית ביאליק נקראת בשם הזה.';
 
+// AEO/GEO: the same five facts the page's own prose already states, condensed
+// to citable question/answer pairs. Every answer is a paraphrase of a
+// sentence already on this page — nothing here says anything the prose
+// doesn't, which is the same ground rule the page's own top comment sets for
+// its Torah content. Feeds three surfaces at once: the FAQPage JSON-LD below,
+// the visible "שאלות נפוצות" section (Google requires the schema to mirror
+// visible content), and llms.txt, which links here rather than repeating them.
+const FAQ_ITEMS: { q: string; a: string }[] = [
+  {
+    q: 'מה פירוש הפסוק "אור זרוע לצדיק"?',
+    a: '„אור זרוע" נקרא על דרך הזריעה — אור שנטמן כמו זרע ופירותיו עולים בבוא העת. במסורת יש גם קריאה חלופית „אור זרח לצדיק" (אור שכבר זורח); שתי הקריאות מובאות בפרשנות המסורתית, ואין הכרעה ביניהן.',
+  },
+  {
+    q: 'מאיפה הפסוק "אור זרוע לצדיק"?',
+    a: 'מתהילים פרק צ״ז, פסוק י״א — אחד ממזמורי המלכת ה׳ ("ה׳ מלך תגל הארץ"), הנאמר בקבלת שבת.',
+  },
+  {
+    q: 'מתי אומרים "אור זרוע לצדיק"?',
+    a: 'במנהג אשכנז הפסוק נאמר בפתיחת ליל יום הכיפורים, לפני כל נדרי, יחד עם ההכרזה המתירה "להתפלל עם העבריינים".',
+  },
+  {
+    q: 'מה הקשר בין "אור זרוע לצדיק" לספר "אור זרוע"?',
+    a: '„אור זרוע" הוא גם שמו של חיבור הלכה מרכזי מהמאה הי״ג, מאת רבי יצחק בן משה מווינה, הנודע על שם ספרו. חיפוש הצירוף מוביל לא פעם אליו ולא אל הפסוק.',
+  },
+  {
+    q: 'למה חנות תשמישי קדושה נקראת "אור זרוע לצדיק"?',
+    a: "אור זרוע לצדיק היא חנות תשמישי קדושה ויודאיקה בקרית ביאליק, בבעלות ליאור בן עמי. השם נבחר מן הפסוק כי הוא מתאר את מה שהחנות מוכרת: חפצים שנקנים היום ומלווים בית שנים ארוכות.",
+  },
+];
+
 export const Route = createFileRoute("/or-zarua-latzadik")({
   component: NamePage,
   head: () => ({
@@ -44,7 +75,14 @@ export const Route = createFileRoute("/or-zarua-latzadik")({
         type: "application/ld+json",
         children: JSON.stringify({
           "@context": "https://schema.org",
-          "@type": "WebPage",
+          // FAQPage is a WebPage subtype, so nothing below is given up by the
+          // switch — every property a plain WebPage would carry still applies.
+          // Unlike the homepage (see its own long comment on this), this page
+          // makes no competing "I am the Organization's page" claim — `about`
+          // stays the pasuk and `mentions` stays the business — so there is no
+          // mainEntity collision here to avoid. Category pages already use
+          // real FAQPage on this site for the same reason.
+          "@type": "FAQPage",
           "@id": `${CANONICAL}#webpage`,
           url: CANONICAL,
           name: TITLE,
@@ -60,6 +98,21 @@ export const Route = createFileRoute("/or-zarua-latzadik")({
           },
           mentions: { "@id": "https://orzadik.com/#organization" },
           publisher: { "@id": "https://orzadik.com/#organization" },
+          // FAQPage's actual contract: mainEntity is the Q&A, and FAQ_ITEMS is
+          // the single source both this schema and the visible section below
+          // read from, so the two can never drift.
+          mainEntity: FAQ_ITEMS.map((item) => ({
+            "@type": "Question",
+            name: item.q,
+            acceptedAnswer: { "@type": "Answer", text: item.a },
+          })),
+          // Voice/AI readout target: the pasuk itself and its plain-meaning
+          // answer are the two things worth reading aloud verbatim; the
+          // historical/liturgical sections are context, not the citable core.
+          speakable: {
+            "@type": "SpeakableSpecification",
+            cssSelector: ["#pasuk-verse", "#pshat"],
+          },
         }),
       },
     ],
@@ -94,7 +147,10 @@ function NamePage() {
       {/* The pasuk itself, set apart. It is the reason anyone reaches this
           page, so it is the first thing on it rather than a paragraph in. */}
       <figure className="glass mb-10 px-6 py-8 text-center [--glass-radius:1.25rem] md:px-10">
-        <blockquote className="font-display text-xl leading-relaxed text-foreground md:text-2xl">
+        <blockquote
+          id="pasuk-verse"
+          className="font-display text-xl leading-relaxed text-foreground md:text-2xl"
+        >
           אוֹר זָרֻעַ לַצַּדִּיק וּלְיִשְׁרֵי־לֵב שִׂמְחָה
         </blockquote>
         <figcaption className="text-muted-foreground mt-4 text-sm">
@@ -162,6 +218,32 @@ function NamePage() {
             .
           </p>
         </Section>
+
+        {/* AEO — mirrors the FAQPage mainEntity in the route head verbatim, from
+            the same FAQ_ITEMS array, so the two can never disagree. Native
+            <details>/<summary>, not a JS accordion: the JSON-LD claims this
+            text exists on the page, so it has to be in the server HTML
+            whether or not a visitor ever opens the panel. Same pattern the
+            category pages already use. */}
+        <section id="faq" className="scroll-mt-28 border-t border-glass-line pt-8">
+          <h2 className="font-display mb-4 text-2xl font-bold text-foreground md:text-3xl">
+            שאלות נפוצות
+          </h2>
+          <div className="w-full">
+            {FAQ_ITEMS.map((item, i) => (
+              <details key={i} className="group border-b border-glass-line first:border-t">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 py-4 text-right font-display text-base font-medium transition-[color] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent [&::-webkit-details-marker]:hidden">
+                  <span>{item.q}</span>
+                  <ChevronDown
+                    aria-hidden="true"
+                    className="h-4 w-4 shrink-0 text-accent transition-[transform,rotate] duration-200 ease-out group-open:rotate-180"
+                  />
+                </summary>
+                <p className="pb-4 text-sm text-muted-foreground leading-relaxed">{item.a}</p>
+              </details>
+            ))}
+          </div>
+        </section>
       </div>
     </main>
   );
