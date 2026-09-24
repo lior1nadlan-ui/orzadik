@@ -1,20 +1,30 @@
+import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 /**
- * Shared "section" header — the third tier of the homepage display ramp
- * (hero h1 md:text-6xl / flagship md:text-5xl / SECTION md:text-4xl / sub-panel
- * md:text-3xl). One centered block: eyebrow → display title → gold rule → sub.
+ * Shared "section" header — one centered block: a line-flanked eyebrow, then
+ * the display title, then an optional sub-line.
  *
  * This replaces four byte-identical hand-rolled copies (src/routes/index.tsx and
  * the header blocks in FeaturedProductsCarousel, LuxuryShowcase and HomeReviews).
- * The container spacing (mb-10 md:mb-14), eyebrow gap (mb-3), rule offset (mt-4)
- * and sub offset (mt-4) match those copies exactly, so it drops in without
- * layout shift.
  *
- * Two deliberate departures from the old copies, per the design system:
- *   • eyebrow tracking is ~0.22em (was 0.35em) — the calmer "section" cadence.
- *   • no `uppercase` — a no-op on Hebrew glyphs (so no visual/layout change) and
- *     meaningless for this script; dropping it keeps the class honest.
+ * THE REFERENCE LOOK (owner's screenshots, 2026-09-24): "—— גלו עוד ——" in a
+ * spaced bronze eyebrow between two short hairlines, and a large serif title
+ * with nothing under it. The gold rule that used to sit below the title is gone
+ * — the flanking lines now do that job above it, and a rule on both sides of
+ * the title read as a boxed-in heading.
+ *
+ *   • The hairlines are --gold at 70%: decorative, never text.
+ *   • The eyebrow is --accent (5.49:1 on the ivory ground). The reference's own
+ *     eyebrow is a paler bronze that fails as 12px text; this is the same hue
+ *     one step darker.
+ *   • tracking-[0.3em] is wider than the house 0.22em on purpose: it is the
+ *     single most recognisable trait of the reference. It is safe here because
+ *     the eyebrow is a two-word label, not running Hebrew prose. The negative
+ *     margin-inline-end cancels the trailing letter-space every engine emits
+ *     after the LAST glyph, so the run sits centred between its two lines.
+ *   • An empty eyebrow (ProductCarousel can pass "") renders no eyebrow row at
+ *     all rather than two lines around nothing.
  *
  * Purely presentational and SSR-safe: no browser globals, renders fully visible
  * in the server HTML with no JS and no opacity traps.
@@ -27,16 +37,25 @@ export function SectionHeader({
 }: {
   eyebrow: string;
   title: string;
-  sub?: string;
+  sub?: ReactNode;
   className?: string;
 }) {
   return (
     <div className={cn("text-center mb-10 md:mb-14", className)}>
-      <p className="mb-3 text-[10px] md:text-xs tracking-[0.22em] text-accent">{eyebrow}</p>
-      <h2 className="font-display text-3xl md:text-4xl tracking-wide text-foreground">{title}</h2>
-      <span aria-hidden="true" className="gold-rule block w-24 mx-auto mt-4" />
+      {eyebrow ? (
+        <p className="mb-4 flex items-center justify-center gap-4 text-meta md:text-body text-accent">
+          <span aria-hidden="true" className="h-px w-10 shrink-0 bg-gold/70 md:w-16" />
+          <span className="tracking-[0.3em] [margin-inline-end:-0.3em]">{eyebrow}</span>
+          <span aria-hidden="true" className="h-px w-10 shrink-0 bg-gold/70 md:w-16" />
+        </p>
+      ) : null}
+      <h2 className="font-display text-[2rem] leading-tight md:text-5xl text-foreground">
+        {title}
+      </h2>
       {sub ? (
-        <p className="mt-4 text-sm md:text-base text-muted-foreground max-w-xl mx-auto">{sub}</p>
+        <p className="mt-4 text-sm md:text-base leading-relaxed text-muted-foreground max-w-xl mx-auto">
+          {sub}
+        </p>
       ) : null}
     </div>
   );

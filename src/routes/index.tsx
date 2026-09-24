@@ -17,6 +17,7 @@ import { NewsletterSignup } from "@/components/NewsletterSignup";
 import { HomeReviews, fetchHomeReviews } from "@/components/content/HomeReviews";
 import { SectionHeader } from "@/components/home/SectionHeader";
 import { CollectionCard, type CatTile } from "@/components/home/CollectionCard";
+import { CategoryTile } from "@/components/home/CategoryTile";
 import { Reveal } from "@/components/Reveal";
 import { OCCASION_COLLECTIONS } from "@/lib/collections";
 import { GUIDES } from "@/lib/guide-links";
@@ -505,9 +506,9 @@ export const Route = createFileRoute("/")({
 // the box before the file arrives. The tiles themselves are square (the CSS
 // aspect + object-cover own the layout); these are not display dimensions.
 //
-// CatTile now lives with the component that renders it — both rails on this
-// page feed the same <CollectionCard>, so the shape is its contract, not this
-// route's. Re-exported below because the loader's return type is public.
+// CatTile lives with <CollectionCard>, and <CategoryTile> takes the same shape —
+// both rails on this page feed one of the two, so the shape is their contract,
+// not this route's. Re-exported below because the loader's return type is public.
 export type { CatTile };
 
 // Curated featured categories. `slug` is hardcoded (verified against the DB) so
@@ -759,10 +760,33 @@ function IconShieldCheck({ className }: { className?: string }) {
 // certificate for EVERY product — candlesticks and gold jewelry included — and
 // contradicted the FAQ answer above it. Keep this strip and FAQ_ITEMS in step:
 // this comment is exactly the link that let the two drift apart before.
+// The delivery range is kept on one line: in a ~110px tile the browser broke
+// "3-14" at its hyphen, stranding "3-" at the end of one line and "14 ימים" on
+// the next. It reads CONSUMER_POLICY, like the trust band below, so the two
+// strips cannot quote different windows.
 const DIFFERENTIATORS = [
-  { title: "רקמה וחריטה אישית", icon: <IconGem className="w-8 h-8 md:w-9 md:h-9" /> },
-  { title: "פריטים נבחרים בקפידה", icon: <IconShieldCheck className="w-8 h-8 md:w-9 md:h-9" /> },
-  { title: "משלוח עד הבית 3-14 ימים", icon: <IconTruck className="w-8 h-8 md:w-9 md:h-9" /> },
+  {
+    key: "personalize",
+    label: "רקמה וחריטה אישית",
+    icon: <IconGem className="w-8 h-8 md:w-9 md:h-9" />,
+  },
+  {
+    key: "curated",
+    label: "פריטים נבחרים בקפידה",
+    icon: <IconShieldCheck className="w-8 h-8 md:w-9 md:h-9" />,
+  },
+  {
+    key: "delivery",
+    label: (
+      <>
+        משלוח עד הבית{" "}
+        <span className="whitespace-nowrap">
+          {CONSUMER_POLICY.deliveryMinDays}-{CONSUMER_POLICY.deliveryMaxDays} ימים
+        </span>
+      </>
+    ),
+    icon: <IconTruck className="w-8 h-8 md:w-9 md:h-9" />,
+  },
 ];
 
 /**
@@ -1191,24 +1215,57 @@ function HomePage() {
         </div>
       </section>
 
-      {/* 2. מארזי חתן — flagship band. Was the page's largest dark surface; it is
-          now the white ground carrying a single glass panel. Every descendant that
-          relied on the argaman backing moved with it: cream → foreground/muted,
-          gold-bright → --accent, gold-bright frames → .hairline-gold. */}
+      {/* 2. הקולקציות שלנו — the curated collections as the reference's large
+          framed cards (owner's screenshots, 2026-09-24).
+          MOVED UP from ninth place to directly under the hero. A stranger who
+          lands here came to see what the shop sells; the seven doors that
+          answer that sat below the groom flagship, the trust band, the store
+          card, the gift rail and the occasion rail — roughly 5,000px down a
+          phone. The reference leads with them, and so does this.
+          One full-width card per row on a phone, as in the reference; two from
+          640px, three from 1024px. flex-wrap + justify-center rather than a
+          grid so the seventh card sits centred under the others instead of
+          stranded in the first column. The phone cap (28rem) stops a large
+          phone in landscape from rendering a 600px square. */}
+      <section>
+        <Reveal className="container mx-auto px-4 py-14 md:py-20">
+          <SectionHeader eyebrow="הקולקציות שלנו" title="מה תרצו לגלות?" />
+          <div className="mx-auto flex max-w-6xl flex-wrap justify-center gap-6">
+            {cats.map((c) => (
+              <div
+                key={c.slug}
+                className="w-full max-w-[28rem] sm:w-[calc(50%-0.75rem)] sm:max-w-none lg:w-[calc(33.333%-1rem)]"
+              >
+                <CollectionCard cat={c} />
+              </div>
+            ))}
+          </div>
+        </Reveal>
+      </section>
+
+      {/* 3. שאר הקטגוריות — every other category that has artwork, as a swipe
+          rail of photo tiles. Moved up together with the collections above: the
+          reference shows the two browse blocks back to back. A crawlable strip
+          of internal /category/$slug links plus a browse-everything path to
+          /categories. Server-rendered from the loader (otherCats resolved at
+          SSR); on the rare loader failure it renders nothing rather than an
+          empty box. */}
+      <OtherCategoriesSection cats={otherCats ?? []} reserveSpace={false} />
+
+      {/* 4. מארזי חתן — flagship band: the ivory ground carrying a single glass
+          panel. Every descendant that once relied on a dark backing moved with
+          it: cream → foreground/muted, gold-bright → --accent, gold-bright
+          frames → .hairline-gold. */}
       <section className="min-h-[480px] flex items-center">
-        <div className="container mx-auto px-4 max-w-6xl py-14 md:py-20 w-full">
-          {/* Section entrance, staged 120ms behind the hero plaque so the two
-              read as one arrival rather than two competing fades. This is the
-              last band that can still be on screen at first paint (the hero is
-              60vh), so it is the last place a reveal is honest: `.reveal` is a
-              load-time keyframe with no IntersectionObserver, and anything
-              further down the page would have finished long before the shopper
-              scrolled to it. `both` fill means the panel is never left
-              invisible if the animation does not run. */}
-          <div className="glass glass-gold reveal [--reveal-delay:120ms] grid md:grid-cols-2 gap-10 items-center p-8 md:p-12 [--glass-radius:1.5rem]">
+        {/* <Reveal>, not the load-time `.reveal` keyframe it used to carry. That
+            keyframe was only honest while this band could be on screen at first
+            paint; with the collections now above it, it would finish long before
+            the shopper scrolled here. <Reveal> arms on scroll instead. */}
+        <Reveal className="container mx-auto px-4 max-w-6xl py-14 md:py-20 w-full">
+          <div className="glass glass-gold grid md:grid-cols-2 gap-10 items-center p-8 md:p-12 [--glass-radius:1.5rem]">
             {/* Text column (RTL start) */}
             <div>
-              <p className="text-[10px] md:text-xs tracking-[0.35em] text-accent mb-4">
+              <p className="text-meta md:text-body tracking-[0.3em] text-accent mb-4">
                 קולקציית החתנים
               </p>
               <h2 className="font-display text-3xl md:text-5xl text-foreground leading-tight mb-5">
@@ -1325,10 +1382,10 @@ function HomePage() {
               </div>
             </div>
           </div>
-        </div>
+        </Reveal>
       </section>
 
-      {/* 3. Differentiators — three TRUE house facts on a glass-soft strip that
+      {/* 4.1. Differentiators — three TRUE house facts on a glass-soft strip that
           hugs the flagship and leads into the trust band. The only motion is the
           shared hover-lift (.glass-lift); no new claim is made. */}
       <section>
@@ -1336,12 +1393,12 @@ function HomePage() {
           <div className="grid grid-cols-3 gap-3 md:gap-6">
             {DIFFERENTIATORS.map((d) => (
               <div
-                key={d.title}
+                key={d.key}
                 className="glass-soft glass-lift flex flex-col items-center text-center gap-3 md:gap-4 px-3 py-6 md:px-6 md:py-8 [--glass-radius:1rem]"
               >
                 <span className="text-accent">{d.icon}</span>
                 <span className="font-display text-xs md:text-lg text-foreground leading-tight">
-                  {d.title}
+                  {d.label}
                 </span>
               </div>
             ))}
@@ -1349,7 +1406,7 @@ function HomePage() {
         </Reveal>
       </section>
 
-      {/* 4. Personalization teaser — the store's moat (רקמה/חריטה) as a compact
+      {/* 4.2. Personalization teaser — the store's moat (רקמה/חריטה) as a compact
           band, placed right after the differentiators strip that names it. Honest:
           it only restates what the PDP and /collection/personalized already
           promise — the personalization is coordinated with the customer AFTER the
@@ -1431,16 +1488,16 @@ function HomePage() {
             ].map((item) => (
               <div
                 key={item.title}
-                className="group flex flex-col items-center text-center gap-4 md:gap-5 px-6 py-8 md:py-4"
+                className="group flex flex-col items-center text-center gap-5 px-6 py-10 md:py-6"
               >
                 <div className="text-accent transition-transform duration-200 ease-out motion-safe:[@media(hover:hover)_and_(pointer:fine)]:group-hover:-translate-y-1">
                   {item.icon}
                 </div>
                 <div>
-                  <h3 className="font-display text-xl md:text-2xl mb-2 md:mb-3 tracking-wide">
+                  <h3 className="font-display text-2xl md:text-[1.75rem] leading-tight mb-3">
                     {item.title}
                   </h3>
-                  <p className="text-sm md:text-[15px] text-muted-foreground leading-relaxed max-w-xs mx-auto">
+                  <p className="text-base text-muted-foreground leading-relaxed max-w-xs mx-auto">
                     {item.desc}
                   </p>
                 </div>
@@ -1544,14 +1601,12 @@ function HomePage() {
           SSR-safe: OCCASION_COLLECTIONS is pure data imported at module scope,
           so the rail is in the server HTML.
 
-          MOVED UP, above both category rails. It used to sit between them, in
-          third place among three browse blocks, which put the shop's only
-          rankable gift-guide surfaces behind two grids of category tiles. A
-          stranger arriving here rarely wants "a category" — they want a present
-          for a specific simcha, and this is the one rail on the page that is
-          organised the way they are thinking. The two category rails below are
-          the fallback for everything the shop has not curated an occasion for,
-          which is the right order of specificity. */}
+          It sat above both category rails until 2026-09-24, on the argument
+          that a stranger wants a present for a simcha more than "a category".
+          The owner's reference leads with the photographic collection doors
+          instead, and they now open the page; this rail follows the proof
+          blocks, still ahead of the product rails. Text-only cards cannot
+          compete with photographs for the first screen. */}
       <section>
         <Reveal className="container mx-auto px-4 py-14 md:py-20">
           <SectionHeader eyebrow="מתנה לכל שמחה" title="קונים לפי אירוע" />
@@ -1592,37 +1647,6 @@ function HomePage() {
         </Reveal>
       </section>
 
-      {/* 6. Featured categories */}
-      <section>
-        <Reveal className="container mx-auto px-4 py-14 md:py-20">
-          <SectionHeader eyebrow="הקולקציות שלנו" title="מה תרצו לגלות?" />
-          {/* basis-[62%], not the 43% this rail used to carry. 43% of a 390px
-              phone renders a 144.8px card, and <CollectionCard>'s plate cannot
-              be built at that width without dropping the category name to the
-              11px legal-text floor to make room for the decoration above it.
-              62% gives 216px, which is the narrowest the card is designed for.
-              The next tile still peeks, so the rail still reads as swipeable —
-              just less of it. md:/lg: layout is owned by MobileCarousel. */}
-          <MobileCarousel
-            basis="basis-[62%]"
-            mdGrid="md:grid-cols-3"
-            mdGap="md:gap-6"
-            className="max-w-6xl mx-auto"
-          >
-            {cats.map((c) => (
-              <CollectionCard key={c.slug} cat={c} />
-            ))}
-          </MobileCarousel>
-        </Reveal>
-      </section>
-
-      {/* 7.5. שאר הקטגוריות — the remaining categories that have artwork, grouped
-          with the two browse rails above it. A crawlable strip of internal
-          /category/$slug links plus a browse-everything path to /categories.
-          Server-rendered from the loader (otherCats resolved at SSR); on the rare
-          loader failure it renders nothing rather than an empty box. */}
-      <OtherCategoriesSection cats={otherCats ?? []} reserveSpace={false} />
-
       {/* 8. מומלצים באתר — pool איכות מסובב יומית */}
       <FeaturedProductsCarousel
         initialProducts={featuredProducts ?? undefined}
@@ -1657,7 +1681,7 @@ function HomePage() {
               className="w-full h-full aspect-[4/3] object-cover rounded-[1.5rem] border border-gold/40"
             />
             <div className="glass glass-gold p-10 md:p-14 flex flex-col justify-center [--glass-radius:1.5rem]">
-              <p className="text-[10px] md:text-xs tracking-[0.35em] text-accent mb-4">
+              <p className="text-meta md:text-body tracking-[0.3em] text-accent mb-4">
                 מסורת של שמחה
               </p>
               <h3 className="font-display text-3xl md:text-5xl text-foreground mb-4">
@@ -1698,29 +1722,24 @@ function HomePage() {
           still here as what it actually is — a link to the profile. */}
       <section>
         <Reveal className="container mx-auto px-4 py-14 md:py-20">
-          <div className="text-center mb-10 md:mb-14">
-            <p className="text-[10px] md:text-xs tracking-[0.35em] text-accent mb-3">גלריה</p>
-            <h2 className="font-display text-3xl md:text-4xl tracking-wide mb-3 text-foreground">
-              מהפריטים שלנו
-            </h2>
-            <div className="flex items-center justify-center gap-3 mb-4" aria-hidden="true">
-              <span className="gold-rule w-8 shrink-0" />
-              <span className="text-accent text-xs">✦</span>
-              <span className="gold-rule w-8 shrink-0" />
-            </div>
-            <p className="mx-auto max-w-xl text-sm md:text-[15px] text-muted-foreground leading-relaxed">
-              מבחר צילומים וסרטונים של פריטים מהחנות. לעדכונים שוטפים ולתכנים נוספים — עקבו אחרינו
-              באינסטגרם:{" "}
-              <a
-                href={INSTAGRAM_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-block py-1.5 -my-1.5 text-accent underline underline-offset-4 transition-[color] duration-200 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-strong"
-              >
-                @or_zarua_latzadik
-              </a>
-            </p>
-          </div>
+          <SectionHeader
+            eyebrow="גלריה"
+            title="מהפריטים שלנו"
+            sub={
+              <>
+                מבחר צילומים וסרטונים של פריטים מהחנות. לעדכונים שוטפים ולתכנים נוספים — עקבו אחרינו
+                באינסטגרם:{" "}
+                <a
+                  href={INSTAGRAM_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block py-1.5 -my-1.5 text-accent underline underline-offset-4 transition-[color] duration-200 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-strong"
+                >
+                  @or_zarua_latzadik
+                </a>
+              </>
+            }
+          />
 
           <StoreGallery />
         </Reveal>
@@ -1954,25 +1973,23 @@ function OtherCategoriesSection({
 
         <Carousel
           dir="rtl"
-          opts={{ direction: "rtl", loop: true, dragFree: true, align: "start" }}
+          opts={{ direction: "rtl", loop: true, dragFree: true, align: "center" }}
           aria-label="שאר הקטגוריות"
         >
-          {/* The basis chain below replaces basis-1/2 sm:basis-1/3 lg:basis-1/5.
-              The old one was NON-MONOTONIC: 234.7px at a 1023px viewport,
-              185.6px at 1024px, because the basis dropped a whole column at lg
-              while the container only grew 256px. That 1024-1279 band is iPad
-              landscape and small laptops, and 185.6px was the site's narrowest
-              desktop card — 8% wider than the phone. Stepping through
-              md:1/3 -> lg:1/4 -> xl:1/5 keeps every band at or above 216px and
-              removes the pinch. Cost: 4 tiles per row instead of 5 between
-              1024 and 1535. */}
-          <CarouselContent>
+          {/* The reference's rail: one tile centred and whole, its neighbours
+              dissolving into the ground at both edges. align "center" puts a
+              tile in the middle; the mask on the VIEWPORT (not the Carousel
+              root, which also holds the arrows) does the dissolve. 44% on a
+              phone is ~160px, the reference's tile, with ~a third of each
+              neighbour showing. The chain stays monotonic upward, so no
+              breakpoint hands a narrower tile than the one below it. */}
+          <CarouselContent viewportClassName="[mask-image:linear-gradient(to_right,transparent,#000_3rem,#000_calc(100%-3rem),transparent)] md:[mask-image:linear-gradient(to_right,transparent,#000_5rem,#000_calc(100%-5rem),transparent)]">
             {cats.map((c) => (
               <CarouselItem
                 key={c.slug}
-                className="basis-[62%] sm:basis-[38%] md:basis-1/3 lg:basis-1/4 xl:basis-1/5"
+                className="basis-[44%] sm:basis-[30%] md:basis-1/4 lg:basis-1/5 xl:basis-1/6"
               >
-                <CollectionCard cat={c} />
+                <CategoryTile cat={c} />
               </CarouselItem>
             ))}
           </CarouselContent>
