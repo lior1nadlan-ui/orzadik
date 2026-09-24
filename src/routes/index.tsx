@@ -254,6 +254,11 @@ async function fetchOtherCategories(): Promise<CatTile[]> {
     "aluminum", // 1 product, duplicate
     "bencher-stands", // 1 product, duplicate
     "liqueur-sets", // 1 product, duplicate
+    // מראות — 4 products, all tefillin items (3 pairs of plastic tefillin boxes
+    // and a stand of tefillin mirrors), every one also filed under בתי תפילין
+    // ומראות and תיקי תפילין. The tile's artwork is an ornate WALL mirror, so it
+    // promised something the shelf does not hold. Checked 2026-09-24.
+    "mirrors",
   ]);
   const bySlug = new Map((cats ?? []).map((c) => [c.slug, c.name]));
   // Emit in the curated map order rather than PostgREST's (unordered) row
