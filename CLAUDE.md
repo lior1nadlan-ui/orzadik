@@ -1,5 +1,19 @@
 # אור זרוע לצדיק — הנחיות לעבודה על המאגר
 
+## חשבונות — עובדים רק על orzadik
+
+בכל אחד מהשירותים קיים חשבון/פרויקט בשם **orzadik**, וכל עבודה על האתר נעשית בו בלבד:
+
+| שירות | חשבון / פרויקט | מזהה | תפקיד |
+|---|---|---|---|
+| GitHub | `lior1nadlan-ui/orzadik` | ענף ברירת מחדל `main` | קוד המקור. CI ב-`.github/workflows/ci.yml` |
+| Supabase | פרויקט `orzadik` | ref `whtjslgrrfzehivrknuv` (eu-central-1) | בסיס הנתונים, Auth ו-Storage |
+| Cloudflare | Worker `orzarua` | `wrangler.jsonc` | **פרודקשן** — orzadik.com ו-www.orzadik.com. פריסה ב-`.github/workflows/deploy.yml` על push ל-`main` |
+| Vercel | צוות `orzadik`, פרויקט `orzadik` | `team_8IribFtDpoIzVklZnZ1CaPTu` / `prj_JLniXygzDf5Y1De2JXDkWXr9A0ZJ` | preview builds בלבד ל-PRs, **לא** האתר החי |
+
+בדיקת Vercel ירוקה על PR לא אומרת שהשינוי עלה לאוויר. האתר החי מתעדכן רק מה-deploy
+ל-Cloudflare.
+
 ## ⚠️ Supabase — שני פרויקטים, אחד נכון
 
 בחשבון קיימים **שני** פרויקטים באותו ארגון (`htufokqcojovmwwoyxxy`):
