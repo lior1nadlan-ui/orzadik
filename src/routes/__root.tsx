@@ -591,7 +591,7 @@ function RootComponent() {
             {/* Skip link — the FIRST thing a keyboard user meets, so it is the
                 one place gold may not be decorative. Was `bg-[#D4AF37]` with
                 white text: 2.1:1, a straight Lighthouse failure. --accent
-                (#7E611E) carries white at 5.81:1, and it follows the token, so
+                (#8A5A2B) carries white at 5.87:1, and it follows the token, so
                 high-contrast mode re-points it to #5c4300 (9.30:1) for free.
                 Deliberately NOT animated: this is keyboard-initiated. */}
             <a

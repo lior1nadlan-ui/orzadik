@@ -198,7 +198,7 @@ export function ContactForm() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            {/* --accent (5.81:1 with white), never the decorative #D4AF37; the
+            {/* --accent (5.87:1 with white), never the decorative #D4AF37; the
                 hover fill is --accent-strong for the same contrast reason as the
                 newsletter button. */}
             <Button

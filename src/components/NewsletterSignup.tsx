@@ -54,7 +54,7 @@ export function NewsletterSignup({ source = "footer" }: { source?: NewsletterSou
     );
   }
 
-  // Buttons use --accent (the design system's CTA gold, 5.81:1 with white) and
+  // Buttons use --accent (the design system's CTA gold, 5.87:1 with white) and
   // NOT the raw #D4AF37 used decoratively elsewhere: that is only 2.1:1 against
   // white, which Lighthouse flagged on this very button.
   //

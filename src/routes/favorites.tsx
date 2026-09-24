@@ -73,9 +73,9 @@ function FavoritesPage() {
             לחצו על הלב שעל כל מוצר כדי לשמור אותו כאן
           </p>
           {/* --accent is the only gold that is legal as a CTA fill on a light
-              ground: white on #7E611E is 5.81:1. The hover was bg-accent/90,
+              ground: white on #8A5A2B is 5.87:1. The hover was bg-accent/90,
               which composites down to 4.66:1 with no headroom — bg-accent-strong
-              (#6B5219) is the token that exists for this and lands at 7.38:1. */}
+              (#6E4620) is the token that exists for this and lands at 8.20:1. */}
           <Link
             to="/shop"
             className="press inline-block mt-2 rounded-full bg-accent text-accent-foreground text-sm font-semibold px-8 py-3 transition-[background-color,transform] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-accent-strong"

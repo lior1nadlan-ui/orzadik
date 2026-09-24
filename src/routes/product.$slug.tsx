@@ -1546,16 +1546,27 @@ function ProductPage() {
           with ~64px to spare and costs the message nothing. */}
       <ClubBadge className="mb-6 hidden lg:flex" />
 
-      <div className="grid md:grid-cols-2 gap-10">
+      {/* min-w-0 on BOTH columns, and it is load-bearing. A grid track sized
+          `1fr` is minmax(auto, 1fr): it may not shrink below its items' min-content
+          width, and the thumbnail strip's min-content is every thumb side by side
+          (80px each + 8px gaps — 432px at five images). On a 402px phone that
+          widened the whole column past the screen: the h1, the price and both
+          CTAs were cut off at the edge and the page scrolled sideways, on every
+          product with five or more photos. min-w-0 lets the track shrink and
+          the strip scroll inside it, as it was always meant to.
+          gap-6 below md: on a phone this gap is the space between the thumbnail
+          strip and the h1, and the 16px it gives back pays for the category
+          eyebrow above the h1 (see the measurement there). */}
+      <div className="grid md:grid-cols-2 gap-6 md:gap-10">
         {/* Gallery */}
-        <div>
+        <div className="min-w-0">
           {gallery.length > 0 ? (
             <Dialog>
               <Carousel
                 dir="rtl"
                 opts={{ direction: "rtl", loop: true }}
                 setApi={setApi}
-                className="glass glass-gold w-full overflow-hidden"
+                className="glass glass-gold w-full overflow-hidden [--glass-radius:1.5rem]"
               >
                 <CarouselContent>
                   {gallery.map((url, i) => {
@@ -1588,13 +1599,25 @@ function ProductPage() {
                             loading={i === 0 ? "eager" : "lazy"}
                             fetchPriority={i === 0 ? "high" : "auto"}
                             decoding="async"
-                            className="h-full w-full object-contain p-4"
+                            className="h-full w-full object-contain p-5"
                           />
                         </div>
                       </CarouselItem>
                     );
                   })}
                 </CarouselContent>
+                {/* The double bronze frame from the homepage collection cards,
+                    drawn as a mat around the photograph: the slide's p-5 keeps
+                    the product clear of both lines. Decorative and click-through,
+                    and under the zoom button and arrows (z-10). */}
+                <span
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-2.5 rounded-[1.125rem] border border-gold/60"
+                />
+                <span
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-[0.9rem] rounded-[0.875rem] border border-gold/30"
+                />
                 <DialogTrigger asChild>
                   <button
                     type="button"
@@ -1699,8 +1722,8 @@ function ProductPage() {
                   onClick={() => api?.scrollTo(idx)}
                   aria-label={`הצג תמונה ${idx + 1} מתוך ${gallery.length}`}
                   aria-pressed={idx === selectedIndex}
-                  className={`h-20 w-20 flex-shrink-0 overflow-hidden rounded-lg bg-white ${
-                    idx === selectedIndex ? "ring-2 ring-accent" : "ring-1 ring-border"
+                  className={`h-20 w-20 flex-shrink-0 overflow-hidden rounded-xl bg-white ${
+                    idx === selectedIndex ? "ring-2 ring-accent" : "ring-1 ring-gold/40"
                   }`}
                 >
                   {/* 80 CSS px — request a 160px transform (2× for retina)
@@ -1720,7 +1743,7 @@ function ProductPage() {
         </div>
 
         {/* Details */}
-        <div>
+        <div className="min-w-0">
           {/* Stays the bare product name, deliberately. head() appends the
               charged price to the <title> of the 753 rows whose name is shared
               across several prices, so those SERP entries are distinct — the h1
@@ -1731,7 +1754,38 @@ function ProductPage() {
               stay separately indexable and do still share an h1, and the
               differentiation lives in the <title> instead, which is the string
               the SERP actually shows. */}
-          <h1 className="font-display text-3xl md:text-4xl font-bold mb-3">{product.name}</h1>
+          {/* The spaced bronze eyebrow of the homepage plates, carrying the
+              product's own shelf — a real link back to it, so it earns its line.
+              The h1 drops from bold to medium: the reference sets its serif
+              names at a regular weight, and bold Noto Serif at 36px read as
+              shouting next to the photograph.
+              MEASURED against the sticky mobile bar (see the ClubBadge note
+              above) at 375x812, scrollY 0, with a two-line name and five photos
+              (/product/talit-mofet-size-60-140-185-cm-with-silver-stripes-66001):
+              the h1 bottom sits 14px above the bar. Before the min-w-0 fix on
+              the grid below, the same page put it 65px UNDER the bar — the
+              overflowing column made the square gallery taller. The eyebrow
+              costs ~21px; the tighter mobile grid gap pays 16px of it back.
+              Anything added between the gallery and the h1 on a phone has to be
+              paid for the same way. */}
+          {firstCategory?.slug && firstCategory?.name ? (
+            <Link
+              to="/category/$slug"
+              params={{ slug: firstCategory.slug }}
+              className="mb-1 inline-flex items-center gap-3 text-meta text-accent transition-colors duration-200 ease-out md:text-body [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-strong"
+            >
+              <span className="tracking-[0.3em]">{firstCategory.name}</span>
+              <span aria-hidden="true" className="h-px w-10 bg-gold/70" />
+            </Link>
+          ) : null}
+          <h1 className="font-display text-3xl md:text-[2.5rem] font-medium leading-[1.2] mb-3">
+            {product.name}
+          </h1>
+          <span aria-hidden="true" className="mb-4 flex w-36 items-center gap-2.5">
+            <span className="gold-rule flex-1" />
+            <span className="text-micro leading-none text-accent">✦</span>
+            <span className="gold-rule flex-1" />
+          </span>
           {reviewSummary && reviewSummary.count > 0 && (
             <a href="#reviews" className="mb-3 inline-flex items-center gap-2 text-sm">
               <Stars value={reviewSummary.average} size={16} />
@@ -1752,7 +1806,9 @@ function ProductPage() {
             </div>
           ) : (
             <div className="flex items-baseline gap-3 mb-3 flex-wrap">
-              <span className="text-3xl font-bold text-accent">{formatILS(effective)}</span>
+              {/* --text-price, the step styles.css reserves for exactly this
+                  number (40px). */}
+              <span className="text-price font-semibold text-accent">{formatILS(effective)}</span>
             </div>
           )}
 
@@ -2236,8 +2292,12 @@ function ProductPage() {
               cancellation right, home delivery, and the registered seller
               identity. Reuses BUSINESS / CONSUMER_POLICY so the copy can't drift
               from the terms page. */}
-          <div className="mt-6 glass p-4">
-            <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2.5 text-xs text-foreground/90">
+          <div className="mt-6 glass glass-gold p-5 [--glass-radius:1.25rem]">
+            <p className="mb-3 flex items-center gap-3 text-meta text-accent">
+              <span className="tracking-[0.3em]">ההבטחה שלנו</span>
+              <span aria-hidden="true" className="h-px flex-1 bg-gold/50" />
+            </p>
+            <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 text-sm text-foreground/90">
               <li className="flex items-center gap-2">
                 <Lock className="h-4 w-4 shrink-0 text-accent" />
                 תשלום מאובטח בסליקת Cardcom · תקן PCI
@@ -2285,7 +2345,7 @@ function ProductPage() {
 
           {/* Accordion — one glass pane, hairline dividers between the rows,
               instead of three gold-ruled bands. */}
-          <div className="glass mt-8 px-4 md:px-5">
+          <div className="glass glass-gold mt-8 px-4 md:px-5 [--glass-radius:1.25rem]">
             {/* Radix renders each AccordionTrigger inside an <h3>. On this page those
               are the first headings after the <h1>, so the document skipped h1→h3
               on all 4,641 product pages. This visually-hidden <h2> names the group
@@ -2295,7 +2355,7 @@ function ProductPage() {
             <h2 className="sr-only">מידע נוסף על המוצר</h2>
             <Accordion type="single" collapsible defaultValue="desc">
               <AccordionItem value="desc" className="border-glass-line last:border-b-0">
-                <AccordionTrigger className="font-display text-base">תיאור המוצר</AccordionTrigger>
+                <AccordionTrigger className="font-display text-lg">תיאור המוצר</AccordionTrigger>
                 <AccordionContent>
                   {product.description ? (
                     // Was a sanitised innerHTML injection with dead `prose` hooks.
@@ -2325,7 +2385,7 @@ function ProductPage() {
                 </AccordionContent>
               </AccordionItem>
               <AccordionItem value="ship" className="border-glass-line last:border-b-0">
-                <AccordionTrigger className="font-display text-base">משלוחים</AccordionTrigger>
+                <AccordionTrigger className="font-display text-lg">משלוחים</AccordionTrigger>
                 <AccordionContent>
                   <p className="text-sm text-muted-foreground leading-relaxed">
                     {/* Same single-string DELIVERY_WINDOW as the chip above: this
@@ -2347,7 +2407,7 @@ function ProductPage() {
                 </AccordionContent>
               </AccordionItem>
               <AccordionItem value="ret" className="border-glass-line last:border-b-0">
-                <AccordionTrigger className="font-display text-base">
+                <AccordionTrigger className="font-display text-lg">
                   מדיניות החזרות וביטולים
                 </AccordionTrigger>
                 <AccordionContent>

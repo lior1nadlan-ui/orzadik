@@ -86,7 +86,7 @@ export function ProductReviews({
       <div className="pt-10">
         <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
           <div>
-            <h2 className="font-display text-2xl md:text-3xl font-bold text-foreground">
+            <h2 className="font-display text-3xl md:text-4xl font-medium text-foreground">
               חוות דעת
             </h2>
             {summary.count > 0 ? (
