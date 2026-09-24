@@ -47,7 +47,7 @@ export function Stars({
  * CONTRAST — this is the reason the file changed. Selection state is signalled
  * ONLY by the star fill, which makes it a non-text contrast target under WCAG
  * 1.4.11 (3:1 minimum). The old `#D4AF37` measured 2.1:1 on white and failed.
- * `--accent` (#7E611E) is 5.81:1 on white, 5.71:1 on `.glass` and 5.14:1 on
+ * `--accent` (#8A5A2B) is 5.87:1 on white, 5.69:1 on `.glass` and 5.04:1 on
  * `--secondary` — clear in every place a review form can land. Both the stroke
  * and the fill use it (`currentColor`), so the filled/empty distinction is
  * carried by a colour that is legible either way.

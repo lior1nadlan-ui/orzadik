@@ -188,9 +188,11 @@ export function ProductCard({
     // same as an opaque fill. So: `bg-card` + the SAME radius token + the SAME
     // three-part glass box-shadow (inset hairline + inner highlight + the wide
     // drop shadow), minus the two backdrop-filter declarations. Opaque white
-    // also raises --accent from 5.71:1 to 5.81:1. Restating the vars rather
-    // than hard-coding keeps `html.a11y-contrast` working (it repoints
-    // --glass-line to #000 and --glass-highlight to transparent).
+    // also raises --accent from 5.69:1 to 5.87:1. The hairline is the GOLD one
+    // (--glass-line-gold), the bronze edge the homepage collection cards carry.
+    // Restating the vars rather than hard-coding keeps `html.a11y-contrast`
+    // working (it repoints --glass-line-gold to #000 and --glass-highlight to
+    // transparent).
     // `isolate` restores the stacking context that backdrop-filter used to
     // create, so the z-10 badge/heart stay scoped to their own tile.
     // The hover lift restates the full shadow (inset rings + the LIFT drop
@@ -199,7 +201,7 @@ export function ProductCard({
     // gated (reduced motion keeps colour/opacity, drops movement).
     // Tailwind v4 emits -translate-y-* to the standalone `translate` property,
     // so `translate` is named in the transition list alongside `transform`.
-    <div className="group relative isolate flex flex-col h-full overflow-hidden rounded-[var(--glass-radius)] bg-card shadow-[inset_0_0_0_1px_var(--glass-line),inset_0_1px_0_var(--glass-highlight),var(--glass-shadow)] transition-[transform,translate,box-shadow] duration-200 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:shadow-[inset_0_0_0_1px_var(--glass-line),inset_0_1px_0_var(--glass-highlight),var(--glass-shadow-lift)] motion-safe:[@media(hover:hover)_and_(pointer:fine)]:hover:-translate-y-1">
+    <div className="group relative isolate flex flex-col h-full overflow-hidden rounded-[var(--glass-radius)] bg-card shadow-[inset_0_0_0_1px_var(--glass-line-gold),inset_0_1px_0_var(--glass-highlight),var(--glass-shadow)] transition-[transform,translate,box-shadow] duration-200 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:shadow-[inset_0_0_0_1px_var(--glass-line-gold),inset_0_1px_0_var(--glass-highlight),var(--glass-shadow-lift)] motion-safe:[@media(hover:hover)_and_(pointer:fine)]:hover:-translate-y-1">
       {/* The badge slot. It holds ONE thing, and the personalization marker is
           deliberately not a candidate for it — see the caption below. */}
       {isOutOfStock ? (
@@ -340,7 +342,7 @@ export function ProductCard({
             change what a tap will do, and a third competing chip on a 171px
             square is the density failure this direction is most at risk of. Here
             it reads as one more fact about the product, at 11px, in the one gold
-            that is legal as text (--accent, 5.81:1 on white). The ✦ is the
+            that is legal as text (--accent, 5.87:1 on white). The ✦ is the
             house's existing personalization ornament — the same one /cart and
             the mini-cart put in front of a custom line. */}
         {personalizationText && (
@@ -448,8 +450,8 @@ export function ProductCard({
               disabled={added}
               className={`w-full inline-flex min-h-[2.75rem] items-center justify-center rounded-full border text-body transition-[color,background-color,border-color,transform,scale] duration-160 ease-out motion-safe:active:scale-[0.97] focus-visible:active:scale-100 ${
                 added
-                  ? "border-foreground bg-foreground text-background"
-                  : "border-foreground/80 text-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:bg-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:text-background"
+                  ? "border-accent-strong bg-accent-strong text-white"
+                  : "border-accent text-accent [@media(hover:hover)_and_(pointer:fine)]:hover:bg-accent [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-foreground"
               }`}
             >
               {added ? "נוסף ✓" : "הוסף לעגלה"}

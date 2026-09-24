@@ -113,13 +113,13 @@ function buildDataReportHtml(data: any): string {
   /* Standalone print/offline sheet for the downloaded §13 report. It lives in a
      separate document that never loads styles.css, so it CANNOT use the design
      tokens — the brand values are inlined as literals here on purpose:
-     #7E611E is --accent (5.81:1 on white), #C2A25E is --gold (decorative rule
-     only, never text), #F1F3F7 is --muted (the neutral table-header fill). */
-  body{font-family:Arial,"Segoe UI",sans-serif;max-width:800px;margin:24px auto;padding:0 16px;color:#16181D;line-height:1.6}
-  h1{color:#7E611E} h2{border-bottom:1px solid #C2A25E;padding-bottom:4px;margin-top:28px}
-  table{border-collapse:collapse;width:100%} th,td{border:1px solid #E2E6EC;padding:6px 10px;text-align:right}
-  th{background:#F1F3F7;width:220px} .order{border:1px solid #E2E6EC;border-radius:8px;padding:10px 14px;margin:10px 0}
-  .muted{color:#565E6B;font-size:13px}
+     #8A5A2B is --accent (5.87:1 on white), #C4A074 is --gold (decorative rule
+     only, never text), #F2ECE2 is --muted (the table-header fill). */
+  body{font-family:Arial,"Segoe UI",sans-serif;max-width:800px;margin:24px auto;padding:0 16px;color:#1F1A15;line-height:1.6}
+  h1{color:#8A5A2B} h2{border-bottom:1px solid #C4A074;padding-bottom:4px;margin-top:28px}
+  table{border-collapse:collapse;width:100%} th,td{border:1px solid #E8DFD2;padding:6px 10px;text-align:right}
+  th{background:#F2ECE2;width:220px} .order{border:1px solid #E8DFD2;border-radius:8px;padding:10px 14px;margin:10px 0}
+  .muted{color:#6B6258;font-size:13px}
 </style></head><body>
 <h1>המידע שלי — אור זרוע לצדיק</h1>
 <p class="muted">הופק בתאריך: ${fmtDate(data?.exported_at)} · מסמך זה כולל את המידע האישי המוחזק עליך, בהתאם לזכות העיון (סעיף 13 לחוק הגנת הפרטיות).</p>

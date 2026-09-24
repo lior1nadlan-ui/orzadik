@@ -583,8 +583,8 @@ const FEATURED: { id: string; slug: string; name: string; img: string; w: number
 // Light-ground button variants. Every band on this page is now white/glass, so
 // the old dark-ground pair is gone: `bg-gold-bright` is 1.84:1 on white and
 // `text-cream` ~1.1:1 — both were only ever legal over the deleted argaman.
-//   solid   — #7E611E fill with white text = 5.81:1 (hover #6B5219 = 7.38:1)
-//   outline — #7E611E text on white/glass = 5.81:1, boundary 5.81:1 (>3:1)
+//   solid   — #8A5A2B fill with white text = 5.87:1 (hover #6E4620 = 8.20:1)
+//   outline — #8A5A2B text on white/glass = 5.87:1, boundary 5.87:1 (>3:1)
 // Hover is media-gated; press feedback is not (it must work on touch).
 // No `transition-colors` here on purpose: `.press` already owns
 // transition-property (transform, 160ms) and, per the override contract in
@@ -606,7 +606,7 @@ const FEATURED: { id: string; slug: string; name: string; img: string; w: number
 //
 // Deliberately NOT done: no gold gradient behind the primary. --gradient-gold
 // is marked DECORATIVE ONLY / "never behind white text" at its token, and the
-// white label needs the flat --accent fill to hold 5.81:1.
+// white label needs the flat --accent fill to hold 5.87:1.
 // No colour transition either: .press owns transition-property (transform), so
 // pairing one with it would be a lie about what actually animates.
 //
@@ -1082,7 +1082,7 @@ function HomePage() {
             identity. Low enough that the linen texture survives it. */}
         <div
           aria-hidden="true"
-          className="absolute inset-0 pointer-events-none bg-gradient-to-b from-[#7E611E]/10 via-transparent to-[#4A360E]/16"
+          className="absolute inset-0 pointer-events-none bg-gradient-to-b from-[#8A5A2B]/10 via-transparent to-[#4A360E]/16"
         />
 
         {/* The selling block.
@@ -1154,7 +1154,7 @@ function HomePage() {
                 eye nothing to follow; a shopper who does not know the shop
                 needs a default, and /shop is it. The solid fill is also the
                 only element here whose contrast does not depend on the scrim —
-                --accent on white is 5.81:1 over any frame beneath it.
+                --accent on white is 5.87:1 over any frame beneath it.
 
                 Side by side on the phone too, not stacked: stacking cost 64px
                 of photograph, and both labels are two words. */}

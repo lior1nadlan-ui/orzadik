@@ -23,7 +23,7 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        // --accent (#7E611E) on white = 5.81:1; --accent-strong (#6B5219) = 7.38:1.
+        // --accent (#8A5A2B) on white = 5.87:1; --accent-strong (#6E4620) = 8.20:1.
         // Never `bg-accent/90`, which composites to 4.66:1 with no headroom.
         default:
           "bg-accent text-white [@media(hover:hover)_and_(pointer:fine)]:hover:bg-accent-strong",

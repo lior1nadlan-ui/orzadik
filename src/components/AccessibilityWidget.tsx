@@ -324,7 +324,7 @@ function Toggle({
         className={
           "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full " +
           // The track is a non-text UI component, so it needs 3:1 against the
-          // panel: --accent is 5.81:1 on and --input 3.25:1 off. The previous
+          // panel: --accent is 5.87:1 on and --input 3.25:1 off. The previous
           // "off" track (muted-foreground/30) sat at ~1.6:1 and was invisible.
           (active ? "bg-accent" : "bg-input")
         }

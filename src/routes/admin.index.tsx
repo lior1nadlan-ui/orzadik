@@ -401,9 +401,9 @@ function AdminHome() {
                   labelFormatter={(d: any) => new Date(d).toLocaleDateString("he-IL")}
                 />
                 {/* Literal, not a token: recharts renders an SVG attribute, so it
-                    cannot read var(--accent). #7E611E IS --accent — keep the two
+                    cannot read var(--accent). #8A5A2B IS --accent — keep the two
                     in step if the accent ever moves. */}
-                <Bar dataKey="revenue" fill="#7E611E" radius={[3, 3, 0, 0]} />
+                <Bar dataKey="revenue" fill="#8A5A2B" radius={[3, 3, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>

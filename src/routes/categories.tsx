@@ -287,10 +287,10 @@ function CategoriesPage() {
           header. Tasteful glass pills, gold reserved for text/accents only, RTL.
           The links are the discovery path into the config-driven collections. */}
       <section className="mb-10 md:mb-12">
-        <div className="mb-4 flex items-center justify-center gap-3">
-          <span aria-hidden="true" className="gold-rule block w-8" />
-          <h2 className="font-display text-lg md:text-xl text-foreground">קונים לפי אירוע</h2>
-          <span aria-hidden="true" className="gold-rule block w-8" />
+        <div className="mb-5 flex items-center justify-center gap-4">
+          <span aria-hidden="true" className="h-px w-10 shrink-0 bg-gold/70 md:w-16" />
+          <h2 className="font-display text-xl md:text-2xl text-foreground">קונים לפי אירוע</h2>
+          <span aria-hidden="true" className="h-px w-10 shrink-0 bg-gold/70 md:w-16" />
         </div>
         <div className="flex flex-wrap justify-center gap-2.5">
           {OCCASION_COLLECTIONS.map((c) => (
@@ -334,7 +334,7 @@ function CategoriesPage() {
             // ease-out) and the reduced-motion opt-out.
             <div
               key={c.id}
-              className="glass press p-5 motion-safe:[@media(hover:hover)_and_(pointer:fine)]:hover:-translate-y-0.5"
+              className="glass glass-gold press p-5 [--glass-radius:1.25rem] motion-safe:[@media(hover:hover)_and_(pointer:fine)]:hover:-translate-y-0.5"
             >
               {/* The count lives INSIDE the link, so it is part of the
                   accessible name ("כיפות 743") — the only way the number means
@@ -343,7 +343,7 @@ function CategoriesPage() {
               <Link
                 to="/category/$slug"
                 params={{ slug: c.slug }}
-                className="font-medium transition-[color] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
+                className="font-display text-lg transition-[color] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
               >
                 {c.name}
                 <span className="ms-2 text-xs text-muted-foreground tabular-nums">

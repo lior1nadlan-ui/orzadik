@@ -2,14 +2,18 @@ import { cn } from "@/lib/utils";
 
 /**
  * Page-level header — the counterpart to the section-level SectionHeader.
- * Where SectionHeader owns the third display tier and renders an <h2>, this
- * owns a route's single <h1>: the same centered eyebrow → display → gold rule →
- * sub block, sized to the page-title tier (text-3xl md:text-4xl) that
- * contact.tsx and about.tsx established for their hand-rolled headers.
- *
+ * Where SectionHeader renders an <h2>, this owns a route's single <h1>.
  * Consumers drop their own <h1> and hand it `title` (plus an optional `eyebrow`
  * and `sub`). The eyebrow is optional here — a page title stands on its own —
  * whereas SectionHeader always carries one.
+ *
+ * THE REFERENCE LOOK (owner's screenshots, 2026-09-24), kept in step with
+ * SectionHeader so a page title and a section title read as one family: a
+ * spaced bronze eyebrow between two hairlines, then the display title. See
+ * SectionHeader for why the eyebrow tracking is 0.3em and why the trailing
+ * letter-space is cancelled. With no eyebrow there are no flanking lines to
+ * anchor the title, so the ✦ rule goes under it instead; a bare serif line
+ * floating on the ivory reads as unfinished.
  *
  * `note` is the fourth, quietest slot: ONE short factual line about the offer,
  * rendered as a hairline chip under the sub. It exists because both collection
@@ -19,12 +23,6 @@ import { cn } from "@/lib/utils";
  * outrank the title, and it must never grow into a promotional strip. The ✦ is
  * the decorative gold ornament (--gold on a card ground, no text duty); the
  * words themselves are muted ink.
- *
- * Two shared conventions with SectionHeader, per the design system:
- *   • eyebrow tracking is ~0.22em — the calm cadence, not the wider 0.35em/0.4em
- *     of the older bespoke headers.
- *   • no `uppercase` — a no-op on Hebrew glyphs and meaningless for this script,
- *     so the class is dropped to stay honest.
  *
  * Purely presentational and SSR-safe: no browser globals, renders fully visible
  * in the server HTML with no JS and no opacity traps.
@@ -45,12 +43,26 @@ export function PageHeader({
   return (
     <div className={cn("text-center mb-10 md:mb-14", className)}>
       {eyebrow ? (
-        <p className="mb-3 text-[10px] md:text-xs tracking-[0.22em] text-accent">{eyebrow}</p>
+        <p className="mb-4 flex items-center justify-center gap-4 text-meta md:text-body text-accent">
+          <span aria-hidden="true" className="h-px w-10 shrink-0 bg-gold/70 md:w-16" />
+          <span className="tracking-[0.3em] [margin-inline-end:-0.3em]">{eyebrow}</span>
+          <span aria-hidden="true" className="h-px w-10 shrink-0 bg-gold/70 md:w-16" />
+        </p>
       ) : null}
-      <h1 className="font-display text-3xl md:text-4xl tracking-wide text-foreground">{title}</h1>
-      <span aria-hidden="true" className="gold-rule block w-24 mx-auto mt-4" />
+      <h1 className="font-display text-[2rem] leading-tight md:text-5xl text-foreground">
+        {title}
+      </h1>
+      {eyebrow ? null : (
+        <span aria-hidden="true" className="mx-auto mt-4 flex w-40 items-center gap-2.5">
+          <span className="gold-rule flex-1" />
+          <span className="text-micro leading-none text-accent">✦</span>
+          <span className="gold-rule flex-1" />
+        </span>
+      )}
       {sub ? (
-        <p className="mt-4 text-sm md:text-base text-muted-foreground max-w-xl mx-auto">{sub}</p>
+        <p className="mt-4 text-sm md:text-base leading-relaxed text-muted-foreground max-w-xl mx-auto">
+          {sub}
+        </p>
       ) : null}
       {note ? (
         <p className="mt-4 inline-flex items-center gap-2 rounded-full bg-card/70 px-4 py-2 text-xs md:text-sm text-muted-foreground hairline">

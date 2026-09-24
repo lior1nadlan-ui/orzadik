@@ -931,7 +931,7 @@ export const Route = createFileRoute("/category/$slug")({
  * buildFacetGroups, which drop those values before they reach here.
  *
  * min-h-11 is the 44px touch floor; the padding alone left the old chips at
- * 34px. The active fill is --accent (#7E611E, 5.81:1 against white), the only
+ * 34px. The active fill is --accent (#8A5A2B, 5.87:1 against white), the only
  * gold on this site allowed to carry text. `.press` owns transform, so the
  * transition property list spells out every property it animates rather than
  * pairing `.press` with a bare colour transition that would animate nothing.
@@ -1354,7 +1354,7 @@ function CategoryPage() {
             row stopped fitting above 844). */}
         <header>
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <h1 className="font-display text-2xl md:text-4xl font-bold tracking-wide text-foreground">
+            <h1 className="font-display text-2xl md:text-4xl font-medium text-foreground">
               {cat?.name ?? slug}
             </h1>
             {/* The live count. aria-live so a facet toggle is announced — it is
