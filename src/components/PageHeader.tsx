@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { LinedEyebrow } from "@/components/LinedEyebrow";
 
 /**
  * Page-level header — the counterpart to the section-level SectionHeader.
@@ -9,9 +10,8 @@ import { cn } from "@/lib/utils";
  *
  * THE REFERENCE LOOK (owner's screenshots, 2026-09-24), kept in step with
  * SectionHeader so a page title and a section title read as one family: a
- * spaced bronze eyebrow between two hairlines, then the display title. See
- * SectionHeader for why the eyebrow tracking is 0.3em and why the trailing
- * letter-space is cancelled. With no eyebrow there are no flanking lines to
+ * spaced bronze eyebrow between two hairlines (<LinedEyebrow>), then the
+ * display title. With no eyebrow there are no flanking lines to
  * anchor the title, so the ✦ rule goes under it instead; a bare serif line
  * floating on the ivory reads as unfinished.
  *
@@ -42,13 +42,7 @@ export function PageHeader({
 }) {
   return (
     <div className={cn("text-center mb-10 md:mb-14", className)}>
-      {eyebrow ? (
-        <p className="mb-4 flex items-center justify-center gap-4 text-meta md:text-body text-accent">
-          <span aria-hidden="true" className="h-px w-10 shrink-0 bg-gold/70 md:w-16" />
-          <span className="tracking-[0.3em] [margin-inline-end:-0.3em]">{eyebrow}</span>
-          <span aria-hidden="true" className="h-px w-10 shrink-0 bg-gold/70 md:w-16" />
-        </p>
-      ) : null}
+      {eyebrow ? <LinedEyebrow className="mb-4">{eyebrow}</LinedEyebrow> : null}
       <h1 className="font-display text-[2rem] leading-tight md:text-5xl text-foreground">
         {title}
       </h1>

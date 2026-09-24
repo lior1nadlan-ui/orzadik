@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { BUSINESS, LEGAL_LAST_UPDATED } from "@/lib/business";
+import { LinedEyebrow } from "@/components/LinedEyebrow";
 
 // Stable anchor ids for each section, single-sourced here so the table of
 // contents and the section headings can never drift: the TOC renders from this
@@ -37,13 +38,10 @@ function AccessibilityPage() {
   return (
     <article className="container mx-auto px-4 py-12 md:py-16 max-w-3xl">
       <header className="mb-10 md:mb-14 text-center">
-        <p className="text-[10px] md:text-xs tracking-[0.35em] text-accent uppercase mb-3">
-          נגישות
-        </p>
-        <h1 className="font-display text-3xl md:text-5xl tracking-wide text-foreground">
+        <LinedEyebrow className="mb-4">נגישות</LinedEyebrow>
+        <h1 className="font-display text-[2rem] leading-tight md:text-5xl text-foreground">
           הצהרת נגישות
         </h1>
-        <div className="gold-rule mx-auto mt-5 w-24" aria-hidden="true" />
         <p className="glass mt-5 inline-block px-4 py-1.5 text-xs text-muted-foreground [--glass-radius:9999px]">
           עודכן לאחרונה: {LEGAL_LAST_UPDATED}
         </p>

@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ChevronDown } from "lucide-react";
 import { BUSINESS } from "@/lib/business";
+import { LinedEyebrow } from "@/components/LinedEyebrow";
 
 // The Hebrew brand query is a VERSE, and that is the whole problem this page
 // exists to solve.
@@ -139,8 +140,10 @@ function Section({
 function NamePage() {
   return (
     <main className="container mx-auto max-w-3xl px-4 py-12 md:py-16">
-      <p className="text-accent mb-4 text-[11px] tracking-[0.4em] uppercase">השם שלנו</p>
-      <h1 className="font-display mb-6 text-3xl leading-tight font-bold text-foreground md:text-4xl">
+      <LinedEyebrow align="start" className="mb-4">
+        השם שלנו
+      </LinedEyebrow>
+      <h1 className="font-display mb-6 text-3xl leading-tight font-medium text-foreground md:text-4xl">
         אור זרוע לצדיק — מקור הפסוק ומשמעותו
       </h1>
 

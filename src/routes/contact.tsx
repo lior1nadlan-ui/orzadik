@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Phone, MessageCircle, Mail, MapPin, Clock, RotateCcw } from "lucide-react";
 import { BUSINESS, CONSUMER_POLICY, sellerIdentityLine } from "@/lib/business";
 import { ContactForm } from "@/components/ContactForm";
+import { LinedEyebrow } from "@/components/LinedEyebrow";
 
 export const Route = createFileRoute("/contact")({
   component: ContactPage,
@@ -93,13 +94,10 @@ function ContactPage() {
   return (
     <div className="container mx-auto px-4 py-12 md:py-16 max-w-3xl">
       <header className="mb-10 md:mb-14 text-center">
-        <p className="text-[10px] md:text-xs tracking-[0.35em] text-accent uppercase mb-3">
-          צור קשר
-        </p>
-        <h1 className="font-display text-3xl md:text-5xl tracking-wide text-foreground">
+        <LinedEyebrow className="mb-4">צור קשר</LinedEyebrow>
+        <h1 className="font-display text-[2rem] leading-tight md:text-5xl text-foreground">
           צרו איתנו קשר
         </h1>
-        <div className="gold-rule mx-auto mt-5 w-24" aria-hidden="true" />
         <p className="mt-5 mx-auto max-w-xl text-[15px] leading-relaxed text-muted-foreground">
           נשמח לעמוד לרשותכם בכל שאלה על המוצרים, בבקשות להתאמה אישית (רקמה או חריטה), בהזמנות
           מיוחדות ובכל בירור. בחרו את הדרך הנוחה לכם — ונחזור אליכם בהקדם.

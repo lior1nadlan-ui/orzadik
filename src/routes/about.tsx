@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { FeaturedProductsCarousel } from "@/components/home/FeaturedProductsCarousel";
 import { BUSINESS, GOOGLE_PLACE_URL, OPENING_HOURS, openingHoursLabel } from "@/lib/business";
+import { LinedEyebrow } from "@/components/LinedEyebrow";
 
 export const Route = createFileRoute("/about")({
   component: AboutPage,
@@ -87,11 +88,6 @@ function AboutPage() {
           section only holds air and a hairline ornament. */}
       <section className="relative overflow-hidden">
         <div className="container mx-auto px-4 py-16 md:py-24 text-center max-w-3xl">
-          <div className="flex items-center justify-center gap-3 mb-5" aria-hidden="true">
-            <span className="gold-rule w-12" />
-            <span className="text-gold text-sm tracking-[0.4em]">✦</span>
-            <span className="gold-rule w-12" />
-          </div>
           {/* The brand name belongs in THIS h1. /about exists to answer "what
               is this business", and it is the page bound to #organization via
               AboutPage.about — yet its h1 named only the category
@@ -111,8 +107,8 @@ function AboutPage() {
               h1 sentence opens the lede below, and every term in the new h1 is
               already published on the page (the shop, the category, and
               "מקרית ביאליק" in the story section) — nothing new is claimed. */}
-          <p className="text-[11px] tracking-[0.4em] uppercase text-accent mb-4">אודות החנות</p>
-          <h1 className="font-display text-4xl md:text-5xl font-bold leading-tight mb-5 text-foreground">
+          <LinedEyebrow className="mb-4">אודות החנות</LinedEyebrow>
+          <h1 className="font-display text-4xl md:text-5xl font-medium leading-tight mb-5 text-foreground">
             אור זרוע לצדיק — חנות תשמישי קדושה ויודאיקה בקרית ביאליק
           </h1>
           <p className="text-base md:text-lg text-muted-foreground leading-relaxed">
