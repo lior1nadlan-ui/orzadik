@@ -18,6 +18,7 @@ import { HomeReviews, fetchHomeReviews } from "@/components/content/HomeReviews"
 import { SectionHeader } from "@/components/home/SectionHeader";
 import { CollectionCard, type CatTile } from "@/components/home/CollectionCard";
 import { CategoryTile } from "@/components/home/CategoryTile";
+import { OccasionTile } from "@/components/home/OccasionTile";
 import { Reveal } from "@/components/Reveal";
 import { OCCASION_COLLECTIONS } from "@/lib/collections";
 import { GUIDES } from "@/lib/guide-links";
@@ -87,7 +88,10 @@ import oc_atara from "@/assets/other-cats/atara.webp";
 import oc_purim from "@/assets/other-cats/purim.webp";
 import oc_plastic from "@/assets/other-cats/plastic.webp";
 import oc_candlesticks from "@/assets/other-cats/candlesticks.webp";
-import oc_passover from "@/assets/other-cats/passover.webp";
+// Not other-cats/passover.webp: that "seder plate" is a platter of cheese slabs.
+// The table photograph (matza, kiddush cup, candles) is the same crop the
+// Pesach occasion tile uses — see src/components/home/occasion-art.ts.
+import oc_passover from "@/assets/occasions/passover-table.webp";
 import oc_talitClips from "@/assets/other-cats/talit-clips.webp";
 import oc_roshHashana from "@/assets/other-cats/rosh-hashana.webp";
 import oc_pvcBags from "@/assets/other-cats/pvc-bags.webp";
@@ -792,9 +796,8 @@ const DIFFERENTIATORS = [
 /**
  * RTL "forward" arrow — points to the reading start (right→left), and slides
  * further on hover where the caller wraps it in a `group`. Decorative: every
- * use sits inside a link whose own text says where it goes. Extracted so the
- * occasion rail and the guides rail below it share one glyph instead of two
- * byte-identical inline copies.
+ * use sits inside a link whose own text says where it goes. Used by the guides
+ * rail (the occasion rail shared it until it became photo tiles).
  */
 function IconArrowStart({ className }: { className?: string }) {
   return (
@@ -1610,38 +1613,24 @@ function HomePage() {
       <section>
         <Reveal className="container mx-auto px-4 py-14 md:py-20">
           <SectionHeader eyebrow="מתנה לכל שמחה" title="קונים לפי אירוע" />
-          {/* basis-[68%] on mobile: one card fills the rail and the next peeks past
-              the edge so it reads as swipeable. md:/lg: layout is owned by MobileCarousel. */}
+          {/* Photographic portrait tiles (see <OccasionTile>). basis-[62%] on a
+              phone: ~230px, one tile whole and the next peeking so the rail
+              reads as swipeable.
+              From md the rail is a grid, and seven tiles do not divide evenly
+              into rows — a plain 3- or 4-column grid strands the last row at
+              the start edge. So every tile spans TWO tracks of a doubled grid
+              (6 tracks at md = 3 across, 8 at lg = 4 across) and one tile is
+              nudged a track inward to centre the short last row: the 7th at md
+              (3+3+1), the 5th at lg (4+3). This is tied to the seven entries in
+              OCCASION_COLLECTIONS; if that count changes, re-derive the nudge. */}
           <MobileCarousel
-            basis="basis-[68%]"
-            mdGrid="md:grid-cols-3 lg:grid-cols-4"
+            basis="basis-[62%]"
+            mdGrid="md:grid-cols-6 md:*:col-span-2 md:[&>*:nth-child(7)]:col-start-3 lg:grid-cols-8 lg:[&>*:nth-child(7)]:col-start-auto lg:[&>*:nth-child(5)]:col-start-2"
             mdGap="md:gap-5"
             className="max-w-6xl mx-auto"
           >
             {OCCASION_COLLECTIONS.map((c) => (
-              // /collection/$slug — `to`/`params` cast as categories.tsx does, so the
-              // link does not depend on the router's path union being regenerated.
-              <Link
-                key={c.slug}
-                to="/collection/$slug"
-                params={{ slug: c.slug }}
-                className="group block h-full"
-              >
-                <div className="glass-soft glass-lift flex h-full flex-col justify-between gap-6 p-6 md:p-7 [--glass-radius:1rem]">
-                  <div>
-                    <p className="mb-2 text-[10px] md:text-xs tracking-[0.22em] text-accent">
-                      {c.eyebrow}
-                    </p>
-                    <h3 className="font-display text-lg md:text-xl text-foreground leading-tight">
-                      {c.title}
-                    </h3>
-                  </div>
-                  <span className="inline-flex items-center gap-1.5 text-sm text-accent">
-                    לצפייה
-                    <IconArrowStart className="w-4 h-4 transition-transform duration-200 ease-out motion-safe:[@media(hover:hover)_and_(pointer:fine)]:group-hover:-translate-x-1" />
-                  </span>
-                </div>
-              </Link>
+              <OccasionTile key={c.slug} c={c} />
             ))}
           </MobileCarousel>
         </Reveal>
