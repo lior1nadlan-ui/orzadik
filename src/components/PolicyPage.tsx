@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { LinedEyebrow } from "@/components/LinedEyebrow";
 
 /**
  * Shared shell for the short, customer-facing policy pages (/shipping, /returns).
@@ -21,11 +22,10 @@ export function PolicyHeader({
 }) {
   return (
     <header className="mb-10 md:mb-14 text-center">
-      <p className="text-[10px] md:text-xs tracking-[0.35em] text-accent uppercase mb-3">
-        {eyebrow}
-      </p>
-      <h1 className="font-display text-3xl md:text-5xl tracking-wide text-foreground">{title}</h1>
-      <div className="gold-rule mx-auto mt-5 w-24" aria-hidden="true" />
+      <LinedEyebrow className="mb-4">{eyebrow}</LinedEyebrow>
+      <h1 className="font-display text-[2rem] leading-tight md:text-5xl text-foreground">
+        {title}
+      </h1>
       <p className="mt-5 mx-auto max-w-xl text-[15px] leading-relaxed text-muted-foreground">
         {intro}
       </p>
