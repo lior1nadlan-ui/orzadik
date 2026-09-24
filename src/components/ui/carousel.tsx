@@ -156,25 +156,25 @@ const Carousel = React.forwardRef<
 );
 Carousel.displayName = "Carousel";
 
-const CarouselContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => {
-    const { carouselRef, orientation } = useCarousel();
+// `viewportClassName` styles the clipping viewport rather than the track — the
+// only place an edge-fade mask can go without also fading the arrows, which are
+// siblings of this viewport inside the Carousel root.
+const CarouselContent = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement> & { viewportClassName?: string }
+>(({ className, viewportClassName, ...props }, ref) => {
+  const { carouselRef, orientation } = useCarousel();
 
-    return (
-      <div ref={carouselRef} className="overflow-hidden">
-        <div
-          ref={ref}
-          className={cn(
-            "flex",
-            orientation === "horizontal" ? "-ml-4" : "-mt-4 flex-col",
-            className,
-          )}
-          {...props}
-        />
-      </div>
-    );
-  },
-);
+  return (
+    <div ref={carouselRef} className={cn("overflow-hidden", viewportClassName)}>
+      <div
+        ref={ref}
+        className={cn("flex", orientation === "horizontal" ? "-ml-4" : "-mt-4 flex-col", className)}
+        {...props}
+      />
+    </div>
+  );
+});
 CarouselContent.displayName = "CarouselContent";
 
 const CarouselItem = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
@@ -200,8 +200,8 @@ CarouselItem.displayName = "CarouselItem";
 
 // The arrows float over product photography, so the backdrop is unknown: they
 // use `glass-strong` (94% white), the only glass documented as contrast-safe
-// anywhere — worst case over pure black the effective backing is #F0F0F0, where
-// the #16181D icon still reads 15.6:1. `.glass` (72%) is NOT safe here.
+// anywhere — worst case over pure black the effective backing is #F0EEEB, where
+// the #1F1A15 icon still reads 14.9:1. `.glass` (74%) is NOT safe here.
 //
 // `glass-strong` sets border-radius from --glass-radius, which beats `rounded-full`
 // per the styles.css override contract, so the radius is retuned through the

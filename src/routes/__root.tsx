@@ -176,8 +176,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "referrer", content: "strict-origin-when-cross-origin" },
       { name: "format-detection", content: "telephone=no" },
       // Browser UI chrome tint (Android address bar, installed-PWA splash).
-      // Matches theme_color in /manifest.webmanifest and the deep-gold --accent.
-      { name: "theme-color", content: "#7E611E" },
+      // Matches theme_color in /manifest.webmanifest and the bronze --accent.
+      { name: "theme-color", content: "#8A5A2B" },
       // Global crawl directive. Without it Google caps every page to a tiny
       // thumbnail and the site is ineligible for Discover / large SERP images.
       // Private routes (auth/cart/checkout/account/order/track/favorites/admin)

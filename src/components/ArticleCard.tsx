@@ -11,7 +11,7 @@ import { Clock, ArrowRight } from "lucide-react";
  * SSR untouched and the identical value can be reused by the article hero.
  */
 export const ARTICLE_FALLBACK_BG =
-  "radial-gradient(115% 130% at 50% -15%, rgba(194,162,94,0.16), transparent 60%), radial-gradient(90% 120% at 12% 8%, rgba(126,145,190,0.10), transparent 62%), linear-gradient(180deg, #FFFFFF, #F7F8FA)";
+  "radial-gradient(115% 130% at 50% -15%, rgba(196,160,116,0.20), transparent 60%), radial-gradient(90% 120% at 12% 8%, rgba(227,201,149,0.16), transparent 62%), linear-gradient(180deg, #FFFDF9, #FAF7F2)";
 
 interface ArticleCardProps {
   slug: string;
