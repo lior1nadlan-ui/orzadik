@@ -236,6 +236,16 @@ describe("rendering", () => {
     }
   });
 
+  it("offers the already-delivered option for an order waiting weeks, not a new one", () => {
+    expect(renderDigestTelegram(d, NOW, "https://orzadik.com")).toContain("כבר נמסרה ללקוח");
+    expect(renderDigestEmailInner(d, NOW, "https://orzadik.com")).toContain("כבר נמסרה ללקוח");
+    const fresh = buildDigest([order({ paid_at: ago(2 * HOUR) })], [], 0, NOW);
+    expect(fresh.toShip).toHaveLength(1);
+    expect(renderDigestTelegram(fresh, NOW, "https://orzadik.com")).not.toContain(
+      "כבר נמסרה ללקוח",
+    );
+  });
+
   it("puts the same facts in the email and the subject line", () => {
     const html = renderDigestEmailInner(d, NOW, "https://orzadik.com");
     expect(html).toContain("₪2,001");
