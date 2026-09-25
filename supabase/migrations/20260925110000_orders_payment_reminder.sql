@@ -1,0 +1,13 @@
+-- One "your order is waiting for payment" email per order, ever.
+--
+-- A customer who filled the whole checkout form, reached CardCom and left — or
+-- whose card was declined — used to hear nothing unless they had ALSO ticked
+-- the optional marketing box (cart reminders are marketing and need it). Two
+-- of the shop's first three failed payments (₪385, ₪1,437) were exactly that:
+-- the payment page was opened and never completed.
+--
+-- The reminder is a service message about an order the customer placed, sent
+-- on orders.contact_consent (the required checkout consent covers "טיפול
+-- בהזמנה — אישור, תיאום משלוח ובירורים"), the same basis the review request
+-- uses. This stamp is what makes it one-shot. See payment-reminder.server.ts.
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS payment_reminder_sent_at timestamptz;

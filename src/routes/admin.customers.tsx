@@ -932,6 +932,7 @@ function FollowUpsSection({ email, onChanged }: { email: string; onChanged: () =
 const TIMELINE_ICON: Record<TimelineKind, string> = {
   order: "🛍",
   paid: "💳",
+  payment_reminder: "✉️",
   shipped: "📦",
   review_request: "✉️",
   review: "⭐",
