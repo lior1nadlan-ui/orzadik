@@ -26,6 +26,7 @@ import { runAbandonedCartReminders } from "@/lib/abandoned-cart.functions";
 import { runCardcomReconciliation } from "@/lib/cardcom-settle.server";
 import { runDataRetentionSweep } from "@/lib/retention.server";
 import { runDailyDigest } from "@/lib/crm-digest.server";
+import { runPaymentReminders } from "@/lib/payment-reminder.server";
 
 type NitroAppLike = {
   hooks: { hook: (name: string, fn: (payload: any) => unknown) => void };
@@ -53,6 +54,29 @@ async function runMorningJobs() {
   return out;
 }
 
+/**
+ * The hourly :15 slot carries both recovery emails: the cart reminders
+ * (marketing, opt-in only) and the one-per-order payment reminder (service, on
+ * the order consent). Cart reminders run FIRST, because the payment reminder
+ * skips anyone a cart reminder reached in the last three days — one basket,
+ * one email. Each is caught on its own, like the morning pair.
+ */
+async function runHourlyRecovery() {
+  const out: Record<string, unknown> = {};
+  for (const [name, run] of [
+    ["abandoned-cart-reminders", runAbandonedCartReminders],
+    ["payment-reminders", runPaymentReminders],
+  ] as const) {
+    try {
+      out[name] = await run();
+    } catch (e) {
+      console.error(`[cron] ${name} failed:`, e);
+      out[name] = "failed";
+    }
+  }
+  return out;
+}
+
 // The keys MUST match wrangler.jsonc `triggers.crons` string-for-string —
 // Cloudflare passes the schedule back verbatim in controller.cron, so a
 // reformatted expression (e.g. "0 */1 * * *" vs "15 * * * *") silently maps to
@@ -60,7 +84,7 @@ async function runMorningJobs() {
 const JOBS: Record<string, { name: string; run: () => Promise<unknown> }> = {
   "0 7 * * *": { name: "morning (review-requests + daily-digest)", run: runMorningJobs },
   "*/5 * * * *": { name: "campaign-tick", run: runCampaignTick },
-  "15 * * * *": { name: "abandoned-cart-reminders", run: runAbandonedCartReminders },
+  "15 * * * *": { name: "hourly recovery (cart + payment reminders)", run: runHourlyRecovery },
   // Safety net for every path that ends CardCom's retry ladder without settling the
   // order — a 200 on order-not-found / ReturnValue mismatch / integrity block, or a
   // plain Worker error. Without this, a charged card can sit against an unpaid order

@@ -26,7 +26,7 @@ const MAIL_ORIGIN = process.env.APP_URL || "https://orzadik.com";
  *  receipt into a heavy message. Requested at 2x for retina. */
 const MAIL_THUMB_PX = 56;
 
-function itemsRows(items: any[]): string {
+export function itemsRows(items: any[]): string {
   return items
     .map((it) => {
       const img = orderItemImageUrl(it, MAIL_ORIGIN, MAIL_THUMB_PX * 2);

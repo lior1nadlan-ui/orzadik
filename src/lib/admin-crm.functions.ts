@@ -12,6 +12,7 @@ import { requireAdmin } from "@/lib/admin-authz.server";
 import { sendOrderShippedEmail, sendOrderConfirmationEmails } from "@/lib/order-emails.server";
 import { ORDER_ITEM_PRODUCT_JOIN } from "@/lib/order-item-photo";
 import { isOpenFailedPayment, recoveredBy } from "@/lib/crm-digest";
+import { sendPaymentReminderNow } from "@/lib/payment-reminder.server";
 import {
   actionKey,
   actionVisibility,
@@ -347,7 +348,7 @@ export const getActionQueue = createServerFn({ method: "POST" }).handler(async (
   const now = Date.now();
   const [orders, statesRes, followUpsRes] = await Promise.all([
     fetchAllOrders(
-      "id, order_number, customer_name, customer_email, customer_phone, status, payment_status, created_at, paid_at, shipped_at, review_request_sent_at",
+      "id, order_number, customer_name, customer_email, customer_phone, status, payment_status, created_at, paid_at, shipped_at, review_request_sent_at, payment_reminder_sent_at",
     ),
     supabaseAdmin
       .from("crm_action_state")
@@ -461,7 +462,13 @@ export const getActionQueue = createServerFn({ method: "POST" }).handler(async (
     // two-month-old declined card came back every morning forever.
     if (isOpenFailedPayment(o, now, recovered)) {
       rows.push(
-        rowFor("stuck_unpaid", o.created_at, "התחילה הזמנה אך התשלום לא הושלם — שווה פנייה חמה 💬"),
+        rowFor(
+          "stuck_unpaid",
+          o.created_at,
+          o.payment_reminder_sent_at
+            ? "התשלום לא הושלם · הלקוח כבר קיבל במייל קישור להשלמה — שיחה אישית תסגור 💬"
+            : "התחילה הזמנה אך התשלום לא הושלם — שווה פנייה חמה 💬",
+        ),
       );
       continue;
     }
@@ -1205,7 +1212,7 @@ export const getCustomerDetail = createServerFn({ method: "POST" })
       supabaseAdmin
         .from("orders")
         .select(
-          "id, order_number, total, status, payment_status, created_at, paid_at, shipped_at, shipping_carrier, tracking_number, review_request_sent_at, order_items(product_name, quantity, line_total)",
+          "id, order_number, total, status, payment_status, created_at, paid_at, shipped_at, shipping_carrier, tracking_number, review_request_sent_at, payment_reminder_sent_at, order_items(product_name, quantity, line_total)",
         )
         .ilike("customer_email", email)
         .order("created_at", { ascending: false })
@@ -1514,6 +1521,20 @@ export const markOrderPreparing = createServerFn({ method: "POST" })
       throw new Error("שגיאה בעדכון מצב ההכנה.");
     }
     return { ok: true };
+  });
+
+/**
+ * The owner's "send the payment link" button on an unpaid order. The same
+ * email the hourly job sends (payment-reminder.server.ts); pressing it lifts
+ * only the timing and once-per-order rules, never the safety ones — a captured
+ * charge, a customer who already paid, or one who asked us to stop is refused
+ * with the reason.
+ */
+export const sendOrderPaymentReminder = createServerFn({ method: "POST" })
+  .inputValidator((i: unknown) => z.object({ id: z.string().uuid() }).parse(i))
+  .handler(async ({ data }) => {
+    await requireAdmin();
+    return sendPaymentReminderNow(data.id);
   });
 
 /**

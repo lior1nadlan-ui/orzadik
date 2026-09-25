@@ -12,6 +12,7 @@ import {
   updateOrderStatus,
   markOrderPreparing,
   resendOrderConfirmation,
+  sendOrderPaymentReminder,
 } from "@/lib/admin-crm.functions";
 import { waThankYou, waShipped, waFollowUpUnpaid } from "@/lib/wa-templates";
 import { useEffect, useState } from "react";
@@ -117,6 +118,8 @@ function AdminOrders() {
   const setOrderStatus = useServerFn(updateOrderStatus);
   const setPreparingFn = useServerFn(markOrderPreparing);
   const resendConfirmation = useServerFn(resendOrderConfirmation);
+  const payReminderFn = useServerFn(sendOrderPaymentReminder);
+  const [sendingPayLink, setSendingPayLink] = useState(false);
   const custNotesFn = useServerFn(listCustomerNotes);
   const addNoteFn = useServerFn(addCustomerNote);
 
@@ -288,6 +291,24 @@ function AdminOrders() {
       toast.error(e?.message ?? "שליחת האישור נכשלה");
     } finally {
       setResending(false);
+    }
+  };
+
+  const doSendPayLink = async () => {
+    setSendingPayLink(true);
+    try {
+      const r = await payReminderFn({ data: { id: selected.id } });
+      if (r.ok) {
+        toast.success(r.message);
+        setSelected({ ...selected, payment_reminder_sent_at: new Date().toISOString() });
+        refresh();
+      } else {
+        toast.error(r.message);
+      }
+    } catch (e: any) {
+      toast.error(e?.message ?? "השליחה נכשלה");
+    } finally {
+      setSendingPayLink(false);
     }
   };
 
@@ -769,6 +790,39 @@ function AdminOrders() {
                     </Button>
                   </div>
                 )}
+                {/* An unpaid order gets the same one-link email the hourly job
+                    sends two hours after checkout: back to THIS order's payment
+                    page, no new basket. The server refuses (with the reason)
+                    when money was already captured, the customer paid on
+                    another order, or they asked us to stop. */}
+                {(selected.payment_status === "unpaid" || selected.payment_status === "failed") &&
+                  !["cancelled", "refunded"].includes(selected.status) && (
+                    <div className="border-t pt-3 flex flex-wrap items-center justify-between gap-3">
+                      <div className="text-xs text-muted-foreground">
+                        התשלום לא הושלם
+                        {selected.cardcom_description ? ` · ${selected.cardcom_description}` : ""}
+                        <span className="block">
+                          {selected.payment_reminder_sent_at
+                            ? `נשלח ללקוח קישור להשלמת התשלום ב-${new Date(
+                                selected.payment_reminder_sent_at,
+                              ).toLocaleString("he-IL")}`
+                            : "עדיין לא נשלח ללקוח קישור להשלמת התשלום."}
+                        </span>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={sendingPayLink}
+                        onClick={doSendPayLink}
+                      >
+                        {sendingPayLink
+                          ? "שולח..."
+                          : selected.payment_reminder_sent_at
+                            ? "שלח שוב קישור לתשלום"
+                            : "שלח ללקוח קישור לתשלום ✉️"}
+                      </Button>
+                    </div>
+                  )}
                 {selected.payment_status === "refunded" && (
                   <div className="border-t pt-3 text-xs font-semibold text-destructive">
                     הזמנה זו זוכתה

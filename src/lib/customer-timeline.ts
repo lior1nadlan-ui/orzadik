@@ -13,6 +13,7 @@
 export type TimelineKind =
   | "order"
   | "paid"
+  | "payment_reminder"
   | "shipped"
   | "review_request"
   | "review"
@@ -47,6 +48,7 @@ export type TimelineInput = {
     shipping_carrier?: string | null;
     tracking_number?: string | null;
     review_request_sent_at?: string | null;
+    payment_reminder_sent_at?: string | null;
   }[];
   carts?: {
     created_at: string;
@@ -101,6 +103,7 @@ export function buildCustomerTimeline(input: TimelineInput, limit = 100): Timeli
       num,
     );
     if (o.paid_at && !unpaid) push(o.paid_at, "paid", `שולם ${shekels(o.total)}`, num);
+    push(o.payment_reminder_sent_at, "payment_reminder", "נשלח במייל קישור להשלמת התשלום", num);
     if (o.shipped_at) {
       const via = o.shipping_carrier ? ` ב${o.shipping_carrier}` : "";
       const track = o.tracking_number ? ` · מעקב ${o.tracking_number}` : "";

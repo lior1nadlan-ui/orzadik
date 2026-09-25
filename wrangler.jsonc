@@ -33,7 +33,8 @@
   //   "0 7 * * *"   → daily 07:00 UTC: post-delivery review requests + the owner's morning briefing
   //   "*/5 * * * *" → every 5 min: send the next campaign batch (~240 mails/hr)
   //   "15 * * * *"  → hourly at :15: abandoned-cart reminders (carts 1h–30d old,
-  //                   ≤100 per tick, one reminder per cart ever)
+  //                   ≤100 per tick, one reminder per cart ever), then the
+  //                   one-per-order payment reminder (unpaid orders 2-72h old)
   "triggers": {
     "crons": ["0 7 * * *", "*/5 * * * *", "15 * * * *", "*/10 * * * *", "40 3 * * *"],
   },

@@ -50,6 +50,7 @@ import { Route as AdminAbandonedRouteImport } from './routes/admin.abandoned'
 import { Route as ApiPublicUnsubscribeRouteImport } from './routes/api/public/unsubscribe'
 import { Route as ApiPublicCardcomWebhookRouteImport } from './routes/api/public/cardcom-webhook'
 import { Route as ApiCronReviewRequestsRouteImport } from './routes/api/cron/review-requests'
+import { Route as ApiCronPaymentRemindersRouteImport } from './routes/api/cron/payment-reminders'
 import { Route as ApiCronDailyDigestRouteImport } from './routes/api/cron/daily-digest'
 import { Route as ApiCronCardcomReconcileRouteImport } from './routes/api/cron/cardcom-reconcile'
 import { Route as ApiCronCampaignTickRouteImport } from './routes/api/cron/campaign-tick'
@@ -261,6 +262,11 @@ const ApiCronReviewRequestsRoute = ApiCronReviewRequestsRouteImport.update({
   path: '/api/cron/review-requests',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCronPaymentRemindersRoute = ApiCronPaymentRemindersRouteImport.update({
+  id: '/api/cron/payment-reminders',
+  path: '/api/cron/payment-reminders',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCronDailyDigestRoute = ApiCronDailyDigestRouteImport.update({
   id: '/api/cron/daily-digest',
   path: '/api/cron/daily-digest',
@@ -331,6 +337,7 @@ export interface FileRoutesByFullPath {
   '/api/cron/campaign-tick': typeof ApiCronCampaignTickRoute
   '/api/cron/cardcom-reconcile': typeof ApiCronCardcomReconcileRoute
   '/api/cron/daily-digest': typeof ApiCronDailyDigestRoute
+  '/api/cron/payment-reminders': typeof ApiCronPaymentRemindersRoute
   '/api/cron/review-requests': typeof ApiCronReviewRequestsRoute
   '/api/public/cardcom-webhook': typeof ApiPublicCardcomWebhookRoute
   '/api/public/unsubscribe': typeof ApiPublicUnsubscribeRoute
@@ -378,6 +385,7 @@ export interface FileRoutesByTo {
   '/api/cron/campaign-tick': typeof ApiCronCampaignTickRoute
   '/api/cron/cardcom-reconcile': typeof ApiCronCardcomReconcileRoute
   '/api/cron/daily-digest': typeof ApiCronDailyDigestRoute
+  '/api/cron/payment-reminders': typeof ApiCronPaymentRemindersRoute
   '/api/cron/review-requests': typeof ApiCronReviewRequestsRoute
   '/api/public/cardcom-webhook': typeof ApiPublicCardcomWebhookRoute
   '/api/public/unsubscribe': typeof ApiPublicUnsubscribeRoute
@@ -427,6 +435,7 @@ export interface FileRoutesById {
   '/api/cron/campaign-tick': typeof ApiCronCampaignTickRoute
   '/api/cron/cardcom-reconcile': typeof ApiCronCardcomReconcileRoute
   '/api/cron/daily-digest': typeof ApiCronDailyDigestRoute
+  '/api/cron/payment-reminders': typeof ApiCronPaymentRemindersRoute
   '/api/cron/review-requests': typeof ApiCronReviewRequestsRoute
   '/api/public/cardcom-webhook': typeof ApiPublicCardcomWebhookRoute
   '/api/public/unsubscribe': typeof ApiPublicUnsubscribeRoute
@@ -477,6 +486,7 @@ export interface FileRouteTypes {
     | '/api/cron/campaign-tick'
     | '/api/cron/cardcom-reconcile'
     | '/api/cron/daily-digest'
+    | '/api/cron/payment-reminders'
     | '/api/cron/review-requests'
     | '/api/public/cardcom-webhook'
     | '/api/public/unsubscribe'
@@ -524,6 +534,7 @@ export interface FileRouteTypes {
     | '/api/cron/campaign-tick'
     | '/api/cron/cardcom-reconcile'
     | '/api/cron/daily-digest'
+    | '/api/cron/payment-reminders'
     | '/api/cron/review-requests'
     | '/api/public/cardcom-webhook'
     | '/api/public/unsubscribe'
@@ -572,6 +583,7 @@ export interface FileRouteTypes {
     | '/api/cron/campaign-tick'
     | '/api/cron/cardcom-reconcile'
     | '/api/cron/daily-digest'
+    | '/api/cron/payment-reminders'
     | '/api/cron/review-requests'
     | '/api/public/cardcom-webhook'
     | '/api/public/unsubscribe'
@@ -612,6 +624,7 @@ export interface RootRouteChildren {
   ApiCronCampaignTickRoute: typeof ApiCronCampaignTickRoute
   ApiCronCardcomReconcileRoute: typeof ApiCronCardcomReconcileRoute
   ApiCronDailyDigestRoute: typeof ApiCronDailyDigestRoute
+  ApiCronPaymentRemindersRoute: typeof ApiCronPaymentRemindersRoute
   ApiCronReviewRequestsRoute: typeof ApiCronReviewRequestsRoute
   ApiPublicCardcomWebhookRoute: typeof ApiPublicCardcomWebhookRoute
   ApiPublicUnsubscribeRoute: typeof ApiPublicUnsubscribeRoute
@@ -906,6 +919,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCronReviewRequestsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/cron/payment-reminders': {
+      id: '/api/cron/payment-reminders'
+      path: '/api/cron/payment-reminders'
+      fullPath: '/api/cron/payment-reminders'
+      preLoaderRoute: typeof ApiCronPaymentRemindersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/cron/daily-digest': {
       id: '/api/cron/daily-digest'
       path: '/api/cron/daily-digest'
@@ -1006,6 +1026,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCronCampaignTickRoute: ApiCronCampaignTickRoute,
   ApiCronCardcomReconcileRoute: ApiCronCardcomReconcileRoute,
   ApiCronDailyDigestRoute: ApiCronDailyDigestRoute,
+  ApiCronPaymentRemindersRoute: ApiCronPaymentRemindersRoute,
   ApiCronReviewRequestsRoute: ApiCronReviewRequestsRoute,
   ApiPublicCardcomWebhookRoute: ApiPublicCardcomWebhookRoute,
   ApiPublicUnsubscribeRoute: ApiPublicUnsubscribeRoute,
