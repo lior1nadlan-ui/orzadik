@@ -11,8 +11,7 @@ import {
 import { Stars } from "@/components/Stars";
 import { SectionHeader } from "@/components/home/SectionHeader";
 import { getRecentApprovedReviews } from "@/lib/reviews.functions";
-
-export type HomeReview = Awaited<ReturnType<typeof getRecentApprovedReviews>>[number];
+import type { HomeReview } from "@/lib/home-reviews";
 
 /** Below this the strip reads as "nobody reviewed us" rather than social proof. */
 const MIN_REVIEWS = 3;
@@ -22,15 +21,6 @@ const MIN_REVIEWS = 3;
  * used when the caller asks for it — see `reserveSpace`.
  */
 const RESERVED_HEIGHT = " min-h-[500px] md:min-h-[560px]";
-
-/**
- * Server-callable form of the `home-reviews` query, for use in a route loader.
- * Components should keep using `useServerFn` (below); this exists so the
- * homepage can resolve the same data during SSR.
- */
-export async function fetchHomeReviews(): Promise<HomeReview[]> {
-  return await getRecentApprovedReviews();
-}
 
 /**
  * Homepage social-proof carousel fed by real approved reviews.

@@ -3,7 +3,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { ShoppingBag, Minus, Plus, Trash2 } from "lucide-react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { CartCrossSell } from "@/components/cart/CartCrossSell";
+import { CartCrossSellCompact } from "@/components/cart/CartCrossSellCompact";
 import { useCart, formatILS, getEffectivePrice, lineKey } from "@/lib/cart";
 
 // -----------------------------------------------------------------------------
@@ -294,7 +294,7 @@ export function CartDrawer() {
                   CTA so peak-intent shoppers see them. Renders nothing when
                   there are no real complements, so the CTA never gets pushed
                   down for an empty rail. */}
-              <CartCrossSell productIds={productIds} variant="compact" onNavigate={closeCart} />
+              <CartCrossSellCompact productIds={productIds} onNavigate={closeCart} />
 
               <Button className="press w-full" size="lg" onClick={goToCheckout}>
                 מעבר לתשלום
