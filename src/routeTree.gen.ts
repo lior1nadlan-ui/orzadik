@@ -54,6 +54,7 @@ import { Route as ApiCronDailyDigestRouteImport } from './routes/api/cron/daily-
 import { Route as ApiCronCardcomReconcileRouteImport } from './routes/api/cron/cardcom-reconcile'
 import { Route as ApiCronCampaignTickRouteImport } from './routes/api/cron/campaign-tick'
 import { Route as ApiCronAbandonedCartRemindersRouteImport } from './routes/api/cron/abandoned-cart-reminders'
+import { Route as AdminOrdersOrderIdPrintRouteImport } from './routes/admin.orders_.$orderId.print'
 
 const TrackRoute = TrackRouteImport.update({
   id: '/track',
@@ -281,6 +282,11 @@ const ApiCronAbandonedCartRemindersRoute =
     path: '/api/cron/abandoned-cart-reminders',
     getParentRoute: () => rootRouteImport,
   } as any)
+const AdminOrdersOrderIdPrintRoute = AdminOrdersOrderIdPrintRouteImport.update({
+  id: '/orders_/$orderId/print',
+  path: '/orders/$orderId/print',
+  getParentRoute: () => AdminRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -328,6 +334,7 @@ export interface FileRoutesByFullPath {
   '/api/cron/review-requests': typeof ApiCronReviewRequestsRoute
   '/api/public/cardcom-webhook': typeof ApiPublicCardcomWebhookRoute
   '/api/public/unsubscribe': typeof ApiPublicUnsubscribeRoute
+  '/admin/orders/$orderId/print': typeof AdminOrdersOrderIdPrintRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -374,6 +381,7 @@ export interface FileRoutesByTo {
   '/api/cron/review-requests': typeof ApiCronReviewRequestsRoute
   '/api/public/cardcom-webhook': typeof ApiPublicCardcomWebhookRoute
   '/api/public/unsubscribe': typeof ApiPublicUnsubscribeRoute
+  '/admin/orders/$orderId/print': typeof AdminOrdersOrderIdPrintRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -422,6 +430,7 @@ export interface FileRoutesById {
   '/api/cron/review-requests': typeof ApiCronReviewRequestsRoute
   '/api/public/cardcom-webhook': typeof ApiPublicCardcomWebhookRoute
   '/api/public/unsubscribe': typeof ApiPublicUnsubscribeRoute
+  '/admin/orders_/$orderId/print': typeof AdminOrdersOrderIdPrintRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -471,6 +480,7 @@ export interface FileRouteTypes {
     | '/api/cron/review-requests'
     | '/api/public/cardcom-webhook'
     | '/api/public/unsubscribe'
+    | '/admin/orders/$orderId/print'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -517,6 +527,7 @@ export interface FileRouteTypes {
     | '/api/cron/review-requests'
     | '/api/public/cardcom-webhook'
     | '/api/public/unsubscribe'
+    | '/admin/orders/$orderId/print'
   id:
     | '__root__'
     | '/'
@@ -564,6 +575,7 @@ export interface FileRouteTypes {
     | '/api/cron/review-requests'
     | '/api/public/cardcom-webhook'
     | '/api/public/unsubscribe'
+    | '/admin/orders_/$orderId/print'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -922,6 +934,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCronAbandonedCartRemindersRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/orders_/$orderId/print': {
+      id: '/admin/orders_/$orderId/print'
+      path: '/orders/$orderId/print'
+      fullPath: '/admin/orders/$orderId/print'
+      preLoaderRoute: typeof AdminOrdersOrderIdPrintRouteImport
+      parentRoute: typeof AdminRoute
+    }
   }
 }
 
@@ -935,6 +954,7 @@ interface AdminRouteChildren {
   AdminReviewsRoute: typeof AdminReviewsRoute
   AdminTelegramRoute: typeof AdminTelegramRoute
   AdminIndexRoute: typeof AdminIndexRoute
+  AdminOrdersOrderIdPrintRoute: typeof AdminOrdersOrderIdPrintRoute
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
@@ -947,6 +967,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminReviewsRoute: AdminReviewsRoute,
   AdminTelegramRoute: AdminTelegramRoute,
   AdminIndexRoute: AdminIndexRoute,
+  AdminOrdersOrderIdPrintRoute: AdminOrdersOrderIdPrintRoute,
 }
 
 const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)

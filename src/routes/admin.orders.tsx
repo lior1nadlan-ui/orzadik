@@ -19,7 +19,7 @@ import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Download, Phone, Mail, MessageCircle, User, RefreshCw } from "lucide-react";
+import { Download, Phone, Mail, MessageCircle, Printer, User, RefreshCw } from "lucide-react";
 import { orderItemImageUrl } from "@/lib/order-item-photo";
 
 export const Route = createFileRoute("/admin/orders")({
@@ -498,6 +498,17 @@ function AdminOrders() {
                     title="כרטיס לקוח"
                   >
                     <User className="h-3 w-3" /> כרטיס לקוח
+                  </Link>
+                  {/* Opens in a new tab so the dialog — and the "נשלח" button the
+                      owner presses after packing — is still here afterwards. */}
+                  <Link
+                    to="/admin/orders/$orderId/print"
+                    params={{ orderId: selected.id }}
+                    target="_blank"
+                    className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"
+                    title="דף אריזה להדפסה — פריטים, כיתוב אישי והקדשה, בלי מחירים"
+                  >
+                    <Printer className="h-3 w-3" /> דף אריזה
                   </Link>
                 </div>
               </DialogHeader>

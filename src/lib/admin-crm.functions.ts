@@ -1199,11 +1199,13 @@ export const getCustomerDetail = createServerFn({ method: "POST" })
       profile,
       subscriber,
       carts,
+      followUps,
+      campaigns,
     ] = await Promise.all([
       supabaseAdmin
         .from("orders")
         .select(
-          "id, order_number, total, status, payment_status, created_at, tracking_number, order_items(product_name, quantity, line_total)",
+          "id, order_number, total, status, payment_status, created_at, paid_at, shipped_at, shipping_carrier, tracking_number, review_request_sent_at, order_items(product_name, quantity, line_total)",
         )
         .ilike("customer_email", email)
         .order("created_at", { ascending: false })
@@ -1235,6 +1237,18 @@ export const getCustomerDetail = createServerFn({ method: "POST" })
         .ilike("email", email)
         .order("created_at", { ascending: false })
         .limit(20),
+      supabaseAdmin
+        .from("crm_followups")
+        .select("title, created_at, due_at, done_at")
+        .eq("customer_email", email)
+        .order("created_at", { ascending: false })
+        .limit(100),
+      supabaseAdmin
+        .from("campaign_recipients")
+        .select("status, sent_at, campaigns(subject)")
+        .ilike("email", email)
+        .order("created_at", { ascending: false })
+        .limit(50),
     ]);
     if (oErr || nErr) {
       console.error("[getCustomerDetail]:", oErr ?? nErr);
@@ -1244,8 +1258,23 @@ export const getCustomerDetail = createServerFn({ method: "POST" })
       ["profile", profile],
       ["newsletter", subscriber],
       ["carts", carts],
+      ["follow-ups", followUps],
+      ["campaigns", campaigns],
     ] as const) {
       if (r.error) console.error(`[getCustomerDetail] ${label}:`, r.error);
+    }
+
+    // Reviews hang off this customer's orders — there is no email on them.
+    const orderIds = (orders ?? []).map((o) => o.id);
+    let reviews: { rating: number; created_at: string }[] = [];
+    if (orderIds.length > 0) {
+      const r = await supabaseAdmin
+        .from("reviews")
+        .select("rating, created_at")
+        .in("order_id", orderIds)
+        .limit(50);
+      if (r.error) console.error("[getCustomerDetail] reviews:", r.error);
+      reviews = r.data ?? [];
     }
     return {
       orders: orders ?? [],
@@ -1253,6 +1282,13 @@ export const getCustomerDetail = createServerFn({ method: "POST" })
       profile: profile.data ?? null,
       newsletter: subscriber.data ?? null,
       carts: carts.data ?? [],
+      followUps: followUps.data ?? [],
+      reviews,
+      campaigns: (campaigns.data ?? []).map((c) => ({
+        status: c.status,
+        sent_at: c.sent_at,
+        subject: (c.campaigns as { subject: string | null } | null)?.subject ?? null,
+      })),
     };
   });
 
@@ -1478,6 +1514,31 @@ export const markOrderPreparing = createServerFn({ method: "POST" })
       throw new Error("שגיאה בעדכון מצב ההכנה.");
     }
     return { ok: true };
+  });
+
+/**
+ * Everything the packing slip prints for one order — the sheet the owner packs
+ * from. No prices are fetched at all: a slip that travels in a gift parcel
+ * must not be able to show what the gift cost, and one that cannot load a
+ * price cannot print one by mistake.
+ */
+export const getPackingSlip = createServerFn({ method: "POST" })
+  .inputValidator((i: unknown) => z.object({ id: z.string().uuid() }).parse(i))
+  .handler(async ({ data }) => {
+    await requireAdmin();
+    const { data: order, error } = await supabaseAdmin
+      .from("orders")
+      .select(
+        "id, order_number, created_at, paid_at, payment_status, status, customer_name, customer_phone, customer_email, customer_address, customer_city, notes, is_gift, gift_note, gift_wrap, shipping_carrier, tracking_number, cardcom_document_number, order_items(id, product_name, product_sku, quantity, variant_label, custom_text, products(slug, thumbnail_url))",
+      )
+      .eq("id", data.id)
+      .maybeSingle();
+    if (error) {
+      console.error("[getPackingSlip]:", error);
+      throw new Error("שגיאה בטעינת ההזמנה.");
+    }
+    if (!order) throw new Error("ההזמנה לא נמצאה.");
+    return order;
   });
 
 /**
