@@ -24,9 +24,11 @@ import {
 } from "@/lib/email.server";
 import { reviewToken, reviewUrl } from "@/lib/reviews.functions";
 import { sellerIdentityLine, BUSINESS } from "@/lib/business";
+import { REVIEW_REQUEST_DELAY_DAYS, REVIEW_REQUEST_MAX_AGE_DAYS } from "@/lib/fulfilment";
 
-/** How long after shipping to ask — long enough that the parcel has arrived. */
-const DAYS_AFTER_SHIPPING = 7;
+/** How long after shipping to ask — long enough that the parcel has arrived.
+ *  Shared with the admin's "when will it go out" line (src/lib/fulfilment.ts). */
+const DAYS_AFTER_SHIPPING = REVIEW_REQUEST_DELAY_DAYS;
 /** Orders handled per cron tick. */
 const BATCH = 50;
 /** Resend allows roughly 2 requests/second — same pacing as the other senders. */
@@ -43,7 +45,7 @@ const MAX_CONSECUTIVE_FAILURES = 5;
  * Past this age an order stops being retried. Without a floor, the first tick
  * after any gap would scan the entire historical order book.
  */
-const MAX_AGE_DAYS = 30;
+const MAX_AGE_DAYS = REVIEW_REQUEST_MAX_AGE_DAYS;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export async function runReviewRequests(): Promise<{
