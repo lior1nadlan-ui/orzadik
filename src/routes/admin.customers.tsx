@@ -9,6 +9,7 @@ import {
   exportCustomersCsv,
   SEGMENT_HE,
   DORMANT_AFTER_DAYS,
+  type CustomerFilter,
   type CustomerSegment,
 } from "@/lib/admin-crm.functions";
 import { formatILS } from "@/lib/cart";
@@ -18,7 +19,7 @@ import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Download, Phone, Mail, MessageCircle, Trash2 } from "lucide-react";
+import { Download, Phone, Mail, MessageCircle, ShoppingCart, Trash2 } from "lucide-react";
 
 export const Route = createFileRoute("/admin/customers")({
   // Deep-linkable search: the orders dialog links here with the customer email.
@@ -28,7 +29,15 @@ export const Route = createFileRoute("/admin/customers")({
   component: AdminCustomers,
 });
 
-const PAYMENT_HE: Record<string, string> = { paid: "שולם", unpaid: "לא שולם", refunded: "זוכה" };
+const PAYMENT_HE: Record<string, string> = {
+  paid: "שולם",
+  unpaid: "לא שולם",
+  failed: "תשלום נכשל",
+  refunded: "זוכה",
+};
+
+const dateHe = (iso: string | null | undefined) =>
+  iso ? new Date(iso).toLocaleDateString("he-IL") : "—";
 
 function waLink(phone: string): string {
   const digits = String(phone ?? "").replace(/\D/g, "");
@@ -43,16 +52,20 @@ const SHOP = "אור זרוע לצדיק";
  * "lead" is the only one that gets a warm colour, because it is the only one
  * that means someone tried to buy and the money never arrived. */
 const SEGMENT_STYLE: Record<CustomerSegment, string> = {
+  contact: "bg-stone-100 text-stone-700",
   lead: "bg-amber-100 text-amber-900",
   new: "bg-sky-100 text-sky-900",
   repeat: "bg-emerald-100 text-emerald-900",
 };
 
 /** Chip order is triage order, not alphabetical: the two that mean "someone is
- * waiting" come first, then the descriptive ones, then the escape hatch. */
-const SEGMENT_CHIPS: { key: "all" | CustomerSegment | "dormant"; label: string }[] = [
+ * waiting" come first, then the people who have not bought yet and the list a
+ * campaign may go to, then the descriptive ones, then the escape hatch. */
+const SEGMENT_CHIPS: { key: CustomerFilter; label: string }[] = [
   { key: "lead", label: SEGMENT_HE.lead },
   { key: "dormant", label: `רדומים (${DORMANT_AFTER_DAYS}+ ימים)` },
+  { key: "contact", label: SEGMENT_HE.contact },
+  { key: "optin", label: "מאשרי דיוור" },
   { key: "repeat", label: SEGMENT_HE.repeat },
   { key: "new", label: SEGMENT_HE.new },
   { key: "all", label: "הכל" },
@@ -107,7 +120,7 @@ function AdminCustomers() {
   const [q, setQ] = useState(search.q ?? "");
   const [debouncedQ, setDebouncedQ] = useState(search.q ?? "");
   const [sort, setSort] = useState<"ltv" | "recent" | "orders">("ltv");
-  const [segment, setSegment] = useState<"all" | CustomerSegment | "dormant">("all");
+  const [segment, setSegment] = useState<CustomerFilter>("all");
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<any>(null);
   const [noteText, setNoteText] = useState("");
@@ -202,7 +215,7 @@ function AdminCustomers() {
           className="rounded-md border bg-background px-3 py-2 text-sm"
         >
           <option value="ltv">לפי סך קניות</option>
-          <option value="recent">לפי הזמנה אחרונה</option>
+          <option value="recent">לפי פעילות אחרונה</option>
           <option value="orders">לפי מס׳ הזמנות</option>
         </select>
         <Button size="sm" variant="outline" onClick={doExport}>
@@ -252,7 +265,7 @@ function AdminCustomers() {
               <th className="p-3">קשר</th>
               <th className="p-3">הזמנות</th>
               <th className="p-3">סך קניות</th>
-              <th className="p-3">הזמנה אחרונה</th>
+              <th className="p-3">הזמנה / פעילות אחרונה</th>
               <th></th>
             </tr>
           </thead>
@@ -262,7 +275,7 @@ function AdminCustomers() {
                 <td colSpan={6} className="p-8 text-center text-muted-foreground">
                   {debouncedQ
                     ? "אין לקוחות תואמים."
-                    : "אין עדיין לקוחות — הם יופיעו כאן עם ההזמנה הראשונה."}
+                    : "אין עדיין לקוחות — הם יופיעו כאן עם ההרשמה או ההזמנה הראשונה."}
                 </td>
               </tr>
             )}
@@ -270,7 +283,9 @@ function AdminCustomers() {
               <tr key={c.email} className="border-t">
                 <td className="p-3">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="font-medium">{c.name}</span>
+                    <span className="font-medium">
+                      {c.name || <span className="text-muted-foreground">ללא שם</span>}
+                    </span>
                     <span
                       className={`text-[11px] rounded-full px-2 py-0.5 ${SEGMENT_STYLE[c.segment as CustomerSegment]}`}
                     >
@@ -284,35 +299,42 @@ function AdminCustomers() {
                         רדום
                       </span>
                     )}
+                    <ContactBadges c={c} />
                   </div>
                   <div className="text-xs text-muted-foreground">{c.email}</div>
                 </td>
                 <td className="p-3">
                   <div className="flex gap-1.5">
-                    <a
-                      href={`tel:${c.phone}`}
-                      className="rounded-full border p-1.5 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"
-                      title={c.phone}
-                    >
-                      <Phone className="h-3.5 w-3.5" />
-                    </a>
+                    {/* A member who never gave a phone has no call or WhatsApp
+                        button at all — a tel: link to nothing is a dead tap. */}
+                    {c.phone && (
+                      <a
+                        href={`tel:${c.phone}`}
+                        className="rounded-full border p-1.5 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"
+                        title={c.phone}
+                      >
+                        <Phone className="h-3.5 w-3.5" />
+                      </a>
+                    )}
                     {/* A dormant customer gets the "we missed you" opener
                         instead of the generic hello — same one tap, but the
                         message fits the only thing that is actually different
                         about them. */}
-                    <a
-                      href={(c.dormant ? waWeMissYou(c) : waGreeting(c)) ?? waLink(c.phone)}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="rounded-full border p-1.5 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted text-emerald-700"
-                      title={
-                        c.dormant
-                          ? "WhatsApp — הודעת ״מזמן לא התראינו״"
-                          : "WhatsApp — הודעת ברכה מוכנה"
-                      }
-                    >
-                      <MessageCircle className="h-3.5 w-3.5" />
-                    </a>
+                    {c.phone && (
+                      <a
+                        href={(c.dormant ? waWeMissYou(c) : waGreeting(c)) ?? waLink(c.phone)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-full border p-1.5 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted text-emerald-700"
+                        title={
+                          c.dormant
+                            ? "WhatsApp — הודעת ״מזמן לא התראינו״"
+                            : "WhatsApp — הודעת ברכה מוכנה"
+                        }
+                      >
+                        <MessageCircle className="h-3.5 w-3.5" />
+                      </a>
+                    )}
                     <a
                       href={`mailto:${c.email}`}
                       className="rounded-full border p-1.5 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"
@@ -328,12 +350,25 @@ function AdminCustomers() {
                     <span className="text-xs text-muted-foreground"> ({c.paidOrders} שולמו)</span>
                   )}
                 </td>
-                <td className="p-3 font-bold">{formatILS(c.ltv)}</td>
+                <td className={`p-3 ${c.ltv > 0 ? "font-bold" : "text-muted-foreground"}`}>
+                  {formatILS(c.ltv)}
+                </td>
                 <td className="p-3 text-xs">
-                  <div>{new Date(c.lastOrderAt).toLocaleDateString("he-IL")}</div>
-                  <div className={c.dormant ? "text-amber-700" : "text-muted-foreground"}>
-                    {sinceLabel(c.daysSinceLastOrder)}
-                  </div>
+                  {c.lastOrderAt ? (
+                    <>
+                      <div>{dateHe(c.lastOrderAt)}</div>
+                      <div className={c.dormant ? "text-amber-700" : "text-muted-foreground"}>
+                        {sinceLabel(c.daysSinceLastOrder)}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-muted-foreground">אין הזמנה</div>
+                      <div className="text-muted-foreground">
+                        פעילות: {sinceLabel(c.daysSinceActivity) || "—"}
+                      </div>
+                    </>
+                  )}
                 </td>
                 <td className="p-3">
                   <Button size="sm" variant="outline" onClick={() => setSelected(c)}>
@@ -376,7 +411,7 @@ function AdminCustomers() {
             <>
               <DialogHeader>
                 <DialogTitle className="flex flex-wrap items-center gap-2">
-                  {selected.name}
+                  {selected.name || selected.email}
                   {/* The same two badges the row carries. The card is where a
                       note gets written and a decision gets made, so losing the
                       context that made the row worth opening would be the wrong
@@ -391,32 +426,37 @@ function AdminCustomers() {
                       רדום
                     </span>
                   )}
+                  <ContactBadges c={selected} />
                 </DialogTitle>
               </DialogHeader>
               <div className="space-y-4 text-sm">
                 <div className="flex flex-wrap items-center gap-2">
-                  <a
-                    href={`tel:${selected.phone}`}
-                    className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"
-                  >
-                    <Phone className="h-3 w-3" /> {selected.phone}
-                  </a>
-                  <a
-                    href={
-                      (selected.dormant ? waWeMissYou(selected) : waGreeting(selected)) ??
-                      waLink(selected.phone)
-                    }
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted text-emerald-700"
-                    title={
-                      selected.dormant
-                        ? "WhatsApp — הודעת ״מזמן לא התראינו״"
-                        : "WhatsApp — הודעת ברכה מוכנה"
-                    }
-                  >
-                    <MessageCircle className="h-3 w-3" /> וואטסאפ
-                  </a>
+                  {selected.phone && (
+                    <a
+                      href={`tel:${selected.phone}`}
+                      className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"
+                    >
+                      <Phone className="h-3 w-3" /> {selected.phone}
+                    </a>
+                  )}
+                  {selected.phone && (
+                    <a
+                      href={
+                        (selected.dormant ? waWeMissYou(selected) : waGreeting(selected)) ??
+                        waLink(selected.phone)
+                      }
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted text-emerald-700"
+                      title={
+                        selected.dormant
+                          ? "WhatsApp — הודעת ״מזמן לא התראינו״"
+                          : "WhatsApp — הודעת ברכה מוכנה"
+                      }
+                    >
+                      <MessageCircle className="h-3 w-3" /> וואטסאפ
+                    </a>
+                  )}
                   <a
                     href={`mailto:${selected.email}`}
                     className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"
@@ -429,20 +469,34 @@ function AdminCustomers() {
                     </span>
                   )}
                 </div>
-                <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="grid grid-cols-2 gap-2 text-center sm:grid-cols-4">
                   <div className="rounded-lg border p-3">
                     <div className="text-xs text-muted-foreground">הזמנות</div>
                     <div className="text-lg font-bold">{selected.orders}</div>
+                    {selected.paidOrders !== selected.orders && (
+                      <div className="text-xs text-muted-foreground">
+                        {selected.paidOrders} שולמו
+                      </div>
+                    )}
                   </div>
                   <div className="rounded-lg border p-3">
                     <div className="text-xs text-muted-foreground">סך קניות</div>
                     <div className="text-lg font-bold">{formatILS(selected.ltv)}</div>
                   </div>
+                  {/* Average order: over PAID orders only, the same money the
+                      "סך קניות" box counts — an unpaid attempt is not a basket
+                      size. */}
                   <div className="rounded-lg border p-3">
-                    <div className="text-xs text-muted-foreground">אחרונה</div>
+                    <div className="text-xs text-muted-foreground">ממוצע להזמנה</div>
                     <div className="text-lg font-bold">
-                      {new Date(selected.lastOrderAt).toLocaleDateString("he-IL")}
+                      {selected.paidOrders > 0
+                        ? formatILS(Math.round(selected.ltv / selected.paidOrders))
+                        : "—"}
                     </div>
+                  </div>
+                  <div className="rounded-lg border p-3">
+                    <div className="text-xs text-muted-foreground">הזמנה אחרונה</div>
+                    <div className="text-lg font-bold">{dateHe(selected.lastOrderAt)}</div>
                     <div
                       className={`text-xs ${selected.dormant ? "text-amber-700" : "text-muted-foreground"}`}
                     >
@@ -450,6 +504,8 @@ function AdminCustomers() {
                     </div>
                   </div>
                 </div>
+
+                <CustomerTimelineFacts selected={selected} cust={cust} />
 
                 {/* Notes */}
                 <div className="border-t pt-3">
@@ -493,8 +549,13 @@ function AdminCustomers() {
                 </div>
 
                 {/* Orders history */}
+                <CartsSection carts={cust?.carts ?? []} />
+
                 <div className="border-t pt-3">
                   <div className="font-semibold mb-2">היסטוריית הזמנות</div>
+                  {cust && cust.orders.length === 0 && (
+                    <div className="text-xs text-muted-foreground">עדיין לא הזמין/ה.</div>
+                  )}
                   <div className="space-y-2">
                     {(cust?.orders ?? []).map((o: any) => (
                       <div key={o.id} className="rounded-md border px-3 py-2">
@@ -530,6 +591,133 @@ function AdminCustomers() {
           )}
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+/** What a row knows beyond its orders: club membership, whether it may be
+ * marketed to, and money sitting in an open cart. Each badge is a fact from its
+ * own table; none is shown unless it is true. */
+function ContactBadges({ c }: { c: any }) {
+  return (
+    <>
+      {c.isMember && (
+        <span
+          className="text-[11px] font-normal rounded-full bg-accent/10 text-accent-strong px-2 py-0.5"
+          title={c.memberSince ? `חבר מועדון מאז ${dateHe(c.memberSince)}` : "חבר מועדון"}
+        >
+          חבר מועדון
+        </span>
+      )}
+      {c.marketingConsent && (
+        <span
+          className="text-[11px] font-normal rounded-full bg-emerald-50 text-emerald-800 px-2 py-0.5"
+          title={c.newsletter ? "רשום לניוזלטר" : "סימן הסכמה לדיוור בהרשמה"}
+        >
+          מאשר דיוור
+        </span>
+      )}
+      {c.openCartValue > 0 && (
+        <span
+          className="inline-flex items-center gap-1 text-[11px] font-normal rounded-full bg-amber-50 text-amber-900 px-2 py-0.5"
+          title={c.openCarts > 1 ? `${c.openCarts} עגלות פתוחות` : "עגלה פתוחה"}
+        >
+          <ShoppingCart className="h-3 w-3" aria-hidden="true" />
+          {formatILS(c.openCartValue)}
+        </span>
+      )}
+    </>
+  );
+}
+
+/** One line of relationship facts under the numbers: since when the shop has
+ * known this person, and what they agreed to. Consent is shown with its date
+ * and source because "may I write to them?" is a legal question, and the
+ * answer has to be checkable. */
+function CustomerTimelineFacts({ selected, cust }: { selected: any; cust: any }) {
+  const profile = cust?.profile;
+  const nl = cust?.newsletter;
+  const facts: string[] = [];
+  if (selected.firstSeenAt) facts.push(`מכירים מאז ${dateHe(selected.firstSeenAt)}`);
+  if (profile?.is_member) {
+    facts.push(`חבר מועדון מאז ${dateHe(profile.member_since ?? profile.created_at)}`);
+  }
+  if (profile?.marketing_consent) {
+    facts.push(
+      [
+        "אישר דיוור",
+        profile.marketing_consent_at ? dateHe(profile.marketing_consent_at) : "",
+        profile.marketing_consent_source ? `(${profile.marketing_consent_source})` : "",
+      ]
+        .filter(Boolean)
+        .join(" "),
+    );
+  }
+  if (nl) {
+    facts.push(
+      nl.unsubscribed_at
+        ? `הוסר מהניוזלטר ${dateHe(nl.unsubscribed_at)}`
+        : `רשום לניוזלטר מאז ${dateHe(nl.consented_at ?? nl.created_at)}`,
+    );
+  }
+  if (facts.length === 0) return null;
+  return (
+    <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+      {facts.map((f) => (
+        <li key={f}>{f}</li>
+      ))}
+    </ul>
+  );
+}
+
+/** Carts this person left, newest first, with what was in them — the card is
+ * where the owner decides whether to call, and "₪540 of tefillin, two days ago"
+ * is the reason to. A converted cart stays listed, marked, so the history is
+ * honest about what the reminder emails achieved. */
+function CartsSection({ carts }: { carts: any[] }) {
+  if (carts.length === 0) return null;
+  return (
+    <div className="border-t pt-3">
+      <div className="font-semibold mb-2">עגלות</div>
+      <div className="space-y-2">
+        {carts.map((k) => {
+          const items = (Array.isArray(k.items) ? k.items : []) as {
+            name?: string;
+            quantity?: number;
+          }[];
+          const state = k.converted_order_id
+            ? { label: "הפכה להזמנה", cls: "bg-emerald-100 text-emerald-900" }
+            : k.unsubscribed
+              ? { label: "ביקש לא לקבל תזכורות", cls: "bg-muted text-muted-foreground" }
+              : { label: "פתוחה", cls: "bg-amber-100 text-amber-900" };
+          const reminders = [k.reminder_1_sent_at, k.reminder_2_sent_at].filter(Boolean).length;
+          return (
+            <div key={k.id} className="rounded-md border px-3 py-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-muted-foreground">
+                    {dateHe(k.updated_at ?? k.created_at)}
+                  </span>
+                  <span className={`text-[11px] rounded-full px-2 py-0.5 ${state.cls}`}>
+                    {state.label}
+                  </span>
+                  {reminders > 0 && (
+                    <span className="text-[11px] text-muted-foreground">
+                      {reminders === 1 ? "נשלחה תזכורת" : `נשלחו ${reminders} תזכורות`}
+                    </span>
+                  )}
+                </div>
+                <div className="font-bold">{formatILS(Number(k.subtotal) || 0)}</div>
+              </div>
+              {items.length > 0 && (
+                <div className="text-xs text-muted-foreground mt-1">
+                  {items.map((it) => `${it.name ?? "פריט"} ×${it.quantity ?? 1}`).join(" · ")}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

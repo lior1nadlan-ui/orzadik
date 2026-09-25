@@ -48,6 +48,11 @@ describe("customerSegment", () => {
     expect(customerSegment({ paidOrders: 0 })).toBe("lead");
   });
 
+  it("calls someone with no order at all a contact, not a lead", () => {
+    expect(customerSegment({ paidOrders: 0, orders: 0 })).toBe("contact");
+    expect(customerSegment({ paidOrders: 0, orders: 1 })).toBe("lead");
+  });
+
   it("separates a first-time buyer from a returning one", () => {
     expect(customerSegment({ paidOrders: 1 })).toBe("new");
     expect(customerSegment({ paidOrders: 2 })).toBe("repeat");
@@ -68,10 +73,18 @@ describe("matchesSegment / segmentCounts", () => {
 
   it("counts a dormant row under BOTH its segment and dormant", () => {
     const counts = segmentCounts(rows);
-    expect(counts).toEqual({ all: 4, lead: 1, new: 1, repeat: 2, dormant: 2 });
-    // The sum of the three segments is the total; dormant deliberately is not
-    // part of that sum, because it overlaps all three.
-    expect(counts.lead + counts.new + counts.repeat).toBe(counts.all);
+    expect(counts).toEqual({
+      all: 4,
+      contact: 0,
+      lead: 1,
+      new: 1,
+      repeat: 2,
+      dormant: 2,
+      optin: 0,
+    });
+    // The sum of the four segments is the total; dormant and optin
+    // deliberately are not part of that sum, because they overlap them.
+    expect(counts.contact + counts.lead + counts.new + counts.repeat).toBe(counts.all);
   });
 
   // The chips promise "click this and see N rows". That only holds while the
@@ -79,7 +92,7 @@ describe("matchesSegment / segmentCounts", () => {
   // matchesSegment — this test is what stops them drifting apart.
   it("makes every chip count equal the rows that chip filters to", () => {
     const counts = segmentCounts(rows);
-    for (const key of ["all", "lead", "new", "repeat", "dormant"] as const) {
+    for (const key of ["all", "contact", "lead", "new", "repeat", "dormant", "optin"] as const) {
       expect(rows.filter((r) => matchesSegment(r, key))).toHaveLength(counts[key]);
     }
   });
@@ -236,5 +249,142 @@ describe("aggregateCustomers", () => {
     expect(aggregateCustomers(orders, undefined, "recent", "all", NOW)[0].email).toBe(
       "recent@example.com",
     );
+  });
+});
+
+describe("aggregateCustomers — contacts without an order", () => {
+  const profile = (over: Record<string, unknown> = {}) => ({
+    email: "member@example.com",
+    full_name: "משה",
+    phone: "0521234567",
+    is_member: true,
+    member_since: daysAgo(10),
+    marketing_consent: false,
+    created_at: daysAgo(10),
+    ...over,
+  });
+  const sub = (over: Record<string, unknown> = {}) => ({
+    email: "reader@example.com",
+    name: "רחל",
+    unsubscribed_at: null,
+    created_at: daysAgo(5),
+    ...over,
+  });
+  const cart = (over: Record<string, unknown> = {}) => ({
+    email: "cart@example.com",
+    name: "יוסי",
+    subtotal: 540,
+    converted_order_id: null,
+    unsubscribed: false,
+    created_at: daysAgo(3),
+    updated_at: daysAgo(2),
+    ...over,
+  });
+
+  it("lists members, subscribers and cart-only shoppers as contacts", () => {
+    const rows = aggregateCustomers([], undefined, "ltv", "all", NOW, {
+      profiles: [profile()],
+      subscribers: [sub()],
+      carts: [cart()],
+    });
+    expect(rows.map((c) => c.email).sort()).toEqual([
+      "cart@example.com",
+      "member@example.com",
+      "reader@example.com",
+    ]);
+    expect(rows.every((c) => c.segment === "contact" && c.orders === 0 && !c.dormant)).toBe(true);
+  });
+
+  it("folds every source into the ONE row an order customer already has", () => {
+    const rows = aggregateCustomers(
+      [order({ customer_email: "a@example.com", customer_name: "אבי כהן" })],
+      undefined,
+      "ltv",
+      "all",
+      NOW,
+      {
+        profiles: [profile({ email: "A@example.com", full_name: "אבי" })],
+        subscribers: [sub({ email: "a@example.com" })],
+        carts: [cart({ email: "a@example.com", subtotal: 120 })],
+      },
+    );
+    expect(rows).toHaveLength(1);
+    const c = rows[0];
+    expect(c.segment).toBe("new");
+    // The checkout form wins on name — it is where the person last typed it.
+    expect(c.name).toBe("אבי כהן");
+    expect(c.isMember).toBe(true);
+    expect(c.newsletter).toBe(true);
+    expect(c.openCartValue).toBe(120);
+  });
+
+  it("borrows a phone from the profile when there is no order to take it from", () => {
+    const rows = aggregateCustomers([], undefined, "ltv", "all", NOW, { profiles: [profile()] });
+    expect(rows[0].phone).toBe("0521234567");
+    expect(rows[0].name).toBe("משה");
+  });
+
+  it("counts marketing consent from the profile box or an ACTIVE subscription only", () => {
+    const rows = aggregateCustomers([], undefined, "ltv", "optin", NOW, {
+      profiles: [
+        profile({ email: "yes@example.com", marketing_consent: true }),
+        profile({ email: "no@example.com", marketing_consent: false }),
+      ],
+      subscribers: [
+        sub({ email: "reader@example.com" }),
+        sub({ email: "left@example.com", unsubscribed_at: daysAgo(1) }),
+      ],
+    });
+    expect(rows.map((c) => c.email).sort()).toEqual(["reader@example.com", "yes@example.com"]);
+  });
+
+  it("only counts a cart that is still open, not converted or opted out", () => {
+    const rows = aggregateCustomers([], undefined, "ltv", "all", NOW, {
+      carts: [
+        cart({ subtotal: 300 }),
+        cart({ subtotal: 200, converted_order_id: "o1" }),
+        cart({ subtotal: 100, unsubscribed: true }),
+      ],
+    });
+    expect(rows[0].openCarts).toBe(1);
+    expect(rows[0].openCartValue).toBe(300);
+  });
+
+  it("dates first and last activity across every source", () => {
+    const rows = aggregateCustomers(
+      [order({ customer_email: "a@example.com", created_at: daysAgo(30) })],
+      undefined,
+      "ltv",
+      "all",
+      NOW,
+      {
+        profiles: [profile({ email: "a@example.com", created_at: daysAgo(90) })],
+        carts: [cart({ email: "a@example.com", updated_at: daysAgo(1) })],
+      },
+    );
+    expect(rows[0].firstSeenAt).toBe(daysAgo(90));
+    expect(rows[0].lastActivityAt).toBe(daysAgo(1));
+    expect(rows[0].daysSinceLastOrder).toBe(30);
+  });
+
+  it("puts paying customers above ₪0 contacts, and the freshest contact first", () => {
+    const rows = aggregateCustomers(
+      [order({ customer_email: "buyer@example.com" })],
+      undefined,
+      "ltv",
+      "all",
+      NOW,
+      {
+        profiles: [
+          profile({ email: "old@example.com", created_at: daysAgo(60) }),
+          profile({ email: "fresh@example.com", created_at: daysAgo(2) }),
+        ],
+      },
+    );
+    expect(rows.map((c) => c.email)).toEqual([
+      "buyer@example.com",
+      "fresh@example.com",
+      "old@example.com",
+    ]);
   });
 });

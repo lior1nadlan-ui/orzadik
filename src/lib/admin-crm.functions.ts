@@ -635,29 +635,45 @@ export const DORMANT_AFTER_DAYS = 120;
 
 /**
  * Customer segments, derived rather than stored — every one is a fact already
- * present in the orders table, only named.
+ * present in the data, only named.
  *
- *   lead    ordered but never paid. Not a customer yet; usually an abandoned
- *           bank-transfer or a failed card. Worth a call more than anyone else
- *           on this list.
- *   new     exactly one paid order.
- *   repeat  two or more paid orders.
+ *   contact  no order at all: a club member, a newsletter subscriber or someone
+ *            who left a cart. Until 2026-09-24 these people were not in the CRM
+ *            at all — the list was built from orders only, so nine registered
+ *            members and four cart-only shoppers were invisible to the owner.
+ *   lead     ordered but never paid. Not a customer yet; usually an abandoned
+ *            bank-transfer or a failed card. Worth a call more than anyone else
+ *            on this list.
+ *   new      exactly one paid order.
+ *   repeat   two or more paid orders.
  *
  * DELIBERATELY ABSENT: a "VIP" tier. Every threshold I could pick (₪2,000?
  * top 10%?) would be invented rather than measured, and a badge that says VIP
  * on the strength of a number nobody chose is worse than no badge. Sort by
  * "סך קניות" already answers "who spends most" honestly. If the owner names a
- * number that means something to them, it belongs here as a fourth segment.
+ * number that means something to them, it belongs here as another segment.
  */
-export type CustomerSegment = "lead" | "new" | "repeat";
+export type CustomerSegment = "contact" | "lead" | "new" | "repeat";
 
 /** Segment labels, shared by the customers screen and the CSV export so the
  * spreadsheet and the table never disagree about what a row is called. */
 export const SEGMENT_HE: Record<CustomerSegment, string> = {
+  contact: "טרם הזמין",
   lead: "לא שילם",
   new: "לקוח חדש",
   repeat: "לקוח חוזר",
 };
+
+/**
+ * What the customers list can be filtered to. Two filters cut ACROSS the
+ * segments rather than being one of them:
+ *   dormant  anyone whose last order is DORMANT_AFTER_DAYS old.
+ *   optin    anyone who agreed to marketing (the profile consent box or an
+ *            active newsletter subscription) — the only people a campaign may
+ *            legally go to under Israel's anti-spam law (§30A), so "who can I
+ *            write to" deserves a one-click answer.
+ */
+export type CustomerFilter = "all" | CustomerSegment | "dormant" | "optin";
 
 /** Days between `iso` and `now`, floored. Negative clock skew clamps to 0. */
 export function daysSince(iso: string | null | undefined, now: number = Date.now()): number | null {
@@ -667,8 +683,11 @@ export function daysSince(iso: string | null | undefined, now: number = Date.now
   return Math.max(0, Math.floor((now - t) / 86_400_000));
 }
 
-/** The segment for one aggregated customer row. Pure — exported for tests. */
-export function customerSegment(c: { paidOrders: number }): CustomerSegment {
+/** The segment for one aggregated customer row. Pure — exported for tests.
+ * `orders` is optional so a caller that only knows the paid count still gets
+ * the paid-based answer; only an explicit 0 makes someone a "contact". */
+export function customerSegment(c: { paidOrders: number; orders?: number }): CustomerSegment {
+  if (c.orders === 0) return "contact";
   if (c.paidOrders === 0) return "lead";
   return c.paidOrders === 1 ? "new" : "repeat";
 }
@@ -677,23 +696,30 @@ export function customerSegment(c: { paidOrders: number }): CustomerSegment {
  * all route through it, so a row can never be counted under a heading it would
  * not appear under when clicked. */
 export function matchesSegment(
-  c: { segment: CustomerSegment; dormant: boolean },
-  segment: "all" | CustomerSegment | "dormant",
+  c: { segment: CustomerSegment; dormant: boolean; marketingConsent?: boolean },
+  segment: CustomerFilter,
 ): boolean {
   if (segment === "all") return true;
-  return segment === "dormant" ? c.dormant : c.segment === segment;
+  if (segment === "dormant") return c.dormant;
+  if (segment === "optin") return !!c.marketingConsent;
+  return c.segment === segment;
 }
 
 /** How many customers sit under each heading, for the chips above the table.
  * Counted AFTER the search term is applied, so the numbers describe the list
  * being looked at rather than the whole database. */
-export function segmentCounts(rows: { segment: CustomerSegment; dormant: boolean }[]) {
+export function segmentCounts(
+  rows: { segment: CustomerSegment; dormant: boolean; marketingConsent?: boolean }[],
+): Record<CustomerFilter, number> {
+  const count = (f: CustomerFilter) => rows.filter((c) => matchesSegment(c, f)).length;
   return {
     all: rows.length,
-    lead: rows.filter((c) => c.segment === "lead").length,
-    new: rows.filter((c) => c.segment === "new").length,
-    repeat: rows.filter((c) => c.segment === "repeat").length,
-    dormant: rows.filter((c) => c.dormant).length,
+    contact: count("contact"),
+    lead: count("lead"),
+    new: count("new"),
+    repeat: count("repeat"),
+    dormant: count("dormant"),
+    optin: count("optin"),
   };
 }
 
@@ -701,54 +727,160 @@ const CustomersSchema = z.object({
   q: z.string().max(120).optional(),
   sort: z.enum(["ltv", "recent", "orders"]).default("ltv"),
   page: z.number().int().min(0).default(0),
-  // "dormant" cuts across the three segments rather than being one of them: a
-  // lead, a new buyer and a repeat buyer can each go quiet, and "who has gone
-  // quiet" is the question that actually starts a conversation.
-  segment: z.enum(["all", "lead", "new", "repeat", "dormant"]).default("all"),
+  segment: z.enum(["all", "contact", "lead", "new", "repeat", "dormant", "optin"]).default("all"),
 });
 
 /** Column list every customer-aggregation caller fetches from orders. */
 const CUSTOMER_ORDER_COLUMNS =
   "customer_email, customer_name, customer_phone, total, payment_status, created_at, contact_consent";
 
-/** Fold the raw orders rows into one aggregated row per customer email, then
- * apply the same term-match, segment filter and sort the customers screen shows.
+/**
+ * The people who are known to the shop WITHOUT an order. Each source adds what
+ * only it knows:
+ *   profiles     club membership, a phone, and the marketing-consent box.
+ *   subscribers  an active newsletter subscription (itself a marketing opt-in).
+ *   carts        what they were about to buy, and for how much.
+ */
+export type ContactSources = {
+  profiles?: {
+    email: string | null;
+    full_name: string | null;
+    phone: string | null;
+    is_member: boolean | null;
+    member_since: string | null;
+    marketing_consent: boolean | null;
+    created_at: string | null;
+  }[];
+  subscribers?: {
+    email: string | null;
+    name: string | null;
+    unsubscribed_at: string | null;
+    created_at: string | null;
+  }[];
+  carts?: {
+    email: string | null;
+    name: string | null;
+    subtotal: number | string | null;
+    converted_order_id: string | null;
+    unsubscribed: boolean | null;
+    created_at: string | null;
+    updated_at?: string | null;
+  }[];
+};
+
+const emailKey = (v: unknown) =>
+  String(v ?? "")
+    .trim()
+    .toLowerCase();
+
+/** Fold the raw orders rows — and every non-order source of a contact — into
+ * one row per email, then apply the same term-match, segment filter and sort
+ * the customers screen shows.
  *
  * Exported for tests: it is the only place the numbers the owner acts on are
  * computed, and it is pure, so it is worth pinning directly rather than through
- * a server function that needs a database. */
+ * a server function that needs a database.
+ *
+ * PRECEDENCE: orders are folded first and win on name and phone — a checkout
+ * form is the freshest, most deliberate place a person typed them. The other
+ * sources only fill what is still empty. */
 export function aggregateCustomers(
   orders: any[],
   q: string | undefined,
   sort: "ltv" | "recent" | "orders",
-  segment: "all" | CustomerSegment | "dormant" = "all",
+  segment: CustomerFilter = "all",
   now: number = Date.now(),
+  sources: ContactSources = {},
 ) {
   const byEmail = new Map<string, any>();
-  for (const o of orders) {
-    const key = String(o.customer_email ?? "")
-      .trim()
-      .toLowerCase();
-    if (!key) continue;
-    const cur = byEmail.get(key) ?? {
-      email: key,
-      name: o.customer_name,
-      phone: o.customer_phone,
-      orders: 0,
-      paidOrders: 0,
-      ltv: 0,
-      lastOrderAt: o.created_at,
-      contactConsent: false,
-    };
-    cur.orders += 1;
-    if (o.payment_status === "paid" || o.payment_status === "refunded") {
-      cur.paidOrders += 1;
-      cur.ltv += Number(o.total);
+  const rowFor = (raw: unknown) => {
+    const key = emailKey(raw);
+    if (!key) return null;
+    let c = byEmail.get(key);
+    if (!c) {
+      c = {
+        email: key,
+        name: null as string | null,
+        phone: null as string | null,
+        orders: 0,
+        paidOrders: 0,
+        ltv: 0,
+        lastOrderAt: null as string | null,
+        contactConsent: false,
+        isMember: false,
+        memberSince: null as string | null,
+        newsletter: false,
+        marketingConsent: false,
+        openCarts: 0,
+        openCartValue: 0,
+        firstSeenAt: null as string | null,
+        lastActivityAt: null as string | null,
+      };
+      byEmail.set(key, c);
     }
+    return c;
+  };
+  // First and last time this person did anything the shop can see.
+  const touch = (c: any, iso: string | null | undefined) => {
+    const t = iso ? Date.parse(iso) : NaN;
+    if (!Number.isFinite(t)) return;
+    if (!c.firstSeenAt || t < Date.parse(c.firstSeenAt)) c.firstSeenAt = iso;
+    if (!c.lastActivityAt || t > Date.parse(c.lastActivityAt)) c.lastActivityAt = iso;
+  };
+
+  for (const o of orders) {
+    const c = rowFor(o.customer_email);
+    if (!c) continue;
     // orders arrive newest-first, so the first row per email carries the
     // freshest name/phone/last-order values — keep them.
-    if (o.contact_consent) cur.contactConsent = true;
-    byEmail.set(key, cur);
+    if (c.orders === 0) {
+      c.name = o.customer_name;
+      c.phone = o.customer_phone;
+      c.lastOrderAt = o.created_at;
+    }
+    c.orders += 1;
+    if (o.payment_status === "paid" || o.payment_status === "refunded") {
+      c.paidOrders += 1;
+      c.ltv += Number(o.total);
+    }
+    if (o.contact_consent) c.contactConsent = true;
+    touch(c, o.created_at);
+  }
+
+  for (const p of sources.profiles ?? []) {
+    const c = rowFor(p.email);
+    if (!c) continue;
+    c.name ||= p.full_name;
+    c.phone ||= p.phone;
+    if (p.is_member) {
+      c.isMember = true;
+      c.memberSince = p.member_since ?? p.created_at;
+    }
+    if (p.marketing_consent) c.marketingConsent = true;
+    touch(c, p.created_at);
+  }
+
+  for (const s of sources.subscribers ?? []) {
+    const c = rowFor(s.email);
+    if (!c) continue;
+    c.name ||= s.name;
+    // Subscribing IS the opt-in; an unsubscribe withdraws it.
+    if (!s.unsubscribed_at) {
+      c.newsletter = true;
+      c.marketingConsent = true;
+    }
+    touch(c, s.created_at);
+  }
+
+  for (const k of sources.carts ?? []) {
+    const c = rowFor(k.email);
+    if (!c) continue;
+    c.name ||= k.name;
+    if (!k.converted_order_id && !k.unsubscribed && Number(k.subtotal) > 0) {
+      c.openCarts += 1;
+      c.openCartValue += Number(k.subtotal);
+    }
+    touch(c, k.updated_at ?? k.created_at);
   }
 
   let rows = [...byEmail.values()].map((c) => {
@@ -756,9 +888,11 @@ export function aggregateCustomers(
     return {
       ...c,
       daysSinceLastOrder: days,
+      daysSinceActivity: daysSince(c.lastActivityAt, now),
       segment: customerSegment(c),
       // A lead has no paid order, so "gone quiet" is measured from the attempt
-      // that never completed — which is the one worth chasing soonest.
+      // that never completed — which is the one worth chasing soonest. Someone
+      // who never ordered cannot have gone quiet on an order.
       dormant: days !== null && days >= DORMANT_AFTER_DAYS,
     };
   });
@@ -777,26 +911,107 @@ export function aggregateCustomers(
   if (segment !== "all") {
     rows = rows.filter((c) => matchesSegment(c, segment));
   }
+  // Latest activity breaks every tie, so the ₪0 contacts under "סך קניות"
+  // come out freshest-first instead of in Map order.
+  const at = (iso: string | null) => (iso ? Date.parse(iso) : 0);
+  const byActivity = (a: any, b: any) => at(b.lastActivityAt) - at(a.lastActivityAt);
   rows.sort(
     sort === "recent"
-      ? (a, b) => new Date(b.lastOrderAt).getTime() - new Date(a.lastOrderAt).getTime()
+      ? byActivity
       : sort === "orders"
-        ? (a, b) => b.orders - a.orders
-        : (a, b) => b.ltv - a.ltv,
+        ? (a, b) => b.orders - a.orders || byActivity(a, b)
+        : (a, b) => b.ltv - a.ltv || byActivity(a, b),
   );
   return rows;
+}
+
+/** Walk a table past PostgREST's silent 1000-row cap. */
+async function pageAll<T>(
+  fetchPage: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
+): Promise<T[]> {
+  const out: T[] = [];
+  for (let from = 0; ; from += DB_PAGE) {
+    const { data, error } = await fetchPage(from, from + DB_PAGE - 1);
+    if (error) throw error;
+    out.push(...(data ?? []));
+    if ((data ?? []).length < DB_PAGE) return out;
+  }
+}
+
+/**
+ * Everyone known to the shop without an order — see ContactSources.
+ *
+ * The shop's own admin accounts are left out: the owner signing up to test the
+ * checkout is not a customer, and a "טרם הזמין" row with their own name would
+ * be the first thing they saw.
+ *
+ * NEVER FATAL. If any of these reads fails, the list degrades to the order
+ * customers it always showed, with a log line — a broken newsletter table must
+ * not blank the CRM.
+ */
+async function fetchContactSources(): Promise<ContactSources> {
+  try {
+    const [profiles, subscribers, carts, admins] = await Promise.all([
+      pageAll((a, b) =>
+        supabaseAdmin
+          .from("profiles")
+          .select(
+            "id, email, full_name, phone, is_member, member_since, marketing_consent, created_at",
+          )
+          .order("created_at")
+          .range(a, b),
+      ),
+      pageAll((a, b) =>
+        supabaseAdmin
+          .from("newsletter_subscribers")
+          .select("email, name, unsubscribed_at, created_at")
+          .order("created_at")
+          .range(a, b),
+      ),
+      pageAll((a, b) =>
+        supabaseAdmin
+          .from("abandoned_carts")
+          .select("email, name, subtotal, converted_order_id, unsubscribed, created_at, updated_at")
+          .order("created_at")
+          .range(a, b),
+      ),
+      supabaseAdmin.from("user_roles").select("user_id").eq("role", "admin"),
+    ]);
+    if (admins.error) throw admins.error;
+    const adminIds = new Set((admins.data ?? []).map((r) => r.user_id));
+    const adminEmails = new Set(
+      profiles.filter((p) => adminIds.has(p.id)).map((p) => emailKey(p.email)),
+    );
+    const notAdmin = (e: unknown) => !adminEmails.has(emailKey(e));
+    return {
+      profiles: profiles.filter((p) => !adminIds.has(p.id)),
+      subscribers: subscribers.filter((s) => notAdmin(s.email)),
+      carts: carts.filter((c) => notAdmin(c.email)),
+    };
+  } catch (e) {
+    console.error("[customers] contact sources failed — listing order customers only:", e);
+    return {};
+  }
+}
+
+async function loadCustomerUniverse() {
+  const [orders, sources] = await Promise.all([
+    fetchAllOrders(CUSTOMER_ORDER_COLUMNS),
+    fetchContactSources(),
+  ]);
+  return { orders, sources };
 }
 
 export const listCustomers = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) => CustomersSchema.parse(i))
   .handler(async ({ data: f }) => {
     await requireAdmin();
-    const orders = await fetchAllOrders(CUSTOMER_ORDER_COLUMNS);
+    const { orders, sources } = await loadCustomerUniverse();
     // Aggregate once with the search applied but the segment left open: the
     // chips need to say how many sit under EVERY heading, including the ones
     // currently filtered out. Filtering afterwards costs one array pass and
     // saves a second full walk of the orders table.
-    const matched = aggregateCustomers(orders, f.q, f.sort, "all");
+    const matched = aggregateCustomers(orders, f.q, f.sort, "all", Date.now(), sources);
     const counts = segmentCounts(matched);
     const rows = matched.filter((c) => matchesSegment(c, f.segment));
     const total = rows.length;
@@ -808,8 +1023,9 @@ export const exportCustomersCsv = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) => CustomersSchema.parse(i))
   .handler(async ({ data: f }) => {
     await requireAdmin();
-    const orders = await fetchAllOrders(CUSTOMER_ORDER_COLUMNS);
-    const rows = aggregateCustomers(orders, f.q, f.sort, f.segment);
+    const { orders, sources } = await loadCustomerUniverse();
+    const rows = aggregateCustomers(orders, f.q, f.sort, f.segment, Date.now(), sources);
+    const date = (iso: string | null) => (iso ? new Date(iso).toLocaleString("he-IL") : "");
 
     const header = [
       "שם",
@@ -823,7 +1039,14 @@ export const exportCustomersCsv = createServerFn({ method: "POST" })
       "סוג",
       "רדום",
       "אישר יצירת קשר",
+      "חבר מועדון",
+      "מאשר דיוור",
+      "מנוי ניוזלטר",
+      "עגלה פתוחה",
+      "פעילות אחרונה",
+      "לקוח מאז",
     ];
+    const yes = (b: boolean) => (b ? "כן" : "לא");
     const lines = rows.map((c) =>
       [
         c.name,
@@ -832,11 +1055,17 @@ export const exportCustomersCsv = createServerFn({ method: "POST" })
         c.orders,
         c.paidOrders,
         c.ltv,
-        new Date(c.lastOrderAt).toLocaleString("he-IL"),
+        date(c.lastOrderAt),
         c.daysSinceLastOrder ?? "",
         SEGMENT_HE[c.segment as CustomerSegment],
-        c.dormant ? "כן" : "לא",
-        c.contactConsent ? "כן" : "לא",
+        yes(c.dormant),
+        yes(c.contactConsent),
+        yes(c.isMember),
+        yes(c.marketingConsent),
+        yes(c.newsletter),
+        c.openCartValue || "",
+        date(c.lastActivityAt),
+        date(c.firstSeenAt),
       ]
         .map(csvEsc)
         .join(","),
@@ -845,12 +1074,27 @@ export const exportCustomersCsv = createServerFn({ method: "POST" })
     return { csv: "﻿" + [header.join(","), ...lines].join("\r\n"), count: rows.length };
   });
 
+/**
+ * Everything the shop knows about one person, for the customer card: orders,
+ * internal notes, and — from the other sources — club membership, marketing
+ * consent, newsletter status and the carts they left.
+ *
+ * Only orders and notes are fatal. The rest is context: a failed read there
+ * leaves its section empty rather than failing the card the owner opened to
+ * write a note on.
+ */
 export const getCustomerDetail = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) => z.object({ email: z.string().email() }).parse(i))
   .handler(async ({ data }) => {
     await requireAdmin();
     const email = data.email.trim().toLowerCase();
-    const [{ data: orders, error: oErr }, { data: notes, error: nErr }] = await Promise.all([
+    const [
+      { data: orders, error: oErr },
+      { data: notes, error: nErr },
+      profile,
+      subscriber,
+      carts,
+    ] = await Promise.all([
       supabaseAdmin
         .from("orders")
         .select(
@@ -864,12 +1108,47 @@ export const getCustomerDetail = createServerFn({ method: "POST" })
         .select("id, note, created_at")
         .eq("customer_email", email)
         .order("created_at", { ascending: false }),
+      supabaseAdmin
+        .from("profiles")
+        .select(
+          "full_name, phone, is_member, member_since, marketing_consent, marketing_consent_at, marketing_consent_source, created_at",
+        )
+        .ilike("email", email)
+        .limit(1)
+        .maybeSingle(),
+      supabaseAdmin
+        .from("newsletter_subscribers")
+        .select("source, consented_at, unsubscribed_at, created_at")
+        .ilike("email", email)
+        .limit(1)
+        .maybeSingle(),
+      supabaseAdmin
+        .from("abandoned_carts")
+        .select(
+          "id, items, subtotal, converted_order_id, unsubscribed, reminder_1_sent_at, reminder_2_sent_at, created_at, updated_at",
+        )
+        .ilike("email", email)
+        .order("created_at", { ascending: false })
+        .limit(20),
     ]);
     if (oErr || nErr) {
       console.error("[getCustomerDetail]:", oErr ?? nErr);
       throw new Error("שגיאה בטעינת פרטי הלקוח.");
     }
-    return { orders: orders ?? [], notes: notes ?? [] };
+    for (const [label, r] of [
+      ["profile", profile],
+      ["newsletter", subscriber],
+      ["carts", carts],
+    ] as const) {
+      if (r.error) console.error(`[getCustomerDetail] ${label}:`, r.error);
+    }
+    return {
+      orders: orders ?? [],
+      notes: notes ?? [],
+      profile: profile.data ?? null,
+      newsletter: subscriber.data ?? null,
+      carts: carts.data ?? [],
+    };
   });
 
 export const addCustomerNote = createServerFn({ method: "POST" })
