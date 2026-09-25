@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { alertOwnerReview } from "@/lib/owner-alerts.server";
 import { getOptionalUserId } from "@/integrations/supabase/optional-auth";
 import { checkOrderRateLimitByIp } from "@/lib/rate-limit.server";
 import { requireAdmin } from "@/lib/admin-authz.server";
@@ -73,6 +74,15 @@ export const submitReview = createServerFn({ method: "POST" })
       console.error("[submitReview] insert:", error);
       throw new Error("לא ניתן לשמור את חוות הדעת כעת. אנא נסו שוב.");
     }
+    // The owner moderates every review; tell them one is waiting.
+    await alertOwnerReview({
+      productId: data.product_id,
+      rating: data.rating,
+      title: data.title,
+      body: data.body,
+      author: data.author_name,
+      verified: false,
+    });
     return { ok: true as const };
   });
 
@@ -223,6 +233,14 @@ export const submitVerifiedReview = createServerFn({ method: "POST" })
       console.error("[submitVerifiedReview] insert:", insErr);
       throw new Error("לא ניתן לשמור את חוות הדעת כעת. אנא נסו שוב.");
     }
+    await alertOwnerReview({
+      productId: data.product_id,
+      rating: data.rating,
+      title: data.title,
+      body: data.body,
+      author: data.author_name,
+      verified: true,
+    });
     return { ok: true as const };
   });
 

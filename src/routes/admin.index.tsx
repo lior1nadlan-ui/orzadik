@@ -7,6 +7,7 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from "recha
 import { TrendingUp, TrendingDown, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ActionCockpit } from "@/components/admin/ActionCockpit";
+import { pct, type Funnel } from "@/lib/funnel";
 
 export const Route = createFileRoute("/admin/")({
   component: AdminHome,
@@ -246,6 +247,8 @@ function AdminHome() {
           );
         })()}
       </div>
+
+      {s.funnel && s.funnel.started > 0 && <FunnelCard f={s.funnel} />}
 
       {/* Repeat customers + low stock */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -503,6 +506,78 @@ function AdminHome() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Where shoppers drop out between checkout and payment — people, not rows (see
+ * funnel.ts). The bars are relative to "started"; the percentage on each step
+ * is its conversion from the step before, which is the number that says where
+ * the leak is. Below, the unpaid orders split by CardCom's own reason, because
+ * "left the payment page" and "card declined" need different fixes.
+ */
+function FunnelCard({ f }: { f: Funnel }) {
+  const steps = [
+    { label: "התחילו הזמנה (הזינו אימייל בקופה)", n: f.started, rate: null as string | null },
+    { label: "השלימו פרטים ויצרו הזמנה", n: f.placed, rate: pct(f.placed, f.started) },
+    { label: "שילמו", n: f.paid, rate: pct(f.paid, f.placed) },
+  ];
+  const lost = f.leftPaymentPage.value + f.declined.value;
+  return (
+    <div className="rounded-lg border bg-card p-5">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <div className="text-sm font-semibold">משפך המכירה · {f.windowDays} ימים אחרונים</div>
+        <div className="text-xs text-muted-foreground">
+          המרה כוללת: <strong className="text-foreground">{pct(f.paid, f.started)}</strong>
+        </div>
+      </div>
+      <ol className="mt-4 space-y-3">
+        {steps.map((st) => (
+          <li key={st.label}>
+            <div className="flex items-baseline justify-between gap-3 text-sm">
+              <span>{st.label}</span>
+              <span className="whitespace-nowrap">
+                <strong>{st.n}</strong>
+                {st.rate && <span className="ms-2 text-xs text-muted-foreground">({st.rate})</span>}
+              </span>
+            </div>
+            <div className="mt-1 h-2 overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full bg-accent"
+                style={{ width: `${f.started ? Math.max(2, (st.n / f.started) * 100) : 0}%` }}
+              />
+            </div>
+          </li>
+        ))}
+      </ol>
+      {(f.leftPaymentPage.count > 0 || f.declined.count > 0) && (
+        <div className="mt-4 grid gap-2 border-t pt-3 text-xs sm:grid-cols-2">
+          <div>
+            <div className="text-muted-foreground">יצאו מעמוד התשלום בלי לשלם</div>
+            <div className="mt-0.5">
+              <strong className="text-sm">{f.leftPaymentPage.count}</strong> הזמנות ·{" "}
+              {formatILS(f.leftPaymentPage.value)}
+            </div>
+            <div className="mt-0.5 text-muted-foreground">
+              מקבלים במייל קישור להשלמה (אוטומטית, עד 3 ימים אחרי ההזמנה). שיחה אישית עוזרת.
+            </div>
+          </div>
+          <div>
+            <div className="text-muted-foreground">כרטיס נדחה</div>
+            <div className="mt-0.5">
+              <strong className="text-sm">{f.declined.count}</strong> הזמנות ·{" "}
+              {formatILS(f.declined.value)}
+            </div>
+            <div className="mt-0.5 text-muted-foreground">
+              כדאי להציע כרטיס אחר או תשלום בטלפון.
+            </div>
+          </div>
+          <div className="sm:col-span-2 text-muted-foreground">
+            סה״כ {formatILS(lost)} בהזמנות שלא שולמו ולא הושלמו מאוחר יותר.
+          </div>
+        </div>
+      )}
     </div>
   );
 }
