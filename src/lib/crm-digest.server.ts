@@ -20,8 +20,10 @@ import {
   FAILED_PAYMENT_WINDOW_DAYS,
   type Digest,
   type DigestCart,
+  type DigestFollowUp,
   type DigestOrder,
 } from "@/lib/crm-digest";
+import { daysOverdue, endOfIsraelDay, hiddenActionKeys } from "@/lib/crm-tasks";
 import { isTelegramConfigured, sendTelegramText } from "@/lib/telegram.server";
 import { emailShell, isEmailConfigured, sendEmail } from "@/lib/email.server";
 import { BUSINESS } from "@/lib/business";
@@ -43,7 +45,7 @@ export async function loadDigest(now: number = Date.now()): Promise<Digest> {
   //   • every paid order not yet shipped, however old — the oldest of those is
   //     the one the briefing exists to surface.
   const recentFloor = new Date(now - (FAILED_PAYMENT_WINDOW_DAYS + 1) * DAY).toISOString();
-  const [recent, unshipped, carts, reviews] = await Promise.all([
+  const [recent, unshipped, carts, reviews, states, followUps] = await Promise.all([
     supabaseAdmin.from("orders").select(ORDER_COLUMNS).gte("created_at", recentFloor).limit(1000),
     supabaseAdmin
       .from("orders")
@@ -64,6 +66,17 @@ export async function loadDigest(now: number = Date.now()): Promise<Digest> {
       .select("id", { count: "exact", head: true })
       .eq("is_approved", false)
       .gte("created_at", new Date(now - REVIEW_WINDOW_DAYS * DAY).toISOString()),
+    supabaseAdmin
+      .from("crm_action_state")
+      .select("action_key, snoozed_until, dismissed_at")
+      .limit(2000),
+    supabaseAdmin
+      .from("crm_followups")
+      .select("customer_email, title, due_at")
+      .is("done_at", null)
+      .lt("due_at", new Date(endOfIsraelDay(now)).toISOString())
+      .order("due_at", { ascending: true })
+      .limit(100),
   ]);
 
   // Orders are the point of the briefing: fail loudly rather than report an
@@ -73,17 +86,32 @@ export async function loadDigest(now: number = Date.now()): Promise<Digest> {
   if (unshipped.error) throw unshipped.error;
   if (carts.error) console.error("[digest] carts:", carts.error);
   if (reviews.error) console.error("[digest] reviews:", reviews.error);
+  if (states.error) console.error("[digest] action state:", states.error);
+  if (followUps.error) console.error("[digest] follow-ups:", followUps.error);
 
   const byId = new Map<string, DigestOrder>();
   for (const o of [...(recent.data ?? []), ...(unshipped.data ?? [])] as DigestOrder[]) {
     byId.set(o.id, o);
   }
 
+  // A reminder names the customer when any fetched order knows them.
+  const nameByEmail = new Map<string, string>();
+  for (const o of byId.values()) {
+    const key = String(o.customer_email ?? "").toLowerCase();
+    if (key && o.customer_name && !nameByEmail.has(key)) nameByEmail.set(key, o.customer_name);
+  }
+  const dueFollowUps: DigestFollowUp[] = (followUps.data ?? []).map((f) => ({
+    title: f.title,
+    who: nameByEmail.get(f.customer_email) ?? f.customer_email,
+    daysOverdue: daysOverdue(f.due_at, now),
+  }));
+
   return buildDigest(
     [...byId.values()],
     (carts.data ?? []) as DigestCart[],
     reviews.count ?? 0,
     now,
+    { hidden: hiddenActionKeys(states.data ?? [], now), followUps: dueFollowUps },
   );
 }
 

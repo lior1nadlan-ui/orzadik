@@ -20,7 +20,12 @@ const STATUS_HE: Record<string, string> = {
   cancelled: "בוטלה",
   refunded: "זוכתה",
 };
-const PAYMENT_HE: Record<string, string> = { paid: "שולם", unpaid: "לא שולם", refunded: "זוכה" };
+const PAYMENT_HE: Record<string, string> = {
+  paid: "שולם",
+  unpaid: "לא שולם",
+  failed: "תשלום נכשל",
+  refunded: "זוכה",
+};
 
 function daysAgoHe(ts: string): string {
   const d = Math.max(0, Math.floor((Date.now() - new Date(ts).getTime()) / 864e5));

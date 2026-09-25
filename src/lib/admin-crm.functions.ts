@@ -11,6 +11,15 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { requireAdmin } from "@/lib/admin-authz.server";
 import { sendOrderShippedEmail, sendOrderConfirmationEmails } from "@/lib/order-emails.server";
 import { ORDER_ITEM_PRODUCT_JOIN } from "@/lib/order-item-photo";
+import { isOpenFailedPayment, recoveredBy } from "@/lib/crm-digest";
+import {
+  actionKey,
+  actionVisibility,
+  daysOverdue,
+  dueFollowUps,
+  endOfIsraelDay,
+  type ActionVisibility,
+} from "@/lib/crm-tasks";
 
 const PAGE_SIZE = 25;
 // PostgREST caps unbounded selects at 1000 — the same silent cap that hid 79%
@@ -275,27 +284,34 @@ export const getDashboardStats = createServerFn({ method: "POST" }).handler(asyn
 // ---- Action queue ----------------------------------------------------------
 //
 // "מה לעשות היום" — a prioritized list of concrete, human actions the owner
-// should take on REAL orders and carts. Read-only: it derives entirely from
-// live order / abandoned-cart state and writes nothing. The per-row "handled"
-// state lives in the browser (localStorage), not here — so this fn always
-// returns the full candidate set and the client hides what's already dealt
-// with. Reuses the dashboard's own stuck-unpaid / ready-to-ship / abandoned
-// logic (thresholds kept in sync with getDashboardStats above).
+// should take on REAL orders and carts, plus the reminders they set themselves.
+// It derives from live order / abandoned-cart state and writes nothing.
+//
+// The owner's decisions about a row — handled for today, snoozed three days,
+// not relevant — live in crm_action_state, keyed "<type>:<entity id>" (see
+// crm-tasks.ts). Until 2026-09-25 they lived in the browser's localStorage, so
+// the phone and the computer disagreed and a dismissal lasted one day. Every
+// row comes back with its state; the client shows the open ones and lists the
+// set-aside ones underneath with a "restore".
 //
 // Each order maps to AT MOST ONE action, so it never appears twice: a paid
 // order is a "thank you" for its first day, then becomes "ready to ship"; an
 // unpaid one is "stuck"; a shipped one eventually becomes a review nudge.
 
 type ActionType =
+  | "follow_up"
   | "thank_you"
   | "ready_to_ship"
   | "stuck_unpaid"
   | "recover_cart"
   | "review_request";
 
-// Priority ordering (higher = surfaces first): delight a fresh paying customer,
-// then chase money left on the table, then fulfilment, recovery, and reviews.
+// Priority ordering (higher = surfaces first). A reminder the owner wrote
+// themselves outranks everything the system infers; then delight a fresh
+// paying customer, chase money left on the table, fulfilment, recovery,
+// reviews.
 const ACTION_PRIORITY: Record<ActionType, number> = {
+  follow_up: 110,
   thank_you: 100,
   stuck_unpaid: 90,
   ready_to_ship: 80,
@@ -303,13 +319,20 @@ const ACTION_PRIORITY: Record<ActionType, number> = {
   review_request: 40,
 };
 
-// Sanity cap — at ~1 order the queue is tiny, but never flood the UI.
+// Sanity cap on OPEN rows — never flood the UI.
 const QUEUE_CAP = 40;
+// Set-aside rows shown under the queue for "restore".
+const HIDDEN_CAP = 30;
 
 type ActionRow = {
+  /** Stable, date-free: "<type>:<entity id>". For a follow-up, the entity is
+   *  the crm_followups row. Also the key its decision is stored under. */
   id: string;
   type: ActionType;
   priority: number;
+  state: ActionVisibility;
+  /** When a snoozed row comes back. */
+  snoozedUntil?: string;
   orderNumber?: string;
   customerName: string;
   customerEmail?: string;
@@ -321,40 +344,97 @@ type ActionRow = {
 export const getActionQueue = createServerFn({ method: "POST" }).handler(async () => {
   await requireAdmin();
 
-  const orders = await fetchAllOrders(
-    "id, order_number, customer_name, customer_email, customer_phone, status, payment_status, created_at, paid_at, shipped_at, review_request_sent_at",
-  );
-
   const now = Date.now();
+  const [orders, statesRes, followUpsRes] = await Promise.all([
+    fetchAllOrders(
+      "id, order_number, customer_name, customer_email, customer_phone, status, payment_status, created_at, paid_at, shipped_at, review_request_sent_at",
+    ),
+    supabaseAdmin
+      .from("crm_action_state")
+      .select("action_key, snoozed_until, dismissed_at")
+      .limit(2000),
+    supabaseAdmin
+      .from("crm_followups")
+      .select("id, customer_email, title, due_at, done_at, created_at")
+      .is("done_at", null)
+      .lt("due_at", new Date(endOfIsraelDay(now)).toISOString())
+      .order("due_at", { ascending: true })
+      .limit(100),
+  ]);
+  // Decisions and reminders are additions to the queue, not its core: if
+  // either read fails, the queue still renders, everything shown as open.
+  if (statesRes.error) console.error("[getActionQueue] action state:", statesRes.error);
+  if (followUpsRes.error) console.error("[getActionQueue] follow-ups:", followUpsRes.error);
+  const stateByKey = new Map((statesRes.data ?? []).map((r) => [r.action_key, r]));
+
   const HOUR = 60 * 60 * 1000;
   const DAY = 24 * HOUR;
-  // Date component of the stable, per-day row id: dismissing an action clears it
-  // for today; a still-open action resurfaces tomorrow — right for a daily queue.
-  const today = new Date().toISOString().slice(0, 10);
 
   const rows: ActionRow[] = [];
   const paidAt = (o: any) => new Date(o.paid_at ?? o.created_at).getTime();
   const daysSince = (iso: string) => Math.floor((now - new Date(iso).getTime()) / DAY);
+  const recovered = recoveredBy(orders);
+  const withState = (row: Omit<ActionRow, "state" | "snoozedUntil">): ActionRow => {
+    const st = stateByKey.get(row.id);
+    const state = actionVisibility(st, now);
+    return {
+      ...row,
+      state,
+      ...(state === "snoozed" && st?.snoozed_until ? { snoozedUntil: st.snoozed_until } : {}),
+    };
+  };
+
+  // The owner's own reminders. Name and phone come from the customer's newest
+  // order when there is one (orders arrive newest-first).
+  const contactByEmail = new Map<string, { name: string; phone?: string }>();
+  for (const o of orders) {
+    const key = String(o.customer_email ?? "")
+      .trim()
+      .toLowerCase();
+    if (key && !contactByEmail.has(key)) {
+      contactByEmail.set(key, {
+        name: o.customer_name || "",
+        phone: o.customer_phone || undefined,
+      });
+    }
+  }
+  for (const f of dueFollowUps(followUpsRes.data ?? [], now)) {
+    const who = contactByEmail.get(f.customer_email);
+    const late = daysOverdue(f.due_at, now);
+    rows.push(
+      withState({
+        id: actionKey("follow_up", f.id),
+        type: "follow_up",
+        priority: ACTION_PRIORITY.follow_up,
+        customerName: who?.name || f.customer_email,
+        customerEmail: f.customer_email,
+        customerPhone: who?.phone,
+        context:
+          late > 0 ? `${f.title} · באיחור ${late === 1 ? "של יום" : `${late} ימים`}` : f.title,
+        createdAt: f.due_at,
+      }),
+    );
+  }
 
   for (const o of orders) {
     // Never nudge on a cancelled/refunded order.
     if (["cancelled", "refunded"].includes(o.status)) continue;
 
     const base = {
-      priority: 0,
       orderNumber: o.order_number || undefined,
       customerName: o.customer_name || "לקוח",
       customerEmail: o.customer_email || undefined,
       customerPhone: o.customer_phone || undefined,
     };
-    const rowFor = (type: ActionType, createdAt: string, context: string): ActionRow => ({
-      ...base,
-      id: `${type}:${o.id}:${today}`,
-      type,
-      priority: ACTION_PRIORITY[type],
-      createdAt,
-      context,
-    });
+    const rowFor = (type: ActionType, createdAt: string, context: string): ActionRow =>
+      withState({
+        ...base,
+        id: actionKey(type, o.id),
+        type,
+        priority: ACTION_PRIORITY[type],
+        createdAt,
+        context,
+      });
 
     // Paid, not yet shipped → greet for the first 24h, then it's a packing job.
     if (
@@ -375,12 +455,11 @@ export const getActionQueue = createServerFn({ method: "POST" }).handler(async (
       continue;
     }
 
-    // Unpaid / failed for over an hour (younger ones may still be mid-checkout;
-    // 'failed' = a declined card the owner most wants to catch) → warm follow-up.
-    if (
-      ["unpaid", "failed"].includes(o.payment_status) &&
-      now - new Date(o.created_at).getTime() > HOUR
-    ) {
+    // Unpaid / failed and still worth a call — the SAME rule the morning
+    // briefing applies (crm-digest.ts): past the grace hour, within 30 days,
+    // and not already fixed by the same customer paying again. Before this, a
+    // two-month-old declined card came back every morning forever.
+    if (isOpenFailedPayment(o, now, recovered)) {
       rows.push(
         rowFor("stuck_unpaid", o.created_at, "התחילה הזמנה אך התשלום לא הושלם — שווה פנייה חמה 💬"),
       );
@@ -462,16 +541,18 @@ export const getActionQueue = createServerFn({ method: "POST" }).handler(async (
         const key = String(c.email ?? "")
           .trim()
           .toLowerCase();
-        rows.push({
-          id: `recover_cart:${c.id}:${today}`,
-          type: "recover_cart",
-          priority: ACTION_PRIORITY.recover_cart,
-          customerName: c.name || "לקוח",
-          customerEmail: c.email || undefined,
-          customerPhone: phoneByEmail.get(key) || undefined,
-          context: "עגלה נטושה עם פריטים — הזמנה בהמתנה, שווה תזכורת עדינה 🛒",
-          createdAt: c.created_at,
-        });
+        rows.push(
+          withState({
+            id: actionKey("recover_cart", c.id),
+            type: "recover_cart",
+            priority: ACTION_PRIORITY.recover_cart,
+            customerName: c.name || "לקוח",
+            customerEmail: c.email || undefined,
+            customerPhone: phoneByEmail.get(key) || undefined,
+            context: "עגלה נטושה עם פריטים — הזמנה בהמתנה, שווה תזכורת עדינה 🛒",
+            createdAt: c.created_at,
+          }),
+        );
       }
     }
   } catch (e) {
@@ -483,7 +564,9 @@ export const getActionQueue = createServerFn({ method: "POST" }).handler(async (
     (a, b) =>
       b.priority - a.priority || new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
   );
-  return rows.slice(0, QUEUE_CAP);
+  const open = rows.filter((r) => r.state === "open").slice(0, QUEUE_CAP);
+  const setAside = rows.filter((r) => r.state !== "open").slice(0, HIDDEN_CAP);
+  return [...open, ...setAside];
 });
 
 // ---- Orders: paged list + CSV export --------------------------------------
@@ -766,6 +849,8 @@ export type ContactSources = {
     created_at: string | null;
     updated_at?: string | null;
   }[];
+  /** Open reminders (crm_followups) — the row shows when the next one is due. */
+  followUps?: { customer_email: string; due_at: string }[];
 };
 
 const emailKey = (v: unknown) =>
@@ -813,6 +898,7 @@ export function aggregateCustomers(
         marketingConsent: false,
         openCarts: 0,
         openCartValue: 0,
+        nextFollowUpAt: null as string | null,
         firstSeenAt: null as string | null,
         lastActivityAt: null as string | null,
       };
@@ -883,6 +969,16 @@ export function aggregateCustomers(
     touch(c, k.updated_at ?? k.created_at);
   }
 
+  // A reminder only annotates someone already on the list — it never creates
+  // a row on its own (it was written from a customer card in the first place).
+  for (const f of sources.followUps ?? []) {
+    const c = byEmail.get(emailKey(f.customer_email));
+    if (!c) continue;
+    if (!c.nextFollowUpAt || Date.parse(f.due_at) < Date.parse(c.nextFollowUpAt)) {
+      c.nextFollowUpAt = f.due_at;
+    }
+  }
+
   let rows = [...byEmail.values()].map((c) => {
     const days = daysSince(c.lastOrderAt, now);
     return {
@@ -951,7 +1047,7 @@ async function pageAll<T>(
  */
 async function fetchContactSources(): Promise<ContactSources> {
   try {
-    const [profiles, subscribers, carts, admins] = await Promise.all([
+    const [profiles, subscribers, carts, admins, followUps] = await Promise.all([
       pageAll((a, b) =>
         supabaseAdmin
           .from("profiles")
@@ -976,7 +1072,13 @@ async function fetchContactSources(): Promise<ContactSources> {
           .range(a, b),
       ),
       supabaseAdmin.from("user_roles").select("user_id").eq("role", "admin"),
+      supabaseAdmin
+        .from("crm_followups")
+        .select("customer_email, due_at")
+        .is("done_at", null)
+        .limit(1000),
     ]);
+    if (followUps.error) console.error("[customers] follow-ups:", followUps.error);
     if (admins.error) throw admins.error;
     const adminIds = new Set((admins.data ?? []).map((r) => r.user_id));
     const adminEmails = new Set(
@@ -987,6 +1089,7 @@ async function fetchContactSources(): Promise<ContactSources> {
       profiles: profiles.filter((p) => !adminIds.has(p.id)),
       subscribers: subscribers.filter((s) => notAdmin(s.email)),
       carts: carts.filter((c) => notAdmin(c.email)),
+      followUps: followUps.data ?? [],
     };
   } catch (e) {
     console.error("[customers] contact sources failed — listing order customers only:", e);
@@ -1045,6 +1148,7 @@ export const exportCustomersCsv = createServerFn({ method: "POST" })
       "עגלה פתוחה",
       "פעילות אחרונה",
       "לקוח מאז",
+      "תזכורת פתוחה",
     ];
     const yes = (b: boolean) => (b ? "כן" : "לא");
     const lines = rows.map((c) =>
@@ -1066,6 +1170,7 @@ export const exportCustomersCsv = createServerFn({ method: "POST" })
         c.openCartValue || "",
         date(c.lastActivityAt),
         date(c.firstSeenAt),
+        date(c.nextFollowUpAt),
       ]
         .map(csvEsc)
         .join(","),

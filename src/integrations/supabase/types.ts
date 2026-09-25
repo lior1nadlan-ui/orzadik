@@ -331,6 +331,30 @@ export type Database = {
           },
         ]
       }
+      crm_action_state: {
+        Row: {
+          action_key: string
+          dismissed_at: string | null
+          snoozed_until: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          action_key: string
+          dismissed_at?: string | null
+          snoozed_until?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          action_key?: string
+          dismissed_at?: string | null
+          snoozed_until?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       crm_customer_notes: {
         Row: {
           created_at: string
@@ -352,6 +376,36 @@ export type Database = {
           customer_email?: string
           id?: string
           note?: string
+        }
+        Relationships: []
+      }
+      crm_followups: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          customer_email: string
+          done_at: string | null
+          due_at: string
+          id: string
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          customer_email: string
+          done_at?: string | null
+          due_at: string
+          id?: string
+          title: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          customer_email?: string
+          done_at?: string | null
+          due_at?: string
+          id?: string
+          title?: string
         }
         Relationships: []
       }
