@@ -61,7 +61,18 @@ export type DigestCart = {
 /** How far a paid order is into the delivery window the site promises. */
 export type ShipUrgency = "ok" | "late" | "overdue";
 
+/** One of the owner's own reminders (crm_followups), due today or overdue. */
+export type DigestFollowUp = {
+  title: string;
+  /** The customer's name when the shop knows it, else their email. */
+  who: string;
+  daysOverdue: number;
+};
+
 export type Digest = {
+  /** The owner's own reminders come first: they are the only items in the
+   *  briefing somebody deliberately asked to be told about. */
+  followUps: DigestFollowUp[];
   toShip: {
     orderNumber: string;
     name: string;
@@ -120,17 +131,77 @@ export function shipUrgency(businessDays: number): ShipUrgency {
   return "ok";
 }
 
-const isPaidish = (o: DigestOrder) =>
+const isPaidish = (o: { payment_status: string }) =>
   o.payment_status === "paid" || o.payment_status === "refunded";
-const isClosed = (o: DigestOrder) => ["cancelled", "refunded"].includes(o.status);
+const isClosed = (o: { status: string }) => ["cancelled", "refunded"].includes(o.status);
 const paidAtMs = (o: DigestOrder) => new Date(o.paid_at ?? o.created_at).getTime();
+
+/** The fields the recovery check reads — shared with the admin action queue. */
+export type RecoveryOrder = Pick<
+  DigestOrder,
+  "customer_email" | "customer_phone" | "payment_status" | "created_at" | "status"
+>;
+
+/**
+ * A predicate: was this unpaid attempt later fixed by the same person paying?
+ * "Same person" is the same email OR the same phone — people retype one of
+ * them — and "later" means a paid order placed at or after the attempt.
+ *
+ * Shared by the morning briefing and the admin's "מה לעשות היום" queue, so the
+ * two can never disagree about who is worth a call.
+ */
+export function recoveredBy(orders: RecoveryOrder[]): (o: RecoveryOrder) => boolean {
+  const paidByEmail = new Map<string, number[]>();
+  const paidByPhone = new Map<string, number[]>();
+  for (const o of orders) {
+    if (!isPaidish(o)) continue;
+    const t = new Date(o.created_at).getTime();
+    for (const [map, key] of [
+      [paidByEmail, emailKey(o.customer_email)],
+      [paidByPhone, phoneKey(o.customer_phone)],
+    ] as const) {
+      if (key) map.set(key, [...(map.get(key) ?? []), t]);
+    }
+  }
+  const paidSince = (key: string, map: Map<string, number[]>, since: number) =>
+    !!key && (map.get(key) ?? []).some((t) => t >= since);
+  return (o) => {
+    const created = new Date(o.created_at).getTime();
+    return (
+      paidSince(emailKey(o.customer_email), paidByEmail, created) ||
+      paidSince(phoneKey(o.customer_phone), paidByPhone, created)
+    );
+  };
+}
+
+/** An unpaid or failed order still worth a call: past the grace hour (they may
+ *  still be on the payment page), inside the window, not cancelled, and not
+ *  recovered by a later payment. */
+export function isOpenFailedPayment(
+  o: RecoveryOrder,
+  now: number,
+  recovered: (o: RecoveryOrder) => boolean,
+): boolean {
+  if (!["unpaid", "failed"].includes(o.payment_status) || isClosed(o)) return false;
+  const age = now - new Date(o.created_at).getTime();
+  if (age <= UNPAID_GRACE_MS || age > FAILED_PAYMENT_WINDOW_DAYS * DAY) return false;
+  return !recovered(o);
+}
 
 export function buildDigest(
   orders: DigestOrder[],
   carts: DigestCart[],
   pendingReviews: number,
   now: number = Date.now(),
+  extras: {
+    /** Queue items the owner snoozed or dismissed ("<type>:<id>") — set aside
+     *  in the admin, so the briefing does not bring them back either. */
+    hidden?: Set<string>;
+    followUps?: DigestFollowUp[];
+  } = {},
 ): Digest {
+  const hidden = extras.hidden ?? new Set<string>();
+  const followUps = extras.followUps ?? [];
   // Paid, not shipped, not closed — the same predicate as the dashboard's
   // "ready to ship", oldest first so the longest wait leads.
   const toShip = orders
@@ -138,7 +209,8 @@ export function buildDigest(
       (o) =>
         o.payment_status === "paid" &&
         !o.shipped_at &&
-        ["pending", "processing"].includes(o.status),
+        ["pending", "processing"].includes(o.status) &&
+        !hidden.has(`ready_to_ship:${o.id}`),
     )
     .sort((a, b) => paidAtMs(a) - paidAtMs(b))
     .map((o) => {
@@ -153,35 +225,9 @@ export function buildDigest(
       };
     });
 
-  // Who has paid, and when — to recognise a failed attempt that was retried.
-  const paidSince = (key: string, map: Map<string, number[]>, since: number) =>
-    !!key && (map.get(key) ?? []).some((t) => t >= since);
-  const paidByEmail = new Map<string, number[]>();
-  const paidByPhone = new Map<string, number[]>();
-  for (const o of orders) {
-    if (!isPaidish(o)) continue;
-    const t = new Date(o.created_at).getTime();
-    for (const [map, key] of [
-      [paidByEmail, emailKey(o.customer_email)],
-      [paidByPhone, phoneKey(o.customer_phone)],
-    ] as const) {
-      if (key) map.set(key, [...(map.get(key) ?? []), t]);
-    }
-  }
-
+  const recovered = recoveredBy(orders);
   const failedPayments = orders
-    .filter((o) => {
-      if (!["unpaid", "failed"].includes(o.payment_status) || isClosed(o)) return false;
-      const created = new Date(o.created_at).getTime();
-      const age = now - created;
-      if (age <= UNPAID_GRACE_MS || age > FAILED_PAYMENT_WINDOW_DAYS * DAY) return false;
-      // Recovered: the same person (by email OR phone — people retype one of
-      // them) has a paid order placed at or after this attempt.
-      return !(
-        paidSince(emailKey(o.customer_email), paidByEmail, created) ||
-        paidSince(phoneKey(o.customer_phone), paidByPhone, created)
-      );
-    })
+    .filter((o) => isOpenFailedPayment(o, now, recovered) && !hidden.has(`stuck_unpaid:${o.id}`))
     .sort((a, b) => num(b.total) - num(a.total))
     .map((o) => ({
       orderNumber: clean(o.order_number),
@@ -200,7 +246,8 @@ export function buildDigest(
         !c.unsubscribed &&
         num(c.subtotal) > 0 &&
         age > HOUR &&
-        age <= CART_WINDOW_DAYS * DAY
+        age <= CART_WINDOW_DAYS * DAY &&
+        !hidden.has(`recover_cart:${c.id}`)
       );
     })
     .sort((a, b) => num(b.subtotal) - num(a.subtotal));
@@ -218,6 +265,7 @@ export function buildDigest(
   };
 
   return {
+    followUps,
     toShip,
     failedPayments,
     openCarts,
@@ -225,7 +273,11 @@ export function buildDigest(
     last7d: paidWithin(7 * DAY),
     pendingReviews,
     actionable:
-      toShip.length > 0 || failedPayments.length > 0 || openCarts.count > 0 || pendingReviews > 0,
+      followUps.length > 0 ||
+      toShip.length > 0 ||
+      failedPayments.length > 0 ||
+      openCarts.count > 0 ||
+      pendingReviews > 0,
   };
 }
 
@@ -271,6 +323,14 @@ export function renderDigestTelegram(d: Digest, now: number, origin: string): st
 
   if (!d.actionable) {
     m += `\nאין משימות פתוחות היום ✨\n`;
+  }
+
+  if (d.followUps.length > 0) {
+    m += `\n🔔 <b>תזכורות להיום (${d.followUps.length})</b>\n`;
+    for (const f of d.followUps.slice(0, LIST_MAX)) {
+      m += `• ${tg(f.title)} · ${tg(f.who)}${f.daysOverdue > 0 ? ` · באיחור ${dayWord(f.daysOverdue, "של יום", "ימים")}` : ""}\n`;
+    }
+    if (d.followUps.length > LIST_MAX) m += `ועוד ${d.followUps.length - LIST_MAX}\n`;
   }
 
   if (d.toShip.length > 0) {
@@ -331,6 +391,18 @@ export function renderDigestEmailInner(d: Digest, now: number, origin: string): 
 
   if (!d.actionable) {
     html += `<p style="margin:18px 0 0;">אין משימות פתוחות היום ✨</p>`;
+  }
+
+  if (d.followUps.length > 0) {
+    const rows = d.followUps
+      .slice(0, LIST_MAX)
+      .map(
+        (f) =>
+          `<tr><td style="${cell}">${h(f.title)} · ${h(f.who)}</td>` +
+          `<td style="${cell}text-align:left;white-space:nowrap;">${f.daysOverdue > 0 ? `באיחור ${dayWord(f.daysOverdue, "של יום", "ימים")}` : "היום"}</td></tr>`,
+      )
+      .join("");
+    html += section(`🔔 תזכורות להיום (${d.followUps.length})`, rows);
   }
 
   if (d.toShip.length > 0) {
@@ -395,6 +467,7 @@ export function renderDigestEmailInner(d: Digest, now: number, origin: string): 
 export function digestSubject(d: Digest): string {
   const count = (n: number, one: string, many: string) => (n === 1 ? one : `${n} ${many}`);
   const parts: string[] = [];
+  if (d.followUps.length) parts.push(count(d.followUps.length, "תזכורת אחת", "תזכורות"));
   if (d.toShip.length)
     parts.push(count(d.toShip.length, "הזמנה אחת ממתינה למשלוח", "ממתינות למשלוח"));
   if (d.failedPayments.length)

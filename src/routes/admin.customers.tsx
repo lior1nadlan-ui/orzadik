@@ -13,13 +13,29 @@ import {
   type CustomerSegment,
 } from "@/lib/admin-crm.functions";
 import { formatILS } from "@/lib/cart";
+import {
+  addFollowUp,
+  deleteFollowUp,
+  listCustomerFollowUps,
+  updateFollowUp,
+} from "@/lib/crm-tasks.functions";
+import { dateInputValue } from "@/lib/crm-tasks";
 import { waMessage } from "@/lib/wa-templates";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Download, Phone, Mail, MessageCircle, ShoppingCart, Trash2 } from "lucide-react";
+import {
+  Bell,
+  Download,
+  Phone,
+  Mail,
+  MessageCircle,
+  Clock,
+  ShoppingCart,
+  Trash2,
+} from "lucide-react";
 
 export const Route = createFileRoute("/admin/customers")({
   // Deep-linkable search: the orders dialog links here with the customer email.
@@ -507,6 +523,11 @@ function AdminCustomers() {
 
                 <CustomerTimelineFacts selected={selected} cust={cust} />
 
+                <FollowUpsSection
+                  email={selected.email}
+                  onChanged={() => qc.invalidateQueries({ queryKey: ["admin-customers"] })}
+                />
+
                 {/* Notes */}
                 <div className="border-t pt-3">
                   <div className="font-semibold mb-2">הערות פנימיות</div>
@@ -599,8 +620,20 @@ function AdminCustomers() {
  * marketed to, and money sitting in an open cart. Each badge is a fact from its
  * own table; none is shown unless it is true. */
 function ContactBadges({ c }: { c: any }) {
+  const reminderLate = c.nextFollowUpAt && Date.parse(c.nextFollowUpAt) < Date.now();
   return (
     <>
+      {c.nextFollowUpAt && (
+        <span
+          className={`inline-flex items-center gap-1 text-[11px] font-normal rounded-full px-2 py-0.5 ${
+            reminderLate ? "bg-amber-100 text-amber-900" : "bg-accent/10 text-accent-strong"
+          }`}
+          title="תזכורת פתוחה"
+        >
+          <Bell className="h-3 w-3" aria-hidden="true" />
+          {dateHe(c.nextFollowUpAt)}
+        </span>
+      )}
       {c.isMember && (
         <span
           className="text-[11px] font-normal rounded-full bg-accent/10 text-accent-strong px-2 py-0.5"
@@ -717,6 +750,152 @@ function CartsSection({ carts }: { carts: any[] }) {
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Reminders for this customer — "להתקשר ביום חמישי לגבי הכיתוב". A reminder
+ * falls due at 08:00 Israel time on the chosen day, then sits at the top of
+ * "מה לעשות היום" and in the morning briefing until it is marked done. Done
+ * ones stay listed, struck through, so the card keeps the history.
+ */
+function FollowUpsSection({ email, onChanged }: { email: string; onChanged: () => void }) {
+  const qc = useQueryClient();
+  const list = useServerFn(listCustomerFollowUps);
+  const add = useServerFn(addFollowUp);
+  const update = useServerFn(updateFollowUp);
+  const remove = useServerFn(deleteFollowUp);
+  const [title, setTitle] = useState("");
+  const [date, setDate] = useState(() => dateInputValue(Date.now(), 1));
+  const [busy, setBusy] = useState(false);
+
+  const key = ["admin-customer-followups", email];
+  const { data: rows = [] } = useQuery({ queryKey: key, queryFn: () => list({ data: { email } }) });
+
+  const refresh = async () => {
+    await qc.invalidateQueries({ queryKey: key });
+    await qc.invalidateQueries({ queryKey: ["admin-action-queue"] });
+    onChanged();
+  };
+  const act = async (fn: () => Promise<unknown>, ok: string) => {
+    setBusy(true);
+    try {
+      await fn();
+      await refresh();
+      toast.success(ok);
+    } catch (e: any) {
+      toast.error(e?.message ?? "השמירה נכשלה");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onAdd = () => {
+    if (!title.trim() || !date) return;
+    void act(async () => {
+      await add({ data: { email, title: title.trim(), date } });
+      setTitle("");
+      setDate(dateInputValue(Date.now(), 1));
+    }, "התזכורת נשמרה");
+  };
+
+  const today = dateInputValue(Date.now());
+  return (
+    <div className="border-t pt-3">
+      <div className="font-semibold mb-2">תזכורות</div>
+      <div className="flex flex-wrap gap-2 mb-2">
+        <Input
+          placeholder='למשל: "להתקשר לגבי הכיתוב על הטלית"'
+          value={title}
+          maxLength={500}
+          onChange={(e) => setTitle(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && onAdd()}
+          className="min-w-0 flex-1 basis-56"
+        />
+        <Input
+          type="date"
+          value={date}
+          min={today}
+          onChange={(e) => setDate(e.target.value)}
+          className="w-auto"
+          aria-label="תאריך התזכורת"
+        />
+        <Button size="sm" disabled={busy || !title.trim() || !date} onClick={onAdd}>
+          <Bell className="h-3.5 w-3.5 ml-1" /> הוסף
+        </Button>
+      </div>
+      <div className="space-y-1.5">
+        {rows.map((f: any) => {
+          const done = !!f.done_at;
+          const late = !done && Date.parse(f.due_at) < Date.now();
+          return (
+            <div
+              key={f.id}
+              className="flex items-start justify-between gap-2 rounded-md bg-muted/40 px-3 py-2"
+            >
+              <label className="flex min-w-0 items-start gap-2">
+                <input
+                  type="checkbox"
+                  checked={done}
+                  disabled={busy}
+                  onChange={() =>
+                    void act(
+                      () => update({ data: { id: f.id, action: done ? "reopen" : "done" } }),
+                      done ? "התזכורת נפתחה מחדש" : "בוצע ✓",
+                    )
+                  }
+                  className="mt-1 h-4 w-4 shrink-0 accent-[var(--accent)]"
+                />
+                <span className="min-w-0">
+                  <span className={done ? "line-through text-muted-foreground" : ""}>
+                    {f.title}
+                  </span>
+                  <span
+                    className={`block text-[11px] ${late ? "text-amber-700" : "text-muted-foreground"}`}
+                  >
+                    {done
+                      ? `בוצע ${dateHe(f.done_at)}`
+                      : `${late ? "באיחור · " : ""}ל-${dateHe(f.due_at)}`}
+                  </span>
+                </span>
+              </label>
+              <div className="flex shrink-0 items-center gap-1.5">
+                {!done && (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() =>
+                      void act(
+                        () => update({ data: { id: f.id, action: "days3" } }),
+                        "נדחה ב-3 ימים",
+                      )
+                    }
+                    className="text-muted-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:text-foreground"
+                    title="דחה ב-3 ימים"
+                  >
+                    <Clock className="h-3.5 w-3.5" />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void act(() => remove({ data: { id: f.id } }), "התזכורת נמחקה")}
+                  className="text-muted-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:text-destructive"
+                  title="מחק"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          );
+        })}
+        {rows.length === 0 && (
+          <div className="text-xs text-muted-foreground">
+            אין תזכורות. תזכורת מופיעה ב"מה לעשות היום" ובסיכום הבוקר מהתאריך שנבחר.
+          </div>
+        )}
       </div>
     </div>
   );

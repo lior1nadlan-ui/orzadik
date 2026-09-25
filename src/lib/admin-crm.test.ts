@@ -387,4 +387,23 @@ describe("aggregateCustomers — contacts without an order", () => {
       "old@example.com",
     ]);
   });
+
+  it("marks the earliest open reminder, without inventing a row for it", () => {
+    const rows = aggregateCustomers(
+      [order({ customer_email: "a@example.com" })],
+      undefined,
+      "ltv",
+      "all",
+      NOW,
+      {
+        followUps: [
+          { customer_email: "A@example.com", due_at: daysAgo(-5) },
+          { customer_email: "a@example.com", due_at: daysAgo(-2) },
+          { customer_email: "stranger@example.com", due_at: daysAgo(-1) },
+        ],
+      },
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].nextFollowUpAt).toBe(daysAgo(-2));
+  });
 });

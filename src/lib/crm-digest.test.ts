@@ -245,3 +245,41 @@ describe("rendering", () => {
     );
   });
 });
+
+describe("the owner's own decisions and reminders", () => {
+  it("leaves out what the owner snoozed or dismissed in the admin", () => {
+    const ship = order();
+    const failed = order({ payment_status: "failed", status: "pending", paid_at: null });
+    const c = cart();
+    const d = buildDigest([ship, failed], [c], 0, NOW, {
+      hidden: new Set([
+        `ready_to_ship:${ship.id}`,
+        `stuck_unpaid:${failed.id}`,
+        `recover_cart:${c.id}`,
+      ]),
+    });
+    expect(d.toShip).toEqual([]);
+    expect(d.failedPayments).toEqual([]);
+    expect(d.openCarts.count).toBe(0);
+    expect(d.actionable).toBe(false);
+  });
+
+  it("puts due reminders first, and one is enough to send", () => {
+    const d = buildDigest([], [], 0, NOW, {
+      followUps: [{ title: "להתקשר לגבי הכיתוב", who: "רות", daysOverdue: 2 }],
+    });
+    expect(d.actionable).toBe(true);
+    const m = renderDigestTelegram(d, NOW, "https://orzadik.com");
+    expect(m).toContain("תזכורות להיום (1)");
+    expect(m).toContain("להתקשר לגבי הכיתוב · רות · באיחור 2 ימים");
+    expect(digestSubject(d)).toBe("סיכום בוקר: תזכורת אחת");
+  });
+
+  it("escapes a reminder's text like any customer text", () => {
+    const d = buildDigest([], [], 0, NOW, {
+      followUps: [{ title: "<b>x</b>", who: "a@b.co", daysOverdue: 0 }],
+    });
+    expect(renderDigestTelegram(d, NOW, "https://orzadik.com")).toContain("&lt;b&gt;x&lt;/b&gt;");
+    expect(renderDigestEmailInner(d, NOW, "https://orzadik.com")).not.toContain("<b>x</b>");
+  });
+});
