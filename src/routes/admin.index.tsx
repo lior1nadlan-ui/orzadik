@@ -8,6 +8,7 @@ import { TrendingUp, TrendingDown, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ActionCockpit } from "@/components/admin/ActionCockpit";
 import { pct, type Funnel } from "@/lib/funnel";
+import { getSystemHealth } from "@/lib/system-health.functions";
 
 export const Route = createFileRoute("/admin/")({
   component: AdminHome,
@@ -138,6 +139,8 @@ function AdminHome() {
           {isFetching ? "מרענן..." : "רענון"}
         </Button>
       </div>
+
+      <SystemHealthBanner />
 
       {/* Action queue first — "מה לעשות היום" is what the owner should act on
           before scanning any analytics below. */}
@@ -579,5 +582,36 @@ function FunnelCard({ f }: { f: Funnel }) {
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * One line above the queue when something in "מצב המערכת" is red — a setting
+ * missing, a job that cannot run, paid orders nobody marked shipped. Nothing
+ * at all when everything is fine or only amber: the dashboard is not the place
+ * for "worth a look".
+ */
+function SystemHealthBanner() {
+  const load = useServerFn(getSystemHealth);
+  const { data } = useQuery({
+    queryKey: ["admin-system-health"],
+    queryFn: () => load(),
+    staleTime: 5 * 60_000,
+  });
+  const errors = (data ?? []).filter((r) => r.status === "error");
+  if (errors.length === 0) return null;
+  return (
+    <Link
+      to="/admin/system"
+      className="block rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-900 transition-colors duration-160 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-red-100"
+    >
+      <strong>
+        {errors.length === 1
+          ? "דבר אחד במערכת דורש טיפול"
+          : `${errors.length} דברים במערכת דורשים טיפול`}
+        :
+      </strong>{" "}
+      {errors.map((e) => e.title).join(" · ")} <span className="underline">למצב המערכת ←</span>
+    </Link>
   );
 }

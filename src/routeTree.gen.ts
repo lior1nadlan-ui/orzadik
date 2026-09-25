@@ -40,6 +40,7 @@ import { Route as CollectionSlugRouteImport } from './routes/collection.$slug'
 import { Route as CategorySlugRouteImport } from './routes/category.$slug'
 import { Route as ArticlesSlugRouteImport } from './routes/articles/$slug'
 import { Route as AdminTelegramRouteImport } from './routes/admin.telegram'
+import { Route as AdminSystemRouteImport } from './routes/admin.system'
 import { Route as AdminReviewsRouteImport } from './routes/admin.reviews'
 import { Route as AdminProductsRouteImport } from './routes/admin.products'
 import { Route as AdminOrdersRouteImport } from './routes/admin.orders'
@@ -212,6 +213,11 @@ const AdminTelegramRoute = AdminTelegramRouteImport.update({
   path: '/telegram',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminSystemRoute = AdminSystemRouteImport.update({
+  id: '/system',
+  path: '/system',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminReviewsRoute = AdminReviewsRouteImport.update({
   id: '/reviews',
   path: '/reviews',
@@ -324,6 +330,7 @@ export interface FileRoutesByFullPath {
   '/admin/orders': typeof AdminOrdersRoute
   '/admin/products': typeof AdminProductsRoute
   '/admin/reviews': typeof AdminReviewsRoute
+  '/admin/system': typeof AdminSystemRoute
   '/admin/telegram': typeof AdminTelegramRoute
   '/articles/$slug': typeof ArticlesSlugRoute
   '/category/$slug': typeof CategorySlugRoute
@@ -372,6 +379,7 @@ export interface FileRoutesByTo {
   '/admin/orders': typeof AdminOrdersRoute
   '/admin/products': typeof AdminProductsRoute
   '/admin/reviews': typeof AdminReviewsRoute
+  '/admin/system': typeof AdminSystemRoute
   '/admin/telegram': typeof AdminTelegramRoute
   '/articles/$slug': typeof ArticlesSlugRoute
   '/category/$slug': typeof CategorySlugRoute
@@ -422,6 +430,7 @@ export interface FileRoutesById {
   '/admin/orders': typeof AdminOrdersRoute
   '/admin/products': typeof AdminProductsRoute
   '/admin/reviews': typeof AdminReviewsRoute
+  '/admin/system': typeof AdminSystemRoute
   '/admin/telegram': typeof AdminTelegramRoute
   '/articles/$slug': typeof ArticlesSlugRoute
   '/category/$slug': typeof CategorySlugRoute
@@ -473,6 +482,7 @@ export interface FileRouteTypes {
     | '/admin/orders'
     | '/admin/products'
     | '/admin/reviews'
+    | '/admin/system'
     | '/admin/telegram'
     | '/articles/$slug'
     | '/category/$slug'
@@ -521,6 +531,7 @@ export interface FileRouteTypes {
     | '/admin/orders'
     | '/admin/products'
     | '/admin/reviews'
+    | '/admin/system'
     | '/admin/telegram'
     | '/articles/$slug'
     | '/category/$slug'
@@ -570,6 +581,7 @@ export interface FileRouteTypes {
     | '/admin/orders'
     | '/admin/products'
     | '/admin/reviews'
+    | '/admin/system'
     | '/admin/telegram'
     | '/articles/$slug'
     | '/category/$slug'
@@ -849,6 +861,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminTelegramRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/system': {
+      id: '/admin/system'
+      path: '/system'
+      fullPath: '/admin/system'
+      preLoaderRoute: typeof AdminSystemRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/reviews': {
       id: '/admin/reviews'
       path: '/reviews'
@@ -972,6 +991,7 @@ interface AdminRouteChildren {
   AdminOrdersRoute: typeof AdminOrdersRoute
   AdminProductsRoute: typeof AdminProductsRoute
   AdminReviewsRoute: typeof AdminReviewsRoute
+  AdminSystemRoute: typeof AdminSystemRoute
   AdminTelegramRoute: typeof AdminTelegramRoute
   AdminIndexRoute: typeof AdminIndexRoute
   AdminOrdersOrderIdPrintRoute: typeof AdminOrdersOrderIdPrintRoute
@@ -985,6 +1005,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminOrdersRoute: AdminOrdersRoute,
   AdminProductsRoute: AdminProductsRoute,
   AdminReviewsRoute: AdminReviewsRoute,
+  AdminSystemRoute: AdminSystemRoute,
   AdminTelegramRoute: AdminTelegramRoute,
   AdminIndexRoute: AdminIndexRoute,
   AdminOrdersOrderIdPrintRoute: AdminOrdersOrderIdPrintRoute,
