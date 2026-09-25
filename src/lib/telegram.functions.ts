@@ -15,6 +15,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/admin-authz.server";
+import { runDailyDigest, type DigestRunResult } from "@/lib/crm-digest.server";
 
 const TIMEOUT_MS = 8000;
 
@@ -128,3 +129,15 @@ export const sendTelegramTest = createServerFn({ method: "POST" })
     if (res?.ok) return { ok: true, error: null };
     return { ok: false, error: res?.description ?? "השליחה נכשלה." };
   });
+
+/**
+ * Send the morning briefing now, whatever the day looks like. The scheduled
+ * run stays quiet when there is nothing to do; this is how the owner sees the
+ * format and proves both channels (Telegram and email) actually deliver.
+ */
+export const sendDailyDigestNow = createServerFn({ method: "POST" }).handler(
+  async (): Promise<DigestRunResult> => {
+    await requireAdmin();
+    return runDailyDigest({ force: true });
+  },
+);

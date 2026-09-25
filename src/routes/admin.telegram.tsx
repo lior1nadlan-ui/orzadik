@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { toast } from "sonner";
-import { getTelegramSetup, sendTelegramTest } from "@/lib/telegram.functions";
+import { getTelegramSetup, sendDailyDigestNow, sendTelegramTest } from "@/lib/telegram.functions";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/admin/telegram")({
@@ -13,7 +13,9 @@ export const Route = createFileRoute("/admin/telegram")({
 function AdminTelegram() {
   const load = useServerFn(getTelegramSetup);
   const test = useServerFn(sendTelegramTest);
+  const digestNow = useServerFn(sendDailyDigestNow);
   const [testing, setTesting] = useState<string | null>(null);
+  const [sendingDigest, setSendingDigest] = useState(false);
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["telegram-setup"],
@@ -33,11 +35,28 @@ function AdminTelegram() {
     }
   };
 
+  const onDigest = async () => {
+    setSendingDigest(true);
+    try {
+      const r = await digestNow();
+      if (r.skipped === "no-channel") toast.error("לא הוגדרו טלגרם או מייל ב-Worker.");
+      else if (r.telegram && r.email) toast.success("הסיכום נשלח לטלגרם ולמייל");
+      else if (r.telegram) toast.success("הסיכום נשלח לטלגרם (המייל לא נשלח)");
+      else if (r.email) toast.success("הסיכום נשלח למייל (הטלגרם לא נשלח)");
+      else toast.error("השליחה נכשלה בשני הערוצים");
+    } catch (e: any) {
+      toast.error(e?.message ?? "שגיאה");
+    } finally {
+      setSendingDigest(false);
+    }
+  };
+
   return (
     <div className="mx-auto max-w-2xl p-4">
       <h1 className="mb-1 text-xl font-bold">התראות טלגרם</h1>
       <p className="mb-6 text-sm text-muted-foreground">
-        על כל הזמנה נשלחת הודעה עם כל הפרטים והתמונות של המוצרים.
+        על כל הזמנה נשלחת הודעה עם כל הפרטים והתמונות של המוצרים, ובכל בוקר סיכום של מה שמחכה
+        לטיפול.
       </p>
 
       {isLoading && <p className="text-sm text-muted-foreground">טוען…</p>}
@@ -100,6 +119,18 @@ function AdminTelegram() {
               </ul>
             </div>
           )}
+
+          <div className="rounded-lg border bg-card p-4">
+            <h2 className="mb-1 font-semibold">סיכום בוקר יומי</h2>
+            <p className="mb-3 text-sm text-muted-foreground">
+              כל בוקר בסביבות 10:00 (9:00 בחורף) נשלח לטלגרם ולמייל של החנות סיכום של מה שמחכה
+              לטיפול: הזמנות ששולמו ועוד לא סומנו כנשלחו, תשלומים שלא הושלמו, עגלות פתוחות וחוות דעת
+              לאישור. ביום בלי משימות פתוחות לא נשלח כלום.
+            </p>
+            <Button size="sm" disabled={sendingDigest} onClick={onDigest}>
+              {sendingDigest ? "שולח…" : "שלח סיכום עכשיו"}
+            </Button>
+          </div>
 
           <Button variant="outline" onClick={() => refetch()}>
             רענן

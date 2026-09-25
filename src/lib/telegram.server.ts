@@ -85,6 +85,28 @@ async function callTelegram(method: string, body: unknown): Promise<boolean> {
   }
 }
 
+/**
+ * Send one prepared HTML message to the owner's chat — the daily briefing's
+ * path. The caller owns the escaping (the text is already Telegram HTML).
+ * Never throws; false when unconfigured or rejected.
+ */
+export async function sendTelegramText(html: string): Promise<boolean> {
+  try {
+    if (!isTelegramConfigured()) return false;
+    const text =
+      html.length > MESSAGE_MAX ? `${html.slice(0, MESSAGE_MAX)}\n…(ההודעה נקטעה)` : html;
+    return await callTelegram("sendMessage", {
+      chat_id: process.env.TELEGRAM_CHAT_ID,
+      text,
+      parse_mode: "HTML",
+      disable_web_page_preview: true,
+    });
+  } catch (e) {
+    console.error("[telegram] text send failed:", e);
+    return false;
+  }
+}
+
 function line(label: string, value: unknown): string {
   const v = String(value ?? "").trim();
   return v ? `<b>${esc(label)}:</b> ${esc(v)}\n` : "";
