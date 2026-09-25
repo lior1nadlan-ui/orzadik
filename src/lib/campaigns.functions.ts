@@ -46,6 +46,7 @@ import { sellerIdentityLine, BUSINESS } from "@/lib/business";
 // Read-only price helper — display formatting for the product cards. This
 // module never computes or charges anything.
 import { getEffectivePrice } from "@/lib/pricing";
+import { filterAudience, type AudienceSegment } from "@/lib/campaign-audience";
 
 /** PostgREST silently caps unbounded selects at 1000 — page every full walk. */
 const DB_PAGE = 1000;
@@ -420,6 +421,56 @@ async function buildAudience(): Promise<Array<{ email: string; name: string | nu
   return [...byEmail.values()].filter((r) => !suppressed.has(r.email) && !revoked.has(r.email));
 }
 
+/**
+ * The consented audience narrowed to one segment (campaign-audience.ts). For
+ * "all" nothing extra is read. For the others: every email with a paid order,
+ * and every club member's email — a segment only removes addresses from the
+ * consented list, never adds one.
+ */
+async function buildSegmentAudience(
+  segment: AudienceSegment,
+): Promise<Array<{ email: string; name: string | null }>> {
+  const audience = await buildAudience();
+  if (segment === "all") return audience;
+
+  const paidEmails = new Set<string>();
+  const memberEmails = new Set<string>();
+  for (let from = 0; ; from += DB_PAGE) {
+    const { data, error } = await supabaseAdmin
+      .from("orders")
+      .select("customer_email")
+      .in("payment_status", ["paid", "refunded"])
+      .range(from, from + DB_PAGE - 1);
+    if (error) throw new Error("שגיאה בבניית רשימת הנמענים.");
+    for (const o of data ?? []) {
+      const e = String(o.customer_email ?? "")
+        .trim()
+        .toLowerCase();
+      if (e) paidEmails.add(e);
+    }
+    if ((data ?? []).length < DB_PAGE) break;
+  }
+  for (let from = 0; ; from += DB_PAGE) {
+    const { data, error } = await supabaseAdmin
+      .from("profiles")
+      .select("email")
+      .eq("is_member", true)
+      .not("email", "is", null)
+      .range(from, from + DB_PAGE - 1);
+    if (error) throw new Error("שגיאה בבניית רשימת הנמענים.");
+    for (const p of data ?? []) {
+      const e = String(p.email ?? "")
+        .trim()
+        .toLowerCase();
+      if (e) memberEmails.add(e);
+    }
+    if ((data ?? []).length < DB_PAGE) break;
+  }
+  return filterAudience(audience, segment, { paidEmails, memberEmails });
+}
+
+const SegmentSchema = z.enum(["all", "buyers", "non_buyers", "members"]).default("all");
+
 /** Addresses of profiles that explicitly turned marketing consent off. */
 async function loadRevokedProfileEmails(): Promise<Set<string>> {
   const out = new Set<string>();
@@ -462,16 +513,16 @@ async function loadSuppressions(): Promise<Set<string>> {
  * Reads only. Exists so the owner sees a real number *before* the first blast
  * instead of discovering the list size from the counter afterwards.
  */
-export const previewCampaignAudience = createServerFn({ method: "POST" }).handler(
-  async (): Promise<{ total: number; sample: string[] }> => {
+export const previewCampaignAudience = createServerFn({ method: "POST" })
+  .inputValidator((i: unknown) => z.object({ segment: SegmentSchema }).parse(i ?? {}))
+  .handler(async ({ data }): Promise<{ total: number; sample: string[] }> => {
     await requireAdmin();
-    const audience = await buildAudience();
+    const audience = await buildSegmentAudience(data.segment);
     return {
       total: audience.length,
       sample: audience.slice(0, 5).map((r) => r.email),
     };
-  },
-);
+  });
 
 const TestSendSchema = z.object({
   campaignId: z.string().uuid(),
@@ -553,7 +604,9 @@ export const sendCampaignTestEmail = createServerFn({ method: "POST" })
   });
 
 export const startCampaign = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) => z.object({ id: z.string().uuid() }).parse(i))
+  .inputValidator((i: unknown) =>
+    z.object({ id: z.string().uuid(), segment: SegmentSchema }).parse(i),
+  )
   .handler(async ({ data }) => {
     await requireAdmin();
     if (!isEmailConfigured()) throw new Error('שליחת דוא"ל אינה מוגדרת בשרת.');
@@ -563,8 +616,8 @@ export const startCampaign = createServerFn({ method: "POST" })
       throw new Error("UNSUBSCRIBE_SECRET אינו מוגדר — לא ניתן לשלוח דיוור ללא קישור הסרה.");
     }
 
-    const audience = await buildAudience();
-    if (audience.length === 0) throw new Error("אין נמענים ברשימת התפוצה.");
+    const audience = await buildSegmentAudience(data.segment);
+    if (audience.length === 0) throw new Error("אין נמענים בקהל שנבחר.");
 
     // Claim the campaign first: the draft→sending transition is what stops a
     // second click from queueing the audience twice.
