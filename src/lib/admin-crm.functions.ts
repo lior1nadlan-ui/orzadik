@@ -12,6 +12,7 @@ import { requireAdmin } from "@/lib/admin-authz.server";
 import { sendOrderShippedEmail, sendOrderConfirmationEmails } from "@/lib/order-emails.server";
 import { ORDER_ITEM_PRODUCT_JOIN } from "@/lib/order-item-photo";
 import { isOpenFailedPayment, recoveredBy } from "@/lib/crm-digest";
+import { buildFunnel, type Funnel } from "@/lib/funnel";
 import { sendPaymentReminderNow } from "@/lib/payment-reminder.server";
 import {
   actionKey,
@@ -61,7 +62,7 @@ export const getDashboardStats = createServerFn({ method: "POST" }).handler(asyn
   await requireAdmin();
 
   const orders = await fetchAllOrders(
-    "id, order_number, customer_name, customer_email, total, status, payment_status, created_at, paid_at, shipped_at",
+    "id, order_number, customer_name, customer_email, customer_phone, total, status, payment_status, created_at, paid_at, shipped_at, cardcom_response_code",
   );
 
   const now = Date.now();
@@ -215,7 +216,24 @@ export const getDashboardStats = createServerFn({ method: "POST" }).handler(asyn
       .map((c) => ({ name: c.name, orders: c.orders, revenue: c.revenue })),
   };
 
+  // Sales funnel — people who started checkout → placed an order → paid, and
+  // why the unpaid ones did not (see funnel.ts). The cart snapshot is written
+  // when a shopper types their email at checkout, so it is the "started" signal.
+  let funnel: Funnel | null = null;
+  try {
+    const { data: funnelCarts, error: fcErr } = await supabaseAdmin
+      .from("abandoned_carts")
+      .select("email, created_at")
+      .gte("created_at", new Date(now - 90 * DAY).toISOString())
+      .limit(5000);
+    if (fcErr) throw fcErr;
+    funnel = buildFunnel(funnelCarts ?? [], orders, now, 90);
+  } catch (e) {
+    console.error("[getDashboardStats] funnel:", e);
+  }
+
   return {
+    funnel,
     lowStock: (lowStock ?? []).map((p) => ({
       id: p.id,
       name: p.name,

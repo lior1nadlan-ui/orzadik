@@ -14,6 +14,7 @@ import {
   tickCampaign,
   searchCampaignProducts,
 } from "@/lib/campaigns.functions";
+import { AUDIENCE_SEGMENTS, segmentLabel, type AudienceSegment } from "@/lib/campaign-audience";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -150,8 +151,15 @@ function AdminCampaigns() {
     }
   };
 
+  // Who this send goes to. A segment only narrows the consented list
+  // (campaign-audience.ts) — it can never reach someone who did not opt in.
+  const [segment, setSegment] = useState<AudienceSegment>("all");
+  // Each campaign opens on "all" — a segment picked for the last one must not
+  // silently carry over to the next.
+  useEffect(() => setSegment("all"), [detailId]);
+
   const startMutation = useMutation({
-    mutationFn: (id: string) => start({ data: { id } }),
+    mutationFn: (id: string) => start({ data: { id, segment } }),
     onSuccess: (r: any) => {
       toast.success(`השליחה החלה — ${r.recipients} נמענים בתור`);
       qc.invalidateQueries({ queryKey: ["admin-campaigns"] });
@@ -205,8 +213,8 @@ function AdminCampaigns() {
     isError: audienceError,
     refetch: refetchAudience,
   } = useQuery({
-    queryKey: ["campaign-audience"],
-    queryFn: () => loadAudience(),
+    queryKey: ["campaign-audience", segment],
+    queryFn: () => loadAudience({ data: { segment } }),
     enabled: !!detailId && detail?.status === "draft",
     staleTime: 60_000,
   });
@@ -496,6 +504,27 @@ function AdminCampaigns() {
                     loads, so nobody blasts a list of unknown size. */}
                 {detail.status === "draft" && (
                   <div className="rounded-md border bg-muted/30 p-3 text-xs">
+                    <div className="mb-2 flex flex-wrap gap-1.5" role="group" aria-label="קהל יעד">
+                      {AUDIENCE_SEGMENTS.map((sg) => (
+                        <button
+                          key={sg.key}
+                          type="button"
+                          aria-pressed={segment === sg.key}
+                          title={sg.hint}
+                          onClick={() => setSegment(sg.key)}
+                          className={`rounded-full border px-3 py-1 transition-colors duration-150 ${
+                            segment === sg.key
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "bg-background [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"
+                          }`}
+                        >
+                          {sg.label}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="mb-2 text-muted-foreground">
+                      {AUDIENCE_SEGMENTS.find((sg) => sg.key === segment)?.hint}
+                    </div>
                     {audienceError ? (
                       <div className="flex flex-wrap items-center gap-2 text-destructive">
                         <span>לא הצלחנו לחשב את מספר הנמענים.</span>
@@ -531,7 +560,7 @@ function AdminCampaigns() {
                         if (!audience) return;
                         if (
                           confirm(
-                            `להתחיל שליחה? הקמפיין יישלח ל-${audience.total} נמענים. הפעולה אינה הפיכה עבור נמענים שכבר קיבלו.`,
+                            `להתחיל שליחה? הקמפיין יישלח ל-${audience.total} נמענים (${segmentLabel(segment)}). הפעולה אינה הפיכה עבור נמענים שכבר קיבלו.`,
                           )
                         ) {
                           startMutation.mutate(detail.id);

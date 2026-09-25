@@ -21,6 +21,7 @@ import {
   Mail,
   Send,
   Store,
+  Activity,
 } from "lucide-react";
 
 export const Route = createFileRoute("/admin")({
@@ -52,6 +53,7 @@ const items = [
   // Reachable only by typing the URL until now — a settings screen nothing
   // links to is a screen that does not exist.
   { to: "/admin/telegram", label: "התראות", icon: Send },
+  { to: "/admin/system", label: "מצב המערכת", icon: Activity },
 ];
 
 function AdminLayout() {

@@ -13,8 +13,11 @@
 //     the sender), so there is no new table and no customer message sitting in
 //     storage longer than it needs to.
 //
-// If Resend is not configured the handler THROWS rather than reporting success —
-// a contact form that silently drops messages is worse than no form at all.
+// TWO DELIVERY PATHS, since 2026-09-25: the email (reply-to the sender, the
+// place to answer from) and a Telegram alert (where the owner actually looks
+// first — the same reason orders alert there). Either one arriving counts as
+// delivered; only when BOTH fail does the handler throw, because a contact
+// form that silently drops messages is worse than no form at all.
 
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
@@ -22,6 +25,8 @@ import { z } from "zod";
 import { getClientIp, checkContactRateLimitByIp } from "@/lib/rate-limit.server";
 import { sendEmail, emailShell, esc, isEmailConfigured } from "@/lib/email.server";
 import { BUSINESS } from "@/lib/business";
+import { alertOwnerContact } from "@/lib/owner-alerts.server";
+import { isTelegramConfigured } from "@/lib/telegram.server";
 
 const Schema = z.object({
   name: z.string().trim().min(2, "שם קצר מדי").max(200),
@@ -52,26 +57,31 @@ export const sendContactMessage = createServerFn({ method: "POST" })
       throw new Error("נשלחו יותר מדי פניות מהכתובת הזו. נסו שוב מאוחר יותר או התקשרו אלינו.");
     }
 
-    if (!isEmailConfigured()) {
-      console.error("[contact] RESEND_API_KEY/ORDER_EMAIL_FROM missing — message not delivered");
-      throw new Error("שליחת ההודעה נכשלה כרגע. אפשר להתקשר אלינו או לכתוב בוואטסאפ.");
-    }
-
     const to = (process.env.SHOP_OWNER_EMAIL || BUSINESS.email || "").trim();
-    if (!to) {
-      console.error("[contact] no owner inbox configured — message not delivered");
+    const canEmail = isEmailConfigured() && !!to;
+    if (!canEmail && !isTelegramConfigured()) {
+      console.error("[contact] neither email nor Telegram is configured — message not delivered");
       throw new Error("שליחת ההודעה נכשלה כרגע. אפשר להתקשר אלינו או לכתוב בוואטסאפ.");
     }
 
     const phone = data.phone?.trim();
-    const sent = await sendEmail({
-      to,
-      subject: `פנייה חדשה מהאתר — ${data.name}`,
-      // reply_to is the whole point: the owner hits Reply and answers the
-      // customer directly, without copying the address out of the body.
-      replyTo: data.email,
-      html: emailShell(
-        `
+    // Telegram runs beside the email, not after it: neither waits on the other.
+    const telegram = alertOwnerContact({
+      name: data.name,
+      email: data.email,
+      phone,
+      message: data.message,
+    });
+    const emailed = !canEmail
+      ? false
+      : await sendEmail({
+          to,
+          subject: `פנייה חדשה מהאתר — ${data.name}`,
+          // reply_to is the whole point: the owner hits Reply and answers the
+          // customer directly, without copying the address out of the body.
+          replyTo: data.email,
+          html: emailShell(
+            `
         <h1 style="font-size:20px;margin:0 0 12px;">פנייה חדשה מטופס יצירת הקשר</h1>
         <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="width:100%;font-size:14px;line-height:1.8;">
           <tr><td style="padding:2px 0;"><strong>שם:</strong> ${esc(data.name)}</td></tr>
@@ -86,14 +96,16 @@ export const sendContactMessage = createServerFn({ method: "POST" })
           נשלח מטופס יצירת הקשר באתר. השיבו למייל הזה כדי לענות ללקוח ישירות.
         </p>
       `,
-        `פנייה חדשה מ${data.name}`,
-      ),
-    });
+            `פנייה חדשה מ${data.name}`,
+          ),
+        });
 
-    // sendEmail swallows transport errors and returns false. Surface that as a
-    // real failure so the visitor knows to use the phone/WhatsApp instead of
-    // waiting for an answer that will never come.
-    if (!sent) {
+    // sendEmail and the alert both swallow transport errors and return false.
+    // Only when neither arrived is it a real failure — then the visitor must be
+    // told to use the phone/WhatsApp instead of waiting for an answer that will
+    // never come.
+    const alerted = await telegram;
+    if (!emailed && !alerted) {
       throw new Error("שליחת ההודעה נכשלה כרגע. אפשר להתקשר אלינו או לכתוב בוואטסאפ.");
     }
 
