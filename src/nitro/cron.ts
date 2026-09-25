@@ -25,17 +25,40 @@ import { runCampaignTick } from "@/lib/campaigns.functions";
 import { runAbandonedCartReminders } from "@/lib/abandoned-cart.functions";
 import { runCardcomReconciliation } from "@/lib/cardcom-settle.server";
 import { runDataRetentionSweep } from "@/lib/retention.server";
+import { runDailyDigest } from "@/lib/crm-digest.server";
 
 type NitroAppLike = {
   hooks: { hook: (name: string, fn: (payload: any) => unknown) => void };
 };
+
+/**
+ * The 07:00 UTC slot (10:00 Israel in summer, 09:00 in winter) carries two
+ * daily jobs rather than adding a sixth trigger. They run one after the other
+ * and each is caught on its own, so a Resend outage in the review requests can
+ * never cost the owner their morning briefing, or the other way round.
+ */
+async function runMorningJobs() {
+  const out: Record<string, unknown> = {};
+  for (const [name, run] of [
+    ["review-requests", runReviewRequests],
+    ["daily-digest", () => runDailyDigest()],
+  ] as const) {
+    try {
+      out[name] = await run();
+    } catch (e) {
+      console.error(`[cron] ${name} failed:`, e);
+      out[name] = "failed";
+    }
+  }
+  return out;
+}
 
 // The keys MUST match wrangler.jsonc `triggers.crons` string-for-string —
 // Cloudflare passes the schedule back verbatim in controller.cron, so a
 // reformatted expression (e.g. "0 */1 * * *" vs "15 * * * *") silently maps to
 // nothing. Keep the two lists edited together.
 const JOBS: Record<string, { name: string; run: () => Promise<unknown> }> = {
-  "0 7 * * *": { name: "review-requests", run: runReviewRequests },
+  "0 7 * * *": { name: "morning (review-requests + daily-digest)", run: runMorningJobs },
   "*/5 * * * *": { name: "campaign-tick", run: runCampaignTick },
   "15 * * * *": { name: "abandoned-cart-reminders", run: runAbandonedCartReminders },
   // Safety net for every path that ends CardCom's retry ladder without settling the
