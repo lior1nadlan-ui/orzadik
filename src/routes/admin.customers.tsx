@@ -26,6 +26,8 @@ import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { buildCustomerTimeline, type TimelineKind } from "@/lib/customer-timeline";
 import {
   Bell,
   Download,
@@ -523,90 +525,117 @@ function AdminCustomers() {
 
                 <CustomerTimelineFacts selected={selected} cust={cust} />
 
-                <FollowUpsSection
-                  email={selected.email}
-                  onChanged={() => qc.invalidateQueries({ queryKey: ["admin-customers"] })}
-                />
+                {/* Four tabs instead of one long scroll: the card had grown to
+                    seven stacked sections, and the two the owner opens it for —
+                    a reminder and a note — sat above everything else anyway. */}
+                <Tabs defaultValue="overview" dir="rtl" className="border-t pt-3">
+                  <TabsList className="w-full justify-start overflow-x-auto">
+                    <TabsTrigger value="overview">סקירה</TabsTrigger>
+                    <TabsTrigger value="timeline">ציר זמן</TabsTrigger>
+                    <TabsTrigger value="orders">הזמנות ({cust?.orders.length ?? 0})</TabsTrigger>
+                    <TabsTrigger value="carts">עגלות ({cust?.carts.length ?? 0})</TabsTrigger>
+                  </TabsList>
 
-                {/* Notes */}
-                <div className="border-t pt-3">
-                  <div className="font-semibold mb-2">הערות פנימיות</div>
-                  <div className="flex gap-2 mb-2">
-                    <Input
-                      placeholder='למשל: "ביקש הקדשה עד חמישי"'
-                      value={noteText}
-                      onChange={(e) => setNoteText(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && onAddNote()}
+                  <TabsContent value="overview" className="space-y-4">
+                    <FollowUpsSection
+                      email={selected.email}
+                      onChanged={() => qc.invalidateQueries({ queryKey: ["admin-customers"] })}
                     />
-                    <Button size="sm" disabled={savingNote || !noteText.trim()} onClick={onAddNote}>
-                      {savingNote ? "שומר..." : "הוסף"}
-                    </Button>
-                  </div>
-                  <div className="space-y-1.5">
-                    {(cust?.notes ?? []).map((n: any) => (
-                      <div
-                        key={n.id}
-                        className="flex items-start justify-between gap-2 rounded-md bg-muted/40 px-3 py-2"
-                      >
-                        <div>
-                          <div>{n.note}</div>
-                          <div className="text-[11px] text-muted-foreground">
-                            {new Date(n.created_at).toLocaleString("he-IL")}
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => onDeleteNote(n.id)}
-                          className="text-muted-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:text-destructive"
-                          title="מחק"
+
+                    {/* Notes */}
+                    <div className="border-t pt-3">
+                      <div className="font-semibold mb-2">הערות פנימיות</div>
+                      <div className="flex gap-2 mb-2">
+                        <Input
+                          placeholder='למשל: "ביקש הקדשה עד חמישי"'
+                          value={noteText}
+                          onChange={(e) => setNoteText(e.target.value)}
+                          onKeyDown={(e) => e.key === "Enter" && onAddNote()}
+                        />
+                        <Button
+                          size="sm"
+                          disabled={savingNote || !noteText.trim()}
+                          onClick={onAddNote}
                         >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                          {savingNote ? "שומר..." : "הוסף"}
+                        </Button>
                       </div>
-                    ))}
-                    {(cust?.notes ?? []).length === 0 && (
-                      <div className="text-xs text-muted-foreground">אין הערות עדיין.</div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Orders history */}
-                <CartsSection carts={cust?.carts ?? []} />
-
-                <div className="border-t pt-3">
-                  <div className="font-semibold mb-2">היסטוריית הזמנות</div>
-                  {cust && cust.orders.length === 0 && (
-                    <div className="text-xs text-muted-foreground">עדיין לא הזמין/ה.</div>
-                  )}
-                  <div className="space-y-2">
-                    {(cust?.orders ?? []).map((o: any) => (
-                      <div key={o.id} className="rounded-md border px-3 py-2">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <Link
-                              to="/admin/orders"
-                              search={{ q: o.order_number }}
-                              className="font-mono text-xs underline text-primary"
+                      <div className="space-y-1.5">
+                        {(cust?.notes ?? []).map((n: any) => (
+                          <div
+                            key={n.id}
+                            className="flex items-start justify-between gap-2 rounded-md bg-muted/40 px-3 py-2"
+                          >
+                            <div>
+                              <div>{n.note}</div>
+                              <div className="text-[11px] text-muted-foreground">
+                                {new Date(n.created_at).toLocaleString("he-IL")}
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => onDeleteNote(n.id)}
+                              className="text-muted-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:text-destructive"
+                              title="מחק"
                             >
-                              {o.order_number}
-                            </Link>
-                            <span className="mx-2 text-xs text-muted-foreground">
-                              {new Date(o.created_at).toLocaleDateString("he-IL")}
-                            </span>
-                            <span className="text-[11px] rounded-full bg-muted px-2 py-0.5">
-                              {PAYMENT_HE[o.payment_status] ?? o.payment_status}
-                            </span>
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
                           </div>
-                          <div className="font-bold">{formatILS(Number(o.total))}</div>
-                        </div>
-                        <div className="text-xs text-muted-foreground mt-1">
-                          {(o.order_items ?? [])
-                            .map((it: any) => `${it.product_name} ×${it.quantity}`)
-                            .join(" · ")}
-                        </div>
+                        ))}
+                        {(cust?.notes ?? []).length === 0 && (
+                          <div className="text-xs text-muted-foreground">אין הערות עדיין.</div>
+                        )}
                       </div>
-                    ))}
-                  </div>
-                </div>
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="timeline">
+                    <CustomerTimeline cust={cust} />
+                  </TabsContent>
+
+                  <TabsContent value="orders">
+                    <div>
+                      {cust && cust.orders.length === 0 && (
+                        <div className="text-xs text-muted-foreground">עדיין לא הזמין/ה.</div>
+                      )}
+                      <div className="space-y-2">
+                        {(cust?.orders ?? []).map((o: any) => (
+                          <div key={o.id} className="rounded-md border px-3 py-2">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <Link
+                                  to="/admin/orders"
+                                  search={{ q: o.order_number }}
+                                  className="font-mono text-xs underline text-primary"
+                                >
+                                  {o.order_number}
+                                </Link>
+                                <span className="mx-2 text-xs text-muted-foreground">
+                                  {new Date(o.created_at).toLocaleDateString("he-IL")}
+                                </span>
+                                <span className="text-[11px] rounded-full bg-muted px-2 py-0.5">
+                                  {PAYMENT_HE[o.payment_status] ?? o.payment_status}
+                                </span>
+                              </div>
+                              <div className="font-bold">{formatILS(Number(o.total))}</div>
+                            </div>
+                            <div className="text-xs text-muted-foreground mt-1">
+                              {(o.order_items ?? [])
+                                .map((it: any) => `${it.product_name} ×${it.quantity}`)
+                                .join(" · ")}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="carts">
+                    <CartsSection carts={cust?.carts ?? []} />
+                    {cust && cust.carts.length === 0 && (
+                      <div className="text-xs text-muted-foreground">אין עגלות.</div>
+                    )}
+                  </TabsContent>
+                </Tabs>
               </div>
             </>
           )}
@@ -710,8 +739,7 @@ function CustomerTimelineFacts({ selected, cust }: { selected: any; cust: any })
 function CartsSection({ carts }: { carts: any[] }) {
   if (carts.length === 0) return null;
   return (
-    <div className="border-t pt-3">
-      <div className="font-semibold mb-2">עגלות</div>
+    <div>
       <div className="space-y-2">
         {carts.map((k) => {
           const items = (Array.isArray(k.items) ? k.items : []) as {
@@ -803,7 +831,7 @@ function FollowUpsSection({ email, onChanged }: { email: string; onChanged: () =
 
   const today = dateInputValue(Date.now());
   return (
-    <div className="border-t pt-3">
+    <div>
       <div className="font-semibold mb-2">תזכורות</div>
       <div className="flex flex-wrap gap-2 mb-2">
         <Input
@@ -898,5 +926,72 @@ function FollowUpsSection({ email, onChanged }: { email: string; onChanged: () =
         )}
       </div>
     </div>
+  );
+}
+
+const TIMELINE_ICON: Record<TimelineKind, string> = {
+  order: "🛍",
+  paid: "💳",
+  shipped: "📦",
+  review_request: "✉️",
+  review: "⭐",
+  cart: "🛒",
+  cart_reminder: "✉️",
+  note: "📝",
+  followup: "🔔",
+  followup_done: "✅",
+  member: "✦",
+  consent: "✔",
+  newsletter: "📰",
+  newsletter_off: "🚫",
+  campaign: "📣",
+};
+
+/** Everything that happened with this customer, newest first, from the rows
+ *  the card already loaded (see customer-timeline.ts). */
+function CustomerTimeline({ cust }: { cust: any }) {
+  if (!cust) return <div className="text-xs text-muted-foreground">טוען…</div>;
+  const events = buildCustomerTimeline(cust);
+  if (events.length === 0) {
+    return <div className="text-xs text-muted-foreground">אין עדיין פעילות מתועדת.</div>;
+  }
+  return (
+    <ol className="relative space-y-3 border-s border-border ps-5">
+      {events.map((e, i) => (
+        <li key={`${e.at}-${e.kind}-${i}`} className="relative">
+          <span
+            aria-hidden="true"
+            className="absolute -start-[1.95rem] top-0 flex h-6 w-6 items-center justify-center rounded-full border bg-card text-xs"
+          >
+            {TIMELINE_ICON[e.kind]}
+          </span>
+          <div className="text-sm">{e.text}</div>
+          {/* The order number sits on the date line, isolated: inline after
+              the text it ran into the amount ("₪2,001260827-9708") under the
+              bidi algorithm. */}
+          <div className="text-[11px] text-muted-foreground">
+            {new Date(e.at).toLocaleString("he-IL", {
+              day: "numeric",
+              month: "numeric",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+            {e.orderNumber && e.kind !== "order" && (
+              <>
+                {" · "}
+                <Link
+                  to="/admin/orders"
+                  search={{ q: e.orderNumber }}
+                  className="font-mono underline-offset-2 [@media(hover:hover)_and_(pointer:fine)]:hover:underline"
+                >
+                  <bdi>{e.orderNumber}</bdi>
+                </Link>
+              </>
+            )}
+          </div>
+        </li>
+      ))}
+    </ol>
   );
 }

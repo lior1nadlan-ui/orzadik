@@ -49,6 +49,7 @@ import {
   Phone,
   Mail,
   MessageCircle,
+  Printer,
   Check,
   RotateCcw,
   UserRound,
@@ -232,6 +233,16 @@ function OpenRow({ row, onDecide, busy }: { row: QueueRow; onDecide: Decide; bus
           <a href={`mailto:${row.customerEmail}`} className={ACTION_BTN}>
             <Mail className="h-3.5 w-3.5" /> אימייל
           </a>
+        )}
+        {(row.type === "thank_you" || row.type === "ready_to_ship") && (
+          <Link
+            to="/admin/orders/$orderId/print"
+            params={{ orderId: row.id.slice(row.id.indexOf(":") + 1) }}
+            target="_blank"
+            className={ACTION_BTN}
+          >
+            <Printer className="h-3.5 w-3.5" /> דף אריזה
+          </Link>
         )}
         {row.customerEmail && (
           <Link to="/admin/customers" search={{ q: row.customerEmail }} className={ACTION_BTN}>
