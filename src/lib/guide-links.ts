@@ -54,6 +54,11 @@ export const GUIDES: Record<string, GuideRef> = {
     title: "איך בוחרים חנוכיה",
     blurb: "שמן או נרות, חומרים, גדלים ומיקום ההנחה.",
   },
+  "kippa-guide": {
+    slug: "kippa-guide",
+    title: "איך בוחרים כיפה",
+    blurb: "קטיפה, סרוגה, DMC או פריק — ההבדלים, המידות והטיפול.",
+  },
 };
 
 /**
@@ -86,6 +91,10 @@ export const CATEGORY_GUIDES: Record<string, string[]> = {
   // חנוכה sits under chagim; chagim itself stays unmapped because it also holds
   // Pesach and Rosh Hashana, for which no guide exists yet.
   hanukkah: ["hanukkia-guide"],
+  // כיפות — all nine sub-categories (קטיפה, סרוגות, DMC, פריק, סטן וטרילין,
+  // עור, מיוחדות, סרוגות עם רקמה, סיכות) have parent_slug 'kipot', so this one
+  // entry reaches the store's largest line: 743 products, previously no guide.
+  kipot: ["kippa-guide"],
 };
 
 /** Reverse: guide → the categories worth sending a reader to. */
@@ -97,6 +106,8 @@ export const GUIDE_CATEGORIES: Record<string, string[]> = {
   "mezuza-guide": ["plastic", "mezuzot-polyresin-even", "mezuzot-plastik"],
   "kiddush-cup-guide": ["gviei-kidush", "gviei-kidush-crystal-keramika", "candlesticks"],
   "hanukkia-guide": ["hanukkah", "chagim"],
+  // The three shelves the guide spends most words on.
+  "kippa-guide": ["kipot-srugot", "kipot-ktifa", "kipot-dmc-avodat-yad"],
 };
 
 /**
@@ -141,6 +152,8 @@ export const GUIDE_OCCASIONS: Record<string, string[]> = {
   "mezuza-guide": ["bait-chadash"],
   "kiddush-cup-guide": ["bait-chadash", "chatan-kala"],
   "hanukkia-guide": ["matanot-hanukkah"],
+  // Its own "כיפה לאירוע" section names בר מצווה and חתונה.
+  "kippa-guide": ["bar-mitzva", "chatan-kala"],
 };
 
 /** What a guide's occasion CTA needs to render one link. */
@@ -162,7 +175,8 @@ export function occasionsForGuide(guideSlug: string): OccasionRef[] {
 
 /** Topically related guides, for the "מאמרים נוספים" block. */
 export const GUIDE_CLUSTERS: string[][] = [
-  ["bechira-talit", "tefillin-guide"],
+  // The bar-mitzva set: tallit, tefillin and kippa are bought together.
+  ["bechira-talit", "tefillin-guide", "kippa-guide"],
   ["kiddush-cup-guide", "hanukkia-guide"],
   ["mezuza-guide"],
 ];
