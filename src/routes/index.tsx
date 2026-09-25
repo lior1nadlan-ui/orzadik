@@ -2,19 +2,15 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, Pause, Play } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import {
-  FeaturedProductsCarousel,
-  ProductRail,
-  diversifyRail,
-  fetchHomeFeaturedProducts,
-  rotateDaily,
-} from "@/components/home/FeaturedProductsCarousel";
+import { FeaturedProductsCarousel, ProductRail } from "@/components/home/FeaturedProductsCarousel";
+import { diversifyRail, fetchHomeFeaturedProducts, rotateDaily } from "@/lib/home-rails";
 import { thumbUrl } from "@/lib/img";
 import { MobileCarousel } from "@/components/MobileCarousel";
 import { ProductCard, type ProductCardData } from "@/components/ProductCard";
 import { readRecent } from "@/components/engagement/recently-viewed";
 import { NewsletterSignup } from "@/components/NewsletterSignup";
-import { HomeReviews, fetchHomeReviews } from "@/components/content/HomeReviews";
+import { HomeReviews } from "@/components/content/HomeReviews";
+import { fetchHomeReviews } from "@/lib/home-reviews";
 import { SectionHeader } from "@/components/home/SectionHeader";
 import { CollectionCard, type CatTile } from "@/components/home/CollectionCard";
 import { CategoryTile } from "@/components/home/CategoryTile";

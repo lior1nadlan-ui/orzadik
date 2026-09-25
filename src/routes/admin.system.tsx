@@ -18,11 +18,17 @@ const STATUS_UI: Record<HealthStatus, { mark: string; label: string; cls: string
   ok: { mark: "✓", label: "תקין", cls: "border-emerald-200 bg-emerald-50/60 text-emerald-900" },
 };
 
-/** Where each row's fix is done, when that place is inside the admin. */
-const ROW_LINK: Record<string, { to: string; label: string }> = {
-  shipping: { to: "/admin/orders", label: "להזמנות" },
+/** Where each row's fix is done, when that place is inside the admin — opened
+ *  on the filter that lists exactly what the row counted, not the whole table.
+ *  (Paid orders move to "processing" at payment, cardcom-settle.server.ts.) */
+const ROW_LINK: Record<string, { to: string; search?: Record<string, string>; label: string }> = {
+  shipping: {
+    to: "/admin/orders",
+    search: { status: "processing", payment: "paid" },
+    label: "להזמנות שממתינות למשלוח",
+  },
   telegram: { to: "/admin/telegram", label: "להגדרת ההתראות" },
-  catalog: { to: "/admin/products", label: "למוצרים" },
+  catalog: { to: "/admin/products", search: { health: "no-image" }, label: "למוצרים בלי תמונה" },
   campaigns: { to: "/admin/campaigns", label: "לדיוור" },
 };
 
@@ -78,6 +84,7 @@ function AdminSystem() {
                   {link && r.status !== "ok" && (
                     <Link
                       to={link.to}
+                      search={link.search as never}
                       className="mt-2 inline-block text-sm font-semibold underline"
                     >
                       {link.label} ←

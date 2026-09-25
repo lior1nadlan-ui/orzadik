@@ -17,11 +17,13 @@ import { sendPaymentReminderNow } from "@/lib/payment-reminder.server";
 import {
   actionKey,
   actionVisibility,
+  dateInputValue,
   daysOverdue,
   dueFollowUps,
   endOfIsraelDay,
   type ActionVisibility,
 } from "@/lib/crm-tasks";
+import { LIKELY_DELIVERED_AFTER_DAYS, shippedAtFromDateInput } from "@/lib/fulfilment";
 
 const PAGE_SIZE = 25;
 // PostgREST caps unbounded selects at 1000 — the same silent cap that hid 79%
@@ -469,7 +471,18 @@ export const getActionQueue = createServerFn({ method: "POST" }).handler(async (
         );
       } else {
         const d = Math.floor((now - since) / DAY);
-        rows.push(rowFor("ready_to_ship", sinceIso, `שולם ומחכה לאריזה ומשלוח — כבר ${d} ימים 📦`));
+        rows.push(
+          rowFor(
+            "ready_to_ship",
+            sinceIso,
+            // Past a few days it has most likely gone out and was never
+            // marked — say so, and name the button that records it without
+            // mailing the customer "on its way" weeks late.
+            d >= LIKELY_DELIVERED_AFTER_DAYS
+              ? `שולם לפני ${d} ימים ולא סומן כנשלח. אם כבר יצא — בהזמנה: "כבר נמסרה ללקוח" 📦`
+              : `שולם ומחכה לאריזה ומשלוח — כבר ${d} ימים 📦`,
+          ),
+        );
       }
       continue;
     }
@@ -1449,6 +1462,14 @@ export const markOrderShipped = createServerFn({ method: "POST" })
         order_id: z.string().uuid(),
         tracking_number: z.string().trim().max(60).optional(),
         carrier: z.string().trim().max(60).optional(),
+        // "כבר נמסרה ללקוח": the parcel is already with the customer. Records
+        // the day it actually left (shipped_on, Israel date) and completes the
+        // order WITHOUT the "on its way" email. See src/lib/fulfilment.ts.
+        delivered: z.boolean().optional(),
+        shipped_on: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .optional(),
       })
       .parse(i),
   )
@@ -1456,10 +1477,17 @@ export const markOrderShipped = createServerFn({ method: "POST" })
     await requireAdmin();
     const { data: order, error } = await supabaseAdmin
       .from("orders")
-      .select("id, order_number, shipped_at")
+      .select("id, order_number, shipped_at, created_at, status")
       .eq("id", data.order_id)
       .maybeSingle();
     if (error || !order) throw new Error("הזמנה לא נמצאה.");
+
+    // A cancelled or refunded order has had its stock returned and, if paid,
+    // its money given back. Marking it shipped would mail the customer "your
+    // order is on its way" about an order they were told is off.
+    if ((TERMINAL_STATUSES as readonly string[]).includes(order.status)) {
+      throw new Error("ההזמנה בוטלה או זוכתה — לא ניתן לסמן אותה כנשלחה.");
+    }
 
     // The shipped_at null→now() transition is the idempotency latch for the
     // customer email. shipping_notified_at CANNOT gate it: notifyShippingCompany
@@ -1468,6 +1496,38 @@ export const markOrderShipped = createServerFn({ method: "POST" })
     // customer never got the shipped+tracking email. Read shipped_at BEFORE the
     // update, then send exactly once, on the first mark-shipped.
     const wasAlreadyShipped = !!order.shipped_at;
+
+    if (data.delivered) {
+      // An order already marked shipped keeps its real ship date; only a
+      // first mark takes the date the owner picked (today when none was).
+      let shippedAt: string | null = null;
+      if (!wasAlreadyShipped) {
+        const now = Date.now();
+        const picked = shippedAtFromDateInput(data.shipped_on ?? dateInputValue(now), {
+          notBefore: Date.parse(order.created_at),
+          now,
+        });
+        if (!picked.ok) throw new Error(picked.error);
+        shippedAt = picked.iso;
+      }
+      const { error: dErr } = await supabaseAdmin
+        .from("orders")
+        .update({
+          status: "completed",
+          shipping_status: "delivered",
+          ...(shippedAt ? { shipped_at: shippedAt } : {}),
+          tracking_number: data.tracking_number || null,
+          shipping_carrier: data.carrier || null,
+        })
+        .eq("id", order.id);
+      if (dErr) {
+        console.error("[markOrderShipped] delivered update:", dErr);
+        throw new Error("שגיאה בעדכון ההזמנה.");
+      }
+      // No email on purpose: the review request that follows (7 days after
+      // the ship date, from the morning job) is the next thing they hear.
+      return { ok: true, emailSent: false, delivered: true };
+    }
 
     const { error: uErr } = await supabaseAdmin
       .from("orders")
@@ -1497,7 +1557,7 @@ export const markOrderShipped = createServerFn({ method: "POST" })
         console.error("[markOrderShipped] email failed (order still marked shipped):", e);
       }
     }
-    return { ok: true, emailSent };
+    return { ok: true, emailSent, delivered: false };
   });
 
 /**

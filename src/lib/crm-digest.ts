@@ -125,6 +125,12 @@ export function businessDaysBetween(fromMs: number, toMs: number): number {
 }
 
 /** Tie the warning to the numbers the customer was actually shown. */
+/** For an order waiting days: it has most likely gone out and was never
+ *  marked. "כבר נמסרה ללקוח" records that without a late "on its way" email
+ *  (src/lib/fulfilment.ts). Plain text — no customer data, nothing to escape. */
+const ALREADY_DELIVERED_HINT =
+  'כבר אצל הלקוח? "כבר נמסרה ללקוח" בהזמנה — בלי מייל "בדרך", ובקשת חוות הדעת יוצאת לפי יום המשלוח.';
+
 export function shipUrgency(businessDays: number): ShipUrgency {
   if (businessDays >= CONSUMER_POLICY.deliveryMaxDays) return "overdue";
   if (businessDays >= CONSUMER_POLICY.deliveryMinDays) return "late";
@@ -343,6 +349,7 @@ export function renderDigestTelegram(d: Digest, now: number, origin: string): st
       m += `🔴 = עבר את ${CONSUMER_POLICY.deliveryMaxDays} ימי העסקים שהאתר מבטיח.\n`;
     }
     m += `נשלח כבר? סמנו "נשלח" עם מספר מעקב — הלקוח יקבל מייל מעקב אוטומטי.\n`;
+    if (d.toShip.some((o) => o.urgency !== "ok")) m += `${ALREADY_DELIVERED_HINT}\n`;
   }
 
   if (d.failedPayments.length > 0) {
@@ -418,6 +425,7 @@ export function renderDigestEmailInner(d: Digest, now: number, origin: string): 
       `📦 ממתינות למשלוח (${d.toShip.length})`,
       rows,
       `נשלח כבר? סמנו "נשלח" עם מספר מעקב בניהול ההזמנות — הלקוח יקבל מייל מעקב אוטומטי.` +
+        (d.toShip.some((o) => o.urgency !== "ok") ? ` ${ALREADY_DELIVERED_HINT}` : "") +
         (d.toShip.some((o) => o.urgency === "overdue")
           ? ` 🔴 = עבר את ${CONSUMER_POLICY.deliveryMaxDays} ימי העסקים שהאתר מבטיח.`
           : ""),

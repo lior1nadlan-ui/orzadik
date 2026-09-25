@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Download, Phone, Mail, MessageCircle, Printer, User, RefreshCw } from "lucide-react";
 import { orderItemImageUrl } from "@/lib/order-item-photo";
+import { OrderShippingPanel, type ShipRequest } from "@/components/admin/OrderShippingPanel";
 
 export const Route = createFileRoute("/admin/orders")({
   // Deep-linkable filters: the dashboard KPIs/chips and the customer card link
@@ -137,16 +138,12 @@ function AdminOrders() {
   }, [q]);
   useEffect(() => setPage(0), [debouncedQ, status, payment, days]);
 
-  // Shipping form state (inside details dialog)
-  const [tracking, setTracking] = useState("");
-  const [carrier, setCarrier] = useState("");
+  // Shipping form state lives in OrderShippingPanel (keyed by order id).
   const [shipping, setShipping] = useState(false);
   const [preparing, setPreparing] = useState(false);
   const [resending, setResending] = useState(false);
   const [noteText, setNoteText] = useState("");
   useEffect(() => {
-    setTracking(selected?.tracking_number ?? "");
-    setCarrier(selected?.shipping_carrier ?? "");
     setNoteText("");
   }, [selected?.id]);
 
@@ -244,18 +241,16 @@ function AdminOrders() {
     }
   };
 
-  const doShip = async () => {
+  const doShip = async (req: ShipRequest) => {
     setShipping(true);
     try {
-      const r = await shipOrder({
-        data: {
-          order_id: selected.id,
-          tracking_number: tracking || undefined,
-          carrier: carrier || undefined,
-        },
-      });
+      const r = await shipOrder({ data: { order_id: selected.id, ...req } });
       toast.success(
-        r.emailSent ? "סומנה כנשלחה ומייל נשלח ללקוח 📦" : "סומנה כנשלחה (מייל כבר נשלח בעבר)",
+        r.delivered
+          ? "סומנה כנמסרה — בלי מייל ללקוח ✓"
+          : r.emailSent
+            ? "סומנה כנשלחה ומייל נשלח ללקוח 📦"
+            : "סומנה כנשלחה (מייל כבר נשלח בעבר)",
       );
       setSelected(null);
       refresh();
@@ -711,60 +706,14 @@ function AdminOrders() {
                   </div>
                 )}
 
-                {/* Shipping */}
-                <div className="border-t pt-3 space-y-2">
-                  <div className="font-semibold">משלוח</div>
-                  {selected.shipped_at && (
-                    <div className="text-xs text-emerald-700">
-                      ✓ סומנה כנשלחה ללקוח ב-
-                      {new Date(selected.shipped_at).toLocaleDateString("he-IL")}
-                    </div>
-                  )}
-                  {/* "בהכנה" — the write that makes orders.shipping_status
-                      ='preparing' reachable at all. Without it a paid buyer read
-                      "ממתין לטיפול" on /account for the whole fulfilment window,
-                      which is what a forgotten order looks like. Offered only
-                      before the order ships and only once paid. */}
-                  {selected.payment_status === "paid" && !selected.shipped_at && (
-                    <div className="flex flex-wrap items-center gap-2">
-                      {selected.shipping_status === "preparing" ? (
-                        <span className="text-xs text-emerald-700">
-                          ✓ מסומנת כבהכנה — הלקוח רואה זאת במעקב
-                        </span>
-                      ) : (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={preparing}
-                          onClick={doPreparing}
-                        >
-                          {preparing ? "מעדכן..." : "סמן כבהכנה 🛠"}
-                        </Button>
-                      )}
-                    </div>
-                  )}
-                  <div className="flex flex-wrap gap-2">
-                    <Input
-                      placeholder="מספר מעקב"
-                      value={tracking}
-                      onChange={(e) => setTracking(e.target.value)}
-                      className="max-w-[180px]"
-                    />
-                    <Input
-                      placeholder="חברת שילוח"
-                      value={carrier}
-                      onChange={(e) => setCarrier(e.target.value)}
-                      className="max-w-[150px]"
-                    />
-                    <Button size="sm" disabled={shipping} onClick={doShip}>
-                      {shipping
-                        ? "שולח..."
-                        : selected.shipped_at
-                          ? "עדכן משלוח"
-                          : "סמן כנשלחה ושלח מייל ללקוח 📦"}
-                    </Button>
-                  </div>
-                </div>
+                <OrderShippingPanel
+                  key={selected.id}
+                  order={selected}
+                  busy={shipping}
+                  onShip={doShip}
+                  preparing={preparing}
+                  onPreparing={doPreparing}
+                />
 
                 {selected.payment_status === "paid" && (
                   <div className="border-t pt-3 flex items-center justify-between gap-3">
