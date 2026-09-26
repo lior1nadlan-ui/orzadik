@@ -64,6 +64,11 @@ export const GUIDES: Record<string, GuideRef> = {
     title: "איך בוחרים נטלה",
     blurb: "מה נדרש מהכלי, איזה חומר וגודל, ומה זה מים אחרונים.",
   },
+  "birchon-guide": {
+    slug: "birchon-guide",
+    title: "איך בוחרים ברכון",
+    blurb: "איזה נוסח, מעמד או לוח, כמה ברכונים צריך ואיך שומרים עליהם.",
+  },
 };
 
 /**
@@ -102,6 +107,8 @@ export const CATEGORY_GUIDES: Record<string, string[]> = {
   kipot: ["kippa-guide"],
   // נטילת ידיים ומים אחרונים — 267 products, a flat category (no children).
   "netilat-yadaim": ["natla-guide"],
+  // ברכונים — 91 products, a flat top-level category (no parent, no children).
+  birchonim: ["birchon-guide"],
 };
 
 /** Reverse: guide → the categories worth sending a reader to. */
@@ -116,6 +123,7 @@ export const GUIDE_CATEGORIES: Record<string, string[]> = {
   // The three shelves the guide spends most words on.
   "kippa-guide": ["kipot-srugot", "kipot-ktifa", "kipot-dmc-avodat-yad"],
   "natla-guide": ["netilat-yadaim"],
+  "birchon-guide": ["birchonim"],
 };
 
 /**
@@ -164,6 +172,9 @@ export const GUIDE_OCCASIONS: Record<string, string[]> = {
   "kippa-guide": ["bar-mitzva", "chatan-kala"],
   // Its own gift line names חתונה and חנוכת בית.
   "natla-guide": ["bait-chadash", "chatan-kala"],
+  // Its own gift section names חתונה and חנוכת בית; chatan-kala already
+  // carries birchonim as the guests' keepsake.
+  "birchon-guide": ["chatan-kala", "bait-chadash"],
 };
 
 /** What a guide's occasion CTA needs to render one link. */
@@ -187,7 +198,8 @@ export function occasionsForGuide(guideSlug: string): OccasionRef[] {
 export const GUIDE_CLUSTERS: string[][] = [
   // The bar-mitzva set: tallit, tefillin and kippa are bought together.
   ["bechira-talit", "tefillin-guide", "kippa-guide"],
-  ["kiddush-cup-guide", "hanukkia-guide"],
+  // The table: what stands on it for kiddush, for Hanukkah and after the meal.
+  ["kiddush-cup-guide", "hanukkia-guide", "birchon-guide"],
   // The home: what goes on the doorpost and by the sink.
   ["mezuza-guide", "natla-guide"],
 ];
