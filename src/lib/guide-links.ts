@@ -69,6 +69,11 @@ export const GUIDES: Record<string, GuideRef> = {
     title: "איך בוחרים ברכון",
     blurb: "איזה נוסח, מעמד או לוח, כמה ברכונים צריך ואיך שומרים עליהם.",
   },
+  "pamotim-guide": {
+    slug: "pamotim-guide",
+    title: "איך בוחרים פמוטים",
+    blurb: "זוג או רב-קני, קריסטל או מתכת, איזה גובה ואיזה נר — ואיך מסירים שעווה.",
+  },
 };
 
 /**
@@ -94,10 +99,12 @@ export const CATEGORY_GUIDES: Record<string, string[]> = {
   "gviei-kidush": ["kiddush-cup-guide"],
   "metal-kiddush-cups": ["kiddush-cup-guide"],
   "crystal-ceramic-kiddush-cups": ["kiddush-cup-guide"],
-  // שבת — the kiddush cup is the decision most shoppers here are making.
-  shabbat: ["kiddush-cup-guide"],
+  // שבת — the kiddush cup and the candlesticks are the two decisions most
+  // shoppers here are making.
+  shabbat: ["kiddush-cup-guide", "pamotim-guide"],
   havdalah: ["kiddush-cup-guide"],
-  candlesticks: ["kiddush-cup-guide"],
+  // פמוטים — 263 products; borrowed the kiddush-cup guide until its own existed.
+  candlesticks: ["pamotim-guide", "kiddush-cup-guide"],
   // חנוכה sits under chagim; chagim itself stays unmapped because it also holds
   // Pesach and Rosh Hashana, for which no guide exists yet.
   hanukkah: ["hanukkia-guide"],
@@ -124,6 +131,7 @@ export const GUIDE_CATEGORIES: Record<string, string[]> = {
   "kippa-guide": ["kipot-srugot", "kipot-ktifa", "kipot-dmc-avodat-yad"],
   "natla-guide": ["netilat-yadaim"],
   "birchon-guide": ["birchonim"],
+  "pamotim-guide": ["candlesticks"],
 };
 
 /**
@@ -175,6 +183,9 @@ export const GUIDE_OCCASIONS: Record<string, string[]> = {
   // Its own gift section names חתונה and חנוכת בית; chatan-kala already
   // carries birchonim as the guests' keepsake.
   "birchon-guide": ["chatan-kala", "bait-chadash"],
+  // Its own gift section names the bride and חנוכת בית; bait-chadash stocks
+  // candlesticks directly.
+  "pamotim-guide": ["chatan-kala", "bait-chadash"],
 };
 
 /** What a guide's occasion CTA needs to render one link. */
@@ -199,7 +210,7 @@ export const GUIDE_CLUSTERS: string[][] = [
   // The bar-mitzva set: tallit, tefillin and kippa are bought together.
   ["bechira-talit", "tefillin-guide", "kippa-guide"],
   // The table: what stands on it for kiddush, for Hanukkah and after the meal.
-  ["kiddush-cup-guide", "hanukkia-guide", "birchon-guide"],
+  ["kiddush-cup-guide", "pamotim-guide", "hanukkia-guide", "birchon-guide"],
   // The home: what goes on the doorpost and by the sink.
   ["mezuza-guide", "natla-guide"],
 ];
