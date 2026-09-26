@@ -21,7 +21,14 @@ import { OCCASION_ART } from "@/components/home/occasion-art";
  * where the ramp is still >= 0.7, and carries a soft text-shadow for the
  * brightest photographs.
  */
-export function OccasionTile({ c }: { c: OccasionCollection }) {
+export function OccasionTile({
+  c,
+  eyebrow,
+}: {
+  c: OccasionCollection;
+  /** Replaces the hub's own eyebrow in season, e.g. "לקראת חנוכה". */
+  eyebrow?: string;
+}) {
   const art = OCCASION_ART[c.slug];
   return (
     <Link to="/collection/$slug" params={{ slug: c.slug }} className="group/occ block h-full">
@@ -70,7 +77,7 @@ export function OccasionTile({ c }: { c: OccasionCollection }) {
               art ? "text-white" : "text-accent"
             }`}
           >
-            {c.eyebrow}
+            {eyebrow ?? c.eyebrow}
           </span>
           <span
             className={`mt-1.5 block line-clamp-2 font-display text-xl leading-tight md:text-[1.375rem] ${
