@@ -5,6 +5,11 @@
 // untouched, and checkout re-reads the DB price at order time and reprices
 // authoritatively there. Changing a shelf price here is the same operation the
 // single-product edit dialog already performs, just applied to a selection.
+//
+// Every price change is logged, whatever path makes it: a trigger on products
+// writes product_price_changes (20260926233000_product_price_ledger.sql). The
+// price actions below go through admin_set_product_prices so that one action
+// is one BATCH, which admin_undo_price_batch can reverse.
 
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
@@ -13,6 +18,11 @@ import { requireAdmin } from "@/lib/admin-authz.server";
 
 /** Hard cap per call — keeps one mis-click from rewriting the whole catalog. */
 const MAX_IDS = 200;
+/**
+ * Cap for "every product in this category". The largest tree (כיפות) holds 743
+ * products; nothing legitimate comes near this, and a price action is undoable.
+ */
+const MAX_SCOPE = 2000;
 /** Parallelism for the per-row price walk. */
 const CHUNK = 20;
 /** PostgREST silently caps unbounded selects at 1000 rows — page explicitly. */
@@ -49,8 +59,16 @@ async function countProductsWithVariants(ids: string[]): Promise<number> {
 }
 
 const ActionSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("price_pct"), pct: z.number().min(-90).max(300) }),
-  z.object({ kind: z.literal("price_set"), price: z.number().min(0).max(1_000_000) }),
+  z.object({
+    kind: z.literal("price_pct"),
+    pct: z
+      .number()
+      .min(-90)
+      .max(300)
+      .refine((n) => n !== 0, "0%"),
+  }),
+  // Above 0: a ₪0 shelf price is unsellable (see isSellablePrice).
+  z.object({ kind: z.literal("price_set"), price: z.number().positive().max(1_000_000) }),
   z.object({
     kind: z.literal("category"),
     category_id: z.string().uuid(),
@@ -61,16 +79,97 @@ const ActionSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("restock"), qty: z.number().int().min(0).max(100_000) }),
 ]);
 
-const Schema = z.object({
-  ids: z.array(z.string().uuid()).min(1).max(MAX_IDS),
-  action: ActionSchema,
-});
+const Schema = z
+  .object({
+    ids: z.array(z.string().uuid()).min(1).max(MAX_IDS).optional(),
+    // "Every product in this category and its sub-categories" — resolved on
+    // the server, so the owner can reprice a whole shelf instead of 25 rows.
+    categoryId: z.string().uuid().optional(),
+    action: ActionSchema,
+  })
+  .refine((d) => !!d.ids !== !!d.categoryId, { message: "ids or categoryId, not both" });
+
+/** Product ids in a category and every category below it. */
+async function productIdsInCategoryTree(categoryId: string): Promise<string[]> {
+  const { data: cats, error: cErr } = await supabaseAdmin
+    .from("categories")
+    .select("id, slug, parent_slug");
+  if (cErr) throw new Error("שגיאה בטעינת הקטגוריות.");
+  const root = (cats ?? []).find((c) => c.id === categoryId);
+  if (!root) throw new Error("הקטגוריה לא נמצאה.");
+  const slugs = new Set<string>([root.slug]);
+  // Breadth-first down the parent_slug links; bounded by the category count.
+  for (let grew = true; grew; ) {
+    grew = false;
+    for (const c of cats ?? []) {
+      if (c.parent_slug && slugs.has(c.parent_slug) && !slugs.has(c.slug)) {
+        slugs.add(c.slug);
+        grew = true;
+      }
+    }
+  }
+  const catIds = (cats ?? []).filter((c) => slugs.has(c.slug)).map((c) => c.id as string);
+
+  const ids = new Set<string>();
+  for (let from = 0; ; from += DB_PAGE) {
+    const { data, error } = await supabaseAdmin
+      .from("product_categories")
+      .select("product_id")
+      .in("category_id", catIds)
+      .order("product_id", { ascending: true })
+      .range(from, from + DB_PAGE - 1);
+    if (error) throw new Error("שגיאה בטעינת מוצרי הקטגוריה.");
+    for (const r of data ?? []) ids.add(r.product_id as string);
+    if ((data ?? []).length < DB_PAGE) break;
+  }
+  if (ids.size > MAX_SCOPE) {
+    throw new Error(`בקטגוריה ${ids.size} מוצרים — יותר מדי לפעולה אחת.`);
+  }
+  return [...ids];
+}
+
+/** Run a write over ids in slices, so a long id list never overflows a URL. */
+async function inSlices(
+  ids: string[],
+  write: (slice: string[]) => PromiseLike<{ error: unknown }>,
+) {
+  for (let i = 0; i < ids.length; i += MAX_IDS) {
+    const { error } = await write(ids.slice(i, i + MAX_IDS));
+    if (error) return { error };
+  }
+  return { error: null };
+}
+
+/** One logged, undoable price batch (see the ledger migration). */
+async function applyPrices(
+  adminId: string,
+  source: "inline" | "bulk_set" | "bulk_pct",
+  ids: string[],
+  mode: "set" | "pct",
+  value: number,
+): Promise<{ batchId: string; updated: number; skipped: number }> {
+  const { data, error } = await supabaseAdmin.rpc("admin_set_product_prices", {
+    p_actor: adminId,
+    p_source: source,
+    p_ids: ids,
+    p_mode: mode,
+    p_value: value,
+  });
+  const row = Array.isArray(data) ? data[0] : null;
+  if (error || !row) {
+    console.error("[applyPrices] failed:", error);
+    throw new Error("שגיאה בעדכון המחיר.");
+  }
+  return { batchId: row.batch_id, updated: row.updated, skipped: row.skipped };
+}
 
 export const bulkUpdateProducts = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) => Schema.parse(i))
   .handler(async ({ data }) => {
     const adminId = await requireAdmin();
-    const { ids, action } = data;
+    const { action } = data;
+    const ids = data.ids ?? (await productIdsInCategoryTree(data.categoryId!));
+    if (ids.length === 0) return { updated: 0 };
 
     // Audit line BEFORE the write: if something goes wrong, the log says who
     // did what to how many rows.
@@ -82,31 +181,31 @@ export const bulkUpdateProducts = createServerFn({ method: "POST" })
 
     switch (action.kind) {
       case "active": {
-        const { error } = await supabaseAdmin
-          .from("products")
-          .update({ is_active: action.value })
-          .in("id", ids);
+        const { error } = await inSlices(ids, (slice) =>
+          supabaseAdmin.from("products").update({ is_active: action.value }).in("id", slice),
+        );
         if (error) throw new Error("שגיאה בעדכון סטטוס הפעילות.");
         return { updated: ids.length };
       }
 
       case "stock_status": {
-        const { error } = await supabaseAdmin
-          .from("products")
-          .update({ stock_status: action.value })
-          .in("id", ids);
+        const { error } = await inSlices(ids, (slice) =>
+          supabaseAdmin.from("products").update({ stock_status: action.value }).in("id", slice),
+        );
         if (error) throw new Error("שגיאה בעדכון סטטוס המלאי.");
         return { updated: ids.length };
       }
 
       case "restock": {
-        const { error } = await supabaseAdmin
-          .from("products")
-          .update({
-            stock_qty: action.qty,
-            stock_status: action.qty > 0 ? "instock" : "outofstock",
-          })
-          .in("id", ids);
+        const { error } = await inSlices(ids, (slice) =>
+          supabaseAdmin
+            .from("products")
+            .update({
+              stock_qty: action.qty,
+              stock_status: action.qty > 0 ? "instock" : "outofstock",
+            })
+            .in("id", slice),
+        );
         if (error) throw new Error("שגיאה בעדכון המלאי.");
         return { updated: ids.length };
       }
@@ -115,65 +214,36 @@ export const bulkUpdateProducts = createServerFn({ method: "POST" })
         // Counted BEFORE the write so the warning describes the same selection
         // that was just changed.
         const variantProducts = await countProductsWithVariants(ids);
-        const { error } = await supabaseAdmin
-          .from("products")
-          .update({ price: action.price })
-          .in("id", ids);
-        if (error) throw new Error("שגיאה בעדכון המחיר.");
-        return { updated: ids.length, variantProducts };
+        const res = await applyPrices(adminId, "bulk_set", ids, "set", action.price);
+        return { ...res, variantProducts };
       }
 
       case "price_pct": {
-        // Percentage changes are per-row: read the current prices, compute, write
-        // back. Prices stay whole shekels (the catalog convention) and never
-        // drop below ₪1 — a 0 price means "call for price" in this store, so a
-        // rounding-down must not silently convert a product into a gold-price
-        // item.
+        // Whole shekels, never below ₪1, and products at price 0 ("call for
+        // price") are left alone — the same rules as before, now in one SQL
+        // statement so the whole action is one undoable batch.
         const variantProducts = await countProductsWithVariants(ids);
-        const { data: rows, error } = await supabaseAdmin
-          .from("products")
-          .select("id, price")
-          .in("id", ids);
-        if (error) throw new Error("שגיאה בטעינת המחירים.");
-
-        const factor = 1 + action.pct / 100;
-        const updates = (rows ?? [])
-          // Leave call-for-price products alone entirely.
-          .filter((p) => Number(p.price) > 0)
-          .map((p) => ({
-            id: p.id,
-            price: Math.max(1, Math.round(Number(p.price) * factor)),
-          }));
-
-        let updated = 0;
-        for (let i = 0; i < updates.length; i += CHUNK) {
-          const slice = updates.slice(i, i + CHUNK);
-          const results = await Promise.all(
-            slice.map((u) =>
-              supabaseAdmin.from("products").update({ price: u.price }).eq("id", u.id),
-            ),
-          );
-          for (const r of results) {
-            if (r.error) console.error("[bulkUpdateProducts] price row failed:", r.error);
-            else updated++;
-          }
-        }
-        return { updated, skipped: ids.length - updates.length, variantProducts };
+        const res = await applyPrices(adminId, "bulk_pct", ids, "pct", action.pct);
+        return { ...res, variantProducts };
       }
 
       case "category": {
         if (action.mode === "add") {
-          const { error } = await supabaseAdmin.from("product_categories").upsert(
-            ids.map((id) => ({ product_id: id, category_id: action.category_id })),
-            { onConflict: "product_id,category_id", ignoreDuplicates: true },
+          const { error } = await inSlices(ids, (slice) =>
+            supabaseAdmin.from("product_categories").upsert(
+              slice.map((id) => ({ product_id: id, category_id: action.category_id })),
+              { onConflict: "product_id,category_id", ignoreDuplicates: true },
+            ),
           );
           if (error) throw new Error("שגיאה בשיוך לקטגוריה.");
         } else {
-          const { error } = await supabaseAdmin
-            .from("product_categories")
-            .delete()
-            .eq("category_id", action.category_id)
-            .in("product_id", ids);
+          const { error } = await inSlices(ids, (slice) =>
+            supabaseAdmin
+              .from("product_categories")
+              .delete()
+              .eq("category_id", action.category_id)
+              .in("product_id", slice),
+          );
           if (error) throw new Error("שגיאה בהסרה מהקטגוריה.");
         }
         return { updated: ids.length };
@@ -302,7 +372,7 @@ export const listCategoriesForBulk = createServerFn({ method: "POST" }).handler(
   await requireAdmin();
   const { data, error } = await supabaseAdmin
     .from("categories")
-    .select("id, name, slug")
+    .select("id, name, slug, parent_slug")
     .order("name");
   if (error) throw new Error("שגיאה בטעינת הקטגוריות.");
   return data ?? [];
@@ -377,6 +447,111 @@ export const setProductCategories = createServerFn({ method: "POST" })
     }
 
     return { count: unique.length };
+  });
+
+// ---------------------------------------------------------------------------
+// Inline price edit, price history and undo
+//
+// The owner edits a price straight in the products table. Each edit is its own
+// logged batch, so the toast's "בטל" and the history list can reverse it.
+// ---------------------------------------------------------------------------
+
+export const setProductPrice = createServerFn({ method: "POST" })
+  .inputValidator((i: unknown) =>
+    z
+      .object({ productId: z.string().uuid(), price: z.number().positive().max(1_000_000) })
+      .parse(i),
+  )
+  .handler(async ({ data }) => {
+    const adminId = await requireAdmin();
+    console.log(`[setProductPrice] admin=${adminId} product=${data.productId} price=${data.price}`);
+    return applyPrices(adminId, "inline", [data.productId], "set", data.price);
+  });
+
+export const undoPriceBatch = createServerFn({ method: "POST" })
+  .inputValidator((i: unknown) => z.object({ batchId: z.string().uuid() }).parse(i))
+  .handler(async ({ data }) => {
+    const adminId = await requireAdmin();
+    console.log(`[undoPriceBatch] admin=${adminId} batch=${data.batchId}`);
+    const { data: rows, error } = await supabaseAdmin.rpc("admin_undo_price_batch", {
+      p_actor: adminId,
+      p_batch: data.batchId,
+    });
+    const row = Array.isArray(rows) ? rows[0] : null;
+    if (error || !row) {
+      console.error("[undoPriceBatch] failed:", error);
+      throw new Error("לא ניתן לבטל — ייתכן שהשינוי כבר בוטל.");
+    }
+    return { restored: row.restored, skipped: row.skipped };
+  });
+
+export type PriceBatchRow = {
+  batchId: string;
+  source: string;
+  changedAt: string;
+  products: number;
+  undone: number;
+  oldTotal: number;
+  newTotal: number;
+  sample: string | null;
+};
+
+export const listPriceBatches = createServerFn({ method: "POST" }).handler(
+  async (): Promise<PriceBatchRow[]> => {
+    await requireAdmin();
+    const { data, error } = await supabaseAdmin.rpc("admin_recent_price_batches", {
+      p_limit: 20,
+    });
+    if (error) {
+      console.error("[listPriceBatches] failed:", error);
+      throw new Error("שגיאה בטעינת היסטוריית המחירים.");
+    }
+    return (data ?? []).map((r) => ({
+      batchId: r.batch_id,
+      source: r.source,
+      changedAt: r.changed_at,
+      products: Number(r.products),
+      undone: Number(r.undone),
+      oldTotal: Number(r.old_total),
+      newTotal: Number(r.new_total),
+      sample: r.sample ?? null,
+    }));
+  },
+);
+
+export type ProductPriceChange = {
+  changedAt: string;
+  source: string;
+  oldPrice: number | null;
+  newPrice: number | null;
+  oldSalePrice: number | null;
+  newSalePrice: number | null;
+};
+
+/** The last few price changes of one product, for its edit dialog. */
+export const productPriceHistory = createServerFn({ method: "POST" })
+  .inputValidator((i: unknown) => z.object({ productId: z.string().uuid() }).parse(i))
+  .handler(async ({ data }): Promise<ProductPriceChange[]> => {
+    await requireAdmin();
+    const { data: rows, error } = await supabaseAdmin
+      .from("product_price_changes")
+      .select("changed_at, source, old_price, new_price, old_sale_price, new_sale_price")
+      .eq("product_id", data.productId)
+      .order("changed_at", { ascending: false })
+      .limit(6);
+    if (error) {
+      console.error("[productPriceHistory] failed:", error);
+      return [];
+    }
+    const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
+    return (rows ?? []).map((r) => ({
+      changedAt: r.changed_at,
+      source: r.source,
+      oldPrice: num(r.old_price),
+      newPrice: num(r.new_price),
+      oldSalePrice: num(r.old_sale_price),
+      newSalePrice: num(r.new_sale_price),
+    }));
   });
 
 // ---------------------------------------------------------------------------

@@ -2,7 +2,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
-import { formatILS } from "@/lib/cart";
 import {
   bulkUpdateProducts,
   listCategoriesForBulk,
@@ -11,8 +10,22 @@ import {
   getProductCategoryIds,
   setProductCategories,
   uploadProductImage,
+  setProductPrice,
+  undoPriceBatch,
+  listPriceBatches,
+  productPriceHistory,
   type AdminVariantRow,
 } from "@/lib/admin-products.functions";
+import {
+  categoryOptions,
+  categoryWithDescendants,
+  priceBreakdown,
+  slugProblem,
+  type CategoryNode,
+} from "@/lib/admin-pricing";
+import { SITE_DISCOUNT } from "@/lib/pricing";
+import { PriceCell } from "@/components/admin/PriceCell";
+import { PriceHistoryDialog } from "@/components/admin/PriceHistoryDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,7 +42,7 @@ import {
 } from "@/components/ui/dialog";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { toast } from "sonner";
-import { Pencil, Trash2, Plus, Layers, Upload, X } from "lucide-react";
+import { Pencil, Trash2, Plus, Layers, Upload, X, History } from "lucide-react";
 
 /** Catalog-health filters — the same two predicates the dashboard tile counts. */
 type HealthFilter = "no-image" | "out-of-stock";
@@ -47,8 +60,10 @@ export const Route = createFileRoute("/admin/products")({
   // makes every filtered/sorted view a shareable URL.
   validateSearch: (
     s: Record<string, unknown>,
-  ): { q?: string; health?: HealthFilter; sort?: SortKey; dir?: SortDir } => ({
+  ): { q?: string; health?: HealthFilter; sort?: SortKey; dir?: SortDir; cat?: string } => ({
     q: typeof s.q === "string" && s.q ? s.q : undefined,
+    // Category slug. Filtering by a category includes its sub-categories.
+    cat: typeof s.cat === "string" && s.cat && s.cat.length <= 120 ? s.cat : undefined,
     health: s.health === "no-image" || s.health === "out-of-stock" ? s.health : undefined,
     sort: s.sort === "created_at" || s.sort === "name" || s.sort === "price" ? s.sort : undefined,
     dir: s.dir === "asc" || s.dir === "desc" ? s.dir : undefined,
@@ -113,7 +128,7 @@ type BulkKind = "price_pct" | "price_set" | "category" | "active" | "stock_statu
 
 function AdminProducts() {
   const qc = useQueryClient();
-  const { q: qFromUrl, health, sort, dir } = Route.useSearch();
+  const { q: qFromUrl, health, sort, dir, cat } = Route.useSearch();
   const navigate = Route.useNavigate();
   const sortKey: SortKey = sort ?? "created_at";
   // Newest-first stays the default; the other keys read naturally ascending.
@@ -127,11 +142,18 @@ function AdminProducts() {
   // a stray Escape / backdrop click can't discard a half-written product.
   const productDirtyRef = useRef(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  // "Every product in the filtered category", not just the rows on screen.
+  const [scopeAll, setScopeAll] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [busyBatch, setBusyBatch] = useState<string | null>(null);
 
   const runBulk = useServerFn(bulkUpdateProducts);
   const loadCategories = useServerFn(listCategoriesForBulk);
   const saveCategories = useServerFn(setProductCategories);
+  const savePrice = useServerFn(setProductPrice);
+  const runUndo = useServerFn(undoPriceBatch);
+  const loadBatches = useServerFn(listPriceBatches);
 
   useEffect(() => {
     setSearch(qFromUrl ?? "");
@@ -140,23 +162,49 @@ function AdminProducts() {
     const t = setTimeout(() => setDebounced(search), 300);
     return () => clearTimeout(t);
   }, [search]);
-  useEffect(() => setPage(0), [debounced, health, sortKey, sortDir]);
+  useEffect(() => setPage(0), [debounced, health, sortKey, sortDir, cat]);
   // A selection only makes sense for rows the admin can currently see — the
   // action applies to ids, not to "the filter", so carrying it across a search
   // or page change would act on rows that scrolled out of view.
   useEffect(() => {
     setSelected(new Set());
-  }, [debounced, page, health, sortKey, sortDir]);
+    setScopeAll(false);
+  }, [debounced, page, health, sortKey, sortDir, cat]);
 
   /** Patch the URL so any filtered/sorted view can be bookmarked or shared. */
-  const patchSearch = (patch: { health?: HealthFilter; sort?: SortKey; dir?: SortDir }) =>
-    navigate({ search: (prev) => ({ ...prev, ...patch }), replace: true, resetScroll: false });
+  const patchSearch = (patch: {
+    health?: HealthFilter;
+    sort?: SortKey;
+    dir?: SortDir;
+    cat?: string;
+  }) => navigate({ search: (prev) => ({ ...prev, ...patch }), replace: true, resetScroll: false });
+
+  // The category list feeds the filter, the bulk dialog and the product dialog.
+  const { data: categories = [] } = useQuery({
+    queryKey: ["admin-all-categories"],
+    queryFn: () => loadCategories(),
+    staleTime: 5 * 60_000,
+  });
+  const catNodes = categories as CategoryNode[];
+  const catOptions = categoryOptions(catNodes);
+  const catNode = cat ? catNodes.find((c) => c.slug === cat) : undefined;
+  const catIds = cat ? categoryWithDescendants(catNodes, cat).map((c) => c.id) : [];
 
   const { data, isFetching } = useQuery({
-    queryKey: ["admin-products", debounced, page, health ?? "", sortKey, sortDir],
+    queryKey: ["admin-products", debounced, page, health ?? "", sortKey, sortDir, cat ?? ""],
     placeholderData: keepPreviousData,
+    // A category filter waits for the category list, which it needs to include
+    // the sub-categories.
+    enabled: !cat || catIds.length > 0,
     queryFn: async () => {
-      let query = supabase.from("products").select("*", { count: "exact" });
+      // With a category, an inner join keeps only products linked to it or to
+      // one of its sub-categories; the joined rows are dropped again below.
+      let query = cat
+        ? supabase
+            .from("products")
+            .select("*, product_categories!inner(category_id)", { count: "exact" })
+            .in("product_categories.category_id", catIds)
+        : supabase.from("products").select("*", { count: "exact" });
       const term = debounced
         .replace(/[,()%\\]/g, " ")
         .replace(/\s+/g, " ")
@@ -179,21 +227,69 @@ function AdminProducts() {
         .order(sortKey, { ascending: sortDir === "asc" })
         .range(from, from + PAGE_SIZE - 1);
       if (error) throw error;
-      return { rows: (data ?? []) as Product[], total: count ?? 0 };
+      // Keep only product columns: the edit dialog saves the row it was opened
+      // with, and a stray joined field would make that update fail.
+      const rows = (data ?? []).map((r) => {
+        const { product_categories: _joined, ...product } = r as Product & {
+          product_categories?: unknown;
+        };
+        return product as Product;
+      });
+      return { rows, total: count ?? 0 };
     },
   });
   const filtered = data?.rows ?? [];
   const total = data?.total ?? 0;
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-  const { data: categories = [] } = useQuery({
-    queryKey: ["bulk-categories"],
-    enabled: bulkOpen,
-    queryFn: () => loadCategories(),
+  const { data: batches = [], isFetching: batchesLoading } = useQuery({
+    queryKey: ["admin-price-batches"],
+    enabled: historyOpen,
+    queryFn: () => loadBatches(),
   });
+
+  const undo = async (batchId: string) => {
+    setBusyBatch(batchId);
+    try {
+      const r = await runUndo({ data: { batchId } });
+      toast.success(
+        r.skipped
+          ? `הוחזר המחיר הקודם ל-${r.restored} מוצרים · ${r.skipped} דולגו כי מחירם שונה מאז`
+          : `הוחזר המחיר הקודם (${r.restored} מוצרים)`,
+      );
+      qc.invalidateQueries({ queryKey: ["admin-products"] });
+      qc.invalidateQueries({ queryKey: ["admin-price-batches"] });
+    } catch (e: any) {
+      toast.error(e?.message ?? "הביטול נכשל");
+    } finally {
+      setBusyBatch(null);
+    }
+  };
+
+  /** Inline price edit from the table. Throws so the cell keeps the typed value. */
+  const saveInlinePrice = async (p: Product, next: number) => {
+    try {
+      const res = await savePrice({ data: { productId: p.id, price: next } });
+      toast.success(`המחיר עודכן: ₪${Number(p.price)} ← ₪${next}`, {
+        action: { label: "בטל", onClick: () => void undo(res.batchId) },
+        duration: 10_000,
+      });
+      qc.invalidateQueries({ queryKey: ["admin-products"] });
+      qc.invalidateQueries({ queryKey: ["admin-price-batches"] });
+    } catch (e: any) {
+      toast.error(e?.message ?? "שגיאה בעדכון המחיר");
+      throw e;
+    }
+  };
+
+  // Offer "all N in this category" once the whole page is ticked and the view
+  // is exactly the category — no search or health filter narrowing it.
+  const canScopeAll = !!catNode && !debounced.trim() && !health && total > filtered.length;
+  const bulkCount = scopeAll ? total : selected.size;
 
   const allOnPageSelected = filtered.length > 0 && filtered.every((p) => selected.has(p.id));
   const toggleAll = () => {
+    setScopeAll(false);
     setSelected((cur) => {
       const next = new Set(cur);
       if (allOnPageSelected) filtered.forEach((p) => next.delete(p.id));
@@ -202,6 +298,7 @@ function AdminProducts() {
     });
   };
   const toggleOne = (id: string) => {
+    setScopeAll(false);
     setSelected((cur) => {
       const next = new Set(cur);
       if (next.has(id)) next.delete(id);
@@ -221,11 +318,10 @@ function AdminProducts() {
     const name = (form.name ?? "").trim();
     const slug = (form.slug ?? "").trim();
     if (!name) return toast.error("יש להזין שם מוצר");
-    if (!slug)
-      return toast.error("יש להזין כתובת (Slug) באנגלית — בלעדיה דף המוצר לא יהיה נגיש ללקוחות");
-    if (!/^[a-z0-9-]+$/.test(slug)) {
-      return toast.error("כתובת ה-Slug חייבת להכיל אותיות אנגליות קטנות, ספרות ומקפים בלבד");
-    }
+    // An existing product keeps whatever slug it has (216 live ones are
+    // Hebrew); only a new or edited slug must be Latin. See slugProblem.
+    const slugError = slugProblem(slug, editing?.slug ?? null);
+    if (slugError) return toast.error(slugError);
     // The one DB error the owner is guaranteed to hit, in Hebrew: the raw
     // Postgres text ("duplicate key value violates unique constraint …") tells a
     // non-technical shop owner nothing about which field to change.
@@ -287,7 +383,10 @@ function AdminProducts() {
     setOpen(false);
     setEditing(null);
     qc.invalidateQueries({ queryKey: ["admin-products"] });
-    if (productId) qc.invalidateQueries({ queryKey: ["admin-product-cats", productId] });
+    if (productId) {
+      qc.invalidateQueries({ queryKey: ["admin-product-cats", productId] });
+      qc.invalidateQueries({ queryKey: ["admin-price-log", productId] });
+    }
   };
 
   const onDelete = async (id: string) => {
@@ -322,22 +421,28 @@ function AdminProducts() {
             }
           }}
         >
-          <DialogTrigger asChild>
-            <Button
-              onClick={() => {
-                setEditing(null);
-                setOpen(true);
-              }}
-              className="gap-2"
-            >
-              <Plus className="h-4 w-4" /> חדש
+          <div className="flex items-center gap-2">
+            <Button variant="outline" className="gap-2" onClick={() => setHistoryOpen(true)}>
+              <History className="h-4 w-4" /> היסטוריית מחירים
             </Button>
-          </DialogTrigger>
+            <DialogTrigger asChild>
+              <Button
+                onClick={() => {
+                  setEditing(null);
+                  setOpen(true);
+                }}
+                className="gap-2"
+              >
+                <Plus className="h-4 w-4" /> {catNode ? `חדש ב${catNode.name}` : "חדש"}
+              </Button>
+            </DialogTrigger>
+          </div>
           <ProductDialog
-            key={editing?.id ?? "new"}
+            key={editing?.id ?? `new-${catNode?.id ?? ""}`}
             product={editing}
             onSave={onSave}
             dirtyRef={productDirtyRef}
+            defaultCategoryIds={catNode ? [catNode.id] : []}
           />
         </Dialog>
       </div>
@@ -352,6 +457,24 @@ function AdminProducts() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
+        </div>
+        <div className="w-64">
+          <Label htmlFor="prod-cat" className="text-xs text-muted-foreground">
+            קטגוריה
+          </Label>
+          <select
+            id="prod-cat"
+            value={cat ?? ""}
+            onChange={(e) => patchSearch({ cat: e.target.value || undefined })}
+            className="flex h-10 w-full rounded-md border bg-background px-3 text-sm"
+          >
+            <option value="">כל הקטגוריות</option>
+            {catOptions.map((o) => (
+              <option key={o.id} value={o.slug}>
+                {`${"\u00a0\u00a0\u00a0".repeat(o.depth)}${o.depth ? "↳ " : ""}${o.name}`}
+              </option>
+            ))}
+          </select>
         </div>
         <div className="w-56">
           <Label htmlFor="prod-health" className="text-xs text-muted-foreground">
@@ -407,11 +530,27 @@ function AdminProducts() {
 
       {selected.size > 0 && (
         <div className="sticky top-16 z-20 mb-3 flex flex-wrap items-center gap-3 rounded-lg border border-primary/40 bg-primary/5 px-4 py-3 backdrop-blur">
-          <span className="text-sm font-medium">נבחרו {selected.size} מוצרים</span>
+          <span className="text-sm font-medium">
+            {scopeAll && catNode
+              ? `נבחרו כל ${total} המוצרים ב${catNode.name} (כולל תתי-קטגוריות)`
+              : `נבחרו ${selected.size} מוצרים`}
+          </span>
+          {!scopeAll && canScopeAll && allOnPageSelected && catNode && (
+            <Button size="sm" variant="link" className="px-0" onClick={() => setScopeAll(true)}>
+              לבחור את כל {total} המוצרים ב{catNode.name}
+            </Button>
+          )}
           <Button size="sm" className="gap-2" onClick={() => setBulkOpen(true)}>
             <Layers className="h-4 w-4" /> פעולות מרובות
           </Button>
-          <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              setSelected(new Set());
+              setScopeAll(false);
+            }}
+          >
             נקה בחירה
           </Button>
         </div>
@@ -432,7 +571,7 @@ function AdminProducts() {
               </th>
               <th className="p-3 font-medium">תמונה</th>
               <th className="p-3 font-medium">שם</th>
-              <th className="p-3 font-medium">מחיר</th>
+              <th className="p-3 font-medium">מחיר קטלוג</th>
               <th className="p-3 font-medium">מלאי</th>
               <th className="p-3 font-medium">פעיל</th>
               <th className="p-3"></th>
@@ -469,7 +608,14 @@ function AdminProducts() {
                 <td className="p-3 max-w-xs">
                   <div className="line-clamp-2">{p.name}</div>
                 </td>
-                <td className="p-3 whitespace-nowrap">{formatILS(p.sale_price ?? p.price)}</td>
+                <td className="p-2 align-top">
+                  <PriceCell
+                    price={Number(p.price)}
+                    salePrice={p.sale_price === null ? null : Number(p.sale_price)}
+                    label={p.name}
+                    onSave={(next) => saveInlinePrice(p, next)}
+                  />
+                </td>
                 <td className="p-3">
                   <span
                     className={p.stock_status === "instock" ? "text-green-600" : "text-destructive"}
@@ -530,14 +676,27 @@ function AdminProducts() {
       <BulkDialog
         open={bulkOpen}
         onOpenChange={setBulkOpen}
-        count={selected.size}
-        categories={categories}
+        count={bulkCount}
+        categories={catNodes}
         onApply={async (action) => {
           try {
-            const res: any = await runBulk({ data: { ids: [...selected], action } });
+            const res: any = await runBulk({
+              data:
+                scopeAll && catNode
+                  ? { categoryId: catNode.id, action }
+                  : { ids: [...selected], action },
+            });
+            // Price actions come back as one logged batch — offer to undo it.
             toast.success(
-              `עודכנו ${res.updated} מוצרים${res.skipped ? ` (${res.skipped} דולגו)` : ""}`,
+              `עודכנו ${res.updated} מוצרים${res.skipped ? ` (${res.skipped} ללא שינוי)` : ""}`,
+              res.batchId
+                ? {
+                    action: { label: "בטל", onClick: () => void undo(res.batchId) },
+                    duration: 15_000,
+                  }
+                : undefined,
             );
+            qc.invalidateQueries({ queryKey: ["admin-price-batches"] });
             // The price actions write products.price only. Where a product has
             // size rows with their own price, checkout charges the size price —
             // so say so instead of leaving the owner to discover it at the till.
@@ -549,11 +708,21 @@ function AdminProducts() {
             }
             setBulkOpen(false);
             setSelected(new Set());
+            setScopeAll(false);
             qc.invalidateQueries({ queryKey: ["admin-products"] });
           } catch (e: any) {
             toast.error(e?.message ?? "שגיאה בעדכון המוצרים");
           }
         }}
+      />
+
+      <PriceHistoryDialog
+        open={historyOpen}
+        onOpenChange={setHistoryOpen}
+        batches={batches}
+        loading={batchesLoading && batches.length === 0}
+        busyBatch={busyBatch}
+        onUndo={(id) => void undo(id)}
       />
     </div>
   );
@@ -569,7 +738,7 @@ function BulkDialog({
   open: boolean;
   onOpenChange: (v: boolean) => void;
   count: number;
-  categories: Array<{ id: string; name: string }>;
+  categories: CategoryNode[];
   onApply: (action: any) => Promise<void>;
 }) {
   const [kind, setKind] = useState<BulkKind>("active");
@@ -604,6 +773,14 @@ function BulkDialog({
   const apply = async () => {
     if (kind === "category" && !categoryId) {
       toast.error("יש לבחור קטגוריה");
+      return;
+    }
+    if (kind === "price_set" && !(price > 0)) {
+      toast.error("המחיר חייב להיות גדול מ-0");
+      return;
+    }
+    if (kind === "price_pct" && (!pct || pct < -90 || pct > 300)) {
+      toast.error("יש להזין אחוז שינוי בין 90- ל-300 (לא 0)");
       return;
     }
     setBusy(true);
@@ -679,21 +856,32 @@ function BulkDialog({
                 onChange={(e) => setPct(Number(e.target.value))}
               />
               <p className="mt-1 text-[11px] text-muted-foreground">
-                מוצרים במחיר 0 ("לפי שער הזהב") לא ישונו.
+                מוצרים במחיר 0 ("לפי שער הזהב") לא ישונו. המחירים מעוגלים לשקל שלם.
               </p>
+              {pct !== 0 && (
+                <p className="mt-1 text-[11px] font-medium">
+                  לדוגמה: ₪100 ← ₪{Math.max(1, Math.round(100 * (1 + pct / 100)))} (הלקוח ישלם ₪
+                  {priceBreakdown(Math.max(1, Math.round(100 * (1 + pct / 100))), null).customer})
+                </p>
+              )}
             </div>
           )}
 
           {kind === "price_set" && (
             <div>
-              <Label htmlFor="bulk-price">מחיר אחיד (₪)</Label>
+              <Label htmlFor="bulk-price">מחיר קטלוג אחיד (₪)</Label>
               <Input
                 id="bulk-price"
                 type="number"
-                min={0}
+                min={1}
                 value={price}
                 onChange={(e) => setPrice(Number(e.target.value))}
               />
+              {price > 0 && (
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  הלקוח ישלם ₪{priceBreakdown(price, null).customer}
+                </p>
+              )}
             </div>
           )}
 
@@ -713,9 +901,9 @@ function BulkDialog({
                 className="flex h-10 w-full rounded-md border bg-background px-3 text-sm"
               >
                 <option value="">— בחרו קטגוריה —</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
+                {categoryOptions(categories).map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {`${"\u00a0\u00a0\u00a0".repeat(o.depth)}${o.depth ? "↳ " : ""}${o.name}`}
                   </option>
                 ))}
               </select>
@@ -723,9 +911,9 @@ function BulkDialog({
           )}
 
           {isPriceAction && (
-            <div className="rounded-md border border-destructive/50 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-              שימו לב: פעולה זו משנה את מחיר המדף של {count} מוצרים ואינה הפיכה בלחיצה אחת. ודאו
-              שהבחירה נכונה לפני האישור.
+            <div className="rounded-md border border-amber-400/70 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/20 dark:text-amber-200">
+              פעולה זו משנה את מחיר הקטלוג של {count} מוצרים. השינוי נשמר ב"היסטוריית מחירים" ואפשר
+              לבטל אותו בלחיצה.
             </div>
           )}
         </div>
@@ -743,11 +931,14 @@ function ProductDialog({
   product,
   onSave,
   dirtyRef,
+  defaultCategoryIds = [],
 }: {
   product: Product | null;
   onSave: (f: Partial<Product>, categoryIds: string[]) => void;
   /** Parent-owned flag driving the unsaved-changes confirm on dismissal. */
   dirtyRef?: { current: boolean };
+  /** For a new product: the category the list is filtered to, pre-ticked. */
+  defaultCategoryIds?: string[];
 }) {
   // Set by VariantsPanel while it has unsaved size rows; the footer שמור flushes
   // them before saving the product, so edited size prices are never dropped.
@@ -781,6 +972,7 @@ function ProductDialog({
   // An existing product keeps the slug the owner chose — never rewrite it. A new
   // product auto-derives its slug from the name until the owner edits slug itself.
   const [slugTouched, setSlugTouched] = useState(!!product);
+  const prices = priceBreakdown(Number(form.price ?? 0), form.sale_price ?? null);
 
   useEffect(() => {
     if (dirtyRef) dirtyRef.current = JSON.stringify(form) !== initialFormRef.current;
@@ -789,7 +981,9 @@ function ProductDialog({
   // --- Categories ---------------------------------------------------------
   const loadAllCats = useServerFn(listCategoriesForBulk);
   const loadProductCats = useServerFn(getProductCategoryIds);
-  const [categoryIds, setCategoryIds] = useState<Set<string>>(new Set());
+  const [categoryIds, setCategoryIds] = useState<Set<string>>(
+    () => new Set(product ? [] : defaultCategoryIds),
+  );
 
   const { data: allCategories = [], isLoading: catsLoading } = useQuery({
     queryKey: ["admin-all-categories"],
@@ -885,24 +1079,44 @@ function ProductDialog({
             </p>
           </div>
           <div>
-            <Label>מחיר</Label>
+            <Label>מחיר קטלוג (₪)</Label>
             <Input
               type="number"
               step="0.01"
+              min={0}
               value={form.price ?? 0}
               onChange={(e) => setForm({ ...form, price: Number(e.target.value) })}
             />
+            {Number(form.price ?? 0) > 0 ? (
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                הלקוח משלם ₪{prices.customer} (אחרי {Math.round(SITE_DISCOUNT * 100)}% הנחת אתר) ·
+                חבר מועדון ₪{prices.member}
+              </p>
+            ) : (
+              <p className="mt-1 text-[11px] font-medium text-destructive">
+                מחיר 0 — המוצר לא יימכר באתר.
+              </p>
+            )}
           </div>
           <div>
-            <Label>מחיר מבצע</Label>
+            {/* This column is the genuine FORMER price, shown struck through
+                next to what the customer pays (getDisplayOriginal). It was
+                labelled "מחיר מבצע", which reads as the opposite. */}
+            <Label>מחיר קודם — מוצג מחוק (לא חובה)</Label>
             <Input
               type="number"
               step="0.01"
+              min={0}
               value={form.sale_price ?? ""}
               onChange={(e) =>
                 setForm({ ...form, sale_price: e.target.value ? Number(e.target.value) : null })
               }
             />
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              {prices.struck !== null
+                ? `באתר יוצג: ₪${prices.struck} מחוק ליד ₪${prices.customer}`
+                : "יוצג מחוק רק אם הוא גבוה מהמחיר שהלקוח משלם. מלאו רק מחיר קודם אמיתי."}
+            </p>
           </div>
           <div>
             <Label>מק״ט</Label>
@@ -1069,6 +1283,8 @@ function ProductDialog({
           )}
         </div>
 
+        {product && <PriceLog productId={product.id} />}
+
         {/* Sizes. Only for an existing product — variant rows hang off a
             product id, so there is nothing to show before the first save. */}
         {product && (
@@ -1097,17 +1313,9 @@ function ProductDialog({
                 // success toast) and only then reject the product save, leaving
                 // a success toast on top of a half-applied save.
                 const nameOk = (form.name ?? "").trim();
-                const slugOk = (form.slug ?? "").trim();
                 if (!nameOk) return toast.error("יש להזין שם מוצר");
-                if (!slugOk)
-                  return toast.error(
-                    "יש להזין כתובת (Slug) באנגלית — בלעדיה דף המוצר לא יהיה נגיש ללקוחות",
-                  );
-                if (!/^[a-z0-9-]+$/.test(slugOk)) {
-                  return toast.error(
-                    "כתובת ה-Slug חייבת להכיל אותיות אנגליות קטנות, ספרות ומקפים בלבד",
-                  );
-                }
+                const slugError = slugProblem(form.slug ?? "", product?.slug ?? null);
+                if (slugError) return toast.error(slugError);
                 // Commit pending size rows — they are the prices checkout
                 // charges. A failed size write aborts, so the dialog stays open
                 // with the edits intact instead of closing over a partial save.
@@ -1130,6 +1338,46 @@ function ProductDialog({
         })()}
       </DialogFooter>
     </DialogContent>
+  );
+}
+
+const SOURCE_HE: Record<string, string> = {
+  edit: "עריכה",
+  inline: "טבלה",
+  bulk_set: "מחיר אחיד",
+  bulk_pct: "שינוי באחוזים",
+  undo: "ביטול",
+};
+
+/** The product's last few logged price changes (product_price_changes). */
+function PriceLog({ productId }: { productId: string }) {
+  const load = useServerFn(productPriceHistory);
+  const { data: rows = [] } = useQuery({
+    queryKey: ["admin-price-log", productId],
+    queryFn: () => load({ data: { productId } }),
+  });
+  if (rows.length === 0) return null;
+  const money = (v: number | null) => (v === null ? "—" : `₪${Math.round(v)}`);
+  return (
+    <div className="rounded-md border p-3">
+      <p className="mb-2 text-sm font-semibold">שינויי מחיר אחרונים</p>
+      <ul className="space-y-1 text-[12px] text-muted-foreground">
+        {rows.map((r, i) => (
+          <li key={i}>
+            {new Date(r.changedAt).toLocaleString("he-IL", {
+              timeZone: "Asia/Jerusalem",
+              day: "numeric",
+              month: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            })}{" "}
+            · {SOURCE_HE[r.source] ?? r.source} · {money(r.oldPrice)} ← {money(r.newPrice)}
+            {r.oldSalePrice !== r.newSalePrice &&
+              ` · מחיר קודם ${money(r.oldSalePrice)} ← ${money(r.newSalePrice)}`}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
