@@ -31,6 +31,8 @@ import {
   countSelected,
   derivePriceRungs,
   inPriceRung,
+  kippaDiameter,
+  kippaSizeBucket,
   matchesFacets,
   parseAttributeTail,
   parseFacetParam,
@@ -39,6 +41,7 @@ import {
   EMPTY_FACETS,
   FACET_COVERAGE_NOTE,
   FACET_LABELS,
+  KIPPA_SIZE_BUCKETS,
   SHIPPING_NOTE,
   type FacetGroup,
   type FacetKey,
@@ -369,7 +372,12 @@ const DEFAULT_VIEW: ShelfView = { sort: "shape", rung: null, subs: [], facets: E
 // in structured data with no anchor on the page that claimed them. Deriving both
 // sides from this one function makes them identical by construction; the only
 // way to reintroduce the drift is to stop calling it.
-function shelfCards(products: Row[]): Card[] {
+/** The kippa shelves (/category/kipot and its sub-categories) get a size
+ *  facet of diameter RANGES — see kippaSizeBucket in src/lib/facets.ts. */
+const isKippaShelf = (slug: string, parentSlug: string | null | undefined) =>
+  slug === "kipot" || parentSlug === "kipot";
+
+function shelfCards(products: Row[], opts: { kippa?: boolean } = {}): Card[] {
   // Collapse same-name models into one tile. The supplier reuses one generic
   // name across many distinct SKUs (43 × 'נטלה מהודרת מפולימר 14 ס"מ'), so a
   // category renders dozens of identical-looking cards. Every row is a real
@@ -389,8 +397,20 @@ function shelfCards(products: Row[]): Card[] {
   // Parsing the attribute tail here rather than in the render path means it
   // happens once per product per load instead of once per product per tap on a
   // facet chip.
+  //
+  // On a kippa shelf the size chip is the diameter RANGE, read from the tail
+  // or, failing that, from the name — the only change `opts.kippa` makes.
+  // head() and the loader call this without it: they order and count cards and
+  // never read `attrs`, so their output is identical either way.
   return collapseSameName(
-    products.map((p) => ({ ...p, attrs: parseAttributeTail(p.short_description) })),
+    products.map((p) => {
+      const attrs = parseAttributeTail(p.short_description);
+      if (!opts.kippa) return { ...p, attrs };
+      const bucket = kippaSizeBucket(kippaDiameter(p.name, attrs?.s));
+      const { s: _raw, ...rest } = attrs ?? {};
+      const next: ProductAttributes = bucket ? { ...rest, s: bucket } : rest;
+      return { ...p, attrs: next.m || next.c || next.s ? next : undefined };
+    }),
   );
 }
 
@@ -451,6 +471,7 @@ function shelfControls(
   cards: Card[],
   rows: Row[],
   children: Array<{ slug: string; name: string }>,
+  sizeOrder?: readonly string[],
 ): {
   rungs: PriceRung[];
   groups: FacetGroup[];
@@ -458,7 +479,7 @@ function shelfControls(
   subs: Array<{ slug: string; name: string; count: number }>;
 } {
   const rungs = derivePriceRungs(cards.map((c) => c.price));
-  const groups = buildFacetGroups(cards);
+  const groups = buildFacetGroups(cards, sizeOrder);
 
   // Tallied over the UNCOLLAPSED rows, not over `cards`.
   //
@@ -1080,13 +1101,14 @@ function CategoryPage() {
   );
 
   // The whole collapsed shelf, once. Everything below is a view of it.
-  const cards = useMemo(() => shelfCards(products as Row[]), [products]);
+  const kippa = isKippaShelf(slug, cat?.parent_slug);
+  const cards = useMemo(() => shelfCards(products as Row[], { kippa }), [products, kippa]);
 
   // Which controls this shelf earns — derived from the UNFILTERED shelf, so a
   // count is a fact about the shelf and a chip can never read 0.
   const controls = useMemo(
-    () => shelfControls(cards, products as Row[], children),
-    [cards, products, children],
+    () => shelfControls(cards, products as Row[], children, kippa ? KIPPA_SIZE_BUCKETS : undefined),
+    [cards, products, children, kippa],
   );
 
   // Normalise the URL against what the shelf actually offers. An unknown value

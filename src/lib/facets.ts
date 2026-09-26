@@ -279,6 +279,63 @@ export function parseAttributeTail(text: string | null | undefined): ProductAttr
   return attrs.m || attrs.c || attrs.s ? attrs : undefined;
 }
 
+/* ------------------------------ kippa diameter ----------------------------- */
+
+/**
+ * The kippa shelves' size facet: four diameter ranges instead of the
+ * supplier's raw phrase.
+ *
+ * WHY. On /category/kipot the generic size facet offered the supplier strings
+ * verbatim, and a kippa is round, so the supplier wrote its one dimension three
+ * ways: 'אורך 16 ס"מ' (43), 'רוחב 16 ס"מ' (10) and 'אורך 16 ס"מ, רוחב 16 ס"מ'
+ * (2) were three separate chips for the same size, and MAX_BUCKETS cut the
+ * rest. Only 419 of the 743 kippot carry the tail at all — but 513 state the
+ * diameter in the NAME ('כיפה ד.מ.צ. אפור 18 ס"מ'), and 590 have one or the
+ * other (measured live 2026-09-25). The kippa guide tells shoppers to choose
+ * by the cm figure; this is the control that lets them.
+ *
+ * The ranges follow the shelf's own distribution (p10 16, median 18.5, p90 22;
+ * 64% between 17 and 20), so each chip holds a real share of it. Labels use an
+ * ASCII hyphen — see the RTL note at the top of this file.
+ */
+export const KIPPA_SIZE_BUCKETS = ['עד 16 ס"מ', '17-18 ס"מ', '19-20 ס"מ', '21 ס"מ ומעלה'] as const;
+
+/** A kippa is 10-30 cm across. Anything else in the text is not its diameter
+ *  (the shelf also carries three tallit-sized rows at 63 by 155 cm). */
+const KIPPA_MIN_CM = 10;
+const KIPPA_MAX_CM = 30;
+
+function firstCm(text: string | null | undefined): number | undefined {
+  if (!text) return undefined;
+  const t = tidy(text);
+  for (const m of t.matchAll(/(\d{1,2}(?:\.\d)?)\s*ס"מ/g)) {
+    const n = Number(m[1]);
+    if (n >= KIPPA_MIN_CM && n <= KIPPA_MAX_CM) return n;
+  }
+  return undefined;
+}
+
+/**
+ * The diameter of one kippa, from the supplier's size tail first (it is the
+ * structured field) and the product name second. Undefined when neither says.
+ */
+export function kippaDiameter(
+  name: string | null | undefined,
+  sizeTail?: string,
+): number | undefined {
+  return firstCm(sizeTail) ?? firstCm(name);
+}
+
+/** The range chip a diameter belongs to. Half-sizes round to the nearer
+ *  label: 16.5 is "17-18", 18.5 is "19-20". */
+export function kippaSizeBucket(cm: number | undefined): string | undefined {
+  if (cm === undefined || !Number.isFinite(cm)) return undefined;
+  if (cm < 16.5) return KIPPA_SIZE_BUCKETS[0];
+  if (cm < 18.5) return KIPPA_SIZE_BUCKETS[1];
+  if (cm < 20.5) return KIPPA_SIZE_BUCKETS[2];
+  return KIPPA_SIZE_BUCKETS[3];
+}
+
 /** A bucket must be worth tapping AND must leave something out. */
 const MIN_BUCKET = 2;
 const MAX_BUCKETS = 10;
@@ -295,7 +352,12 @@ const MAX_BUCKETS = 10;
  *   3. a group with fewer than two surviving buckets is dropped entirely.
  * A chip whose count is 0 can therefore never be emitted.
  */
-export function buildFacetGroups(rows: Array<{ attrs?: ProductAttributes }>): FacetGroup[] {
+export function buildFacetGroups(
+  rows: Array<{ attrs?: ProductAttributes }>,
+  /** An explicit order for the size chips (ranges read smallest-first, not
+   *  by count). Values not listed keep the count order after the listed ones. */
+  sizeOrder?: readonly string[],
+): FacetGroup[] {
   const total = rows.length;
   const tally: Record<FacetKey, Map<string, number>> = { m: new Map(), c: new Map(), s: new Map() };
   const bump = (k: FacetKey, v: string) => tally[k].set(v, (tally[k].get(v) ?? 0) + 1);
@@ -314,7 +376,14 @@ export function buildFacetGroups(rows: Array<{ attrs?: ProductAttributes }>): Fa
       label: FACET_LABELS[key],
       buckets: [...tally[key].entries()]
         .filter(([, n]) => n >= MIN_BUCKET && n < total)
-        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "he"))
+        .sort((a, b) => {
+          if (key === "s" && sizeOrder) {
+            const ia = sizeOrder.indexOf(a[0]);
+            const ib = sizeOrder.indexOf(b[0]);
+            if (ia !== ib) return (ia < 0 ? Infinity : ia) - (ib < 0 ? Infinity : ib);
+          }
+          return b[1] - a[1] || a[0].localeCompare(b[0], "he");
+        })
         .slice(0, MAX_BUCKETS)
         .map(([value, count]) => ({ value, count })),
     }))
