@@ -17,6 +17,7 @@ import { CategoryTile } from "@/components/home/CategoryTile";
 import { OccasionTile } from "@/components/home/OccasionTile";
 import { Reveal } from "@/components/Reveal";
 import { OCCASION_COLLECTIONS } from "@/lib/collections";
+import { seasonalOrder, type SeasonalSlot } from "@/lib/holiday-season";
 import { GUIDES } from "@/lib/guide-links";
 import {
   BUSINESS,
@@ -357,7 +358,14 @@ export const Route = createFileRoute("/")({
       settle(fetchGroomThumbPrices()),
       settle(fetchGiftPicks()),
     ]);
-    return { otherCats, featuredProducts, reviews, groomPrices, giftPicks };
+    // The occasion rail's order for today (the coming holiday first), decided
+    // here on the server and carried in loader data so the client renders the
+    // exact same order it hydrates. See src/lib/holiday-season.ts.
+    const occasionOrder: SeasonalSlot[] = seasonalOrder(
+      OCCASION_COLLECTIONS.map((c) => c.slug),
+      Date.now(),
+    );
+    return { otherCats, featuredProducts, reviews, groomPrices, giftPicks, occasionOrder };
   },
   head: () => ({
     meta: [
@@ -866,7 +874,16 @@ function prefersReducedMotion() {
 }
 
 function HomePage() {
-  const { otherCats, featuredProducts, reviews, groomPrices, giftPicks } = Route.useLoaderData();
+  const { otherCats, featuredProducts, reviews, groomPrices, giftPicks, occasionOrder } =
+    Route.useLoaderData();
+  const occasions = (occasionOrder ?? OCCASION_COLLECTIONS.map((c) => ({ slug: c.slug })))
+    .map((slot: SeasonalSlot) => {
+      const c = OCCASION_COLLECTIONS.find((x) => x.slug === slot.slug);
+      return c ? { c, label: slot.label } : null;
+    })
+    .filter(
+      (x): x is { c: (typeof OCCASION_COLLECTIONS)[number]; label: string | undefined } => !!x,
+    );
 
   const heroVideoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -1630,8 +1647,11 @@ function HomePage() {
             mdGap="md:gap-5"
             className="max-w-6xl mx-auto"
           >
-            {OCCASION_COLLECTIONS.map((c) => (
-              <OccasionTile key={c.slug} c={c} />
+            {/* Ordered for the season: the coming holiday's hub leads, with
+                "לקראת חנוכה" as its eyebrow (holiday-season.ts). Same seven
+                tiles, so the grid nudges above still hold. */}
+            {occasions.map(({ c, label }) => (
+              <OccasionTile key={c.slug} c={c} eyebrow={label} />
             ))}
           </MobileCarousel>
         </Reveal>
