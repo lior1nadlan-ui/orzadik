@@ -59,6 +59,11 @@ export const GUIDES: Record<string, GuideRef> = {
     title: "איך בוחרים כיפה",
     blurb: "קטיפה, סרוגה, DMC או פריק — ההבדלים, המידות והטיפול.",
   },
+  "natla-guide": {
+    slug: "natla-guide",
+    title: "איך בוחרים נטלה",
+    blurb: "מה נדרש מהכלי, איזה חומר וגודל, ומה זה מים אחרונים.",
+  },
 };
 
 /**
@@ -95,6 +100,8 @@ export const CATEGORY_GUIDES: Record<string, string[]> = {
   // עור, מיוחדות, סרוגות עם רקמה, סיכות) have parent_slug 'kipot', so this one
   // entry reaches the store's largest line: 743 products, previously no guide.
   kipot: ["kippa-guide"],
+  // נטילת ידיים ומים אחרונים — 267 products, a flat category (no children).
+  "netilat-yadaim": ["natla-guide"],
 };
 
 /** Reverse: guide → the categories worth sending a reader to. */
@@ -108,6 +115,7 @@ export const GUIDE_CATEGORIES: Record<string, string[]> = {
   "hanukkia-guide": ["hanukkah", "chagim"],
   // The three shelves the guide spends most words on.
   "kippa-guide": ["kipot-srugot", "kipot-ktifa", "kipot-dmc-avodat-yad"],
+  "natla-guide": ["netilat-yadaim"],
 };
 
 /**
@@ -154,6 +162,8 @@ export const GUIDE_OCCASIONS: Record<string, string[]> = {
   "hanukkia-guide": ["matanot-hanukkah"],
   // Its own "כיפה לאירוע" section names בר מצווה and חתונה.
   "kippa-guide": ["bar-mitzva", "chatan-kala"],
+  // Its own gift line names חתונה and חנוכת בית.
+  "natla-guide": ["bait-chadash", "chatan-kala"],
 };
 
 /** What a guide's occasion CTA needs to render one link. */
@@ -178,7 +188,8 @@ export const GUIDE_CLUSTERS: string[][] = [
   // The bar-mitzva set: tallit, tefillin and kippa are bought together.
   ["bechira-talit", "tefillin-guide", "kippa-guide"],
   ["kiddush-cup-guide", "hanukkia-guide"],
-  ["mezuza-guide"],
+  // The home: what goes on the doorpost and by the sink.
+  ["mezuza-guide", "natla-guide"],
 ];
 
 type CatNode = { slug: string; parent_slug?: string | null };
