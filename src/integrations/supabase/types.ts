@@ -822,6 +822,56 @@ export type Database = {
           },
         ]
       }
+      product_price_changes: {
+        Row: {
+          batch_id: string | null
+          changed_at: string
+          changed_by: string | null
+          id: number
+          new_price: number | null
+          new_sale_price: number | null
+          old_price: number | null
+          old_sale_price: number | null
+          product_id: string
+          source: string
+          undone_by_batch: string | null
+        }
+        Insert: {
+          batch_id?: string | null
+          changed_at?: string
+          changed_by?: string | null
+          id?: never
+          new_price?: number | null
+          new_sale_price?: number | null
+          old_price?: number | null
+          old_sale_price?: number | null
+          product_id: string
+          source?: string
+          undone_by_batch?: string | null
+        }
+        Update: {
+          batch_id?: string | null
+          changed_at?: string
+          changed_by?: string | null
+          id?: never
+          new_price?: number | null
+          new_sale_price?: number | null
+          old_price?: number | null
+          old_sale_price?: number | null
+          product_id?: string
+          source?: string
+          undone_by_batch?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_price_changes_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_variants: {
         Row: {
           created_at: string
@@ -1069,6 +1119,33 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_recent_price_batches: {
+        Args: { p_limit?: number }
+        Returns: {
+          batch_id: string
+          changed_at: string
+          new_total: number
+          old_total: number
+          products: number
+          sample: string
+          source: string
+          undone: number
+        }[]
+      }
+      admin_set_product_prices: {
+        Args: {
+          p_actor: string
+          p_ids: string[]
+          p_mode: string
+          p_source: string
+          p_value: number
+        }
+        Returns: { batch_id: string; skipped: number; updated: number }[]
+      }
+      admin_undo_price_batch: {
+        Args: { p_actor: string; p_batch: string }
+        Returns: { batch_id: string; restored: number; skipped: number }[]
+      }
       canonical_product_slug: { Args: { p_slug: string }; Returns: string }
       claim_campaign_recipients: {
         Args: { p_campaign_id: string; p_limit: number }
