@@ -980,10 +980,15 @@ const NEW_PRODUCT: Partial<Product> = {
   track_stock: false,
 };
 
-/** "שכפל": a new product pre-filled from an existing one, minus its identity. */
+/**
+ * "שכפל": a new product pre-filled from an existing one, minus its identity.
+ * The name is kept as is on purpose: products with the same name are grouped
+ * as models of one product (name_norm → list_products_collapsed and
+ * list_product_models), which is what a copy in another colour should be.
+ */
 function duplicateSeed(t: Product): Partial<Product> {
   return {
-    name: `${t.name} (עותק)`,
+    name: t.name,
     slug: "",
     price: t.price,
     sale_price: t.sale_price,
@@ -1120,6 +1125,13 @@ function ProductDialog({
                 setForm((prev) => ({ ...prev, name }));
               }}
             />
+            {template && (
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                {(form.name ?? "").trim() === template.name.trim()
+                  ? "שם זהה למוצר המקורי — באתר יוצג כדגם נוסף שלו (למשל צבע אחר)."
+                  : "שם שונה — באתר יוצג ככרטיס מוצר נפרד."}
+              </p>
+            )}
           </div>
           <div>
             <Label>Slug *</Label>
