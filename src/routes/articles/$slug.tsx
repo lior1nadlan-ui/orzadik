@@ -20,7 +20,7 @@ import { toast } from "sonner";
 // during SSR, so this route shipped NO body HTML to crawlers at all.
 import { sanitizeHtml } from "@/lib/sanitize-html";
 import { guideFaq, faqJsonLd } from "@/lib/guide-faq";
-import { occasionsForGuide } from "@/lib/guide-links";
+import { occasionsForGuide, orderByTopic } from "@/lib/guide-links";
 
 // Named/numeric HTML entities present in stored article HTML. Measured across
 // the five live guides: kiddush-cup-guide's body_html carries 11 literal
@@ -301,13 +301,13 @@ export const Route = createFileRoute("/articles/$slug")({
     // Fallback related articles — turns dead-ends into hubs. `category_id` is
     // NULL for every seeded article, so the category query above returns nothing
     // and the guide previously ended with no onward reading. When fewer than two
-    // usable links come back (no category, or a thin one), top up from the most
-    // recent OTHER published articles. Recency is an honest ordering — no
-    // fabricated "popular"/"related" claim — and every link is a real, published
-    // page, so a reader always has a next step to another guide.
+    // usable links come back (no category, or a thin one), top up from the OTHER
+    // published articles: first the guide's topical siblings (GUIDE_CLUSTERS,
+    // via orderByTopic), then the most recent. Both are honest orderings — no
+    // fabricated "popular" claim — and every link is a real, published page.
     const usable = relatedArticles.filter((ra) => ra.id !== article.id);
     if (usable.length < 2) {
-      const recent = await fetchArticlesWithRetry();
+      const recent = orderByTopic(article.slug, await fetchArticlesWithRetry());
       const seen = new Set(usable.map((ra) => ra.id));
       seen.add(article.id);
       for (const ra of recent) {
