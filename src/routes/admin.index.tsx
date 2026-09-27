@@ -9,6 +9,9 @@ import { Button } from "@/components/ui/button";
 import { ActionCockpit } from "@/components/admin/ActionCockpit";
 import { pct, type Funnel } from "@/lib/funnel";
 import { getSystemHealth } from "@/lib/system-health.functions";
+import { listPromotions } from "@/lib/admin-promotions.functions";
+import { STATUS_LABEL, scopeSummary } from "@/lib/admin-promotions";
+import { formatPromoEnd } from "@/lib/promotions";
 
 export const Route = createFileRoute("/admin/")({
   component: AdminHome,
@@ -166,6 +169,8 @@ function AdminHome() {
           </Link>
         ))}
       </div>
+
+      <PromotionsCard />
 
       {/* Abandoned carts KPI + catalog health */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -581,6 +586,77 @@ function FunnelCard({ f }: { f: Funnel }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Promotions at a glance: what is live or scheduled, until when, and what each
+ * has sold (paid orders whose lines carry its promotion_id). Shares its query
+ * with /admin/promotions, so a change there shows here without a refetch.
+ */
+function PromotionsCard() {
+  const load = useServerFn(listPromotions);
+  const { data } = useQuery({
+    queryKey: ["admin-promotions"],
+    queryFn: () => load(),
+    staleTime: 60_000,
+  });
+  if (!data) return null;
+  const current = data
+    .filter((p) => p.status === "active" || p.status === "scheduled")
+    .sort((a, b) => (a.status === b.status ? 0 : a.status === "active" ? -1 : 1));
+  const shown = current.slice(0, 3);
+  const soldAll = data.reduce((n, p) => n + p.revenue, 0);
+
+  return (
+    <div className="rounded-lg border bg-card p-5">
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-sm font-semibold">מבצעים</div>
+        <Link to="/admin/promotions" className="text-xs text-primary underline underline-offset-4">
+          {current.length > 0 ? "לניהול המבצעים ←" : "מבצע חדש ←"}
+        </Link>
+      </div>
+      {shown.length === 0 ? (
+        <p className="mt-2 text-sm text-muted-foreground">
+          אין מבצע פעיל או מתוכנן.
+          {soldAll > 0 ? ` מבצעים קודמים הכניסו עד היום ${formatILS(soldAll)}.` : ""}
+        </p>
+      ) : (
+        <ul className="mt-3 divide-y">
+          {shown.map((p) => (
+            <li key={p.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm">
+              <span
+                dir="ltr"
+                className="rounded bg-rose-100 px-1.5 py-0.5 text-xs font-bold text-rose-800"
+              >
+                -{p.percent_off}%
+              </span>
+              <span className="font-medium">{p.name}</span>
+              <span className="text-xs text-muted-foreground">
+                {scopeSummary(p)}
+                {p.product_count != null ? ` · ${p.product_count} מוצרים` : ""}
+              </span>
+              <span
+                className={`text-xs ${p.status === "active" ? "text-emerald-700" : "text-sky-700"}`}
+              >
+                {STATUS_LABEL[p.status]}
+                {p.status === "active"
+                  ? ` עד ${formatPromoEnd(p.ends_at)}`
+                  : ` מ-${formatPromoEnd(p.starts_at)}`}
+              </span>
+              <span className="ms-auto text-xs text-muted-foreground">
+                {p.paid_orders > 0
+                  ? `${p.paid_orders} הזמנות · ${formatILS(p.revenue)}`
+                  : "עוד אין הזמנות"}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {current.length > shown.length ? (
+        <p className="mt-1 text-xs text-muted-foreground">ועוד {current.length - shown.length}</p>
+      ) : null}
     </div>
   );
 }

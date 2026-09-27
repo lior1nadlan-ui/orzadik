@@ -1202,6 +1202,33 @@ export type Database = {
           promotion_id: string
         }[]
       }
+      active_promotions_public: {
+        Args: never
+        Returns: {
+          badge_label: string | null
+          categories: Json
+          ends_at: string
+          id: string
+          percent_off: number
+          scope: string
+        }[]
+      }
+      list_promotion_products: {
+        Args: { p_limit?: number }
+        Returns: {
+          id: string
+          model_count: number
+          model_price_max: number
+          name: string
+          percent_off: number
+          price: number
+          sale_price: number | null
+          slug: string
+          stock_status: string
+          thumbnail_url: string | null
+          total_count: number
+        }[]
+      }
       admin_recent_price_batches: {
         Args: { p_limit?: number }
         Returns: {
