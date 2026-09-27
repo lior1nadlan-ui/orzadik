@@ -17,11 +17,14 @@ export function CategoryPicker({
   selected,
   onToggle,
   loading,
+  emptyNote = "לא נבחרה קטגוריה — מוצר בלי קטגוריה לא יופיע בדפי הקטגוריות באתר.",
 }: {
   categories: CategoryNode[];
   selected: Set<string>;
   onToggle: (id: string) => void;
   loading?: boolean;
+  /** What to say while nothing is chosen. The default is the product form's warning. */
+  emptyNote?: string;
 }) {
   const [query, setQuery] = useState("");
   const options = useMemo(() => categoryOptions(categories), [categories]);
@@ -49,9 +52,7 @@ export function CategoryPicker({
         </div>
       ) : (
         !loading && (
-          <p className="text-[11px] font-medium text-amber-800 dark:text-amber-300">
-            לא נבחרה קטגוריה — מוצר בלי קטגוריה לא יופיע בדפי הקטגוריות באתר.
-          </p>
+          <p className="text-[11px] font-medium text-amber-800 dark:text-amber-300">{emptyNote}</p>
         )
       )}
 

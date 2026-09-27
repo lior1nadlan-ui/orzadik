@@ -19,6 +19,7 @@ import {
   Star,
   Users,
   Mail,
+  BadgePercent,
   Send,
   Store,
   Activity,
@@ -48,6 +49,7 @@ const items = [
   { to: "/admin/orders", label: "הזמנות", icon: ShoppingBag },
   { to: "/admin/customers", label: "לקוחות", icon: Users },
   { to: "/admin/abandoned", label: "עגלות נטושות", icon: ShoppingCart },
+  { to: "/admin/promotions", label: "מבצעים", icon: BadgePercent },
   { to: "/admin/campaigns", label: "דיוור", icon: Mail },
   { to: "/admin/reviews", label: "חוות דעת", icon: Star },
   // Reachable only by typing the URL until now — a settings screen nothing
