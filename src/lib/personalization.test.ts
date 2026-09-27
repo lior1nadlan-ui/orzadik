@@ -91,6 +91,10 @@ describe("personalization gate functions", () => {
   });
 
   it("still honours the per-product opt-out", () => {
+    // A nickel tallit clip filed under the atara / pvc-bags shelves.
+    expect(isPersonalizableProduct("קליפסים-לטלית-חושן-ניקל-9-סמ", ["atara", "pvc-bags"])).toBe(
+      false,
+    );
     expect(isPersonalizableProduct("artj-uk44978", ["tikei-talit"])).toBe(false);
     expect(isPersonalizableProduct("some-other-bag", ["tikei-talit"])).toBe(true);
   });

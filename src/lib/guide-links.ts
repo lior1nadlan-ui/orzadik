@@ -84,6 +84,11 @@ export const GUIDES: Record<string, GuideRef> = {
     title: "איך בוחרים סט הבדלה",
     blurb: "מה יש בסט, איזה נר ואילו בשמים, ולמה צריך מגש.",
   },
+  "personalization-guide": {
+    slug: "personalization-guide",
+    title: "שם אישי: רקמה, הטבעה או חריטה",
+    blurb: "על אילו מוצרים, מה לכתוב, איך בודקים את האיות — ומה קורה אחרי ההזמנה.",
+  },
 };
 
 /**
@@ -96,13 +101,16 @@ export const CATEGORY_GUIDES: Record<string, string[]> = {
   // טלית ותפילין — the parent covers סטים, תיקים and the rest of the branch.
   "talit-tefilin": ["bechira-talit", "tefillin-guide"],
   talitot: ["bechira-talit"],
-  atara: ["bechira-talit"],
+  atara: ["bechira-talit", "personalization-guide"],
   "talit-clips": ["bechira-talit"],
-  "setim-talit-tefilin": ["bechira-talit", "tefillin-guide"],
-  "tikei-talit": ["bechira-talit", "tefillin-guide"],
-  "tefillin-cases": ["tefillin-guide"],
+  // The personalization guide rides third on the two bag shelves: the category
+  // page lists every entry, while the PDP (capped at 2) already links it from
+  // the name box itself.
+  "setim-talit-tefilin": ["bechira-talit", "tefillin-guide", "personalization-guide"],
+  "tikei-talit": ["bechira-talit", "tefillin-guide", "personalization-guide"],
+  "tefillin-cases": ["tefillin-guide", "personalization-guide"],
   "batei-tefilin-marot": ["tefillin-guide"],
-  "talit-tefillin-covers": ["tefillin-guide", "bechira-talit"],
+  "talit-tefillin-covers": ["tefillin-guide", "personalization-guide", "bechira-talit"],
   // מזוזות — parent of the polyresin/plastic/aluminium children.
   plastic: ["mezuza-guide"],
   // גביעי קידוש — parent of the crystal/metal children.
@@ -118,7 +126,7 @@ export const CATEGORY_GUIDES: Record<string, string[]> = {
   candlesticks: ["pamotim-guide", "kiddush-cup-guide"],
   // Children of `shabbat`, which until now sent them to the kiddush-cup guide:
   // כיסויי חלה (128) and מגשי חלה, מפיונים ותחתיות (79).
-  "challah-covers": ["challah-guide"],
+  "challah-covers": ["challah-guide", "personalization-guide"],
   "karshei-chala-sakinim": ["challah-guide"],
   // חנוכה sits under chagim; chagim itself stays unmapped because it also holds
   // Pesach and Rosh Hashana, for which no guide exists yet.
@@ -131,6 +139,12 @@ export const CATEGORY_GUIDES: Record<string, string[]> = {
   "netilat-yadaim": ["natla-guide"],
   // ברכונים — 91 products, a flat top-level category (no parent, no children).
   birchonim: ["birchon-guide"],
+  // Shelves whose main buying question is the name on the item: סידורים (79,
+  // הטבעה or laser; no siddur guide yet — see the backlog), סטים לחלאקה (40)
+  // and מארזים לחתן (11).
+  sidurim: ["personalization-guide"],
+  "chalaka-set": ["personalization-guide"],
+  "marazim-chatanim": ["personalization-guide"],
 };
 
 /** Reverse: guide → the categories worth sending a reader to. */
@@ -149,6 +163,8 @@ export const GUIDE_CATEGORIES: Record<string, string[]> = {
   "pamotim-guide": ["candlesticks"],
   "challah-guide": ["challah-covers", "karshei-chala-sakinim"],
   "havdalah-guide": ["havdalah"],
+  // The three shelves the guide names first, then the siddurim it explains.
+  "personalization-guide": ["setim-talit-tefilin", "tikei-talit", "challah-covers", "sidurim"],
 };
 
 /**
@@ -208,6 +224,8 @@ export const GUIDE_OCCASIONS: Record<string, string[]> = {
   "challah-guide": ["bait-chadash", "chatan-kala"],
   // Its gift section names חנוכת בית and a young couple.
   "havdalah-guide": ["bait-chadash", "chatan-kala"],
+  // Its "מה לכתוב" section is organised by these three events.
+  "personalization-guide": ["bar-mitzva", "chatan-kala", "chalaka"],
 };
 
 /** What a guide's occasion CTA needs to render one link. */
@@ -230,7 +248,8 @@ export function occasionsForGuide(guideSlug: string): OccasionRef[] {
 /** Topically related guides, for the "מאמרים נוספים" block. */
 export const GUIDE_CLUSTERS: string[][] = [
   // The bar-mitzva set: tallit, tefillin and kippa are bought together.
-  ["bechira-talit", "tefillin-guide", "kippa-guide"],
+  // The name guide sits after tefillin: it is mostly about the bags.
+  ["bechira-talit", "tefillin-guide", "personalization-guide", "kippa-guide"],
   // The table, in an order where neighbours are the closest topics — see
   // relatedGuides(): kiddush sits between havdalah (the other cup) and the
   // candlesticks, the challah between the candlesticks and the birchonim.
