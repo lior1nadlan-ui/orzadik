@@ -79,6 +79,11 @@ export const GUIDES: Record<string, GuideRef> = {
     title: "כיסוי חלה ומגש לחלה",
     blurb: "איזה גודל מכסה שתי חלות, דמוי עור או בד, זכוכית או עץ — ולמה מלח.",
   },
+  "havdalah-guide": {
+    slug: "havdalah-guide",
+    title: "איך בוחרים סט הבדלה",
+    blurb: "מה יש בסט, איזה נר ואילו בשמים, ולמה צריך מגש.",
+  },
 };
 
 /**
@@ -107,7 +112,8 @@ export const CATEGORY_GUIDES: Record<string, string[]> = {
   // שבת — the kiddush cup and the candlesticks are the two decisions most
   // shoppers here are making.
   shabbat: ["kiddush-cup-guide", "pamotim-guide"],
-  havdalah: ["kiddush-cup-guide"],
+  // הבדלה — 111 products; borrowed the kiddush-cup guide until its own existed.
+  havdalah: ["havdalah-guide", "kiddush-cup-guide"],
   // פמוטים — 263 products; borrowed the kiddush-cup guide until its own existed.
   candlesticks: ["pamotim-guide", "kiddush-cup-guide"],
   // Children of `shabbat`, which until now sent them to the kiddush-cup guide:
@@ -142,6 +148,7 @@ export const GUIDE_CATEGORIES: Record<string, string[]> = {
   "birchon-guide": ["birchonim"],
   "pamotim-guide": ["candlesticks"],
   "challah-guide": ["challah-covers", "karshei-chala-sakinim"],
+  "havdalah-guide": ["havdalah"],
 };
 
 /**
@@ -199,6 +206,8 @@ export const GUIDE_OCCASIONS: Record<string, string[]> = {
   // Its gift section names חתונה and חנוכת בית; bait-chadash stocks
   // challah-covers directly.
   "challah-guide": ["bait-chadash", "chatan-kala"],
+  // Its gift section names חנוכת בית and a young couple.
+  "havdalah-guide": ["bait-chadash", "chatan-kala"],
 };
 
 /** What a guide's occasion CTA needs to render one link. */
@@ -222,8 +231,17 @@ export function occasionsForGuide(guideSlug: string): OccasionRef[] {
 export const GUIDE_CLUSTERS: string[][] = [
   // The bar-mitzva set: tallit, tefillin and kippa are bought together.
   ["bechira-talit", "tefillin-guide", "kippa-guide"],
-  // The table: what stands on it for kiddush, for Hanukkah and after the meal.
-  ["kiddush-cup-guide", "pamotim-guide", "challah-guide", "hanukkia-guide", "birchon-guide"],
+  // The table, in an order where neighbours are the closest topics — see
+  // relatedGuides(): kiddush sits between havdalah (the other cup) and the
+  // candlesticks, the challah between the candlesticks and the birchonim.
+  [
+    "hanukkia-guide",
+    "havdalah-guide",
+    "kiddush-cup-guide",
+    "pamotim-guide",
+    "challah-guide",
+    "birchon-guide",
+  ],
   // The home: what goes on the doorpost and by the sink.
   ["mezuza-guide", "natla-guide"],
 ];
@@ -283,11 +301,37 @@ export function categoriesForGuide(guideSlug: string): string[] {
   return GUIDE_CATEGORIES[guideSlug] ?? [];
 }
 
-/** Sibling guides in the same topical cluster, excluding the current one. */
+/**
+ * Sibling guides in the same topical cluster, excluding the current one,
+ * nearest first: clusters are written so that neighbours are the closest
+ * topics, and ties keep the written order.
+ */
 export function relatedGuides(guideSlug: string): GuideRef[] {
   const cluster = GUIDE_CLUSTERS.find((c) => c.includes(guideSlug)) ?? [];
+  const at = cluster.indexOf(guideSlug);
   return cluster
-    .filter((g) => g !== guideSlug)
-    .map((g) => GUIDES[g])
+    .map((g, i) => ({ g, d: Math.abs(i - at), i }))
+    .filter(({ g }) => g !== guideSlug)
+    .sort((a, b) => a.d - b.d || a.i - b.i)
+    .map(({ g }) => GUIDES[g])
     .filter(Boolean);
+}
+
+/**
+ * The order for a guide's "מאמרים נוספים": its topical siblings first
+ * (relatedGuides), then every other article in the order given — the article
+ * route passes them newest first. Until this, GUIDE_CLUSTERS was not read
+ * anywhere and the block showed the two most recent articles whatever the
+ * topic, so a reader of the havdalah guide was offered kippot.
+ */
+export function orderByTopic<T extends { slug: string }>(guideSlug: string, articles: T[]): T[] {
+  const siblings = relatedGuides(guideSlug).map((g) => g.slug);
+  const rank = (slug: string) => {
+    const r = siblings.indexOf(slug);
+    return r === -1 ? siblings.length : r;
+  };
+  return articles
+    .map((a, i) => ({ a, i }))
+    .sort((x, y) => rank(x.a.slug) - rank(y.a.slug) || x.i - y.i)
+    .map(({ a }) => a);
 }
