@@ -94,6 +94,24 @@ export const GUIDES: Record<string, GuideRef> = {
     title: "ברכת הבית ועוד ברכות לבית",
     blurb: "איזה טקסט לאיזה מקום, אשר יצר בנוסח שלכם, חומרים, מידות — ואיפה תולים.",
   },
+  // The three below were published 2026-09-01 and linked from nowhere until
+  // 2026-09-27; their bodies were corrected against the shelves the same day
+  // (20260927090000_orphan_guides_honesty.sql).
+  "mechir-talit-bar-mitzva": {
+    slug: "mechir-talit-bar-mitzva",
+    title: "כמה עולה טלית לבר מצווה",
+    blurb: "מה קובע את המחיר — חומר, גודל, ציציות ועטרה — ומה לוודא לפני שמשווים.",
+  },
+  "set-chalaka-madrich": {
+    slug: "set-chalaka-madrich",
+    title: "סט חלאקה: מה יש בו ומתי להזמין",
+    blurb: 'מה יש בסטים, איך משווים ביניהם, שם הילד — ולמה כדאי להקדים לפני ל"ג בעומר.',
+  },
+  "karit-labrit-madrich": {
+    slug: "karit-labrit-madrich",
+    title: "כרית לברית: איך בוחרים",
+    blurb: "דמוי עור או סאטן, איזה גודל, מה כתוב עליה — ולמה מזמינים עוד לפני הלידה.",
+  },
 };
 
 /**
@@ -105,7 +123,7 @@ export const GUIDES: Record<string, GuideRef> = {
 export const CATEGORY_GUIDES: Record<string, string[]> = {
   // טלית ותפילין — the parent covers סטים, תיקים and the rest of the branch.
   "talit-tefilin": ["bechira-talit", "tefillin-guide"],
-  talitot: ["bechira-talit"],
+  talitot: ["bechira-talit", "mechir-talit-bar-mitzva"],
   atara: ["bechira-talit", "personalization-guide"],
   "talit-clips": ["bechira-talit"],
   // The personalization guide rides third on the two bag shelves: the category
@@ -152,7 +170,9 @@ export const CATEGORY_GUIDES: Record<string, string[]> = {
   // until 2026-09-27. The parent entry reaches its three children (ברכות 235,
   // חמסות 52, סגולות 14) by the parent walk.
   "brachot-chamsot-segulot": ["birkat-habait-guide"],
-  "chalaka-set": ["personalization-guide"],
+  "chalaka-set": ["set-chalaka-madrich", "personalization-guide"],
+  // כרית לברית — pillows and baby gowns for the brit; a flat category.
+  "karit-labrit": ["karit-labrit-madrich"],
   "marazim-chatanim": ["personalization-guide"],
 };
 
@@ -175,6 +195,9 @@ export const GUIDE_CATEGORIES: Record<string, string[]> = {
   // The three shelves the guide names first, then the siddurim it explains.
   "personalization-guide": ["setim-talit-tefilin", "tikei-talit", "challah-covers", "sidurim"],
   "birkat-habait-guide": ["blessings", "chamsot"],
+  "mechir-talit-bar-mitzva": ["talitot", "setim-talit-tefilin"],
+  "set-chalaka-madrich": ["chalaka-set"],
+  "karit-labrit-madrich": ["karit-labrit"],
 };
 
 /**
@@ -238,7 +261,20 @@ export const GUIDE_OCCASIONS: Record<string, string[]> = {
   "personalization-guide": ["bar-mitzva", "chatan-kala", "chalaka"],
   // Its gift section names חנוכת בית first, then the young couple.
   "birkat-habait-guide": ["bait-chadash", "chatan-kala"],
+  // The price of a tallit for exactly this occasion.
+  "mechir-talit-bar-mitzva": ["bar-mitzva"],
+  "set-chalaka-madrich": ["chalaka"],
+  // karit-labrit-madrich: no brit hub exists, and no other occasion fits —
+  // see GUIDES_WITHOUT_OCCASION.
 };
+
+/**
+ * Guides with no occasion hub to send a reader to, on purpose. A brit has no
+ * /collection/ page, and pointing the pillow guide at "bar-mitzva" or
+ * "chalaka" to satisfy the registry test would be a link that answers a
+ * different question.
+ */
+export const GUIDES_WITHOUT_OCCASION = new Set<string>(["karit-labrit-madrich"]);
 
 /** What a guide's occasion CTA needs to render one link. */
 export type OccasionRef = { slug: string; title: string; eyebrow: string };
@@ -261,7 +297,16 @@ export function occasionsForGuide(guideSlug: string): OccasionRef[] {
 export const GUIDE_CLUSTERS: string[][] = [
   // The bar-mitzva set: tallit, tefillin and kippa are bought together.
   // The name guide sits after tefillin: it is mostly about the bags.
-  ["bechira-talit", "tefillin-guide", "personalization-guide", "kippa-guide"],
+  // The tallit-price guide sits next to the tallit guide it builds on.
+  [
+    "bechira-talit",
+    "mechir-talit-bar-mitzva",
+    "tefillin-guide",
+    "personalization-guide",
+    "kippa-guide",
+  ],
+  // The child's milestones before the bar mitzva: the brit, then the chalaka.
+  ["karit-labrit-madrich", "set-chalaka-madrich"],
   // The table, in an order where neighbours are the closest topics — see
   // relatedGuides(): kiddush sits between havdalah (the other cup) and the
   // candlesticks, the challah between the candlesticks and the birchonim.
