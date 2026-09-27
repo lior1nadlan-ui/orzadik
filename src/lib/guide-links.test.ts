@@ -5,6 +5,7 @@ import {
   GUIDE_CATEGORIES,
   GUIDE_CLUSTERS,
   GUIDE_OCCASIONS,
+  GUIDES_WITHOUT_OCCASION,
   relatedGuides,
   orderByTopic,
   occasionsForGuide,
@@ -33,9 +34,27 @@ describe("guide registry", () => {
   it("gives every guide a shelf, an occasion that resolves, and an FAQ", () => {
     for (const slug of Object.keys(GUIDES)) {
       expect(GUIDE_CATEGORIES[slug]?.length ?? 0, slug).toBeGreaterThan(0);
-      expect(occasionsForGuide(slug).length, slug).toBeGreaterThan(0);
+      if (!GUIDES_WITHOUT_OCCASION.has(slug))
+        expect(occasionsForGuide(slug).length, slug).toBeGreaterThan(0);
       expect(guideFaq(slug)?.length ?? 0, slug).toBeGreaterThanOrEqual(3);
     }
+  });
+});
+
+describe("guides without an occasion", () => {
+  it("are real guides that really have none", () => {
+    for (const slug of GUIDES_WITHOUT_OCCASION) {
+      expect(GUIDES[slug], slug).toBeDefined();
+      expect(occasionsForGuide(slug), slug).toEqual([]);
+    }
+  });
+});
+
+describe("the guides linked 2026-09-27", () => {
+  it("reach their shelves from the category pages", () => {
+    expect(guidesForCategory("chalaka-set")[0]?.slug).toBe("set-chalaka-madrich");
+    expect(guidesForCategory("karit-labrit")[0]?.slug).toBe("karit-labrit-madrich");
+    expect(guidesForCategory("talitot").map((g) => g.slug)).toContain("mechir-talit-bar-mitzva");
   });
 });
 
