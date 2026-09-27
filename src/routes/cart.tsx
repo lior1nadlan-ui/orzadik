@@ -21,6 +21,7 @@ import { EmptyCartSuggestions } from "@/components/cart/EmptyCartSuggestions";
 import { CartCrossSell } from "@/components/cart/CartCrossSell";
 import { TrustBadges, instalmentsLine } from "@/components/cart/TrustBadges";
 import { Trash2, Minus, Plus } from "lucide-react";
+import { customMethodLabel } from "@/lib/personalization";
 
 export const Route = createFileRoute("/cart")({
   component: CartPage,
@@ -189,7 +190,7 @@ function CartPage() {
 
                 {item.customText && (
                   <div className="text-xs text-accent mt-1">
-                    ✦ {item.customMethod === "laser" ? "חריטת לייזר" : "רקמה"}: {item.customText}
+                    ✦ {customMethodLabel(item.customMethod)}: {item.customText}
                   </div>
                 )}
 

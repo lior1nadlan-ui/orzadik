@@ -5,6 +5,7 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { CartCrossSellCompact } from "@/components/cart/CartCrossSellCompact";
 import { useCart, formatILS, getEffectivePrice, lineKey } from "@/lib/cart";
+import { customMethodLabel } from "@/lib/personalization";
 
 // -----------------------------------------------------------------------------
 // Mini-cart drawer — the persistent confirmation that replaces the transient
@@ -177,8 +178,7 @@ export function CartDrawer() {
                       )}
                       {item.customText && (
                         <div className="mt-0.5 text-meta text-accent">
-                          ✦ {item.customMethod === "laser" ? "חריטת לייזר" : "רקמה"}:{" "}
-                          {item.customText}
+                          ✦ {customMethodLabel(item.customMethod)}: {item.customText}
                         </div>
                       )}
 

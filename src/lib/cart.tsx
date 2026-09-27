@@ -24,7 +24,12 @@ export {
 import { getEffectivePrice, getDisplayOriginal, getShipping } from "@/lib/pricing";
 import { trackAddToCart } from "@/lib/analytics";
 
-export type CustomMethod = "embroidery" | "laser";
+/**
+ * "print" is the siddurim option the PDP labels "הטבעה". Before it existed that
+ * choice travelled as "embroidery", so the cart, the checkout summary and the
+ * order line all said "רקמה" on a siddur. Label it with customMethodLabel().
+ */
+export type CustomMethod = "embroidery" | "laser" | "print";
 
 export type CartItem = {
   productId: string;
@@ -81,7 +86,7 @@ type CartCtx = {
  * natural way to correct the choice on a page with no "update cart" control —
  * got one line of quantity 2 still labelled רקמה, with nothing saying the laser
  * selection had been dropped. The method is carried all the way to
- * order_items.custom_text as `[רקמה]` / `[לייזר]`, so it reaches the packing
+ * order_items.custom_text as `[רקמה]` / `[הטבעה]` / `[לייזר]`, so it reaches the packing
  * slip and the CardCom invoice line; and personalized goods are the one
  * category the store's own emails say cannot be freely cancelled.
  *

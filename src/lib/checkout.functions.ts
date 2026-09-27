@@ -6,6 +6,7 @@ import { getOptionalUserId } from "@/integrations/supabase/optional-auth";
 import { checkOrderRateLimit, checkOrderRateLimitByIp, getClientIp } from "@/lib/rate-limit.server";
 import { sendOrderCreatedOwnerAlert } from "@/lib/order-emails.server";
 import { recordNewsletterConsent } from "@/lib/newsletter.functions";
+import { orderCustomText } from "@/lib/personalization";
 import {
   SHIPPING_FLAT,
   getEffectivePrice as effectivePrice,
@@ -44,7 +45,7 @@ const CheckoutSchema = z.object({
         quantity: z.number().int().min(1).max(999),
         variant_id: z.string().uuid().optional().nullable(),
         custom_text: z.string().trim().max(120).transform(stripHtml).optional().nullable(),
-        custom_method: z.enum(["embroidery", "laser"]).optional().nullable(),
+        custom_method: z.enum(["embroidery", "laser", "print"]).optional().nullable(),
       }),
     )
     .min(1)
@@ -152,13 +153,7 @@ export const placeOrder = createServerFn({ method: "POST" })
         throw new Error(`מוצר ללא מחיר תקין: ${p.name}`);
       }
       const unit_price = effectivePrice(basePrice);
-      const methodLabel =
-        i.custom_method === "laser" ? "לייזר" : i.custom_method === "embroidery" ? "רקמה" : null;
-      const combinedCustom = i.custom_text
-        ? methodLabel
-          ? `[${methodLabel}] ${i.custom_text}`
-          : i.custom_text
-        : null;
+      const combinedCustom = orderCustomText(i.custom_text, i.custom_method);
       return {
         product_id: p.id,
         product_name: p.name,

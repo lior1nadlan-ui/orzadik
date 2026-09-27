@@ -7,6 +7,8 @@ import {
   isPersonalizableProduct,
   isLaserOnlyName,
   personalizationMethod,
+  customMethodLabel,
+  orderCustomText,
   embroideryLabel,
 } from "./personalization";
 
@@ -139,5 +141,25 @@ describe("talit/tefillin covers after the category rename", () => {
     expect(personalizationMethod(["setim-talit-tefilin"], "סט טלית ותפילין קטיפה")).toBe(
       "embroidery",
     );
+  });
+});
+
+describe("the chosen method, as the cart and the order show it", () => {
+  // A siddur's first option is "הטבעה". It used to travel as "embroidery" and
+  // reach the cart, the checkout summary and the order line as "רקמה".
+  it("names each method in Hebrew", () => {
+    expect(customMethodLabel("print")).toBe("הטבעה");
+    expect(customMethodLabel("laser")).toBe("חריטת לייזר");
+    expect(customMethodLabel("embroidery")).toBe("רקמה");
+    expect(customMethodLabel(undefined)).toBe("רקמה");
+  });
+
+  it("prefixes the order line with the method", () => {
+    expect(orderCustomText("משפחת לוי", "print")).toBe("[הטבעה] משפחת לוי");
+    expect(orderCustomText("יוסף", "laser")).toBe("[לייזר] יוסף");
+    expect(orderCustomText("יוסף", "embroidery")).toBe("[רקמה] יוסף");
+    expect(orderCustomText("יוסף", null)).toBe("יוסף");
+    expect(orderCustomText(null, "laser")).toBeNull();
+    expect(orderCustomText("", "laser")).toBeNull();
   });
 });
