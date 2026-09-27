@@ -127,6 +127,11 @@ export const GUIDES: Record<string, GuideRef> = {
     title: "איך בוחרים שטנדר",
     blurb: "עץ, במבוק או אקריליק, לשולחן או לבית הכנסת — ורימונים ויד לספר תורה.",
   },
+  "tachshitim-guide": {
+    slug: "tachshitim-guide",
+    title: "תכשיטים יהודיים: איך בוחרים",
+    blurb: "כסף 925, נירוסטה או ציפוי — איזה סמל, איזה אורך, ואיך שומרים על התכשיט.",
+  },
 };
 
 /**
@@ -198,6 +203,9 @@ export const CATEGORY_GUIDES: Record<string, string[]> = {
   // מוצרי בית כנסת ושטנדרים — 64 products, a flat top-level category; no
   // guide until 2026-09-27.
   "beit-knesset-shtenderim": ["shtender-guide"],
+  // תכשיטים — 64 products; the parent reaches its three children (כסף טהור,
+  // נרוסטה ורודיום, צמידים טבעות ועגילים) by the parent walk.
+  tachshitim: ["tachshitim-guide"],
   "marazim-chatanim": ["personalization-guide"],
 };
 
@@ -226,6 +234,9 @@ export const GUIDE_CATEGORIES: Record<string, string[]> = {
   "kupat-tzedaka-guide": ["kupot-tzedaka"],
   "machzikei-maftechot-guide": ["machzikei-maftechot-magnetim"],
   "shtender-guide": ["beit-knesset-shtenderim"],
+  // Not tzmidim-tabaot-agilim: 9 of its 13 are retail display stands whose
+  // prices are with the owner (docs/improvement-workflow.md).
+  "tachshitim-guide": ["tachshitei-kesef-tahor", "tachshitei-nirosta-rodium"],
 };
 
 /**
@@ -298,6 +309,9 @@ export const GUIDE_OCCASIONS: Record<string, string[]> = {
   "machzikei-maftechot-guide": ["bar-mitzva", "chatan-kala"],
   // Its gift section leads with בר מצווה.
   "shtender-guide": ["bar-mitzva"],
+  // Its gift section names the bride ("אני לדודי"). No bat-mitzva hub exists,
+  // and bar-mitzva stocks tallit and tefillin, not jewelry.
+  "tachshitim-guide": ["chatan-kala"],
   // karit-labrit-madrich: no brit hub exists, and no other occasion fits —
   // see GUIDES_WITHOUT_OCCASION.
 };
@@ -361,6 +375,7 @@ export const GUIDE_CLUSTERS: string[][] = [
   // אם אשכחך are the same texts, carried instead of hung.
   [
     "mezuza-guide",
+    "tachshitim-guide",
     "machzikei-maftechot-guide",
     "birkat-habait-guide",
     "natla-guide",

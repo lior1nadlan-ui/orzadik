@@ -547,6 +547,32 @@ const GUIDE_FAQ: Record<string, FaqItem[]> = {
   // verse is the one the body cites; not touching the parchment and the
   // yahrzeit candle are stated as custom, the electric-candle question and the
   // rimonim fit are deferred, as the body does.
+  // תכשיטים (20260927140000_article_jewelry_guide.sql). 925 and plating are
+  // explained as materials, not sold; the hamsa is tradition; the mezuzah
+  // pendant is said not to replace a doorpost mezuzah, and the parchment
+  // question is deferred, as the body does.
+  "tachshitim-guide": [
+    {
+      q: "מה ההבדל בין כסף 925 לכסף טהור?",
+      a: 'כסף 925 (כסף סטרלינג) מכיל 92.5% כסף, והשאר מתכת אחרת שמחזקת אותו — זה התקן המקובל לתכשיטים. כסף נקי לגמרי (999) רך מדי לתכשיט. בשמות של תכשיטים רבים כסף 925 נקרא "כסף טהור 925".',
+    },
+    {
+      q: "למה תכשיט כסף משחיר ואיך מנקים אותו?",
+      a: "כסף מגיב עם גופרית באוויר ובעור ומשחיר בהדרגה. מנקים במטלית לניקוי כסף, ושומרים את התכשיט יבש ומכוסה, רחוק מבושם ומכלור.",
+    },
+    {
+      q: "מה ההבדל בין נירוסטה לציפוי רודיום?",
+      a: "נירוסטה (פלדת אל חלד) היא מתכת עמידה שלא מחלידה ולא משחירה. ציפוי רודיום הוא שכבה דקה ומבריקה על מתכת בסיס, שיכולה להישחק עם הזמן — לכן כדאי להוריד תכשיט מצופה לפני מקלחת או בריכה.",
+    },
+    {
+      q: "מה המשמעות של תליון חי?",
+      a: 'המילה "חי" מסמלת חיים, וערכה בגימטריה 18 — ולכן גם נהוג לתת מתנות וסכומים בכפולות של 18.',
+    },
+    {
+      q: "האם תליון בצורת מזוזה מחליף מזוזה?",
+      a: "לא. מזוזה קובעים בפתח הבית, ותליון בצורת מזוזה הוא תכשיט. יש תליונים שאפשר להכניס לתוכם קלף; בשאלות על קלף בתכשיט נהוג לשאול רב.",
+    },
+  ],
   "shtender-guide": [
     {
       q: "מה זה שטנדר?",
