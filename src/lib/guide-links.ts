@@ -89,6 +89,11 @@ export const GUIDES: Record<string, GuideRef> = {
     title: "שם אישי: רקמה, הטבעה או חריטה",
     blurb: "על אילו מוצרים, מה לכתוב, איך בודקים את האיות — ומה קורה אחרי ההזמנה.",
   },
+  "birkat-habait-guide": {
+    slug: "birkat-habait-guide",
+    title: "ברכת הבית ועוד ברכות לבית",
+    blurb: "איזה טקסט לאיזה מקום, אשר יצר בנוסח שלכם, חומרים, מידות — ואיפה תולים.",
+  },
 };
 
 /**
@@ -143,6 +148,10 @@ export const CATEGORY_GUIDES: Record<string, string[]> = {
   // הטבעה or laser; no siddur guide yet — see the backlog), סטים לחלאקה (40)
   // and מארזים לחתן (11).
   sidurim: ["personalization-guide"],
+  // ברכות חמסות וסגולות — 301 products, the largest shelf without a guide
+  // until 2026-09-27. The parent entry reaches its three children (ברכות 235,
+  // חמסות 52, סגולות 14) by the parent walk.
+  "brachot-chamsot-segulot": ["birkat-habait-guide"],
   "chalaka-set": ["personalization-guide"],
   "marazim-chatanim": ["personalization-guide"],
 };
@@ -165,6 +174,7 @@ export const GUIDE_CATEGORIES: Record<string, string[]> = {
   "havdalah-guide": ["havdalah"],
   // The three shelves the guide names first, then the siddurim it explains.
   "personalization-guide": ["setim-talit-tefilin", "tikei-talit", "challah-covers", "sidurim"],
+  "birkat-habait-guide": ["blessings", "chamsot"],
 };
 
 /**
@@ -226,6 +236,8 @@ export const GUIDE_OCCASIONS: Record<string, string[]> = {
   "havdalah-guide": ["bait-chadash", "chatan-kala"],
   // Its "מה לכתוב" section is organised by these three events.
   "personalization-guide": ["bar-mitzva", "chatan-kala", "chalaka"],
+  // Its gift section names חנוכת בית first, then the young couple.
+  "birkat-habait-guide": ["bait-chadash", "chatan-kala"],
 };
 
 /** What a guide's occasion CTA needs to render one link. */
@@ -261,8 +273,9 @@ export const GUIDE_CLUSTERS: string[][] = [
     "challah-guide",
     "birchon-guide",
   ],
-  // The home: what goes on the doorpost and by the sink.
-  ["mezuza-guide", "natla-guide"],
+  // The home: the doorpost, the walls, the sink — the blessings sit between the
+  // other two, since אשר יצר hangs by the bathroom, a step from the natla.
+  ["mezuza-guide", "birkat-habait-guide", "natla-guide"],
 ];
 
 type CatNode = { slug: string; parent_slug?: string | null };

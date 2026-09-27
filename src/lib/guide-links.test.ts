@@ -8,6 +8,8 @@ import {
   relatedGuides,
   orderByTopic,
   occasionsForGuide,
+  guidesForCategory,
+  guidesForCategories,
 } from "./guide-links";
 import { guideFaq } from "./guide-faq";
 
@@ -66,5 +68,21 @@ describe("related guides", () => {
     ]);
     // An article outside every cluster keeps the order it was given.
     expect(orderByTopic("some-news-post", newestFirst)).toEqual(newestFirst);
+  });
+});
+
+describe("the blessings shelf", () => {
+  // 301 products under one parent, with no guide until 2026-09-27. The parent
+  // entry has to reach the children on both paths: the category page climbs
+  // parent_slug, the PDP reads the product's own slugs (the parent included).
+  it("reaches ברכות and חמסות from the parent entry", () => {
+    for (const child of ["blessings", "chamsot", "segulot"]) {
+      expect(guidesForCategory(child, "brachot-chamsot-segulot")[0]?.slug, child).toBe(
+        "birkat-habait-guide",
+      );
+    }
+    expect(guidesForCategories(["blessings", "brachot-chamsot-segulot"])[0]?.slug).toBe(
+      "birkat-habait-guide",
+    );
   });
 });
