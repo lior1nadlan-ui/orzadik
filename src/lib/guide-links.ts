@@ -117,6 +117,11 @@ export const GUIDES: Record<string, GuideRef> = {
     title: "איך בוחרים קופת צדקה",
     blurb: "לבית, לעסק, לבית הכנסת או לילד — חומר, מנעול, חריץ, ומתי נוהגים לתת.",
   },
+  "machzikei-maftechot-guide": {
+    slug: "machzikei-maftechot-guide",
+    title: "מחזיק מפתחות עם משמעות",
+    blurb: "חמסה, תהילים קטן, תפילת הדרך או מזכרת מישראל — ומה עושים כשהוא מתבלה.",
+  },
 };
 
 /**
@@ -181,6 +186,10 @@ export const CATEGORY_GUIDES: Record<string, string[]> = {
   // קופות צדקה — 68 products, a flat top-level category; no guide until
   // 2026-09-27.
   "kupot-tzedaka": ["kupat-tzedaka-guide"],
+  // מחזיקי מפתחות ומגנטים — 198 products, the largest guide-less shelf until
+  // 2026-09-27. The parent reaches its two children (מחזיק מפתחות, מגנטים)
+  // by the parent walk.
+  "machzikei-maftechot-magnetim": ["machzikei-maftechot-guide"],
   "marazim-chatanim": ["personalization-guide"],
 };
 
@@ -207,6 +216,7 @@ export const GUIDE_CATEGORIES: Record<string, string[]> = {
   "set-chalaka-madrich": ["chalaka-set"],
   "karit-labrit-madrich": ["karit-labrit"],
   "kupat-tzedaka-guide": ["kupot-tzedaka"],
+  "machzikei-maftechot-guide": ["machzikei-maftechot-magnetim"],
 };
 
 /**
@@ -275,6 +285,8 @@ export const GUIDE_OCCASIONS: Record<string, string[]> = {
   "set-chalaka-madrich": ["chalaka"],
   // Its gift section names חנוכת בית first, then בר מצווה.
   "kupat-tzedaka-guide": ["bait-chadash", "bar-mitzva"],
+  // Its gift section names guests at a בר מצווה or a wedding.
+  "machzikei-maftechot-guide": ["bar-mitzva", "chatan-kala"],
   // karit-labrit-madrich: no brit hub exists, and no other occasion fits —
   // see GUIDES_WITHOUT_OCCASION.
 };
@@ -332,8 +344,15 @@ export const GUIDE_CLUSTERS: string[][] = [
   // The home: the doorpost, the walls, the sink — the blessings sit between the
   // other two, since אשר יצר hangs by the bathroom, a step from the natla.
   // The tzedakah box closes it: it stands in the same rooms, often by the
-  // candlesticks.
-  ["mezuza-guide", "birkat-habait-guide", "natla-guide", "kupat-tzedaka-guide"],
+  // candlesticks. The key-chain guide sits by the blessings: hamsa, Shema and
+  // אם אשכחך are the same texts, carried instead of hung.
+  [
+    "mezuza-guide",
+    "machzikei-maftechot-guide",
+    "birkat-habait-guide",
+    "natla-guide",
+    "kupat-tzedaka-guide",
+  ],
 ];
 
 type CatNode = { slug: string; parent_slug?: string | null };
