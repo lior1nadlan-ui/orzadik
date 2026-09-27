@@ -74,6 +74,11 @@ export const GUIDES: Record<string, GuideRef> = {
     title: "איך בוחרים פמוטים",
     blurb: "זוג או רב-קני, קריסטל או מתכת, איזה גובה ואיזה נר — ואיך מסירים שעווה.",
   },
+  "challah-guide": {
+    slug: "challah-guide",
+    title: "כיסוי חלה ומגש לחלה",
+    blurb: "איזה גודל מכסה שתי חלות, דמוי עור או בד, זכוכית או עץ — ולמה מלח.",
+  },
 };
 
 /**
@@ -105,6 +110,10 @@ export const CATEGORY_GUIDES: Record<string, string[]> = {
   havdalah: ["kiddush-cup-guide"],
   // פמוטים — 263 products; borrowed the kiddush-cup guide until its own existed.
   candlesticks: ["pamotim-guide", "kiddush-cup-guide"],
+  // Children of `shabbat`, which until now sent them to the kiddush-cup guide:
+  // כיסויי חלה (128) and מגשי חלה, מפיונים ותחתיות (79).
+  "challah-covers": ["challah-guide"],
+  "karshei-chala-sakinim": ["challah-guide"],
   // חנוכה sits under chagim; chagim itself stays unmapped because it also holds
   // Pesach and Rosh Hashana, for which no guide exists yet.
   hanukkah: ["hanukkia-guide"],
@@ -132,6 +141,7 @@ export const GUIDE_CATEGORIES: Record<string, string[]> = {
   "natla-guide": ["netilat-yadaim"],
   "birchon-guide": ["birchonim"],
   "pamotim-guide": ["candlesticks"],
+  "challah-guide": ["challah-covers", "karshei-chala-sakinim"],
 };
 
 /**
@@ -186,6 +196,9 @@ export const GUIDE_OCCASIONS: Record<string, string[]> = {
   // Its own gift section names the bride and חנוכת בית; bait-chadash stocks
   // candlesticks directly.
   "pamotim-guide": ["chatan-kala", "bait-chadash"],
+  // Its gift section names חתונה and חנוכת בית; bait-chadash stocks
+  // challah-covers directly.
+  "challah-guide": ["bait-chadash", "chatan-kala"],
 };
 
 /** What a guide's occasion CTA needs to render one link. */
@@ -210,7 +223,7 @@ export const GUIDE_CLUSTERS: string[][] = [
   // The bar-mitzva set: tallit, tefillin and kippa are bought together.
   ["bechira-talit", "tefillin-guide", "kippa-guide"],
   // The table: what stands on it for kiddush, for Hanukkah and after the meal.
-  ["kiddush-cup-guide", "pamotim-guide", "hanukkia-guide", "birchon-guide"],
+  ["kiddush-cup-guide", "pamotim-guide", "challah-guide", "hanukkia-guide", "birchon-guide"],
   // The home: what goes on the doorpost and by the sink.
   ["mezuza-guide", "natla-guide"],
 ];
