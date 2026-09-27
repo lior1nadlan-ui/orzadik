@@ -21,7 +21,9 @@ export {
   applyMemberDiscount,
   getShipping,
 } from "@/lib/pricing";
-import { getEffectivePrice, getDisplayOriginal, getShipping } from "@/lib/pricing";
+import { getDisplayOriginal, getShipping } from "@/lib/pricing";
+import { priceView, promoFor } from "@/lib/promotions";
+import { usePromoIndex } from "@/lib/promotions-data";
 import { trackAddToCart } from "@/lib/analytics";
 
 /**
@@ -192,11 +194,18 @@ export function CartProvider({ children }: { children: ReactNode }) {
   );
   const clear = useCallback<CartCtx["clear"]>(() => setItems([]), []);
   const count = items.reduce((s, i) => s + i.quantity, 0);
+  // Each line at its promotional price when a CRM promotion covers it. The
+  // "before" of a promoted line is the regular price the site charges today —
+  // not the older recorded sale_price — so the saving shown is the promotion's.
+  const promoIndex = usePromoIndex();
+  const views = items.map((i) => priceView(i.price, promoFor(promoIndex, i.productId)));
   const subtotalBase = items.reduce(
-    (s, i) => s + getDisplayOriginal(i.price, i.salePrice) * i.quantity,
+    (s, i, n) =>
+      s +
+      (views[n].promo ? views[n].regular : getDisplayOriginal(i.price, i.salePrice)) * i.quantity,
     0,
   );
-  const subtotal = items.reduce((s, i) => s + getEffectivePrice(i.price) * i.quantity, 0);
+  const subtotal = items.reduce((s, i, n) => s + views[n].pays * i.quantity, 0);
   const discountAmount = subtotalBase - subtotal;
   const shipping = getShipping(subtotal);
   const grandTotal = subtotal + shipping;

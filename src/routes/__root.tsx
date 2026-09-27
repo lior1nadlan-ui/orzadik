@@ -14,6 +14,7 @@ import {
 } from "@tanstack/react-router";
 import { Toaster } from "@/components/ui/sonner";
 import { CartProvider } from "@/lib/cart";
+import { PromoProvider, loadPromoPayload } from "@/lib/promotions-data";
 import { AuthProvider } from "@/lib/auth";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { CookieConsent } from "@/components/CookieConsent";
@@ -527,6 +528,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       // exact duplicate of the Organization node's own values.)
     ],
   }),
+  // Live CRM promotions, fetched during SSR so the first paint already carries
+  // promotional prices (see src/lib/promotions-data.tsx). Loaded once: after
+  // hydration PromoProvider keeps them fresh through React Query, so a client
+  // navigation never waits on this.
+  loader: async () => ({ promoPayload: await loadPromoPayload() }),
+  staleTime: Infinity,
   shellComponent: RootShell,
   component: RootComponent,
   notFoundComponent: NotFoundComponent,
@@ -549,6 +556,7 @@ function RootShell({ children }: { children: React.ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const { promoPayload } = Route.useLoaderData();
 
   // Defer the two non-critical global widgets (WhatsApp FAB + Accessibility
   // panel) so they mount AFTER first paint instead of competing with hydration.
@@ -585,26 +593,27 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <CartProvider>
-          <div id="app-root" className="flex min-h-screen flex-col">
-            {/* Skip link — the FIRST thing a keyboard user meets, so it is the
+      <PromoProvider seed={promoPayload}>
+        <AuthProvider>
+          <CartProvider>
+            <div id="app-root" className="flex min-h-screen flex-col">
+              {/* Skip link — the FIRST thing a keyboard user meets, so it is the
                 one place gold may not be decorative. Was `bg-[#D4AF37]` with
                 white text: 2.1:1, a straight Lighthouse failure. --accent
                 (#8A5A2B) carries white at 5.87:1, and it follows the token, so
                 high-contrast mode re-points it to #5c4300 (9.30:1) for free.
                 Deliberately NOT animated: this is keyboard-initiated. */}
-            <a
-              href="#main-content"
-              className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:right-2 focus:z-50 focus:rounded-md focus:bg-accent focus:px-4 focus:py-2 focus:font-medium focus:text-accent-foreground"
-            >
-              דלג לתוכן המרכזי
-            </a>
-            {/* The header pins itself (sticky -top-9). No sticky wrapper here:
+              <a
+                href="#main-content"
+                className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:right-2 focus:z-50 focus:rounded-md focus:bg-accent focus:px-4 focus:py-2 focus:font-medium focus:text-accent-foreground"
+              >
+                דלג לתוכן המרכזי
+              </a>
+              {/* The header pins itself (sticky -top-9). No sticky wrapper here:
                 sticky can't travel beyond its parent, so the header must sit
                 directly in the full-height app root. */}
-            <SiteHeader />
-            {/* min-h-screen (not just flex-1) reserves the streaming window.
+              <SiteHeader />
+              {/* min-h-screen (not just flex-1) reserves the streaming window.
                 The route content streams in AFTER the shell, so for ~750ms
                 <main> is empty; with only `flex-1` the footer then sat exactly
                 at the viewport bottom (measured: y=213 + height=519 = 732 = the
@@ -615,24 +624,25 @@ function RootComponent() {
                 footer below the fold until real content defines the height, so
                 the insertion shifts nothing visible. On pages whose content is
                 taller than the viewport (the normal case) this is inert. */}
-            <main
-              id="main-content"
-              tabIndex={-1}
-              className="min-h-screen flex-1 scroll-mt-24 lg:scroll-mt-32"
-            >
-              <RouteErrorBoundary />
-            </main>
-            <SiteFooter />
-          </div>
-          <Toaster position="top-center" richColors />
-          <CookieConsent />
-          <GoogleAnalytics />
-          <MetaPixel />
-          {/* Deferred to browser-idle after first paint (see the effect above). */}
-          {idle && <WhatsAppButton />}
-          {idle && <AccessibilityWidget />}
-        </CartProvider>
-      </AuthProvider>
+              <main
+                id="main-content"
+                tabIndex={-1}
+                className="min-h-screen flex-1 scroll-mt-24 lg:scroll-mt-32"
+              >
+                <RouteErrorBoundary />
+              </main>
+              <SiteFooter />
+            </div>
+            <Toaster position="top-center" richColors />
+            <CookieConsent />
+            <GoogleAnalytics />
+            <MetaPixel />
+            {/* Deferred to browser-idle after first paint (see the effect above). */}
+            {idle && <WhatsAppButton />}
+            {idle && <AccessibilityWidget />}
+          </CartProvider>
+        </AuthProvider>
+      </PromoProvider>
     </QueryClientProvider>
   );
 }

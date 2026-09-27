@@ -1,7 +1,9 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ShoppingBag, User as UserIcon, Search, Menu, X, Heart, ChevronDown } from "lucide-react";
 import { OCCASION_COLLECTIONS } from "@/lib/collections";
-import { useCart, formatILS, getEffectivePrice } from "@/lib/cart";
+import { useCart, formatILS } from "@/lib/cart";
+import { priceView, promoFor } from "@/lib/promotions";
+import { usePromoIndex } from "@/lib/promotions-data";
 import { useFavorites } from "@/components/engagement/favorites";
 import { useAuth } from "@/lib/auth";
 import { useState, useEffect, useRef } from "react";
@@ -242,6 +244,8 @@ function OccasionMenu() {
 }
 
 export function SiteHeader() {
+  // Search results quote the same promotional price the product page charges.
+  const promoIndex = usePromoIndex();
   const { count, openCart, isCartOpen } = useCart();
   // SSR renders favCount 0 (the hook returns [] on the server), so there is
   // no hydration mismatch — the badge appears after mount, like the cart badge.
@@ -1079,7 +1083,10 @@ export function SiteHeader() {
                           </div>
                         )}
                         {productRows.map((p, pi) => {
-                          const effective = getEffectivePrice(p.price);
+                          const effective = priceView(
+                            Number(p.price),
+                            promoFor(promoIndex, p.id),
+                          ).pays;
                           const active = activeIndex === catCount + pi;
                           return (
                             <Link

@@ -464,6 +464,7 @@ export type Database = {
           product_id: string | null
           product_name: string
           product_sku: string | null
+          promotion_id: string | null
           quantity: number
           unit_price: number
           variant_label: string | null
@@ -477,6 +478,7 @@ export type Database = {
           product_id?: string | null
           product_name: string
           product_sku?: string | null
+          promotion_id?: string | null
           quantity: number
           unit_price: number
           variant_label?: string | null
@@ -490,6 +492,7 @@ export type Database = {
           product_id?: string | null
           product_name?: string
           product_sku?: string | null
+          promotion_id?: string | null
           quantity?: number
           unit_price?: number
           variant_label?: string | null
@@ -988,6 +991,57 @@ export type Database = {
         }
         Relationships: []
       }
+      promotions: {
+        Row: {
+          badge_label: string | null
+          category_ids: string[]
+          created_at: string
+          created_by: string | null
+          ends_at: string
+          id: string
+          is_active: boolean
+          name: string
+          percent_off: number
+          product_ids: string[]
+          scope: string
+          starts_at: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          badge_label?: string | null
+          category_ids?: string[]
+          created_at?: string
+          created_by?: string | null
+          ends_at: string
+          id?: string
+          is_active?: boolean
+          name: string
+          percent_off: number
+          product_ids?: string[]
+          scope: string
+          starts_at?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          badge_label?: string | null
+          category_ids?: string[]
+          created_at?: string
+          created_by?: string | null
+          ends_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          percent_off?: number
+          product_ids?: string[]
+          scope?: string
+          starts_at?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -1125,6 +1179,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      active_promotion_index: {
+        Args: never
+        Returns: {
+          badge_label: string | null
+          ends_at: string
+          percent_off: number
+          product_id: string | null
+          promotion_id: string
+        }[]
+      }
       admin_recent_price_batches: {
         Args: { p_limit?: number }
         Returns: {

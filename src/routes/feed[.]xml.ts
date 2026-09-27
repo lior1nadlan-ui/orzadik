@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getEffectivePrice } from "@/lib/pricing";
+import { buildPromoIndex, priceView, promoFor, EMPTY_PROMO_INDEX } from "@/lib/promotions";
 import { BUSINESS } from "@/lib/business";
 
 // Google Merchant Center product feed, served at /feed.xml.
@@ -188,6 +189,18 @@ export const Route = createFileRoute("/feed.xml")({
       GET: async () => {
         try {
           const products = await fetchAllProducts();
+          // Live CRM promotions. Merchant compares the landing page to this
+          // feed, and during a promotion the page's Offer is the promotional
+          // price — so the item carries it as g:sale_price with the window it
+          // is valid for. A failed read publishes regular prices only.
+          let promoIndex = EMPTY_PROMO_INDEX;
+          {
+            const { data: promoRows, error: promoErr } =
+              await supabaseAdmin.rpc("active_promotion_index");
+            if (promoErr) console.error("[feed.xml] promotions:", promoErr);
+            else promoIndex = buildPromoIndex(promoRows);
+          }
+          const nowIso = new Date().toISOString();
 
           const items: string[] = [];
           for (const p of representatives(products)) {
@@ -198,6 +211,7 @@ export const Route = createFileRoute("/feed.xml")({
             if (!p.slug || !p.thumbnail_url || !(price > 0)) continue;
             const effective = getEffectivePrice(price);
             if (!(effective > 0)) continue;
+            const promoView = priceView(price, promoFor(promoIndex, p.id));
 
             const title = plain(p.name, 150);
             const description =
@@ -216,6 +230,10 @@ export const Route = createFileRoute("/feed.xml")({
                 `<g:availability>${availability}</g:availability>` +
                 // Whole-shekel effective price, formatted as Google expects.
                 `<g:price>${effective}.00 ILS</g:price>` +
+                (promoView.promo
+                  ? `<g:sale_price>${promoView.pays}.00 ILS</g:sale_price>` +
+                    `<g:sale_price_effective_date>${nowIso}/${esc(new Date(promoView.promo.endsAt).toISOString())}</g:sale_price_effective_date>`
+                  : "") +
                 `<g:condition>new</g:condition>` +
                 `<g:brand>${esc(BUSINESS.name)}</g:brand>` +
                 // `identifier_exists=no` unconditionally — g:mpn is NOT emitted,
