@@ -36,16 +36,18 @@ import {
   emailShell,
   emailButton,
   esc,
-  ils,
   isEmailConfigured,
   unsubscribeToken,
   unsubscribeUrl,
   listUnsubscribeHeaders,
 } from "@/lib/email.server";
 import { sellerIdentityLine, BUSINESS } from "@/lib/business";
-// Read-only price helper — display formatting for the product cards. This
-// module never computes or charges anything.
-import { getEffectivePrice } from "@/lib/pricing";
+// Read-only price helpers — display formatting for the product cards, priced
+// with the promotions live when the email is built. This module never computes
+// or charges anything.
+import { emailPriceHtml, emailPriceText } from "@/lib/email-price";
+import { EMPTY_PROMO_INDEX, promoFor, type PromoIndex } from "@/lib/promotions";
+import { loadPromoIndexServer } from "@/lib/promotions.server";
 import { filterAudience, type AudienceSegment } from "@/lib/campaign-audience";
 
 /** PostgREST silently caps unbounded selects at 1000 — page every full walk. */
@@ -79,22 +81,15 @@ type CampaignContent = { subject: string; intro_html: string; content: any };
  *  the two can never point somewhere different. */
 const productUrl = (slug: string) => `https://orzadik.com/product/${encodeURIComponent(slug)}`;
 
-/** Price line as shown to the reader: the effective (charged) price, or the
- *  call-only note for items priced by the gold rate. */
-const productPriceText = (price: number) =>
-  Number(price) === 0 ? "לפי שער הזהב" : ils(getEffectivePrice(Number(price)));
-
-function productCards(products: SnapshotProduct[]): string {
+function productCards(products: SnapshotProduct[], promos: PromoIndex): string {
   if (products.length === 0) return "";
   const cells = products.map((p) => {
     const url = productUrl(p.slug);
-    const isCallOnly = Number(p.price) === 0;
-    // Wording and arithmetic come from the shared helper, so the HTML card and
-    // the plaintext part can never quote a different price for the same item.
-    const priceText = productPriceText(Number(p.price));
-    const priceHtml = isCallOnly
-      ? `<div style="font-size:13px;color:#A8862A;">${priceText}</div>`
-      : `<div style="font-size:13px;"><strong style="color:#A8862A;">${priceText}</strong></div>`;
+    // Wording and arithmetic come from email-price.ts, shared with the
+    // plaintext part, so the two can never quote a different price for the
+    // same item. The effective (charged) price, the promotional one while a
+    // promotion is live, or the call-only note for gold-rate items.
+    const priceHtml = emailPriceHtml(Number(p.price), promoFor(promos, p.id));
     // The image + name are one link; the CTA is the shared emailButton() — a
     // bulletproof table+VML pill on the brand accent (white on #7E611E, ~6.5:1)
     // that renders in Outlook and stays legible in dark mode, unlike the old
@@ -147,7 +142,11 @@ function campaignPreheader(campaign: Omit<CampaignContent, "subject">): string {
  * decoration — they are what makes the message lawful to send (§30א), which is
  * why they live in the single template builder rather than in each caller.
  */
-function renderCampaign(campaign: CampaignContent, unsub: string | null): string {
+function renderCampaign(
+  campaign: CampaignContent,
+  unsub: string | null,
+  promos: PromoIndex = EMPTY_PROMO_INDEX,
+): string {
   const products: SnapshotProduct[] = campaign.content?.products ?? [];
   const intro = esc(campaign.intro_html ?? "").replace(/\n/g, "<br>");
   return emailShell(
@@ -155,7 +154,7 @@ function renderCampaign(campaign: CampaignContent, unsub: string | null): string
     <p style="font-size:11px;color:#999;margin:0 0 8px;">פרסומת</p>
     <h1 style="font-size:20px;margin:0 0 12px;">${esc(campaign.subject)}</h1>
     ${intro ? `<div style="font-size:14px;color:#555;line-height:1.7;">${intro}</div>` : ""}
-    ${productCards(products)}
+    ${productCards(products, promos)}
     <div style="font-size:11px;color:#aaa;margin-top:24px;padding-top:12px;border-top:1px solid #eee;line-height:1.7;text-align:center;">
       <div>${esc(sellerIdentityLine())}${BUSINESS.email ? " · " + esc(BUSINESS.email) : ""}</div>
       <div style="margin-top:6px;">
@@ -185,7 +184,11 @@ function renderCampaign(campaign: CampaignContent, unsub: string | null): string
  * their own line so bidi reordering cannot glue Hebrew punctuation onto them.
  * Nothing is escaped here — this part is plain text, not markup.
  */
-function renderCampaignText(campaign: CampaignContent, unsub: string | null): string {
+function renderCampaignText(
+  campaign: CampaignContent,
+  unsub: string | null,
+  promos: PromoIndex = EMPTY_PROMO_INDEX,
+): string {
   const products: SnapshotProduct[] = campaign.content?.products ?? [];
   const blocks: string[] = ["פרסומת", campaign.subject];
 
@@ -194,7 +197,12 @@ function renderCampaignText(campaign: CampaignContent, unsub: string | null): st
 
   for (const p of products) {
     blocks.push(
-      [p.name, productPriceText(Number(p.price)), "לצפייה במוצר:", productUrl(p.slug)].join("\n"),
+      [
+        p.name,
+        emailPriceText(Number(p.price), promoFor(promos, p.id)),
+        "לצפייה במוצר:",
+        productUrl(p.slug),
+      ].join("\n"),
     );
   }
 
@@ -223,11 +231,11 @@ function marketingSubject(subject: string): string {
  * part, same List-Unsubscribe headers. Anything a caller adds to distinguish a
  * test must go *around* this, never inside it.
  */
-function buildCampaignMessage(campaign: CampaignContent, unsub: string) {
+function buildCampaignMessage(campaign: CampaignContent, unsub: string, promos: PromoIndex) {
   return {
     subject: marketingSubject(campaign.subject),
-    html: renderCampaign(campaign, unsub),
-    text: renderCampaignText(campaign, unsub),
+    html: renderCampaign(campaign, unsub, promos),
+    text: renderCampaignText(campaign, unsub, promos),
     headers: listUnsubscribeHeaders(unsub),
   };
 }
@@ -345,7 +353,11 @@ export const previewCampaign = createServerFn({ method: "POST" })
     if (error || !campaign) throw new Error("הקמפיין לא נמצא.");
     return {
       subject: marketingSubject(campaign.subject),
-      html: renderCampaign(campaign, "https://orzadik.com/api/public/unsubscribe?e=…&t=…"),
+      html: renderCampaign(
+        campaign,
+        "https://orzadik.com/api/public/unsubscribe?e=…&t=…",
+        await loadPromoIndexServer(),
+      ),
     };
   });
 
@@ -587,7 +599,7 @@ export const sendCampaignTestEmail = createServerFn({ method: "POST" })
     if (error || !campaign) throw new Error("הקמפיין לא נמצא.");
 
     const unsub = unsubscribeUrl(email, token);
-    const message = buildCampaignMessage(campaign, unsub);
+    const message = buildCampaignMessage(campaign, unsub, await loadPromoIndexServer());
     const ok = await sendEmail({
       to: email,
       // Only the subject carries the test marking, and only as a suffix — the
@@ -807,6 +819,9 @@ export async function runCampaignTick(): Promise<CampaignTickResult> {
   let sent = 0;
   let failed = 0;
   let skipped = 0;
+  // Priced once per batch: every recipient in it gets the same prices, and a
+  // promotion that starts or ends between batches is picked up by the next.
+  const promos = await loadPromoIndexServer();
   for (const row of rows) {
     const email = row.email.toLowerCase();
     if (suppressed.has(email)) {
@@ -837,7 +852,7 @@ export async function runCampaignTick(): Promise<CampaignTickResult> {
     // reader would get an opt-out link with no URL behind it. One-click opt-out
     // for the mailbox provider (RFC 8058) points at the same signed endpoint as
     // the footer link and the plaintext line.
-    const message = buildCampaignMessage(campaign, unsub);
+    const message = buildCampaignMessage(campaign, unsub, promos);
     const ok = await sendEmail({
       to: row.email,
       subject: message.subject,

@@ -16,7 +16,9 @@ import {
   listUnsubscribeHeaders,
 } from "@/lib/email.server";
 import { sellerIdentityLine, BUSINESS } from "@/lib/business";
-import { getEffectivePrice } from "@/lib/pricing";
+import { emailLine } from "@/lib/email-price";
+import { promoFor } from "@/lib/promotions";
+import { loadPromoIndexServer } from "@/lib/promotions.server";
 import { requireAdmin } from "@/lib/admin-authz.server";
 
 const Schema = z.object({
@@ -386,6 +388,9 @@ export async function runAbandonedCartReminders(): Promise<AbandonedCartRunResul
     return "done";
   };
 
+  // Priced once per run, with the promotions live now — see the rows below.
+  const promos = await loadPromoIndexServer();
+
   // Pass 1 — the original reminder, with the item table.
   const firstStatus = await runPass(
     first,
@@ -393,36 +398,52 @@ export async function runAbandonedCartReminders(): Promise<AbandonedCartRunResul
     "פרסומת: העגלה שלכם ממתינה — אור זרוע לצדיק",
     (cart, unsub) => {
       const items = Array.isArray(cart.items) ? (cart.items as any[]) : [];
-      // getEffectivePrice, NOT the raw snapshot price: `items[].price` is the
-      // BASE catalog price (see CartItem.price in cart.tsx), and the site-wide
-      // discount is applied at display and at checkout. Rendering it raw quoted
-      // ₪199 in the reminder for a cart the shopper saw — and would be charged —
-      // as ₪139, i.e. a commercial message stating a price ABOVE the real one.
-      // The campaigns email already prices this way; this sender was missed.
-      // `|| 0` keeps a malformed snapshot row from rendering "₪NaN".
+      // Priced NOW, not as stored. `items[].price` is the BASE catalog price
+      // (see CartItem.price in cart.tsx); emailLine() applies the site-wide
+      // discount and any promotion live at send time — the price the cart
+      // link will show and checkout will charge. Rendering the base price
+      // raw once quoted ₪199 for a line charged ₪139. `|| 0` inside keeps a
+      // malformed snapshot row from rendering "₪NaN".
       // Each name links to its own product page. The snapshot already stores
       // `slug` for every line, and the cart lives in localStorage — so on the
       // device where it is empty (exactly the case the copy addresses) these
       // links are the only way back to the item without searching by name.
-      const rows = items
-        .map((it) => {
+      const lines = items.map((it) => ({
+        it,
+        line: emailLine(
+          Number(it.price) || 0,
+          Number(it.quantity),
+          promoFor(promos, it.product_id),
+        ),
+      }));
+      const rows = lines
+        .map(({ it, line }) => {
           const label = esc(it.name);
           const nameCell = it.slug
             ? `<a href="https://orzadik.com/product/${esc(it.slug)}" style="color:#1F1915;text-decoration:underline;">${label}</a>`
             : label;
+          const note = line.note
+            ? `<div style="font-size:11px;color:#5B1F27;margin-top:2px;"><span dir="ltr">-${line.pct}%</span> · ${esc(line.note)}</div>`
+            : "";
+          const was =
+            line.total < line.regularTotal
+              ? `<s style="color:#999;font-weight:normal;">${ils(line.regularTotal)}</s> `
+              : "";
           return `<tr>
-          <td style="padding:8px 0;border-bottom:1px solid #eee;">${nameCell} × ${esc(it.quantity)}</td>
-          <td style="padding:8px 0;border-bottom:1px solid #eee;text-align:left;white-space:nowrap;">${ils(getEffectivePrice(Number(it.price) || 0) * Number(it.quantity))}</td>
+          <td style="padding:8px 0;border-bottom:1px solid #eee;">${nameCell} × ${esc(it.quantity)}${note}</td>
+          <td style="padding:8px 0;border-bottom:1px solid #eee;text-align:left;white-space:nowrap;">${was}${ils(line.total)}</td>
         </tr>`;
         })
         .join("");
-      // Stored subtotal is already post-discount (checkout sends useCart's
-      // subtotal), so it closes exactly against the corrected rows above. Named
-      // "סה״כ מוצרים", not "סה״כ": it excludes the flat shipping and any member
+      // The sum of the rows above, not the stored `subtotal`: that one was
+      // taken when the cart was abandoned, so a promotion that started or
+      // ended since made the rows and the total disagree. Named "סה״כ
+      // מוצרים", not "סה״כ": it excludes the flat shipping and any member
       // benefit, so calling it the total would just relocate the inaccuracy.
+      const itemsTotal = lines.reduce((n, { line }) => n + line.total, 0);
       const subtotalRow = `<tr>
           <td style="padding:10px 0;font-weight:bold;">סה״כ מוצרים</td>
-          <td style="padding:10px 0;text-align:left;white-space:nowrap;font-weight:bold;">${ils(Number(cart.subtotal) || 0)}</td>
+          <td style="padding:10px 0;text-align:left;white-space:nowrap;font-weight:bold;">${ils(itemsTotal)}</td>
         </tr>`;
       return emailShell(
         `
