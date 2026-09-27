@@ -36,6 +36,7 @@ import { guidesForCategories } from "@/lib/guide-links";
 import { PersonalizationPreview } from "@/components/product/PersonalizationPreview";
 import {
   isPersonalizableProduct,
+  isLaserOnlyName,
   embroideryLabel as getEmbroideryLabel,
   EMBROIDERY_ONLY_CATEGORY_SLUGS,
   PRINT_INSTEAD_OF_EMBROIDERY_CATEGORY_SLUGS,
@@ -1076,12 +1077,19 @@ function ProductPage() {
     PRINT_INSTEAD_OF_EMBROIDERY_CATEGORY_SLUGS.has(s),
   );
   const embroideryLabel = getEmbroideryLabel(categorySlugs);
+  // A product named as laser-only ("- לייזר בלבד", "מגן דוד לייזר") gets laser
+  // engraving and nothing else — see isLaserOnlyName.
+  const laserOnly = showEmbroidery && isLaserOnlyName(product?.name);
   // Short, category-accurate label for the above-the-fold personalization chip.
-  const personalizationChipLabel = printInsteadOfEmbroidery
-    ? "ניתן להוסיף הטבעה או חריטה אישית"
-    : embroideryOnly
-      ? "ניתן להוסיף רקמה אישית"
-      : "ניתן להוסיף רקמה או חריטה אישית";
+  const personalizationChipLabel = laserOnly
+    ? "ניתן להוסיף שם בחריטת לייזר"
+    : printInsteadOfEmbroidery
+      ? "ניתן להוסיף הטבעה או חריטה אישית"
+      : embroideryOnly
+        ? "ניתן להוסיף רקמה אישית"
+        : "ניתן להוסיף רקמה או חריטה אישית";
+  // The method that actually applies: fixed to laser for a laser-only product.
+  const effectiveMethod: CustomMethod = laserOnly ? "laser" : customMethod;
 
   const { data: related = [] } = useQuery({
     queryKey: ["related", product?.id, categorySlugs.join(",")],
@@ -1480,7 +1488,7 @@ function ProductPage() {
         salePrice: baseSalePrice,
         thumbnail: product.thumbnail_url,
         customText: customText.trim() || undefined,
-        customMethod: customText.trim() ? customMethod : undefined,
+        customMethod: customText.trim() ? effectiveMethod : undefined,
         variantId: selectedVariant?.id,
         variantLabel: selectedVariant?.label,
       },
@@ -2001,7 +2009,7 @@ function ProductPage() {
                 className="mt-2 bg-white"
                 maxLength={60}
               />
-              {customText.trim() && !embroideryOnly && (
+              {customText.trim() && !embroideryOnly && !laserOnly && (
                 <div className="mt-3">
                   <span className="block text-xs font-medium text-accent mb-1.5">
                     בחרו שיטת התאמה:
@@ -2043,16 +2051,18 @@ function ProductPage() {
                   (customText / customMethod) is unchanged. */}
               <PersonalizationPreview
                 text={customText}
-                method={customMethod}
+                method={effectiveMethod}
                 embroideryLabel={embroideryLabel}
               />
               <p className="text-xs text-accent mt-2 font-medium">ההתאמה האישית ללא תוספת תשלום.</p>
               <p className="text-xs text-muted-foreground mt-2">
-                {printInsteadOfEmbroidery
-                  ? "ניתן להוסיף שם בהטבעה או בחריטת לייזר בעברית. ניצור איתכם קשר לאחר ההזמנה לתיאום פונט וגוון."
-                  : embroideryOnly
-                    ? "ניתן להוסיף שם ברקמה בעברית. ניצור איתכם קשר לאחר ההזמנה לתיאום פונט וגוון."
-                    : "ניתן להוסיף שם ברקמה או בחריטת לייזר בעברית. ניצור איתכם קשר לאחר ההזמנה לתיאום פונט וגוון."}
+                {laserOnly
+                  ? "ניתן להוסיף שם בחריטת לייזר בעברית. ניצור איתכם קשר לאחר ההזמנה לתיאום פונט ומיקום."
+                  : printInsteadOfEmbroidery
+                    ? "ניתן להוסיף שם בהטבעה או בחריטת לייזר בעברית. ניצור איתכם קשר לאחר ההזמנה לתיאום פונט וגוון."
+                    : embroideryOnly
+                      ? "ניתן להוסיף שם ברקמה בעברית. ניצור איתכם קשר לאחר ההזמנה לתיאום פונט וגוון."
+                      : "ניתן להוסיף שם ברקמה או בחריטת לייזר בעברית. ניצור איתכם קשר לאחר ההזמנה לתיאום פונט וגוון."}
               </p>
             </div>
           )}

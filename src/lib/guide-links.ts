@@ -102,7 +102,7 @@ export const CATEGORY_GUIDES: Record<string, string[]> = {
   "tikei-talit": ["bechira-talit", "tefillin-guide"],
   "tefillin-cases": ["tefillin-guide"],
   "batei-tefilin-marot": ["tefillin-guide"],
-  "talit-tefillin-sets": ["tefillin-guide", "bechira-talit"],
+  "talit-tefillin-covers": ["tefillin-guide", "bechira-talit"],
   // מזוזות — parent of the polyresin/plastic/aluminium children.
   plastic: ["mezuza-guide"],
   // גביעי קידוש — parent of the crystal/metal children.
@@ -138,7 +138,7 @@ export const GUIDE_CATEGORIES: Record<string, string[]> = {
   "bechira-talit": ["talitot", "setim-talit-tefilin", "tikei-talit"],
   // NOT batei-tefilin-marot alone: that category holds 15 products, so the
   // guide's own DB-driven rail is thin. These are the stocked shelves.
-  "tefillin-guide": ["tikei-talit", "setim-talit-tefilin", "talit-tefillin-sets"],
+  "tefillin-guide": ["tikei-talit", "setim-talit-tefilin", "talit-tefillin-covers"],
   "mezuza-guide": ["plastic", "mezuzot-polyresin-even", "mezuzot-plastik"],
   "kiddush-cup-guide": ["gviei-kidush", "gviei-kidush-crystal-keramika", "candlesticks"],
   "hanukkia-guide": ["hanukkah", "chagim"],

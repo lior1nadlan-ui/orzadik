@@ -105,7 +105,8 @@ export const CROSS_SELL_MAP: Record<string, string[]> = {
   [ATAROT]: [TIKEI_TALIT, SET_TALIT_TEFILIN, KIPOT, SIDDURIM],
   // A tallit itself is the one place the bag IS the completion of the purchase.
   [TALITOT]: [TIKEI_TALIT, ATAROT, KIPOT, "gufiya-tzitzit"],
-  "talit-tefillin-sets": [ATAROT, TIKEI_TALIT, KIPOT, SIDDURIM],
+  // כיסויים לטלית ותפילין (renamed from `talit-tefillin-sets` in 2026-09).
+  "talit-tefillin-covers": [ATAROT, TIKEI_TALIT, KIPOT, SIDDURIM],
   "tefillin-cases": [TIKEI_TALIT, TIK_TEFILIN, ATAROT, KIPOT],
   // `mirrors` is NOT decorative mirrors — all 4 products are plastic tefillin
   // boxes / a tefillin stand with a mirror, so they belong to this family and
