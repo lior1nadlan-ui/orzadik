@@ -5,6 +5,7 @@ import {
   PRINT_INSTEAD_OF_EMBROIDERY_CATEGORY_SLUGS,
   isPersonalizable,
   isPersonalizableProduct,
+  isLaserOnlyName,
   personalizationMethod,
   embroideryLabel,
 } from "./personalization";
@@ -58,8 +59,9 @@ describe("personalization category gate", () => {
   it("gates both halves of every split bag family", () => {
     // Each pair is ONE product family that the import split across two slugs.
     // Gating only one half is exactly the bug this file exists to prevent.
+    // (The covers category, once `talit-tefillin-sets`, is not a split family;
+    // it is pinned in its own block below.)
     const SPLIT_FAMILIES: [string, string][] = [
-      ["talit-tefillin-sets", "setim-talit-tefilin"], // סטים לטלית ותפילין
       ["tefillin-cases", "tik-tefilin"], // תיקי תפילין
     ];
     for (const [a, b] of SPLIT_FAMILIES) {
@@ -100,5 +102,42 @@ describe("personalization gate functions", () => {
 
   it("keeps siddurim on הטבעה rather than embroidery", () => {
     expect(embroideryLabel(["sidurim"])).toBe("הטבעה");
+  });
+});
+
+describe("talit/tefillin covers after the category rename", () => {
+  // `talit-tefillin-sets` was renamed to `talit-tefillin-covers` in 2026-09 and
+  // this gate was not updated: 21 of the 55 active covers lost the
+  // personalization box, all 15 laser covers among them.
+  it("gates the renamed covers category", () => {
+    expect(PERSONALIZABLE_CATEGORY_SLUGS.has("talit-tefillin-covers")).toBe(true);
+    expect(isPersonalizable(["talit-tefillin-covers"])).toBe(true);
+  });
+
+  it("keeps a cover not named laser-only on embroidery, as the old slug was", () => {
+    expect(EMBROIDERY_ONLY_CATEGORY_SLUGS.has("talit-tefillin-covers")).toBe(true);
+    expect(personalizationMethod(["talit-tefillin-covers"], "כיסוי טלית ותפילין קטיפה")).toBe(
+      "embroidery",
+    );
+  });
+
+  it("offers laser only on covers the catalogue names as laser", () => {
+    for (const name of [
+      "כיסוי טלית ותפילין שחור יברכך - לייזר בלבד",
+      "כיסוי טלית ותפילין - הטבעת שם בלייזר",
+      "כיסוי לטלית ותפילין קמל מגן דוד לייזר",
+    ]) {
+      expect(isLaserOnlyName(name), name).toBe(true);
+      expect(personalizationMethod(["talit-tefillin-covers"], name), name).toBe("laser");
+    }
+  });
+
+  it("does not read laser-CUT items or laser-engraved talitot as a name option", () => {
+    expect(isLaserOnlyName("ברכת הבית חיתוך לייזר")).toBe(false);
+    expect(isLaserOnlyName("טלית צמר בחריטת לייזר")).toBe(false);
+    expect(isLaserOnlyName(null)).toBe(false);
+    expect(personalizationMethod(["setim-talit-tefilin"], "סט טלית ותפילין קטיפה")).toBe(
+      "embroidery",
+    );
   });
 });

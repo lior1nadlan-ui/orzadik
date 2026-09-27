@@ -18,7 +18,13 @@
  * Mirrors rikmat.com's personalized lineup.
  */
 const BASE_PERSONALIZATION_CATEGORY_SLUGS = new Set<string>([
-  "talit-tefillin-sets", // כיסויים/סטים לטלית ותפילין (covers merged in, 2026-07 dedupe)
+  // כיסויים לטלית ותפילין. The category was renamed from `talit-tefillin-sets`
+  // in 2026-09 and this list was not updated, so 21 of its 55 active covers —
+  // the ones in no other personalizable category, including all 15 sold as
+  // "לייזר" — silently lost the "הוספת שם אישי" box. Measured 2026-09-27.
+  // Embroidery-only, as the old slug was, except where a cover's own name says
+  // laser (isLaserOnlyName below) — those 15 get laser engraving instead.
+  "talit-tefillin-covers",
   "tefillin-cases", // תיקי תפילין
   "pvc-bags", // תיקי PVC
   "chalaka-set", // סט חלאקה
@@ -32,7 +38,8 @@ const BASE_PERSONALIZATION_CATEGORY_SLUGS = new Set<string>([
   // bag families that were already listed above, and only the small originals
   // were ever gated — so 355 tallit/tefillin bags, the most obviously
   // embroiderable SKUs in the catalogue, showed no personalization at all.
-  // (`setim-talit-tefilin` is the same family as `talit-tefillin-sets`;
+  // (`setim-talit-tefilin` was read as the twin of `talit-tefillin-sets`, now
+  // `talit-tefillin-covers`;
   // `tik-tefilin` the same as `tefillin-cases`.) cross-sells.ts:14-20 records
   // this exact class of bug being fixed there in the 2026-07 dedupe; this file
   // was missed in that pass.
@@ -54,12 +61,12 @@ const BASE_PERSONALIZATION_CATEGORY_SLUGS = new Set<string>([
  * (no laser engraving option shown). Moved verbatim from product.$slug.tsx.
  */
 export const EMBROIDERY_ONLY_CATEGORY_SLUGS = new Set<string>([
-  "talit-tefillin-sets",
+  "talit-tefillin-covers", // was `talit-tefillin-sets` until the 2026-09 rename
   "tefillin-cases",
   "pvc-bags",
   // Same three import twins as above. These are fabric and faux-leather bags,
   // so they belong with their originals here rather than being offered laser
-  // engraving — matching how `talit-tefillin-sets` / `tefillin-cases` behave.
+  // engraving — matching how `talit-tefillin-covers` / `tefillin-cases` behave.
   "setim-talit-tefilin",
   "tikei-talit",
   "tik-tefilin",
@@ -111,7 +118,22 @@ export const PERSONALIZABLE_CATEGORY_SLUGS = new Set<string>([
 ]);
 
 /** How a personalizable product's name is applied. */
-export type PersonalizationMethod = "embroidery" | "print" | "both";
+export type PersonalizationMethod = "embroidery" | "print" | "both" | "laser";
+
+/**
+ * Whether a product is sold for laser personalization only, read from its
+ * name — the catalogue's own wording: "- לייזר בלבד", "- הטבעת שם בלייזר",
+ * "מגן דוד לייזר". 15 talit/tefillin covers are named this way; offering them
+ * embroidery would promise a method the product does not take.
+ *
+ * "חיתוך לייזר" (laser-CUT metal blessings, salt holders) describes how the
+ * item is made, not a name option, and "בחריטת לייזר" talitot are woven
+ * garments outside every personalizable category; neither counts.
+ */
+export function isLaserOnlyName(name: string | null | undefined): boolean {
+  const n = name ?? "";
+  return /לייזר/.test(n) && !/חיתוך לייזר|חיתך לייזר|בחריטת לייזר/.test(n);
+}
 
 /** The Hebrew label shown for the (non-laser) personalization method. */
 export type EmbroideryLabel = "רקמה" | "הטבעה";
@@ -147,10 +169,19 @@ export function isPersonalizableProduct(slug: string, categorySlugs: string[]): 
  *                   the previous `embroideryOnly` (when not also print).
  *  - "both"       → default: embroidery ("רקמה") plus laser engraving.
  *
- * Precedence (print → embroidery-only → both) mirrors the PDP's description
- * copy, which tested `printInsteadOfEmbroidery` before `embroideryOnly`.
+ *  - "laser"      → the product's own name says laser only (isLaserOnlyName);
+ *                   checked first, since it is a per-product fact.
+ *
+ * Precedence (laser-only name → print → embroidery-only → both) mirrors the
+ * PDP's description copy, which tested `printInsteadOfEmbroidery` before
+ * `embroideryOnly`.
  */
-export function personalizationMethod(categorySlugs: string[]): PersonalizationMethod {
+export function personalizationMethod(
+  categorySlugs: string[],
+  productName?: string | null,
+): PersonalizationMethod {
+  // A product named as laser-only overrides its category's methods.
+  if (isLaserOnlyName(productName)) return "laser";
   const printInstead = categorySlugs.some((s) => PRINT_INSTEAD_OF_EMBROIDERY_CATEGORY_SLUGS.has(s));
   if (printInstead) return "print";
   const embroideryOnly = categorySlugs.some((s) => EMBROIDERY_ONLY_CATEGORY_SLUGS.has(s));

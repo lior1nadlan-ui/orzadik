@@ -88,6 +88,7 @@ const PERSONALIZATION_MARKER: Record<PersonalizationMethod, string> = {
   embroidery: "ניתן לרקום שם",
   print: "ניתן להטביע שם",
   both: "ניתן לרקום או לחרוט",
+  laser: "ניתן לחרוט שם",
 };
 
 export function ProductCard({
@@ -139,7 +140,7 @@ export function ProductCard({
   const categorySlugs = p.category_slugs ?? [];
   const personalizable = categorySlugs.length > 0 && isPersonalizableProduct(p.slug, categorySlugs);
   const personalizationText = personalizable
-    ? PERSONALIZATION_MARKER[personalizationMethod(categorySlugs)]
+    ? PERSONALIZATION_MARKER[personalizationMethod(categorySlugs, p.name)]
     : null;
 
   // `price <= 0` is the catalogue's "call for a price" convention (7 gold-rate
