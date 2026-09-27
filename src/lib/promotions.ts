@@ -170,3 +170,29 @@ export function promoEndDate(endsAt: string): string {
   // en-CA formats as YYYY-MM-DD.
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jerusalem" }).format(d);
 }
+
+/** What the site-wide strip and /mivtzaim announce. */
+export type PromoHeadline = {
+  /** Live promotions that price at least one product. */
+  count: number;
+  /** The biggest configured percentage among them — "עד 30%". */
+  maxPercent: number;
+  /** The one live promotion when there is exactly one, else null. */
+  single: (ActivePromo & { storeWide: boolean }) | null;
+};
+
+/**
+ * The strip's summary of the live promotions, or null when there is nothing to
+ * announce. A category promotion whose categories hold no active product
+ * prices nothing, so it is left out rather than advertised.
+ */
+export function promoHeadline(payload: PromoPayload | null | undefined): PromoHeadline | null {
+  const live = (payload?.promos ?? []).filter(
+    (p) => p.productIds === null || p.productIds.length > 0,
+  );
+  if (live.length === 0) return null;
+  const maxPercent = Math.max(...live.map((p) => p.percentOff));
+  if (live.length > 1) return { count: live.length, maxPercent, single: null };
+  const { productIds, ...promo } = live[0];
+  return { count: 1, maxPercent, single: { ...promo, storeWide: productIds === null } };
+}

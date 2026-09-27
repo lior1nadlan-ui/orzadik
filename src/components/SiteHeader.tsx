@@ -3,7 +3,7 @@ import { ShoppingBag, User as UserIcon, Search, Menu, X, Heart, ChevronDown } fr
 import { OCCASION_COLLECTIONS } from "@/lib/collections";
 import { useCart, formatILS } from "@/lib/cart";
 import { priceView, promoFor } from "@/lib/promotions";
-import { usePromoIndex } from "@/lib/promotions-data";
+import { usePromoIndex, usePromoHeadline } from "@/lib/promotions-data";
 import { useFavorites } from "@/components/engagement/favorites";
 import { useAuth } from "@/lib/auth";
 import { useState, useEffect, useRef } from "react";
@@ -14,6 +14,7 @@ import { CATEGORY_COUNT_EMBED, listableCategories } from "@/routes/categories";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { CartDrawer } from "@/components/cart/CartDrawer";
 import { ClubBadge } from "@/components/ClubBadge";
+import { PromoStrip } from "@/components/PromoStrip";
 import { NewsletterSignup } from "@/components/NewsletterSignup";
 import { thumbUrl } from "@/lib/img";
 import { openCookieSettings } from "@/components/CookieConsent";
@@ -251,6 +252,12 @@ export function SiteHeader() {
   // no hydration mismatch — the badge appears after mount, like the cart badge.
   const { count: favCount } = useFavorites();
   const { user, isAdmin, signOut } = useAuth();
+  // A live CRM promotion takes the club strip's place (same slot, same height).
+  const promoLive = usePromoHeadline() !== null;
+  // Whether a 36px strip sits above the bar at all: the club strip hides itself
+  // for a signed-in shopper (ClubBadge), and the promotion strip shows to
+  // everyone. The header's sticky offset must follow it — see below.
+  const stripShown = promoLive || !user;
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [q, setQ] = useState("");
@@ -556,11 +563,14 @@ export function SiteHeader() {
         no layout effect; it is opened by the cart button above and by any
         add-to-cart across the site. */}
       <CartDrawer />
-      {/* Sticky lives on the <header> itself with -top-9 (the club strip is h-9):
+      {/* Sticky lives on the <header> itself with -top-9 (the strip is h-9):
       the strip scrolls off while the glass bar below pins to the viewport top.
+      With no strip (a signed-in shopper, no promotion) the offset is 0 — a
+      fixed -top-9 there pushed the top 36px of the logo bar off screen once the
+      page scrolled, which on a phone is most of the bar: logo, cart, search.
       z-40 matches the old layout wrapper so overlay layering is unchanged. */}
-      <header className="sticky -top-9 z-40 w-full">
-        <ClubBadge variant="strip" />
+      <header className={`sticky ${stripShown ? "-top-9" : "top-0"} z-40 w-full`}>
+        {promoLive ? <PromoStrip /> : <ClubBadge variant="strip" />}
         {/* Main bar: white glass, gold hairline at rest, soft shadow after scroll.
           .glass-strong (94% white) and NOT .glass — this bar scrolls over the
           hero video, and at 72% the gold --accent inside it would drop to

@@ -17,9 +17,11 @@ import {
   indexFromPayload,
   priceView,
   promoFor,
+  promoHeadline,
   EMPTY_PROMO_INDEX,
   EMPTY_PROMO_PAYLOAD,
   type PriceView,
+  type PromoHeadline,
   type PromoIndex,
   type PromoPayload,
 } from "@/lib/promotions";
@@ -79,6 +81,7 @@ export async function loadPromoPayloadCached(qc: QueryClient | undefined): Promi
 }
 
 const PromoCtx = createContext<PromoIndex>(EMPTY_PROMO_INDEX);
+const HeadlineCtx = createContext<PromoHeadline | null>(null);
 
 export function PromoProvider({
   seed,
@@ -98,11 +101,21 @@ export function PromoProvider({
     refetchOnWindowFocus: true,
   });
   const index = useMemo(() => indexFromPayload(data), [data]);
-  return <PromoCtx.Provider value={index}>{children}</PromoCtx.Provider>;
+  const headline = useMemo(() => promoHeadline(data), [data]);
+  return (
+    <PromoCtx.Provider value={index}>
+      <HeadlineCtx.Provider value={headline}>{children}</HeadlineCtx.Provider>
+    </PromoCtx.Provider>
+  );
 }
 
 export function usePromoIndex(): PromoIndex {
   return useContext(PromoCtx);
+}
+
+/** The live promotions in one line's worth — for the strip. Null = none. */
+export function usePromoHeadline(): PromoHeadline | null {
+  return useContext(HeadlineCtx);
 }
 
 /** The price view for one product — what every price on the site renders from. */

@@ -8,6 +8,7 @@ import {
   promoEndDate,
   compactPromoRows,
   indexFromPayload,
+  promoHeadline,
   EMPTY_PROMO_INDEX,
   type PromoRow,
 } from "./promotions";
@@ -153,5 +154,36 @@ describe("the SSR payload", () => {
     expect(payload.promos.find((p) => p.id === "all")?.productIds).toBeNull();
     expect(indexFromPayload(payload)).toEqual(buildPromoIndex(rows));
     expect(indexFromPayload(null)).toEqual(EMPTY_PROMO_INDEX);
+  });
+});
+
+describe("promoHeadline — what the strip announces", () => {
+  it("is null with nothing live, and skips a promotion that prices nothing", () => {
+    expect(promoHeadline(null)).toBeNull();
+    expect(promoHeadline({ promos: [] })).toBeNull();
+    const empty = { id: "e", percentOff: 40, label: null, endsAt: END, productIds: [] };
+    expect(promoHeadline({ promos: [empty] })).toBeNull();
+  });
+
+  it("names the one live promotion, and says when it is store-wide", () => {
+    const cat = { id: "c", percentOff: 20, label: "חנוכה", endsAt: END, productIds: ["a"] };
+    expect(promoHeadline({ promos: [cat] })).toEqual({
+      count: 1,
+      maxPercent: 20,
+      single: { id: "c", percentOff: 20, label: "חנוכה", endsAt: END, storeWide: false },
+    });
+    const all = { ...cat, id: "all", productIds: null };
+    expect(promoHeadline({ promos: [all] })?.single?.storeWide).toBe(true);
+  });
+
+  it("summarises several as a count and the biggest percent", () => {
+    const a = { id: "a", percentOff: 10, label: null, endsAt: END, productIds: ["x"] };
+    const b = { id: "b", percentOff: 30, label: null, endsAt: END, productIds: null };
+    const dead = { id: "d", percentOff: 50, label: null, endsAt: END, productIds: [] };
+    expect(promoHeadline({ promos: [a, b, dead] })).toEqual({
+      count: 2,
+      maxPercent: 30,
+      single: null,
+    });
   });
 });

@@ -30,6 +30,8 @@
 | עגלה, עגלה צפה, קופה                      | מחיר השורה      | מחיר המבצע בשורה, ו"חסכתם ₪X במבצע" בסיכום                                                       |
 | החיוב בפועל (שרת)                         | מחיר רגיל       | מחיר המבצע — השרת מחשב בעצמו מול המבצע הפעיל ברגע ההזמנה                                         |
 | Google (JSON-LD ופיד Merchant)            | price           | price = מחיר המבצע, priceValidUntil = סוף המבצע; בפיד `sale_price` ו-`sale_price_effective_date` |
+| פס עליון באתר                             | פס המועדון      | "מבצע חנוכה · 20% הנחה · עד 31.12 · לפריטים במבצע" (כמה מבצעים: "2 מבצעים באתר · עד 30% הנחה")   |
+| עמוד `/mivtzaim`                          | "אין כרגע מבצע" | כרטיס לכל מבצע (תווית, ‎-X%, הקטגוריות עם קישור, תאריך סיום) ורשת הפריטים שבמבצע                 |
 
 ## כללי יושר (חוק הגנת הצרכן §2)
 
@@ -54,7 +56,8 @@ active_promotion_index()   SQL, SECURITY DEFINER, grant anon
    ├──────────────► root loader (SSR) → usePromoIndex() → ProductCard / PDP / עגלה / קופה / חיפוש
    ├──────────────► placeOrder (שרת): unit_price = promoPrice(effectivePrice(base))
    │                 order_items.promotion_id ← המבצע שחל
-   └──────────────► /feed.xml: g:sale_price + g:sale_price_effective_date
+   ├──────────────► /feed.xml: g:sale_price + g:sale_price_effective_date
+   └──────────────► list_promotion_products() / active_promotions_public() → /mivtzaim, PromoStrip
 ```
 
 כל החישוב במקום אחד: `src/lib/promotions.ts` — `promoFor(index, productId)` ו-`promoPrice(regular, promo)`. אותה פונקציה רצה בדפדפן ובשרת, כמו `pricing.ts` היום.
@@ -76,7 +79,7 @@ active_promotion_index()   SQL, SECURITY DEFINER, grant anon
 - פריט "מבצעים" בתפריט הניהול.
 - כל פעולה מתועדת (מי ומתי).
 
-### שלב ג — חשיפה ודוח
+### שלב ג — חשיפה ודוח — הושלם, #147
 
 - עמוד `/mivtzaim` עם כל המוצרים שבמבצע עכשיו, ופס הודעה עליון כשיש מבצע פעיל.
 - בסקירת ה-CRM: כרטיס "מבצעים פעילים" עם מכירות לפי מבצע (מ-`order_items.promotion_id`).

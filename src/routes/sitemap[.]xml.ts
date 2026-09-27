@@ -124,7 +124,7 @@ export const Route = createFileRoute("/sitemap.xml")({
     handlers: {
       GET: async () => {
         try {
-          const [products, categories, articles] = await Promise.all([
+          const [products, categories, articles, livePromos] = await Promise.all([
             fetchAll<any>(() =>
               supabaseAdmin
                 .from("products")
@@ -153,6 +153,16 @@ export const Route = createFileRoute("/sitemap.xml")({
                 .eq("is_published", true)
                 .order("slug"),
             ),
+            // /mivtzaim is noindex while nothing is live, so it is submitted only
+            // while a promotion runs. A failed read just leaves it out.
+            (async () => {
+              try {
+                const { data, error } = await supabaseAdmin.rpc("active_promotions_public");
+                return error ? 0 : (data ?? []).length;
+              } catch {
+                return 0;
+              }
+            })(),
           ]);
 
           // Google Image sitemap extension helper.
@@ -178,6 +188,11 @@ export const Route = createFileRoute("/sitemap.xml")({
           for (const s of STATIC) {
             urls.push(
               `<url><loc>${loc(s.path)}</loc><lastmod>${freshest}</lastmod><changefreq>${s.freq}</changefreq><priority>${s.pri}</priority></url>`,
+            );
+          }
+          if (livePromos > 0) {
+            urls.push(
+              `<url><loc>${loc("/mivtzaim")}</loc><lastmod>${new Date().toISOString().slice(0, 10)}</lastmod><changefreq>daily</changefreq><priority>0.8</priority></url>`,
             );
           }
           // Collection landing pages curate live catalog products, so the
