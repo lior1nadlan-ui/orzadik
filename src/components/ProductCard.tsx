@@ -1,6 +1,7 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { formatILS, useCart, getEffectivePrice } from "@/lib/cart";
+import { usePriceView } from "@/lib/promotions-data";
 import { isCallOnlyProduct } from "@/lib/pricing";
 import { useFavorites } from "@/components/engagement/favorites";
 import { ProductThumb } from "@/components/ProductThumb";
@@ -152,7 +153,13 @@ export function ProductCard({
   // shared helper is what keeps the two screens from drifting apart.
   const isCallOnly = isCallOnlyProduct(p.price);
   const isOutOfStock = p.stock_status === "outofstock";
-  const effective = getEffectivePrice(p.price);
+  // The price this tile charges: the regular price, or the promotional one when
+  // a CRM promotion covers the product (see src/lib/promotions.ts). `view.pct`
+  // is computed from the two rounded numbers on screen, so the badge always
+  // agrees with them; it is 0 — and nothing promotional renders — otherwise.
+  const view = usePriceView(p.id, Number(p.price));
+  const onPromo = !isCallOnly && view.pct > 0;
+  const effective = view.pays;
 
   // The supplier gives many distinct SKUs the same name. Listings show one tile
   // per name; this says how many real models sit behind it.
@@ -174,7 +181,7 @@ export function ProductCard({
   // rounds correctly reads as one price, which it is.
   const groupCeiling = Number(p.model_price_max ?? 0);
   const spansPriceRange =
-    hasModels && !isCallOnly && groupCeiling > 0 && getEffectivePrice(groupCeiling) > effective;
+    hasModels && !isCallOnly && groupCeiling > 0 && getEffectivePrice(groupCeiling) > view.regular;
 
   return (
     // Glass tile, spelled out rather than composed from `.glass`. DELIBERATE:
@@ -309,6 +316,18 @@ export function ProductCard({
           // standalone `scale` property, so it is named in the transition list.
           className="h-full w-full object-contain transition-[transform,scale] duration-300 ease-out motion-safe:[@media(hover:hover)_and_(pointer:fine)]:group-hover:scale-105"
         />
+        {/* The promotion badge. Bottom corner of the photograph because both top
+            corners are taken — the status badge (right) and the heart (left) —
+            and the status badge changes what a tap does, so it keeps its place.
+            dir="ltr" keeps the minus sign in front of the number in RTL. */}
+        {onPromo && (
+          <span
+            dir="ltr"
+            className="absolute bottom-2 right-2 z-10 rounded-full bg-argaman px-2.5 py-1 text-micro font-bold text-white shadow"
+          >
+            -{view.pct}%
+          </span>
+        )}
       </Link>
 
       {/* ---- CAPTION ----------------------------------------------------------
@@ -377,6 +396,17 @@ export function ProductCard({
               )}
               {formatILS(effective)}
             </span>
+            {/* The honest "before": the price this site charges without the
+                promotion, not a list price. Its own span, after the paid price,
+                so the two numbers never share a bidi run. */}
+            {onPromo && (
+              <span className="ms-2 text-meta text-muted-foreground line-through">
+                {formatILS(view.regular)}
+              </span>
+            )}
+            {onPromo && view.promo?.label && (
+              <p className="mt-0.5 text-micro font-semibold text-argaman">{view.promo.label}</p>
+            )}
           </div>
         )}
 

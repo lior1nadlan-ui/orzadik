@@ -33,6 +33,14 @@ import { ProductCardData } from "@/components/ProductCard";
 import { ProductCarousel } from "@/components/product/ProductCarousel";
 import { GuideLinks } from "@/components/content/GuideLinks";
 import { guidesForCategories } from "@/lib/guide-links";
+import {
+  priceView,
+  promoFor,
+  indexFromPayload,
+  formatPromoEnd,
+  promoEndDate,
+} from "@/lib/promotions";
+import { loadPromoPayloadCached, usePromoIndex } from "@/lib/promotions-data";
 import { PersonalizationPreview } from "@/components/product/PersonalizationPreview";
 import {
   isPersonalizableProduct,
@@ -210,7 +218,10 @@ function byGalleryOrder(a: any, b: any): number {
 }
 
 export const Route = createFileRoute("/product/$slug")({
-  loader: async ({ params }) => {
+  loader: async ({ params, context }) => {
+    // Started first and awaited last: it runs alongside every other read here,
+    // and is a cache hit both during SSR and on client navigation.
+    const promoPayloadP = loadPromoPayloadCached(context.queryClient);
     const product = await fetchProductWithRetry(params.slug);
     if (!product) throw notFound(); // real HTTP 404 for non-existent slugs, not a soft-404
     // Summary (accurate full-count, for head()/JSON-LD/star-link) and the
@@ -311,6 +322,10 @@ export const Route = createFileRoute("/product/$slug")({
         }
       }
     }
+    // The live CRM promotion for this product, for head(): the Offer price and
+    // the <title> must carry the price the page shows. The component itself
+    // reads the fresher PromoProvider copy.
+    const promo = promoFor(indexFromPayload(await promoPayloadP), product.id as string);
     return {
       product,
       reviewSummary,
@@ -319,6 +334,7 @@ export const Route = createFileRoute("/product/$slug")({
       leafCat,
       canonicalSlug,
       nameHasMultiplePrices,
+      promo,
     };
   },
   head: ({ loaderData, params }) => {
@@ -491,6 +507,9 @@ export const Route = createFileRoute("/product/$slug")({
       // omitting it can suppress the price in search. Set ~1 year out.
       const validUntil = new Date();
       validUntil.setFullYear(validUntil.getFullYear() + 1);
+      // During a CRM promotion the Offer is the promotional price, valid until
+      // the promotion ends — the number the page shows, with its real end date.
+      const offerView = priceView(Number(p.price), (loaderData as any)?.promo ?? null);
       productLd.offers = {
         "@type": "Offer",
         // Same URL as rel=canonical. The price below is safe to attach to it:
@@ -498,8 +517,10 @@ export const Route = createFileRoute("/product/$slug")({
         // page's, so the offer is true of both URLs.
         url: canonicalUrl,
         priceCurrency: "ILS",
-        price: String(getEffectivePrice(Number(p.price))),
-        priceValidUntil: validUntil.toISOString().slice(0, 10),
+        price: String(offerView.pays),
+        priceValidUntil: offerView.promo
+          ? promoEndDate(offerView.promo.endsAt)
+          : validUntil.toISOString().slice(0, 10),
         availability:
           p.stock_status === "outofstock"
             ? "https://schema.org/OutOfStock"
@@ -716,7 +737,7 @@ export const Route = createFileRoute("/product/$slug")({
     // "mismatched value" disapproval.
     const pageTitle =
       !isCallOnly && (loaderData as any)?.nameHasMultiplePrices === true
-        ? `${p.name} ב-${formatILS(getEffectivePrice(Number(p.price)))} | אור זרוע לצדיק`
+        ? `${p.name} ב-${formatILS(priceView(Number(p.price), (loaderData as any)?.promo ?? null).pays)} | אור זרוע לצדיק`
         : socialTitle;
     return {
       meta: [
@@ -924,6 +945,9 @@ function ProductPage() {
   const [api, setApi] = useState<CarouselApi>();
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [customText, setCustomText] = useState("");
+  // Live CRM promotions — read here, above every early return, because the
+  // price below is computed after them.
+  const promoIndex = usePromoIndex();
   // The PDP toggle is רקמה/הטבעה vs laser; "print" is derived at add-to-cart.
   const [customMethod, setCustomMethod] = useState<Exclude<CustomMethod, "print">>("embroidery");
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
@@ -1267,7 +1291,16 @@ function ProductPage() {
   );
   // If an in-place size variant is selected, use its price as the base.
   const effectiveBase = selectedVariant ? selectedVariant.price! : Number(product.price);
-  const effective = getEffectivePrice(effectiveBase);
+  // The price this page charges — promotional when a CRM promotion covers the
+  // product (a promotion covers all of its sizes). See src/lib/promotions.ts.
+  // (promoIndex is read at the top of the component: hooks may not follow the
+  // early returns above.)
+  const view = priceView(effectiveBase, promoFor(promoIndex, product.id));
+  const effective = view.pays;
+  // What a sibling model charges, promotion included — the models rail below
+  // compares like with like, and its tiles show the same promotional prices.
+  const paysOf = (m: { id: string; price: number | string }) =>
+    priceView(Number(m.price), promoFor(promoIndex, m.id)).pays;
   // Honest strike-through: only vs. a genuine recorded former price (sale_price)
   // for the base product; a selected size variant has no recorded former price.
   const baseSalePrice = selectedVariant ? null : (product.sale_price ?? null);
@@ -1818,10 +1851,34 @@ function ProductPage() {
               </div>
             </div>
           ) : (
-            <div className="flex items-baseline gap-3 mb-3 flex-wrap">
-              {/* --text-price, the step styles.css reserves for exactly this
-                  number (40px). */}
-              <span className="text-price font-semibold text-accent">{formatILS(effective)}</span>
+            <div className="mb-3">
+              <div className="flex items-baseline gap-3 flex-wrap">
+                {/* --text-price, the step styles.css reserves for exactly this
+                    number (40px). */}
+                <span className="text-price font-semibold text-accent">{formatILS(effective)}</span>
+                {/* A live CRM promotion: the honest "before" is the price this
+                    site charges without it, and the percent is computed from
+                    the two numbers shown here. */}
+                {view.promo && (
+                  <>
+                    <span className="text-lead text-muted-foreground line-through">
+                      {formatILS(view.regular)}
+                    </span>
+                    <span
+                      dir="ltr"
+                      className="rounded-full bg-argaman px-2.5 py-1 text-meta font-bold text-white"
+                    >
+                      -{view.pct}%
+                    </span>
+                  </>
+                )}
+              </div>
+              {view.promo && (
+                <p className="mt-1 text-meta text-argaman">
+                  {view.promo.label ? `${view.promo.label} · ` : ""}המבצע בתוקף עד{" "}
+                  {formatPromoEnd(view.promo.endsAt)}
+                </p>
+              )}
             </div>
           )}
 
@@ -2508,15 +2565,13 @@ function ProductPage() {
           (m) =>
             !(
               m.name === product.name &&
-              getEffectivePrice(Number(m.price)) === effective &&
+              paysOf(m) === effective &&
               (m.thumbnail_url ?? "") === (product.thumbnail_url ?? "")
             ),
         );
-        const sameShade = distinct.filter((m) => getEffectivePrice(Number(m.price)) === effective);
-        const otherPriced = distinct.filter(
-          (m) => getEffectivePrice(Number(m.price)) !== effective,
-        );
-        const otherPrices = otherPriced.map((m) => getEffectivePrice(Number(m.price)));
+        const sameShade = distinct.filter((m) => paysOf(m) === effective);
+        const otherPriced = distinct.filter((m) => paysOf(m) !== effective);
+        const otherPrices = otherPriced.map((m) => paysOf(m));
         return (
           <>
             {sameShade.length > 0 && (

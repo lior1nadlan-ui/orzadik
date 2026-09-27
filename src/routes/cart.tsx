@@ -22,6 +22,8 @@ import { CartCrossSell } from "@/components/cart/CartCrossSell";
 import { TrustBadges, instalmentsLine } from "@/components/cart/TrustBadges";
 import { Trash2, Minus, Plus } from "lucide-react";
 import { customMethodLabel } from "@/lib/personalization";
+import { promoFor, promoPrice } from "@/lib/promotions";
+import { usePromoIndex, useRefreshPromotionsOnMount } from "@/lib/promotions-data";
 
 export const Route = createFileRoute("/cart")({
   component: CartPage,
@@ -76,10 +78,19 @@ function CartPage() {
   const isMember = !!memberProfile?.is_member;
   // The charged price of a line: the revalidated one once known, the stored one
   // until then.
-  const linePrice = (item: CartItem) => {
+  const promoIndex = usePromoIndex();
+  // The cart is where a stale promotion would cost money — re-read on open.
+  useRefreshPromotionsOnMount();
+  // The line's price before any promotion: the revalidated one once known, the
+  // stored one until then.
+  const lineRegular = (item: CartItem) => {
     const c = checks.get(lineKey(item));
     return c?.kind === "price" ? c.current : getEffectivePrice(item.price);
   };
+  // The charged price of a line — lineRegular with a live CRM promotion applied,
+  // the same promoPrice() placeOrder charges with.
+  const linePrice = (item: CartItem) =>
+    promoPrice(lineRegular(item), promoFor(promoIndex, item.productId));
   // Exactly the sum of the per-line amounts rendered in the cart rows below —
   // minus the lines placeOrder() would reject, which cannot be part of any
   // amount the customer could be charged.
@@ -87,6 +98,13 @@ function CartPage() {
     const c = checks.get(lineKey(i));
     if (c && isBlocking(c)) return s;
     return s + linePrice(i) * i.quantity;
+  }, 0);
+  // What the live promotions take off the orderable lines — a fact about
+  // itemsTotal, shown under it, never a separate row in the arithmetic.
+  const promoSavings = items.reduce((s, i) => {
+    const c = checks.get(lineKey(i));
+    if (c && isBlocking(c)) return s;
+    return s + (lineRegular(i) - linePrice(i)) * i.quantity;
   }, 0);
   const memberSubtotal = applyMemberDiscount(itemsTotal, isMember);
   const memberBenefit = itemsTotal - memberSubtotal;
@@ -143,6 +161,8 @@ function CartPage() {
           const check = checks.get(k);
           const blocked = !!check && isBlocking(check);
           const effective = linePrice(item);
+          const regular = lineRegular(item);
+          const onPromo = !blocked && effective < regular;
           return (
             <div key={k} className="flex gap-3 sm:gap-4 glass p-3 sm:p-4">
               {item.thumbnail && (
@@ -205,6 +225,16 @@ function CartPage() {
                   >
                     {formatILS(effective)}
                   </span>
+                  {onPromo && (
+                    <>
+                      <span className="text-meta text-muted-foreground line-through">
+                        {formatILS(regular)}
+                      </span>
+                      <span dir="ltr" className="text-meta font-semibold text-argaman">
+                        -{Math.round((1 - effective / regular) * 100)}%
+                      </span>
+                    </>
+                  )}
                 </div>
 
                 {/* Revalidation notice — appears only once the check resolves and
@@ -315,6 +345,11 @@ function CartPage() {
                 <span className="text-muted-foreground">סכום פריטים</span>
                 <span className="whitespace-nowrap">{formatILS(itemsTotal)}</span>
               </div>
+              {promoSavings > 0 && (
+                <p className="text-meta text-argaman">
+                  כולל הנחת מבצע של {formatILS(promoSavings)}
+                </p>
+              )}
               {memberBenefit > 0 && (
                 <div className="flex justify-between text-body">
                   <span className="text-muted-foreground">הטבת מועדון</span>

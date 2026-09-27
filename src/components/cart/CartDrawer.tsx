@@ -4,7 +4,9 @@ import { ShoppingBag, Minus, Plus, Trash2 } from "lucide-react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { CartCrossSellCompact } from "@/components/cart/CartCrossSellCompact";
-import { useCart, formatILS, getEffectivePrice, lineKey } from "@/lib/cart";
+import { useCart, formatILS, lineKey } from "@/lib/cart";
+import { priceView, promoFor } from "@/lib/promotions";
+import { usePromoIndex } from "@/lib/promotions-data";
 import { customMethodLabel } from "@/lib/personalization";
 
 // -----------------------------------------------------------------------------
@@ -29,6 +31,7 @@ import { customMethodLabel } from "@/lib/personalization";
 export function CartDrawer() {
   const { items, remove, setQty, count, subtotal, shipping, grandTotal, isCartOpen, closeCart } =
     useCart();
+  const promoIndex = usePromoIndex();
   const navigate = useNavigate();
 
   // Distinct products in the cart — drives the compact cross-sell strip below.
@@ -122,7 +125,9 @@ export function CartDrawer() {
                 so the summary below stays pinned. */}
             <div className="min-h-0 flex-1 overflow-y-auto px-5">
               {items.map((item) => {
-                const effective = getEffectivePrice(item.price);
+                // Promotional when a CRM promotion covers the product; the
+                // struck regular price and the percent sit beside it.
+                const view = priceView(item.price, promoFor(promoIndex, item.productId));
                 const k = lineKey(item);
                 return (
                   <div key={k} className="flex gap-3 border-b border-glass-line py-4 last:border-0">
@@ -216,8 +221,20 @@ export function CartDrawer() {
                             <Plus className="h-3.5 w-3.5" />
                           </button>
                         </div>
-                        <div className="text-body font-bold text-accent">
-                          {formatILS(effective * item.quantity)}
+                        <div className="text-end">
+                          {view.promo && (
+                            <div className="text-meta text-muted-foreground">
+                              <span className="line-through">
+                                {formatILS(view.regular * item.quantity)}
+                              </span>{" "}
+                              <span dir="ltr" className="font-semibold text-argaman">
+                                -{view.pct}%
+                              </span>
+                            </div>
+                          )}
+                          <div className="text-body font-bold text-accent">
+                            {formatILS(view.pays * item.quantity)}
+                          </div>
                         </div>
                       </div>
                     </div>

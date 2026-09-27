@@ -29,6 +29,8 @@ import { TrustBadges, instalmentsLine } from "@/components/cart/TrustBadges";
 import { Lock } from "lucide-react";
 import { toast } from "sonner";
 import { customMethodLabel } from "@/lib/personalization";
+import { promoFor, promoPrice } from "@/lib/promotions";
+import { usePromoIndex, useRefreshPromotionsOnMount } from "@/lib/promotions-data";
 
 // Server/transport errors can carry an English message ("Failed to fetch"),
 // which is truthy and would otherwise slip past a `?? fallback`. Show the raw
@@ -170,10 +172,17 @@ function CheckoutPage() {
   const { checks, blockedCount } = useCartRevalidation(items);
   // The charged price of a line: the revalidated one once known, the stored one
   // until then (mirrors /cart's linePrice).
-  const linePrice = (item: CartItem) => {
+  const promoIndex = usePromoIndex();
+  // The checkout is where a stale promotion would cost money — re-read on open.
+  useRefreshPromotionsOnMount();
+  const lineRegular = (item: CartItem) => {
     const c = checks.get(lineKey(item));
     return c?.kind === "price" ? c.current : getEffectivePrice(item.price);
   };
+  // lineRegular with a live CRM promotion applied — the same promoPrice()
+  // placeOrder charges with, so the CTA amount is the Cardcom amount.
+  const linePrice = (item: CartItem) =>
+    promoPrice(lineRegular(item), promoFor(promoIndex, item.productId));
   // Sum of the orderable lines at their current price — a line placeOrder() would
   // reject (blocking) cannot be part of any amount the customer is charged, so it
   // is excluded, exactly like /cart. This makes the CTA amount equal the Cardcom
@@ -182,6 +191,11 @@ function CheckoutPage() {
     const c = checks.get(lineKey(i));
     if (c && isBlocking(c)) return s;
     return s + linePrice(i) * i.quantity;
+  }, 0);
+  const promoSavings = items.reduce((s, i) => {
+    const c = checks.get(lineKey(i));
+    if (c && isBlocking(c)) return s;
+    return s + (lineRegular(i) - linePrice(i)) * i.quantity;
   }, 0);
   const memberSubtotal = applyMemberDiscount(itemsTotal, isMember);
   const memberBenefit = itemsTotal - memberSubtotal;
@@ -318,6 +332,9 @@ function CheckoutPage() {
           is_gift: isGift,
           gift_note: isGift ? giftNote || null : null,
           gift_wrap: isGift ? giftWrap : false,
+          // The amount this page showed for the items. placeOrder refuses to
+          // charge more — e.g. a promotion that ended while the form was open.
+          expected_items_total: itemsTotal,
           items: items.map((i) => ({
             product_id: i.productId,
             quantity: i.quantity,
@@ -771,13 +788,20 @@ function CheckoutPage() {
         ) : (
           <>
             {/* Full breakdown of the exact amount Cardcom will charge. Every row is a
-                factual component of that number — no percentages, no "before" price
-                and no savings claims. סכום פריטים (− הטבת מועדון) + משלוח = סך הכל. */}
+                factual component of that number — no percentages and no "before" price.
+                The one saving it states is a live CRM promotion's, as a fact about
+                סכום פריטים rather than a row of its own, so the arithmetic still
+                reads סכום פריטים (− הטבת מועדון) + משלוח = סך הכל. */}
             <div className="space-y-2 border-t border-glass-line pt-3">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">סכום פריטים</span>
                 <span className="whitespace-nowrap">{formatILS(itemsTotal)}</span>
               </div>
+              {promoSavings > 0 && (
+                <p className="text-meta text-argaman">
+                  כולל הנחת מבצע של {formatILS(promoSavings)}
+                </p>
+              )}
               {memberBenefit > 0 && (
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">הטבת מועדון</span>

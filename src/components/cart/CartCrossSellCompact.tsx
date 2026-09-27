@@ -1,6 +1,8 @@
 import { Link } from "@tanstack/react-router";
 import { ProductThumb } from "@/components/ProductThumb";
-import { formatILS, getEffectivePrice } from "@/lib/cart";
+import { formatILS } from "@/lib/cart";
+import { priceView, promoFor } from "@/lib/promotions";
+import { usePromoIndex } from "@/lib/promotions-data";
 import { useCrossSellSuggestions } from "@/components/cart/cross-sell-query";
 
 /**
@@ -18,6 +20,7 @@ export function CartCrossSellCompact({
   onNavigate?: () => void;
 }) {
   const suggestions = useCrossSellSuggestions(productIds);
+  const promoIndex = usePromoIndex();
   if (suggestions.length < 3) return null;
 
   // Compact strip for the mini-cart drawer: a 3-up row of small tiles that link
@@ -28,7 +31,7 @@ export function CartCrossSellCompact({
       <p className="mb-3 text-xs font-semibold text-muted-foreground">מומלץ להשלמה</p>
       <div className="grid grid-cols-3 gap-2">
         {suggestions.slice(0, 3).map((p) => {
-          const effective = getEffectivePrice(p.price);
+          const effective = priceView(Number(p.price), promoFor(promoIndex, p.id)).pays;
           return (
             <Link
               key={p.id}

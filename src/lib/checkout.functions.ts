@@ -7,6 +7,7 @@ import { checkOrderRateLimit, checkOrderRateLimitByIp, getClientIp } from "@/lib
 import { sendOrderCreatedOwnerAlert } from "@/lib/order-emails.server";
 import { recordNewsletterConsent } from "@/lib/newsletter.functions";
 import { orderCustomText } from "@/lib/personalization";
+import { buildPromoIndex, promoFor, promoPrice, EMPTY_PROMO_INDEX } from "@/lib/promotions";
 import {
   SHIPPING_FLAT,
   getEffectivePrice as effectivePrice,
@@ -38,6 +39,10 @@ const CheckoutSchema = z.object({
   is_gift: z.boolean().optional(),
   gift_note: z.string().trim().max(300).transform(stripHtml).optional().nullable(),
   gift_wrap: z.boolean().optional(),
+  // The items amount the checkout page showed (after promotions, before the
+  // member discount and shipping). Optional so an older cached bundle can still
+  // order; when present, placeOrder will not charge more than it.
+  expected_items_total: z.number().int().nonnegative().optional(),
   items: z
     .array(
       z.object({
@@ -123,6 +128,18 @@ export const placeOrder = createServerFn({ method: "POST" })
       );
     }
 
+    // Live CRM promotions, read here and not taken from the client: the charge
+    // is decided by what is live NOW. A failed read charges regular prices,
+    // which the expected_items_total guard below then stops if the page had
+    // shown promotional ones.
+    let promoIndex = EMPTY_PROMO_INDEX;
+    {
+      const { data: promoRows, error: promoErr } =
+        await supabaseAdmin.rpc("active_promotion_index");
+      if (promoErr) console.error("[placeOrder] promotions fetch:", promoErr);
+      else promoIndex = buildPromoIndex(promoRows);
+    }
+
     const byId = new Map(products?.map((p) => [p.id, p]) ?? []);
     const lineItems = data.items.map((i) => {
       const p = byId.get(i.product_id);
@@ -152,7 +169,9 @@ export const placeOrder = createServerFn({ method: "POST" })
       if (!isSellablePrice(basePrice)) {
         throw new Error(`מוצר ללא מחיר תקין: ${p.name}`);
       }
-      const unit_price = effectivePrice(basePrice);
+      const regular = effectivePrice(basePrice);
+      const promo = promoFor(promoIndex, p.id);
+      const unit_price = promoPrice(regular, promo);
       const combinedCustom = orderCustomText(i.custom_text, i.custom_method);
       return {
         product_id: p.id,
@@ -163,6 +182,8 @@ export const placeOrder = createServerFn({ method: "POST" })
         line_total: unit_price * i.quantity,
         custom_text: combinedCustom,
         variant_label: variantLabel,
+        // Which promotion priced this line — only when it actually lowered it.
+        promotion_id: promo && unit_price < regular ? promo.id : null,
       };
     });
 
@@ -179,6 +200,16 @@ export const placeOrder = createServerFn({ method: "POST" })
     }
 
     const rawSubtotal = lineItems.reduce((s, l) => s + l.line_total, 0);
+
+    // Never charge more than the page showed. The checkout computes the items
+    // amount with the same functions, so the two agree unless something moved
+    // in between — a promotion ended, or a price was raised — and then the
+    // customer re-checks the new amount instead of meeting it on the card form.
+    if (data.expected_items_total !== undefined && rawSubtotal > data.expected_items_total) {
+      throw new Error(
+        "המחירים באתר עודכנו בזמן שמילאתם את הפרטים (למשל מבצע שהסתיים). רעננו את העמוד כדי לראות את הסכום המעודכן לפני התשלום.",
+      );
+    }
     const subtotal = applyMember(rawSubtotal, isMember);
     const memberDiscount = rawSubtotal - subtotal;
     const shipping = subtotal > 0 ? SHIPPING_FLAT : 0;
