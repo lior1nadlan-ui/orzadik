@@ -4,7 +4,10 @@ import { ProductCard, ProductCardData } from "@/components/ProductCard";
 import { PageHeader } from "@/components/PageHeader";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { PersonalizationPreview } from "@/components/product/PersonalizationPreview";
-import { PERSONALIZABLE_CATEGORY_SLUGS } from "@/lib/personalization";
+import {
+  PERSONALIZABLE_CATEGORY_SLUGS,
+  NO_PERSONALIZATION_PRODUCT_SLUGS,
+} from "@/lib/personalization";
 import { collapseSameName, orderCatalog } from "@/lib/catalog-order";
 import { GIFT_NOTE } from "@/lib/facets";
 
@@ -87,6 +90,9 @@ async function fetchPersonalizableProducts(): Promise<PersonalizedRow[]> {
   for (const r of (rows ?? []) as any[]) {
     const p = r.products;
     if (!p?.is_active || !p.thumbnail_url) continue;
+    // The per-product opt-out the PDP and the card honour: without it this
+    // page listed items whose own page offers no name box.
+    if (NO_PERSONALIZATION_PRODUCT_SLUGS.has(p.slug)) continue;
     if (seen.has(p.id)) continue;
     seen.add(p.id);
     // First membership wins — the row is deduped above, so a product in two
@@ -285,6 +291,15 @@ function PersonalizedCollectionPage() {
         <p className="mt-6 text-center text-sm text-muted-foreground max-w-2xl mx-auto leading-relaxed">
           ✦ ההדמיות להמחשה בלבד. לאחר ההזמנה ניצור איתכם קשר לתיאום הגופן, הצבע והמיקום — כדי
           שהתוצאה תהיה בדיוק כפי שדמיינתם.
+        </p>
+        <p className="mt-3 text-center text-sm">
+          <Link
+            to="/articles/$slug"
+            params={{ slug: "personalization-guide" }}
+            className="font-semibold text-accent underline underline-offset-4"
+          >
+            מה לכתוב, איך בודקים את האיות ומה קורה אחרי ההזמנה — המדריך המלא
+          </Link>
         </p>
       </section>
 

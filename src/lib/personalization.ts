@@ -98,6 +98,11 @@ export const NO_PERSONALIZATION_PRODUCT_SLUGS = new Set<string>([
   "artj-uk67722",
   "artj-uk67721",
   "artj-uk53706",
+  // Two nickel tallit clips filed under personalizable shelves (atara +
+  // pvc-bags, wedding + tefillin-cases) — a metal clip takes no embroidery.
+  // Found 2026-09-27 while measuring the personalization guide.
+  "קליפסים-לטלית-חושן-ניקל-9-סמ",
+  "קליפסים-לטלית-ניקל-לוחות-33-סמ-עם-שרשרת",
 ]);
 
 /**

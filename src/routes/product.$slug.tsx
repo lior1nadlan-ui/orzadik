@@ -2069,6 +2069,17 @@ function ProductPage() {
                       ? "ניתן להוסיף שם ברקמה בעברית. ניצור איתכם קשר לאחר ההזמנה לתיאום פונט וגוון."
                       : "ניתן להוסיף שם ברקמה או בחריטת לייזר בעברית. ניצור איתכם קשר לאחר ההזמנה לתיאום פונט וגוון."}
               </p>
+              {/* The one page that walks through what to write, spelling, the
+                  coordination call and the cancellation rule. Here rather than
+                  in the guide links lower down, which are capped at two and
+                  already taken by the tallit/tefillin guides on the bags. */}
+              <Link
+                to="/articles/$slug"
+                params={{ slug: "personalization-guide" }}
+                className="mt-2 inline-block text-xs font-semibold text-accent underline underline-offset-4"
+              >
+                מה כדאי לכתוב ומה קורה אחרי ההזמנה — המדריך
+              </Link>
             </div>
           )}
 
