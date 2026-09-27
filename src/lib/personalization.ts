@@ -135,6 +135,39 @@ export function isLaserOnlyName(name: string | null | undefined): boolean {
   return /לייזר/.test(n) && !/חיתוך לייזר|חיתך לייזר|בחריטת לייזר/.test(n);
 }
 
+/**
+ * The Hebrew name of the method a buyer chose, as the cart, the checkout
+ * summary and the order show it. Takes a CustomMethod from the cart (a plain
+ * string here, so this module does not import the cart).
+ */
+export function customMethodLabel(
+  method: string | null | undefined,
+): "חריטת לייזר" | "הטבעה" | "רקמה" {
+  return method === "laser" ? "חריטת לייזר" : method === "print" ? "הטבעה" : "רקמה";
+}
+
+/**
+ * The personalization as stored on order_items.custom_text: the text, prefixed
+ * with the method — `[רקמה]`, `[הטבעה]` or `[לייזר]` — so the choice reaches the
+ * packing slip, the owner's Telegram alert and the invoice line. Nothing parses
+ * the prefix back; it is read by people.
+ */
+export function orderCustomText(
+  text: string | null | undefined,
+  method: string | null | undefined,
+): string | null {
+  if (!text) return null;
+  const tag =
+    method === "laser"
+      ? "לייזר"
+      : method === "print"
+        ? "הטבעה"
+        : method === "embroidery"
+          ? "רקמה"
+          : null;
+  return tag ? `[${tag}] ${text}` : text;
+}
+
 /** The Hebrew label shown for the (non-laser) personalization method. */
 export type EmbroideryLabel = "רקמה" | "הטבעה";
 

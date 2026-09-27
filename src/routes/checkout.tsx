@@ -28,6 +28,7 @@ import { PrivacyNotice } from "@/components/PrivacyNotice";
 import { TrustBadges, instalmentsLine } from "@/components/cart/TrustBadges";
 import { Lock } from "lucide-react";
 import { toast } from "sonner";
+import { customMethodLabel } from "@/lib/personalization";
 
 // Server/transport errors can carry an English message ("Failed to fetch"),
 // which is truthy and would otherwise slip past a `?? fallback`. Show the raw
@@ -755,7 +756,7 @@ function CheckoutPage() {
                 )}
                 {i.customText && (
                   <div className="text-xs text-accent">
-                    ✦ {i.customMethod === "laser" ? "חריטת לייזר" : "רקמה"}: {i.customText}
+                    ✦ {customMethodLabel(i.customMethod)}: {i.customText}
                   </div>
                 )}
               </div>

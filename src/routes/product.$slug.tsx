@@ -924,7 +924,8 @@ function ProductPage() {
   const [api, setApi] = useState<CarouselApi>();
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [customText, setCustomText] = useState("");
-  const [customMethod, setCustomMethod] = useState<CustomMethod>("embroidery");
+  // The PDP toggle is רקמה/הטבעה vs laser; "print" is derived at add-to-cart.
+  const [customMethod, setCustomMethod] = useState<Exclude<CustomMethod, "print">>("embroidery");
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
 
   // Keep the thumbnail highlight in sync with the slide the carousel shows.
@@ -1089,7 +1090,11 @@ function ProductPage() {
         ? "ניתן להוסיף רקמה אישית"
         : "ניתן להוסיף רקמה או חריטה אישית";
   // The method that actually applies: fixed to laser for a laser-only product.
-  const effectiveMethod: CustomMethod = laserOnly ? "laser" : customMethod;
+  const effectiveMethod = laserOnly ? "laser" : customMethod;
+  // What the cart and the order record: the first option is "הטבעה", not
+  // "רקמה", on a siddur.
+  const cartMethod: CustomMethod =
+    effectiveMethod === "embroidery" && printInsteadOfEmbroidery ? "print" : effectiveMethod;
 
   const { data: related = [] } = useQuery({
     queryKey: ["related", product?.id, categorySlugs.join(",")],
@@ -1488,7 +1493,7 @@ function ProductPage() {
         salePrice: baseSalePrice,
         thumbnail: product.thumbnail_url,
         customText: customText.trim() || undefined,
-        customMethod: customText.trim() ? effectiveMethod : undefined,
+        customMethod: customText.trim() ? cartMethod : undefined,
         variantId: selectedVariant?.id,
         variantLabel: selectedVariant?.label,
       },
