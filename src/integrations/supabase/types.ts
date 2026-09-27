@@ -723,6 +723,8 @@ export type Database = {
           md5_after: string | null
           product_id: string
           run_id: string
+          short_description_after: string | null
+          short_description_before: string | null
         }
         Insert: {
           description_after?: string | null
@@ -732,6 +734,8 @@ export type Database = {
           md5_after?: string | null
           product_id: string
           run_id: string
+          short_description_after?: string | null
+          short_description_before?: string | null
         }
         Update: {
           description_after?: string | null
@@ -741,6 +745,8 @@ export type Database = {
           md5_after?: string | null
           product_id?: string
           run_id?: string
+          short_description_after?: string | null
+          short_description_before?: string | null
         }
         Relationships: [
           {
