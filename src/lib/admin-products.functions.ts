@@ -15,6 +15,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { requireAdmin } from "@/lib/admin-authz.server";
+import { autoSlug, slugSuffix } from "@/lib/admin-catalog";
 
 /** Hard cap per call — keeps one mis-click from rewriting the whole catalog. */
 const MAX_IDS = 200;
@@ -552,6 +553,156 @@ export const productPriceHistory = createServerFn({ method: "POST" })
       oldSalePrice: num(r.old_sale_price),
       newSalePrice: num(r.new_sale_price),
     }));
+  });
+
+// ---------------------------------------------------------------------------
+// Gallery (products.thumbnail_url + product_images) and quick add
+//
+// The product page shows thumbnail_url first and then product_images by
+// sort_order (routes/product.$slug.tsx). No admin screen could edit the
+// gallery: 3,780 gallery rows existed, all from the import. These let the
+// product dialog show and save it as one ordered list, and let the owner
+// create several products from photos into one category in one step.
+// ---------------------------------------------------------------------------
+
+const ImageUrl = z
+  .string()
+  .max(1000)
+  .refine((u) => /^https?:\/\//.test(u) || u.startsWith("/"), "invalid image url");
+
+export const listProductImages = createServerFn({ method: "POST" })
+  .inputValidator((i: unknown) => z.object({ productId: z.string().uuid() }).parse(i))
+  .handler(async ({ data }): Promise<Array<{ url: string; sort_order: number | null }>> => {
+    await requireAdmin();
+    const { data: rows, error } = await supabaseAdmin
+      .from("product_images")
+      .select("url, sort_order")
+      .eq("product_id", data.productId);
+    if (error) {
+      console.error("[listProductImages] failed:", error);
+      throw new Error("שגיאה בטעינת תמונות המוצר.");
+    }
+    return (rows ?? []).map((r) => ({ url: r.url as string, sort_order: r.sort_order ?? null }));
+  });
+
+/**
+ * Save the gallery the owner arranged: the first image becomes thumbnail_url,
+ * the rest replace the product's product_images rows in order. Like
+ * setProductCategories this is delete-then-insert without a transaction; a
+ * failed insert is reported and the owner can save again.
+ */
+export const saveProductGallery = createServerFn({ method: "POST" })
+  .inputValidator((i: unknown) =>
+    z
+      .object({
+        productId: z.string().uuid(),
+        thumbnailUrl: ImageUrl.nullable(),
+        extra: z.array(ImageUrl).max(30),
+      })
+      .parse(i),
+  )
+  .handler(async ({ data }) => {
+    const adminId = await requireAdmin();
+    console.log(
+      `[saveProductGallery] admin=${adminId} product=${data.productId} images=${
+        (data.thumbnailUrl ? 1 : 0) + data.extra.length
+      }`,
+    );
+    const { error: tErr } = await supabaseAdmin
+      .from("products")
+      .update({ thumbnail_url: data.thumbnailUrl })
+      .eq("id", data.productId);
+    if (tErr) throw new Error("שגיאה בשמירת התמונה הראשית.");
+
+    const { error: dErr } = await supabaseAdmin
+      .from("product_images")
+      .delete()
+      .eq("product_id", data.productId);
+    if (dErr) throw new Error("שגיאה בעדכון הגלריה.");
+    const extra = [...new Set(data.extra)].filter((u) => u !== data.thumbnailUrl);
+    if (extra.length > 0) {
+      const { error: iErr } = await supabaseAdmin
+        .from("product_images")
+        .insert(extra.map((url, i) => ({ product_id: data.productId, url, sort_order: i + 1 })));
+      if (iErr) throw new Error("התמונה הראשית נשמרה, אבל שמירת שאר התמונות נכשלה — שמרו שוב.");
+    }
+    return { images: (data.thumbnailUrl ? 1 : 0) + extra.length };
+  });
+
+const QuickItem = z.object({
+  name: z.string().trim().min(2).max(200),
+  price: z.number().positive().max(1_000_000),
+  imageUrl: ImageUrl.nullable(),
+});
+
+/** A random 5-digit slug suffix from the Workers-safe crypto API. */
+const randomUnit = () => crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32;
+
+/**
+ * Create several products at once, all in one category, each from a photo, a
+ * name and a price. The slug is generated (autoSlug) so a Hebrew name needs no
+ * English, retrying on the rare collision. Returns what was created and what
+ * failed, so a partial batch is never silent.
+ */
+export const createProductsQuick = createServerFn({ method: "POST" })
+  .inputValidator((i: unknown) =>
+    z
+      .object({
+        categoryId: z.string().uuid(),
+        active: z.boolean(),
+        items: z.array(QuickItem).min(1).max(50),
+      })
+      .parse(i),
+  )
+  .handler(async ({ data }) => {
+    const adminId = await requireAdmin();
+    const { data: cat, error: cErr } = await supabaseAdmin
+      .from("categories")
+      .select("id, slug")
+      .eq("id", data.categoryId)
+      .maybeSingle();
+    if (cErr || !cat) throw new Error("הקטגוריה לא נמצאה.");
+    console.log(
+      `[createProductsQuick] admin=${adminId} category=${cat.slug} items=${data.items.length}`,
+    );
+
+    const created: Array<{ id: string; slug: string; name: string }> = [];
+    const failed: Array<{ name: string; reason: string }> = [];
+    for (const item of data.items) {
+      let done = false;
+      for (let attempt = 0; attempt < 4 && !done; attempt++) {
+        // Every slug ends in a fresh random number, so a collision just draws again.
+        const trySlug = autoSlug(item.name, cat.slug, slugSuffix(randomUnit));
+        const { data: row, error } = await supabaseAdmin
+          .from("products")
+          .insert({
+            slug: trySlug,
+            name: item.name,
+            price: item.price,
+            thumbnail_url: item.imageUrl,
+            stock_status: "instock",
+            is_active: data.active,
+            track_stock: false,
+          })
+          .select("id, slug, name")
+          .single();
+        if (error) {
+          if (error.code === "23505") continue; // slug taken — draw again
+          failed.push({ name: item.name, reason: "שגיאה ביצירת המוצר" });
+          console.error("[createProductsQuick] insert failed:", error);
+          done = true;
+          break;
+        }
+        const { error: lErr } = await supabaseAdmin
+          .from("product_categories")
+          .insert({ product_id: row.id, category_id: cat.id });
+        if (lErr) console.error("[createProductsQuick] category link failed:", lErr);
+        created.push({ id: row.id, slug: row.slug, name: row.name });
+        done = true;
+      }
+      if (!done) failed.push({ name: item.name, reason: "לא נמצאה כתובת פנויה" });
+    }
+    return { created, failed };
   });
 
 // ---------------------------------------------------------------------------
