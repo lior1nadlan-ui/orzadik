@@ -539,6 +539,28 @@ const GUIDE_FAQ: Record<string, FaqItem[]> = {
   // קופת צדקה (20260927110000_article_tzedaka_box_guide.sql). The verse and
   // the Shulchan Aruch line are the ones the body cites; candle lighting and
   // ma'aser are stated as custom, and money questions go to a rabbi.
+  // מחזיקי מפתחות (20260927120000_article_keychains_guide.sql). The hamsa is
+  // described as tradition, with no promise of protection; תפילת הדרך is
+  // cited to its chapter and the key chain is said not to replace it; the
+  // restroom question is deferred to a rabbi, as the body does.
+  "machzikei-maftechot-guide": [
+    {
+      q: "האם מחזיק מפתחות עם תפילת הדרך פוטר מאמירתה?",
+      a: "לא. תפילת הדרך נאמרת כשיוצאים לדרך מחוץ לעיר (שולחן ערוך, אורח חיים קי). מחזיק עם הנוסח עוזר לזכור ומאפשר לקרוא ממנו, אבל את התפילה צריך לומר.",
+    },
+    {
+      q: "מה המשמעות של חמסה?",
+      a: "החמסה היא צורה של כף יד, סמל מסורתי נפוץ בקהילות צפון אפריקה והמזרח, המזוהה עם ברכה ועם השמירה מעין הרע. זו מסורת עממית ולא מצווה.",
+    },
+    {
+      q: "מה עושים עם מחזיק מפתחות שיש בו תהילים או פסוקים כשהוא מתבלה?",
+      a: "טקסט של תהילים, פסוקים או שם ה' לא זורקים לפח — נוהגים להעביר אותו לגניזה. בשאלות למעשה, כמו כניסה איתו לבית השימוש, נהוג לשאול רב.",
+    },
+    {
+      q: "איזה מחזיק מפתחות מתאים כמזכרת מישראל?",
+      a: 'מחזיק בצורת מפת ישראל או דגל ישראל, או עם "אם אשכחך ירושלים". הם קטנים וקלים לשליחה, ויש גם דגמים עם כיתוב באנגלית או ברוסית.',
+    },
+  ],
   "kupat-tzedaka-guide": [
     {
       q: "איפה מעמידים קופת צדקה בבית?",
