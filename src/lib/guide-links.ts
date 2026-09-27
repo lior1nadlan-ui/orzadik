@@ -112,6 +112,11 @@ export const GUIDES: Record<string, GuideRef> = {
     title: "כרית לברית: איך בוחרים",
     blurb: "דמוי עור או סאטן, איזה גודל, מה כתוב עליה — ולמה מזמינים עוד לפני הלידה.",
   },
+  "kupat-tzedaka-guide": {
+    slug: "kupat-tzedaka-guide",
+    title: "איך בוחרים קופת צדקה",
+    blurb: "לבית, לעסק, לבית הכנסת או לילד — חומר, מנעול, חריץ, ומתי נוהגים לתת.",
+  },
 };
 
 /**
@@ -173,6 +178,9 @@ export const CATEGORY_GUIDES: Record<string, string[]> = {
   "chalaka-set": ["set-chalaka-madrich", "personalization-guide"],
   // כרית לברית — pillows and baby gowns for the brit; a flat category.
   "karit-labrit": ["karit-labrit-madrich"],
+  // קופות צדקה — 68 products, a flat top-level category; no guide until
+  // 2026-09-27.
+  "kupot-tzedaka": ["kupat-tzedaka-guide"],
   "marazim-chatanim": ["personalization-guide"],
 };
 
@@ -198,6 +206,7 @@ export const GUIDE_CATEGORIES: Record<string, string[]> = {
   "mechir-talit-bar-mitzva": ["talitot", "setim-talit-tefilin"],
   "set-chalaka-madrich": ["chalaka-set"],
   "karit-labrit-madrich": ["karit-labrit"],
+  "kupat-tzedaka-guide": ["kupot-tzedaka"],
 };
 
 /**
@@ -264,6 +273,8 @@ export const GUIDE_OCCASIONS: Record<string, string[]> = {
   // The price of a tallit for exactly this occasion.
   "mechir-talit-bar-mitzva": ["bar-mitzva"],
   "set-chalaka-madrich": ["chalaka"],
+  // Its gift section names חנוכת בית first, then בר מצווה.
+  "kupat-tzedaka-guide": ["bait-chadash", "bar-mitzva"],
   // karit-labrit-madrich: no brit hub exists, and no other occasion fits —
   // see GUIDES_WITHOUT_OCCASION.
 };
@@ -320,7 +331,9 @@ export const GUIDE_CLUSTERS: string[][] = [
   ],
   // The home: the doorpost, the walls, the sink — the blessings sit between the
   // other two, since אשר יצר hangs by the bathroom, a step from the natla.
-  ["mezuza-guide", "birkat-habait-guide", "natla-guide"],
+  // The tzedakah box closes it: it stands in the same rooms, often by the
+  // candlesticks.
+  ["mezuza-guide", "birkat-habait-guide", "natla-guide", "kupat-tzedaka-guide"],
 ];
 
 type CatNode = { slug: string; parent_slug?: string | null };

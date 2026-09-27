@@ -54,6 +54,9 @@ Router (file-based ב-`src/routes`) ו-React Query, Supabase (Postgres 17), פר
 - עריכות תוכן בכמות נרשמות בטבלאות ה-ledger (`product_copy_runs`,
   `category_copy_runs`, `article_copy_runs`, `product_name_runs`) שמאפשרות rollback.
 - טווחי מספרים בטקסט עברי נכתבים עם מקף ASCII בלבד (מקף en מתהפך ב-RTL).
+- פונקציית `SECURITY DEFINER` שמיועדת לשרת בלבד: `revoke execute ... from public, anon, authenticated`.
+  `revoke from public` לבד לא מספיק — ב-Supabase יש הרשאה ישירה ל-anon ול-authenticated
+  (כך נחשפו בטעות `admin_promotion_*`, תוקן ב-`20260927100000_promotions_lockdown.sql`).
 
 ## תיעוד נוסף
 
