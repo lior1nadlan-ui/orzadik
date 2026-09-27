@@ -1179,6 +1179,19 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_promotion_preview: {
+        Args: { p_category_ids: string[]; p_product_ids: string[]; p_scope: string }
+        Returns: Json
+      }
+      admin_promotion_stats: {
+        Args: never
+        Returns: {
+          orders: number
+          promotion_id: string
+          revenue: number
+          units: number
+        }[]
+      }
       active_promotion_index: {
         Args: never
         Returns: {
