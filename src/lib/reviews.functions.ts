@@ -4,17 +4,16 @@ import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { alertOwnerReview } from "@/lib/owner-alerts.server";
 import { getOptionalUserId } from "@/integrations/supabase/optional-auth";
-import { checkOrderRateLimitByIp } from "@/lib/rate-limit.server";
+import { checkOrderRateLimitByIp, getClientIp } from "@/lib/rate-limit.server";
 import { requireAdmin } from "@/lib/admin-authz.server";
 import { unsubscribeToken, verifyUnsubscribeToken } from "@/lib/email.server";
 
-function getClientIp(request: Request): string {
-  return (
-    request.headers.get("cf-connecting-ip") ??
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-    "unknown"
-  );
-}
+// getClientIp is the shared helper from rate-limit.server: it reads ONLY the
+// unspoofable `cf-connecting-ip`. This file used to define its own copy that
+// fell back to the attacker-controlled `x-forwarded-for`, which would let a
+// caller rotate that header to dodge the per-IP review-spam cap. See the
+// header comment on getClientIp for why x-forwarded-for must never feed a
+// security decision.
 
 const stripHtml = (v: string) => v.replace(/<[^>]*>/g, "").trim();
 
