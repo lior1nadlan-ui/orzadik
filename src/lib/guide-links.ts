@@ -122,6 +122,11 @@ export const GUIDES: Record<string, GuideRef> = {
     title: "מחזיק מפתחות עם משמעות",
     blurb: "חמסה, תהילים קטן, תפילת הדרך או מזכרת מישראל — ומה עושים כשהוא מתבלה.",
   },
+  "shtender-guide": {
+    slug: "shtender-guide",
+    title: "איך בוחרים שטנדר",
+    blurb: "עץ, במבוק או אקריליק, לשולחן או לבית הכנסת — ורימונים ויד לספר תורה.",
+  },
 };
 
 /**
@@ -190,6 +195,9 @@ export const CATEGORY_GUIDES: Record<string, string[]> = {
   // 2026-09-27. The parent reaches its two children (מחזיק מפתחות, מגנטים)
   // by the parent walk.
   "machzikei-maftechot-magnetim": ["machzikei-maftechot-guide"],
+  // מוצרי בית כנסת ושטנדרים — 64 products, a flat top-level category; no
+  // guide until 2026-09-27.
+  "beit-knesset-shtenderim": ["shtender-guide"],
   "marazim-chatanim": ["personalization-guide"],
 };
 
@@ -217,6 +225,7 @@ export const GUIDE_CATEGORIES: Record<string, string[]> = {
   "karit-labrit-madrich": ["karit-labrit"],
   "kupat-tzedaka-guide": ["kupot-tzedaka"],
   "machzikei-maftechot-guide": ["machzikei-maftechot-magnetim"],
+  "shtender-guide": ["beit-knesset-shtenderim"],
 };
 
 /**
@@ -287,6 +296,8 @@ export const GUIDE_OCCASIONS: Record<string, string[]> = {
   "kupat-tzedaka-guide": ["bait-chadash", "bar-mitzva"],
   // Its gift section names guests at a בר מצווה or a wedding.
   "machzikei-maftechot-guide": ["bar-mitzva", "chatan-kala"],
+  // Its gift section leads with בר מצווה.
+  "shtender-guide": ["bar-mitzva"],
   // karit-labrit-madrich: no brit hub exists, and no other occasion fits —
   // see GUIDES_WITHOUT_OCCASION.
 };
@@ -320,13 +331,15 @@ export function occasionsForGuide(guideSlug: string): OccasionRef[] {
 export const GUIDE_CLUSTERS: string[][] = [
   // The bar-mitzva set: tallit, tefillin and kippa are bought together.
   // The name guide sits after tefillin: it is mostly about the bags.
-  // The tallit-price guide sits next to the tallit guide it builds on.
+  // The tallit-price guide sits next to the tallit guide it builds on, and the
+  // shtender closes it: the bar-mitzva boy's desk for learning.
   [
     "bechira-talit",
     "mechir-talit-bar-mitzva",
     "tefillin-guide",
     "personalization-guide",
     "kippa-guide",
+    "shtender-guide",
   ],
   // The child's milestones before the bar mitzva: the brit, then the chalaka.
   ["karit-labrit-madrich", "set-chalaka-madrich"],

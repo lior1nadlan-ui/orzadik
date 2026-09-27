@@ -543,6 +543,32 @@ const GUIDE_FAQ: Record<string, FaqItem[]> = {
   // described as tradition, with no promise of protection; תפילת הדרך is
   // cited to its chapter and the key chain is said not to replace it; the
   // restroom question is deferred to a rabbi, as the body does.
+  // שטנדרים ומוצרי בית כנסת (20260927131000_article_shtender_guide.sql). The
+  // verse is the one the body cites; not touching the parchment and the
+  // yahrzeit candle are stated as custom, the electric-candle question and the
+  // rimonim fit are deferred, as the body does.
+  "shtender-guide": [
+    {
+      q: "מה זה שטנדר?",
+      a: "מעמד שמחזיק ספר פתוח ומוטה לעבר הקורא — ללימוד, לתפילה או לקריאה ארוכה בלי להחזיק את הספר ביד. יש שטנדרים שולחניים ויש שטנדרים שעומדים על הרצפה, כמו בבית הכנסת.",
+    },
+    {
+      q: "איזה גודל שטנדר צריך?",
+      a: "לפי הספר: ספר גדול כמו גמרא צריך משטח רחב, ולסידור או לתהילים מספיק שטנדר קטן. כדאי להשוות את מידות השטנדר למידות הספר שבו לומדים.",
+    },
+    {
+      q: "למה משתמשים ביד לספר תורה?",
+      a: "היד היא מחוג שבעזרתו הקורא בתורה עוקב אחרי המילים. נוהגים שלא לגעת בקלף של ספר התורה ביד, והיד גם עוזרת לא לאבד את המקום בקריאה.",
+    },
+    {
+      q: "מה הם רימונים לספר תורה?",
+      a: "עיטורים שמולבשים על ראשי עצי החיים של ספר התורה, לרוב עם פעמונים קטנים. כדי שיתאימו, הם צריכים להתאים לעובי עצי החיים של הספר.",
+    },
+    {
+      q: "האם אפשר להדליק נר נשמה חשמלי?",
+      a: "רבים משתמשים בנר חשמלי או סולרי ביום השנה, ויש המקפידים על נר של שמן או שעווה. זו שאלה של מנהג והלכה, ולכן כדאי לשאול רב.",
+    },
+  ],
   "machzikei-maftechot-guide": [
     {
       q: "האם מחזיק מפתחות עם תפילת הדרך פוטר מאמירתה?",
