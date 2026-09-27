@@ -9,13 +9,16 @@ import {
   saveProductVariants,
   getProductCategoryIds,
   setProductCategories,
-  uploadProductImage,
   setProductPrice,
   undoPriceBatch,
   listPriceBatches,
   productPriceHistory,
+  listProductImages,
+  saveProductGallery,
+  createProductsQuick,
   type AdminVariantRow,
 } from "@/lib/admin-products.functions";
+import { autoSlug, galleryFromProduct, slugSuffix, splitGallery } from "@/lib/admin-catalog";
 import {
   categoryOptions,
   categoryWithDescendants,
@@ -26,6 +29,10 @@ import {
 import { SITE_DISCOUNT } from "@/lib/pricing";
 import { PriceCell } from "@/components/admin/PriceCell";
 import { PriceHistoryDialog } from "@/components/admin/PriceHistoryDialog";
+import { CategoryPicker } from "@/components/admin/CategoryPicker";
+import { GalleryEditor } from "@/components/admin/GalleryEditor";
+import { QuickAddDialog } from "@/components/admin/QuickAddDialog";
+import { usePhotoUpload } from "@/components/admin/usePhotoUpload";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,9 +47,9 @@ import {
   DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Pencil, Trash2, Plus, Layers, Upload, X, History } from "lucide-react";
+import { Pencil, Trash2, Plus, Layers, History, Copy, ImagePlus } from "lucide-react";
 
 /** Catalog-health filters — the same two predicates the dashboard tile counts. */
 type HealthFilter = "no-image" | "out-of-stock";
@@ -89,41 +96,6 @@ type Product = {
 
 const PAGE_SIZE = 25;
 
-/**
- * Hand-rolled slug maker (no dependency): lowercase, niqqud/diacritics stripped,
- * any run outside [a-z0-9] collapsed to a single "-", edges trimmed. A
- * Hebrew-only name has no Latin form and yields "", so the owner still types
- * those by hand; a name carrying Latin/numerals (brand names, model numbers,
- * sizes) gets a usable slug for free — sparing a non-technical owner the typing.
- */
-function slugify(name: string): string {
-  return (name ?? "")
-    .normalize("NFKD")
-    .replace(/[֑-ׇ]/g, "") // Hebrew niqqud / te'amim
-    .replace(/[̀-ͯ]/g, "") // Latin combining diacritics
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
-
-/**
- * Read a picked File into raw base64 (no data: prefix) for the upload server fn.
- * Runs only from a change handler, so the browser-only APIs here are SSR-safe.
- * Chunked to keep String.fromCharCode off the argument-count ceiling on big files.
- */
-async function fileToBase64(file: File): Promise<string> {
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  let binary = "";
-  const CHUNK = 0x8000;
-  for (let i = 0; i < bytes.length; i += CHUNK) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
-  }
-  return btoa(binary);
-}
-
-/** Client-side guard mirrored on the server: accepted image types + size cap. */
-const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
-
 type BulkKind = "price_pct" | "price_set" | "category" | "active" | "stock_status" | "restock";
 
 function AdminProducts() {
@@ -137,6 +109,9 @@ function AdminProducts() {
   const [debounced, setDebounced] = useState(qFromUrl ?? "");
   const [page, setPage] = useState(0);
   const [editing, setEditing] = useState<Product | null>(null);
+  // "שכפל": the product a new one is copied from.
+  const [duplicateFrom, setDuplicateFrom] = useState<Product | null>(null);
+  const [quickOpen, setQuickOpen] = useState(false);
   const [open, setOpen] = useState(false);
   // Set by ProductDialog whenever the form differs from what it opened with, so
   // a stray Escape / backdrop click can't discard a half-written product.
@@ -154,6 +129,9 @@ function AdminProducts() {
   const savePrice = useServerFn(setProductPrice);
   const runUndo = useServerFn(undoPriceBatch);
   const loadBatches = useServerFn(listPriceBatches);
+  const saveGalleryFn = useServerFn(saveProductGallery);
+  const createQuick = useServerFn(createProductsQuick);
+  const uploadPhoto = usePhotoUpload();
 
   useEffect(() => {
     setSearch(qFromUrl ?? "");
@@ -307,7 +285,11 @@ function AdminProducts() {
     });
   };
 
-  const onSave = async (form: Partial<Product>, categoryIds: string[]) => {
+  const onSave = async (
+    form: Partial<Product>,
+    categoryIds: string[],
+    gallery: string[] | null,
+  ) => {
     // Required-field guard. products.slug is `text UNIQUE NOT NULL`, and the
     // empty string satisfies NOT NULL — so without this the first save of a
     // Hebrew-named product (slugify() returns "" for any name with no Latin
@@ -375,17 +357,30 @@ function AdminProducts() {
         toast.error(e?.message ?? "המוצר נשמר אך שיוך הקטגוריות נכשל.");
       }
     }
-    if (categoriesOk) toast.success(editing ? "עודכן" : "נוסף");
+    // Photos: the first is already in thumbnail_url (saved above); the rest go
+    // to product_images. Like categories, a failure here is a warning.
+    let photosOk = true;
+    if (productId && gallery) {
+      try {
+        await saveGalleryFn({ data: { productId, ...splitGallery(gallery) } });
+      } catch (e: any) {
+        photosOk = false;
+        toast.error(e?.message ?? "המוצר נשמר אך שמירת התמונות נכשלה.");
+      }
+    }
+    if (categoriesOk && photosOk) toast.success(editing ? "עודכן" : "נוסף");
 
     // Reached only after a successful save — the work is persisted, so drop the
     // unsaved-changes flag before closing.
     productDirtyRef.current = false;
     setOpen(false);
     setEditing(null);
+    setDuplicateFrom(null);
     qc.invalidateQueries({ queryKey: ["admin-products"] });
     if (productId) {
       qc.invalidateQueries({ queryKey: ["admin-product-cats", productId] });
       qc.invalidateQueries({ queryKey: ["admin-price-log", productId] });
+      qc.invalidateQueries({ queryKey: ["admin-product-images", productId] });
     }
   };
 
@@ -418,17 +413,22 @@ function AdminProducts() {
             if (!v) {
               productDirtyRef.current = false;
               setEditing(null);
+              setDuplicateFrom(null);
             }
           }}
         >
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <Button variant="outline" className="gap-2" onClick={() => setHistoryOpen(true)}>
               <History className="h-4 w-4" /> היסטוריית מחירים
+            </Button>
+            <Button variant="outline" className="gap-2" onClick={() => setQuickOpen(true)}>
+              <ImagePlus className="h-4 w-4" /> הוספה מהירה מתמונות
             </Button>
             <DialogTrigger asChild>
               <Button
                 onClick={() => {
                   setEditing(null);
+                  setDuplicateFrom(null);
                   setOpen(true);
                 }}
                 className="gap-2"
@@ -438,8 +438,12 @@ function AdminProducts() {
             </DialogTrigger>
           </div>
           <ProductDialog
-            key={editing?.id ?? `new-${catNode?.id ?? ""}`}
+            key={
+              editing?.id ??
+              (duplicateFrom ? `dup-${duplicateFrom.id}` : `new-${catNode?.id ?? ""}`)
+            }
             product={editing}
+            template={duplicateFrom}
             onSave={onSave}
             dirtyRef={productDirtyRef}
             defaultCategoryIds={catNode ? [catNode.id] : []}
@@ -633,12 +637,27 @@ function AdminProducts() {
                   <Button
                     size="sm"
                     variant="outline"
+                    aria-label={`עריכת ${p.name}`}
                     onClick={() => {
+                      setDuplicateFrom(null);
                       setEditing(p);
                       setOpen(true);
                     }}
                   >
                     <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    title="שכפל — מוצר חדש על בסיס זה (למשל צבע או גודל אחר)"
+                    aria-label={`שכפול ${p.name}`}
+                    onClick={() => {
+                      setEditing(null);
+                      setDuplicateFrom(p);
+                      setOpen(true);
+                    }}
+                  >
+                    <Copy className="h-3.5 w-3.5" />
                   </Button>
                   <Button size="sm" variant="outline" onClick={() => onDelete(p.id)}>
                     <Trash2 className="h-3.5 w-3.5 text-destructive" />
@@ -723,6 +742,30 @@ function AdminProducts() {
         loading={batchesLoading && batches.length === 0}
         busyBatch={busyBatch}
         onUndo={(id) => void undo(id)}
+      />
+
+      <QuickAddDialog
+        key={`quick-${catNode?.id ?? ""}`}
+        open={quickOpen}
+        onOpenChange={setQuickOpen}
+        categories={catNodes}
+        defaultCategoryId={catNode?.id}
+        uploadPhoto={uploadPhoto}
+        create={(input) => createQuick({ data: input })}
+        onCreated={(category, result) => {
+          if (result.created.length > 0) {
+            toast.success(`נוספו ${result.created.length} מוצרים ל${category.name}`);
+          }
+          if (result.failed.length > 0) {
+            toast.error(
+              `${result.failed.length} מוצרים לא נוצרו: ${result.failed.map((f) => f.name).join(", ")}`,
+            );
+          }
+          qc.invalidateQueries({ queryKey: ["admin-products"] });
+          // Show the shelf the new products went to, newest first.
+          patchSearch({ cat: category.slug, sort: undefined, dir: undefined });
+          setSearch("");
+        }}
       />
     </div>
   );
@@ -927,14 +970,46 @@ function BulkDialog({
   );
 }
 
+/** A new product starts from these. */
+const NEW_PRODUCT: Partial<Product> = {
+  name: "",
+  slug: "",
+  price: 0,
+  stock_status: "instock",
+  is_active: true,
+  track_stock: false,
+};
+
+/** "שכפל": a new product pre-filled from an existing one, minus its identity. */
+function duplicateSeed(t: Product): Partial<Product> {
+  return {
+    name: `${t.name} (עותק)`,
+    slug: "",
+    price: t.price,
+    sale_price: t.sale_price,
+    sku: null,
+    description: t.description,
+    short_description: t.short_description,
+    thumbnail_url: t.thumbnail_url,
+    stock_status: t.stock_status,
+    is_active: t.is_active,
+    track_stock: t.track_stock,
+    stock_qty: t.stock_qty,
+  };
+}
+
 function ProductDialog({
   product,
+  template = null,
   onSave,
   dirtyRef,
   defaultCategoryIds = [],
 }: {
   product: Product | null;
-  onSave: (f: Partial<Product>, categoryIds: string[]) => void;
+  /** New product only: copy fields, categories and photos from this one. */
+  template?: Product | null;
+  /** `gallery` is null when the photos were not changed. */
+  onSave: (f: Partial<Product>, categoryIds: string[], gallery: string[] | null) => void;
   /** Parent-owned flag driving the unsaved-changes confirm on dismissal. */
   dirtyRef?: { current: boolean };
   /** For a new product: the category the list is filtered to, pre-ticked. */
@@ -943,46 +1018,28 @@ function ProductDialog({
   // Set by VariantsPanel while it has unsaved size rows; the footer שמור flushes
   // them before saving the product, so edited size prices are never dropped.
   const variantsSaveRef = useRef<null | (() => Promise<boolean>)>(null);
-  const [form, setForm] = useState<Partial<Product>>(
-    product ?? {
-      name: "",
-      slug: "",
-      price: 0,
-      stock_status: "instock",
-      is_active: true,
-      track_stock: false,
-    },
-  );
+  const seed: Partial<Product> = product ?? (template ? duplicateSeed(template) : NEW_PRODUCT);
+  const [form, setForm] = useState<Partial<Product>>(seed);
   // Dirty = the form differs from what the dialog opened with. Derived by
   // comparison rather than by flagging each of the ~12 setForm call sites, so a
   // newly-added field can't quietly escape the guard. The component is remounted
   // per product (key=id), so this seed is always the right baseline.
-  const initialFormRef = useRef(
-    JSON.stringify(
-      product ?? {
-        name: "",
-        slug: "",
-        price: 0,
-        stock_status: "instock",
-        is_active: true,
-        track_stock: false,
-      },
-    ),
-  );
+  const initialFormRef = useRef(JSON.stringify(seed));
   // An existing product keeps the slug the owner chose — never rewrite it. A new
-  // product auto-derives its slug from the name until the owner edits slug itself.
+  // product gets one generated (autoSlug) until the owner edits the slug itself.
   const [slugTouched, setSlugTouched] = useState(!!product);
+  const suffixRef = useRef(slugSuffix());
   const prices = priceBreakdown(Number(form.price ?? 0), form.sale_price ?? null);
 
-  useEffect(() => {
-    if (dirtyRef) dirtyRef.current = JSON.stringify(form) !== initialFormRef.current;
-  }, [form, dirtyRef]);
+  // Categories and photos come from the product being edited, or, for a
+  // duplicate, from the product being copied.
+  const sourceId = product?.id ?? template?.id;
 
   // --- Categories ---------------------------------------------------------
   const loadAllCats = useServerFn(listCategoriesForBulk);
   const loadProductCats = useServerFn(getProductCategoryIds);
   const [categoryIds, setCategoryIds] = useState<Set<string>>(
-    () => new Set(product ? [] : defaultCategoryIds),
+    () => new Set(product || template ? [] : defaultCategoryIds),
   );
 
   const { data: allCategories = [], isLoading: catsLoading } = useQuery({
@@ -992,13 +1049,50 @@ function ProductDialog({
   // Seed the picker with the product's current categories when editing. The
   // dialog is remounted per product (key=…), so this runs fresh each open.
   const { data: currentCatIds } = useQuery({
-    queryKey: ["admin-product-cats", product?.id],
-    enabled: !!product,
-    queryFn: () => loadProductCats({ data: { productId: product!.id } }),
+    queryKey: ["admin-product-cats", sourceId],
+    enabled: !!sourceId,
+    queryFn: () => loadProductCats({ data: { productId: sourceId! } }),
   });
   useEffect(() => {
     if (currentCatIds) setCategoryIds(new Set(currentCatIds));
   }, [currentCatIds]);
+
+  // --- Photos -------------------------------------------------------------
+  const loadImages = useServerFn(listProductImages);
+  const uploadPhoto = usePhotoUpload();
+  const [gallery, setGallery] = useState<string[]>(seed.thumbnail_url ? [seed.thumbnail_url] : []);
+  const initialGalleryRef = useRef(JSON.stringify(gallery));
+  const [photosBusy, setPhotosBusy] = useState(false);
+  const { data: images, isError: imagesError } = useQuery({
+    queryKey: ["admin-product-images", sourceId],
+    enabled: !!sourceId,
+    queryFn: () => loadImages({ data: { productId: sourceId! } }),
+  });
+  useEffect(() => {
+    if (!images) return;
+    const g = galleryFromProduct(seed.thumbnail_url, images);
+    setGallery(g);
+    initialGalleryRef.current = JSON.stringify(g);
+    // seed is fixed for this mount (key=…); only the query result drives this.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [images]);
+  const galleryDirty = JSON.stringify(gallery) !== initialGalleryRef.current;
+
+  useEffect(() => {
+    if (dirtyRef) {
+      dirtyRef.current = JSON.stringify(form) !== initialFormRef.current || galleryDirty;
+    }
+  }, [form, galleryDirty, dirtyRef]);
+
+  // New product: the slug follows the name and the first chosen category —
+  // `<category>-<5 digits>` for a Hebrew name — until the owner types one.
+  const primaryCategorySlug = allCategories.find((c) => c.id === [...categoryIds][0])?.slug ?? null;
+  useEffect(() => {
+    if (product || slugTouched) return;
+    const name = (form.name ?? "").trim();
+    const next = name ? autoSlug(name, primaryCategorySlug, suffixRef.current) : "";
+    setForm((prev) => (prev.slug === next ? prev : { ...prev, slug: next }));
+  }, [form.name, primaryCategorySlug, product, slugTouched]);
 
   const toggleCategory = (id: string) =>
     setCategoryIds((cur) => {
@@ -1008,41 +1102,12 @@ function ProductDialog({
       return next;
     });
 
-  // --- Image upload -------------------------------------------------------
-  const upload = useServerFn(uploadProductImage);
-  const [uploading, setUploading] = useState(false);
-
-  const onPickImage = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = ""; // let the owner re-pick the same file after a failure
-    if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      toast.error("יש לבחור קובץ תמונה.");
-      return;
-    }
-    if (file.size > MAX_UPLOAD_BYTES) {
-      toast.error("הקובץ גדול מדי. הגודל המרבי הוא 5MB.");
-      return;
-    }
-    setUploading(true);
-    try {
-      const dataBase64 = await fileToBase64(file);
-      const res: { url: string } = await upload({
-        data: { fileName: file.name, contentType: file.type, dataBase64 },
-      });
-      setForm((prev) => ({ ...prev, thumbnail_url: res.url }));
-      toast.success("התמונה הועלתה");
-    } catch (err: any) {
-      toast.error(err?.message ?? "שגיאה בהעלאת התמונה");
-    } finally {
-      setUploading(false);
-    }
-  };
-
   return (
     <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
       <DialogHeader>
-        <DialogTitle>{product ? "עריכת מוצר" : "מוצר חדש"}</DialogTitle>
+        <DialogTitle>
+          {product ? "עריכת מוצר" : template ? "מוצר חדש — שכפול" : "מוצר חדש"}
+        </DialogTitle>
       </DialogHeader>
       <div className="space-y-3">
         <div className="grid md:grid-cols-2 gap-3">
@@ -1052,11 +1117,7 @@ function ProductDialog({
               value={form.name ?? ""}
               onChange={(e) => {
                 const name = e.target.value;
-                setForm((prev) => ({
-                  ...prev,
-                  name,
-                  slug: slugTouched ? prev.slug : slugify(name),
-                }));
+                setForm((prev) => ({ ...prev, name }));
               }}
             />
           </div>
@@ -1070,12 +1131,10 @@ function ProductDialog({
                 setForm((prev) => ({ ...prev, slug: e.target.value }));
               }}
             />
-            {/* A Hebrew-only name auto-fills nothing (slugify has no Latin form
-                to work from), so say plainly what this field is and what a good
-                value looks like — it is the product's public URL. */}
             <p className="mt-1 text-[11px] text-muted-foreground">
-              כתובת הדף באתר: orzadik.com/product/<span dir="ltr">slug</span> — אותיות אנגליות
-              קטנות, ספרות ומקפים. לדוגמה: <span dir="ltr">mezuza-keramika-lavan</span>
+              {!product && !slugTouched
+                ? "נוצרת אוטומטית מהשם ומהקטגוריה — אין צורך לשנות."
+                : "כתובת הדף באתר: orzadik.com/product/slug — אותיות אנגליות קטנות, ספרות ומקפים."}
             </p>
           </div>
           <div>
@@ -1136,64 +1195,13 @@ function ProductDialog({
               <option value="outofstock">אזל</option>
             </select>
           </div>
-          <div className="md:col-span-2 space-y-2">
-            <Label>תמונת המוצר</Label>
-            <div className="flex items-start gap-3">
-              {form.thumbnail_url ? (
-                <div className="relative">
-                  <img
-                    src={form.thumbnail_url}
-                    alt="תצוגה מקדימה של תמונת המוצר"
-                    className="h-24 w-24 rounded-md border object-cover"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setForm((prev) => ({ ...prev, thumbnail_url: null }))}
-                    aria-label="הסר תמונה"
-                    className="absolute -top-2 -left-2 grid h-6 w-6 place-content-center rounded-full border bg-card shadow-sm hover:bg-muted"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              ) : (
-                <div className="grid h-24 w-24 place-content-center rounded-md border border-dashed text-[11px] text-muted-foreground">
-                  אין תמונה
-                </div>
-              )}
-              <div className="flex-1 space-y-2">
-                <Label
-                  htmlFor="thumb-upload"
-                  className={`inline-flex h-10 cursor-pointer items-center gap-2 rounded-md border bg-background px-3 text-sm font-medium hover:bg-muted ${
-                    uploading ? "pointer-events-none opacity-60" : ""
-                  }`}
-                >
-                  <Upload className="h-4 w-4" />
-                  {uploading ? "מעלה..." : "העלאת תמונה מהמחשב"}
-                </Label>
-                <input
-                  id="thumb-upload"
-                  type="file"
-                  accept="image/*"
-                  className="sr-only"
-                  disabled={uploading}
-                  onChange={onPickImage}
-                />
-                <p className="text-[11px] text-muted-foreground">
-                  PNG · JPG · WEBP · GIF · AVIF · עד 5MB. אפשר גם להדביק כתובת ידנית למטה.
-                </p>
-              </div>
-            </div>
-            <div>
-              <Label htmlFor="thumb-url" className="text-xs text-muted-foreground">
-                כתובת תמונה (URL)
-              </Label>
-              <Input
-                id="thumb-url"
-                dir="ltr"
-                value={form.thumbnail_url ?? ""}
-                onChange={(e) => setForm({ ...form, thumbnail_url: e.target.value || null })}
-              />
-            </div>
+          <div className="md:col-span-2">
+            <GalleryEditor
+              urls={gallery}
+              onChange={setGallery}
+              uploadPhoto={uploadPhoto}
+              onBusyChange={setPhotosBusy}
+            />
           </div>
         </div>
         <div>
@@ -1216,37 +1224,12 @@ function ProductDialog({
         {/* Categories. Assigning here writes product_categories on save, so a new
             product no longer starts orphaned. Replace-set: the saved list is
             exactly what is ticked below. */}
-        <fieldset className="rounded-md border p-3 space-y-2">
-          <legend className="px-1 text-sm font-semibold">קטגוריות</legend>
-          {catsLoading && <p className="text-xs text-muted-foreground">טוען קטגוריות…</p>}
-          {!catsLoading && allCategories.length === 0 && (
-            <p className="text-xs text-muted-foreground">לא הוגדרו קטגוריות עדיין.</p>
-          )}
-          {allCategories.length > 0 && (
-            <div className="max-h-48 space-y-1.5 overflow-y-auto pe-1">
-              {allCategories.map((c) => {
-                const cid = `cat-${c.id}`;
-                return (
-                  <div key={c.id} className="flex items-center gap-2">
-                    <Checkbox
-                      id={cid}
-                      checked={categoryIds.has(c.id)}
-                      onCheckedChange={() => toggleCategory(c.id)}
-                    />
-                    <Label htmlFor={cid} className="cursor-pointer text-sm font-normal">
-                      {c.name}
-                    </Label>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-          {allCategories.length > 0 && (
-            <p className="text-[11px] text-muted-foreground">
-              נבחרו {categoryIds.size} קטגוריות. השמירה מעדכנת את שיוך הקטגוריות של המוצר.
-            </p>
-          )}
-        </fieldset>
+        <CategoryPicker
+          categories={allCategories as CategoryNode[]}
+          selected={categoryIds}
+          onToggle={toggleCategory}
+          loading={catsLoading}
+        />
 
         <div className="flex items-center gap-2">
           <Switch
@@ -1304,7 +1287,12 @@ function ProductDialog({
           // Gate the save on the load having completed. For a NEW product the
           // query is disabled (currentCatIds stays undefined), so the !!product
           // guard keeps save enabled there.
-          const categoriesLoading = !!product && currentCatIds === undefined;
+          const categoriesLoading = !!sourceId && currentCatIds === undefined;
+          // Same for the photos: saving before they load would replace the
+          // gallery with just the main image.
+          // A failed load keeps the main image only and does not block saving;
+          // the gallery is written only if the owner then changes it.
+          const photosLoading = !!sourceId && images === undefined && !imagesError;
           return (
             <Button
               onClick={async () => {
@@ -1328,11 +1316,22 @@ function ProductDialog({
                 // closes via the parent's setOpen(false), and because the Radix
                 // Root is controlled that never routes through onOpenChange, so
                 // no confirm can fire on a successful save anyway.
-                onSave(form, [...categoryIds]);
+                // The first photo is the main image. A new product always saves
+                // its photos; an existing one only when they were changed.
+                const saveGallery = !product || galleryDirty;
+                onSave(
+                  saveGallery ? { ...form, thumbnail_url: gallery[0] ?? null } : form,
+                  [...categoryIds],
+                  saveGallery ? gallery : null,
+                );
               }}
-              disabled={uploading || categoriesLoading}
+              disabled={photosBusy || categoriesLoading || photosLoading}
             >
-              {uploading ? "מעלה תמונה..." : categoriesLoading ? "טוען קטגוריות..." : "שמור"}
+              {photosBusy
+                ? "מעלה תמונות..."
+                : categoriesLoading || photosLoading
+                  ? "טוען..."
+                  : "שמור"}
             </Button>
           );
         })()}
