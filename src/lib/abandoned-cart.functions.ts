@@ -3,7 +3,7 @@ import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getOptionalAuthInfo } from "@/integrations/supabase/optional-auth";
-import { checkOrderRateLimitByIp } from "@/lib/rate-limit.server";
+import { checkOrderRateLimitByIp, getClientIp } from "@/lib/rate-limit.server";
 import {
   sendEmail,
   emailShell,
@@ -50,11 +50,10 @@ export const saveAbandonedCart = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     // Per-IP rate limit — this is an unauthenticated, state-changing insert;
     // without it an attacker could flood arbitrary-email cart rows.
-    const req = getRequest();
-    const ip =
-      req?.headers.get("cf-connecting-ip") ??
-      req?.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-      "unknown";
+    // Unspoofable client IP only (cf-connecting-ip). x-forwarded-for is
+    // attacker-controlled and must never feed the rate-limit decision — see
+    // getClientIp in rate-limit.server.
+    const ip = getClientIp(getRequest());
     // "cart", not the default "order": this fires ~2s after a valid email is
     // typed on /checkout, so sharing the order bucket meant every visit to the
     // checkout page silently spent the shopper's own purchase quota.

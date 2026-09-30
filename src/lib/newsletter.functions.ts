@@ -14,7 +14,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { checkNewsletterRateLimitByIp } from "@/lib/rate-limit.server";
+import { checkNewsletterRateLimitByIp, getClientIp } from "@/lib/rate-limit.server";
 import {
   sendEmail,
   emailShell,
@@ -155,11 +155,10 @@ export const subscribeNewsletter = createServerFn({ method: "POST" })
     // Honeypot tripped — behave exactly like success so bots learn nothing.
     if (data.website) return { ok: true as const };
 
-    const req = getRequest();
-    const ip =
-      req?.headers.get("cf-connecting-ip") ??
-      req?.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-      "unknown";
+    // Unspoofable client IP only (cf-connecting-ip). x-forwarded-for is
+    // attacker-controlled and must never feed the rate-limit decision — see
+    // getClientIp in rate-limit.server.
+    const ip = getClientIp(getRequest());
     const { limited } = await checkNewsletterRateLimitByIp(ip);
     if (limited) throw new Error("יותר מדי בקשות מהכתובת הזו. אנא נסו מאוחר יותר.");
 
