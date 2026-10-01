@@ -418,7 +418,7 @@ function AdminHome() {
           </div>
           <Link
             to="/admin/orders"
-            search={{ payment: "paid" }}
+            search={{ view: "todo" }}
             className="mt-1 inline-flex min-h-11 items-center text-xs underline text-emerald-700 dark:text-emerald-400 sm:min-h-0"
           >
             לכל ההזמנות הממתינות ←
@@ -568,7 +568,9 @@ function AttentionTiles({ s }: { s: Stats }) {
       label: "לארוז ולשלוח",
       n: s.readyToShip.count,
       to: "/admin/orders" as const,
-      search: { payment: "paid" },
+      // The same rule as this count (paid, not shipped, pending/processing) —
+      // "payment: paid" also listed every order already sent.
+      search: { view: "todo" as const },
       tone: "border-emerald-400/60 bg-emerald-50 text-emerald-900 dark:bg-emerald-950/20 dark:text-emerald-200",
       Icon: Package,
     },

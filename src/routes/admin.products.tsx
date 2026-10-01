@@ -49,7 +49,17 @@ import {
 } from "@/components/ui/dialog";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Pencil, Trash2, Plus, Layers, History, Copy, ImagePlus } from "lucide-react";
+import { cn } from "@/lib/utils";
+import {
+  Pencil,
+  Trash2,
+  Plus,
+  Layers,
+  History,
+  Copy,
+  ImagePlus,
+  ArrowLeftRight,
+} from "lucide-react";
 
 /** Catalog-health filters — the same two predicates the dashboard tile counts. */
 type HealthFilter = "no-image" | "out-of-stock" | "no-price" | "no-sku";
@@ -129,6 +139,26 @@ function AdminProducts() {
   const [busyBatch, setBusyBatch] = useState<string | null>(null);
 
   const runBulk = useServerFn(bulkUpdateProducts);
+  const [stockBusy, setStockBusy] = useState<string | null>(null);
+  const setStock = async (id: string, value: "instock" | "outofstock") => {
+    await runBulk({ data: { ids: [id], action: { kind: "stock_status", value } } });
+    await qc.invalidateQueries({ queryKey: ["admin-products"] });
+  };
+  const toggleStock = async (p: { id: string; name: string; stock_status: string }) => {
+    const was = p.stock_status === "instock" ? "instock" : "outofstock";
+    const next = was === "instock" ? "outofstock" : "instock";
+    setStockBusy(p.id);
+    try {
+      await setStock(p.id, next);
+      toast.success(next === "instock" ? `${p.name} — חזר למלאי` : `${p.name} — סומן כאזל`, {
+        action: { label: "ביטול", onClick: () => void setStock(p.id, was) },
+      });
+    } catch (e: any) {
+      toast.error(e?.message ?? "שגיאה בעדכון המלאי");
+    } finally {
+      setStockBusy(null);
+    }
+  };
   const loadCategories = useServerFn(listCategoriesForBulk);
   const saveCategories = useServerFn(setProductCategories);
   const savePrice = useServerFn(setProductPrice);
@@ -633,12 +663,36 @@ function AdminProducts() {
               )}
               <div className="min-w-0 flex-1">
                 <div className="line-clamp-2 text-sm font-medium">{p.name}</div>
-                <div className="mt-0.5 text-xs">
-                  <span
-                    className={p.stock_status === "instock" ? "text-green-700" : "text-destructive"}
-                  >
-                    {p.stock_status === "instock" ? "במלאי" : "אזל"}
-                  </span>
+                <div className="mt-1 flex flex-wrap items-center gap-x-1.5 text-xs">
+                  {p.track_stock ? (
+                    // Tracked stock follows its count — a manual flip would be
+                    // undone by the next sale or restock.
+                    <span
+                      className={
+                        p.stock_status === "instock" ? "text-green-700" : "text-destructive"
+                      }
+                    >
+                      {p.stock_status === "instock" ? "במלאי" : "אזל"}
+                    </span>
+                  ) : (
+                    // One tap from the shop floor when the last piece sells,
+                    // instead of the full edit form.
+                    <button
+                      type="button"
+                      disabled={stockBusy === p.id}
+                      onClick={() => toggleStock(p)}
+                      aria-label={`${p.name}: ${p.stock_status === "instock" ? "במלאי — סימון כאזל" : "אזל — סימון כבמלאי"}`}
+                      className={cn(
+                        "inline-flex min-h-9 items-center gap-1 rounded-full border px-3 font-medium transition-colors duration-160 ease-out disabled:opacity-50",
+                        p.stock_status === "instock"
+                          ? "border-green-700/30 bg-green-50 text-green-800"
+                          : "border-destructive/30 bg-red-50 text-destructive",
+                      )}
+                    >
+                      {p.stock_status === "instock" ? "במלאי" : "אזל"}
+                      <ArrowLeftRight className="h-3 w-3 opacity-60" aria-hidden="true" />
+                    </button>
+                  )}
                   {p.track_stock && (
                     <span className="text-muted-foreground"> · במעקב {p.stock_qty ?? 0}</span>
                   )}
