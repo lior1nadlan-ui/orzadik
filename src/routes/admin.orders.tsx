@@ -18,7 +18,9 @@ import {
   markOrderReadyForPickup,
   listOrderEvents,
   countOrdersToHandle,
+  resendOrderTelegramAlert,
 } from "@/lib/admin-crm.functions";
+import { missingTelegramAlert } from "@/lib/telegram-latch";
 import { cn } from "@/lib/utils";
 import {
   waThankYou,
@@ -311,6 +313,8 @@ function AdminOrders() {
   const setPreparingFn = useServerFn(markOrderPreparing);
   const readyForPickupFn = useServerFn(markOrderReadyForPickup);
   const resendConfirmation = useServerFn(resendOrderConfirmation);
+  const resendTelegramFn = useServerFn(resendOrderTelegramAlert);
+  const [resendingTelegram, setResendingTelegram] = useState(false);
   const payReminderFn = useServerFn(sendOrderPaymentReminder);
   const [sendingPayLink, setSendingPayLink] = useState(false);
   const [phoneOrderOpen, setPhoneOrderOpen] = useState(false);
@@ -424,6 +428,25 @@ function AdminOrders() {
   }, [search.open, orders, isPlaceholderData]);
   const pageSize = data?.pageSize ?? 25;
   const pages = Math.max(1, Math.ceil(total / pageSize));
+
+  const doResendTelegram = async (paid: boolean) => {
+    if (!selected) return;
+    setResendingTelegram(true);
+    try {
+      await resendTelegramFn({ data: { order_id: selected.id, paid } });
+      const now = new Date().toISOString();
+      setSelected({
+        ...selected,
+        ...(paid ? { telegram_paid_alert_sent_at: now } : { telegram_created_alert_sent_at: now }),
+      });
+      toast.success("ההתראה נשלחה לטלגרם");
+      refresh();
+    } catch (e: any) {
+      toast.error(e?.message ?? "השליחה לטלגרם נכשלה");
+    } finally {
+      setResendingTelegram(false);
+    }
+  };
 
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ["admin-orders"] });
@@ -1202,6 +1225,35 @@ function AdminOrders() {
                   onPreparing={doPreparing}
                 />
               )}
+
+              {/* The owner's own Telegram alert for this order did not arrive
+                  (telegram-latch.ts decides; only orders since the stamps
+                  began, and only alerts that were due). Shown only when
+                  something is wrong — a sheet full of green ticks is noise. */}
+              {(() => {
+                const missing = missingTelegramAlert(selected);
+                if (!missing) return null;
+                return (
+                  <SheetSection>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-xs text-destructive">
+                        {missing === "paid"
+                          ? "⚠ התראת הטלגרם על התשלום לא הגיעה אליכם."
+                          : "⚠ התראת הטלגרם על ההזמנה החדשה לא הגיעה אליכם."}
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="max-sm:min-h-11"
+                        disabled={resendingTelegram}
+                        onClick={() => doResendTelegram(missing === "paid")}
+                      >
+                        {resendingTelegram ? "שולח..." : "שלח שוב לטלגרם"}
+                      </Button>
+                    </div>
+                  </SheetSection>
+                );
+              })()}
 
               {/* Confirmation receipt — the §14ג(ב) written confirmation.
                   Rendered because the send can now FAIL without throwing:

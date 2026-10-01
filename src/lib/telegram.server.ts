@@ -236,6 +236,25 @@ export async function sendOrderTelegramAlert(orderId: string, paid: boolean): Pr
       ...(keyboard ? { reply_markup: keyboard } : {}),
     });
 
+    // The latch /admin/orders reads: a NULL stamp on a recent order means the
+    // owner's alert never arrived (bad token, bot removed from the chat, a
+    // network blip — all of which used to fail silently into the Worker log),
+    // and the order sheet offers a resend. Best-effort: a failed stamp is
+    // logged and never turns a delivered alert into a reported failure.
+    if (sent) {
+      const now = new Date().toISOString();
+      const { error: stampErr } = paid
+        ? await supabaseAdmin
+            .from("orders")
+            .update({ telegram_paid_alert_sent_at: now })
+            .eq("id", orderId)
+        : await supabaseAdmin
+            .from("orders")
+            .update({ telegram_created_alert_sent_at: now })
+            .eq("id", orderId);
+      if (stampErr) console.error(`[telegram] could not stamp alert for ${orderId}:`, stampErr);
+    }
+
     const items = (order.order_items as any[]) ?? [];
     const photos = items
       .map((it) => ({ url: orderItemImageUrl(it, ORIGIN, PHOTO_PX), name: it.product_name }))

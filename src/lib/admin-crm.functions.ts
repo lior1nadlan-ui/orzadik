@@ -9,6 +9,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { requireAdmin } from "@/lib/admin-authz.server";
+import { sendOrderTelegramAlert } from "@/lib/telegram.server";
 import { logOrderEvent, type Actor } from "@/lib/order-events.server";
 import {
   sendOrderShippedEmail,
@@ -1820,6 +1821,35 @@ export const getPackingSlip = createServerFn({ method: "POST" })
  * where a missing one is a legal defect. The stamp is refreshed only on success,
  * so the admin dialog keeps showing the truth.
  */
+/**
+ * Resend the owner's Telegram alert for one order. sendOrderTelegramAlert never
+ * throws and used to fail only into the Worker log; it now stamps
+ * telegram_{created,paid}_alert_sent_at on success, /admin/orders shows a
+ * warning when a recent order has no stamp, and this is its resend button.
+ * `paid` picks which of the two alerts: "paid" only for an order actually paid.
+ */
+export const resendOrderTelegramAlert = createServerFn({ method: "POST" })
+  .inputValidator((i: unknown) =>
+    z.object({ order_id: z.string().uuid(), paid: z.boolean() }).parse(i),
+  )
+  .handler(async ({ data }) => {
+    await requireAdmin();
+    const { data: order, error } = await supabaseAdmin
+      .from("orders")
+      .select("id, payment_status")
+      .eq("id", data.order_id)
+      .maybeSingle();
+    if (error || !order) throw new Error("הזמנה לא נמצאה.");
+    if (data.paid && order.payment_status !== "paid") {
+      throw new Error("התראת תשלום נשלחת רק להזמנה ששולמה.");
+    }
+    const sent = await sendOrderTelegramAlert(order.id, data.paid);
+    if (!sent) {
+      throw new Error("השליחה לטלגרם נכשלה. בדקו את החיבור בעמוד 'התראות' בפאנל.");
+    }
+    return { ok: true };
+  });
+
 export const resendOrderConfirmation = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) => z.object({ order_id: z.string().uuid() }).parse(i))
   .handler(async ({ data }) => {
