@@ -23,6 +23,7 @@ import {
   Send,
   Store,
   Activity,
+  Target,
 } from "lucide-react";
 
 export const Route = createFileRoute("/admin")({
@@ -47,6 +48,8 @@ const items = [
   { to: "/admin/products", label: "מוצרים", icon: Package },
   { to: "/admin/categories", label: "קטגוריות", icon: FolderTree },
   { to: "/admin/orders", label: "הזמנות", icon: ShoppingBag },
+  // Right after orders: the people who almost were orders.
+  { to: "/admin/leads", label: "לידים", icon: Target },
   { to: "/admin/customers", label: "לקוחות", icon: Users },
   { to: "/admin/abandoned", label: "עגלות נטושות", icon: ShoppingCart },
   { to: "/admin/promotions", label: "מבצעים", icon: BadgePercent },

@@ -22,6 +22,8 @@ export type Database = {
           id: string
           items: Json
           name: string | null
+          phone: string | null
+          staff_alerted_at: string | null
           reminder_1_sent_at: string | null
           reminder_2_sent_at: string | null
           subtotal: number
@@ -36,6 +38,8 @@ export type Database = {
           id?: string
           items?: Json
           name?: string | null
+          phone?: string | null
+          staff_alerted_at?: string | null
           reminder_1_sent_at?: string | null
           reminder_2_sent_at?: string | null
           subtotal?: number
@@ -50,6 +54,8 @@ export type Database = {
           id?: string
           items?: Json
           name?: string | null
+          phone?: string | null
+          staff_alerted_at?: string | null
           reminder_1_sent_at?: string | null
           reminder_2_sent_at?: string | null
           subtotal?: number

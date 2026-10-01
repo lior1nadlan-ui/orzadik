@@ -222,7 +222,10 @@ function CheckoutPage() {
     const email = form.email.trim();
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
     if (items.length === 0) return;
-    const key = `${email}|${items.length}|${subtotal}`;
+    // The phone joins the key once it looks complete, so a phone typed after
+    // the email still reaches the saved cart (one extra save, not one per key).
+    const phoneDigits = form.phone.replace(/\D/g, "");
+    const key = `${email}|${items.length}|${subtotal}|${phoneDigits.length >= 9 ? phoneDigits : ""}`;
     if (lastSavedRef.current === key) return;
     const t = setTimeout(() => {
       lastSavedRef.current = key;
@@ -230,6 +233,7 @@ function CheckoutPage() {
         data: {
           email,
           name: form.name || null,
+          phone: form.phone.replace(/\D/g, "").length >= 9 ? form.phone : null,
           subtotal,
 
           items: items.map((i) => ({
@@ -244,7 +248,7 @@ function CheckoutPage() {
       }).catch(() => {});
     }, 2000);
     return () => clearTimeout(t);
-  }, [form.email, form.name, items, subtotal, user?.id, saveCart]);
+  }, [form.email, form.name, form.phone, items, subtotal, user?.id, saveCart]);
 
   // Empty checkout: the same surface /cart already gives this state, not a
   // thinner one. It was a bare sentence and a link — no heading at all, so this

@@ -24,6 +24,15 @@ import { requireAdmin } from "@/lib/admin-authz.server";
 const Schema = z.object({
   email: z.string().trim().email().max(255),
   name: z.string().trim().max(200).optional().nullable(),
+  // Kept with the cart so a lead can be answered by phone or WhatsApp
+  // (/admin/leads). Loose, like the checkout field it comes from.
+  phone: z
+    .string()
+    .trim()
+    .max(50)
+    .transform((v) => v.replace(/<[^>]*>/g, ""))
+    .optional()
+    .nullable(),
   items: z
     .array(
       z.object({
@@ -86,6 +95,8 @@ export const saveAbandonedCart = createServerFn({ method: "POST" })
         .from("abandoned_carts")
         .update({
           name: data.name ?? null,
+          // Keep an earlier phone if this save came before it was typed.
+          ...(data.phone ? { phone: data.phone } : {}),
           items: data.items,
           subtotal: data.subtotal,
           user_id: authedUserId,
@@ -99,6 +110,7 @@ export const saveAbandonedCart = createServerFn({ method: "POST" })
       .insert({
         email,
         name: data.name ?? null,
+        phone: data.phone || null,
         user_id: authedUserId,
         items: data.items,
         subtotal: data.subtotal,
