@@ -228,7 +228,8 @@ export function orderStatusHe(s: string): string {
 // itself. Shared by /privacy, /terms and /accessibility — moving all three is
 // correct here, since /terms §11 binds the privacy policy in as part of the
 // same agreement and its jurisdiction clause changed in the same pass.
-export const LEGAL_LAST_UPDATED = "1.8.2026";
+// 1.10.2026: /terms §6 added collection from the shop (איסוף עצמי).
+export const LEGAL_LAST_UPDATED = "1.10.2026";
 
 /** Consumer-law policy constants (Consumer Protection Law §14ג–§14ה). */
 export const CONSUMER_POLICY = {
