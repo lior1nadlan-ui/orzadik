@@ -100,7 +100,7 @@ export function OrderShippingPanel({
   };
 
   return (
-    <div className="border-t pt-3 space-y-2">
+    <div className="border-t border-glass-line pt-4 space-y-2">
       <div className="font-semibold">משלוח</div>
       {order.shipped_at && (
         <div className="text-xs text-emerald-700">
@@ -137,7 +137,13 @@ export function OrderShippingPanel({
           {order.shipping_status === "preparing" ? (
             <span className="text-xs text-emerald-700">✓ מסומנת כבהכנה — הלקוח רואה זאת במעקב</span>
           ) : (
-            <Button size="sm" variant="outline" disabled={preparing} onClick={onPreparing}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="max-sm:min-h-11 max-sm:w-full"
+              disabled={preparing}
+              onClick={onPreparing}
+            >
               {preparing ? "מעדכן..." : "סמן כבהכנה 🛠"}
             </Button>
           )}
@@ -156,7 +162,7 @@ export function OrderShippingPanel({
                 type="button"
                 aria-pressed={mode === m}
                 onClick={() => setMode(m)}
-                className={`rounded-full border px-3 py-1 transition-colors duration-150 ${
+                className={`min-h-11 rounded-full border px-3 py-1 transition-colors duration-150 sm:min-h-0 ${
                   mode === m
                     ? "border-primary bg-primary text-primary-foreground"
                     : "bg-background [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"
@@ -194,29 +200,40 @@ export function OrderShippingPanel({
           )}
         </div>
       )}
-      <div className="flex flex-wrap gap-2">
+      {/* Phone: the two fields side by side, the button that does the thing
+          across the full width under them. */}
+      <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
         <Input
           placeholder="מספר מעקב"
+          aria-label="מספר מעקב"
+          dir="ltr"
           value={tracking}
           onChange={(e) => setTracking(e.target.value)}
-          className="max-w-[180px]"
+          className="min-h-11 sm:min-h-0 sm:max-w-[180px]"
         />
         <Input
           placeholder="חברת שילוח"
+          aria-label="חברת שילוח"
           value={carrier}
           onChange={(e) => setCarrier(e.target.value)}
-          className="max-w-[150px]"
+          className="min-h-11 sm:min-h-0 sm:max-w-[150px]"
         />
         {preview ? (
           <Button
             size="sm"
+            className="col-span-2 max-sm:min-h-11 max-sm:whitespace-normal"
             disabled={busy || !preview.ok}
             onClick={() => onShip({ ...fields, delivered: true, shipped_on: shipDate })}
           >
             {busy ? "מעדכן..." : "סמן כנמסרה (בלי מייל) ✓"}
           </Button>
         ) : (
-          <Button size="sm" disabled={busy} onClick={() => onShip(fields)}>
+          <Button
+            size="sm"
+            className="col-span-2 max-sm:min-h-11 max-sm:whitespace-normal"
+            disabled={busy}
+            onClick={() => onShip(fields)}
+          >
             {busy ? "שולח..." : order.shipped_at ? "עדכן משלוח" : "סמן כנשלחה ושלח מייל ללקוח 📦"}
           </Button>
         )}
@@ -226,6 +243,7 @@ export function OrderShippingPanel({
           <Button
             size="sm"
             variant="outline"
+            className="col-span-2 max-sm:min-h-11"
             disabled={busy}
             onClick={() => onShip({ ...fields, delivered: true })}
           >
