@@ -195,7 +195,7 @@ function OpenRow({ row, onDecide, busy }: { row: QueueRow; onDecide: Decide; bus
             {row.orderNumber && (
               <Link
                 to="/admin/orders"
-                search={{ q: row.orderNumber }}
+                search={{ q: row.orderNumber, open: "1" }}
                 className="font-mono text-[11px] text-muted-foreground underline-offset-2 [@media(hover:hover)_and_(pointer:fine)]:hover:underline"
               >
                 {row.orderNumber}

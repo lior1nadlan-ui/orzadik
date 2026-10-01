@@ -175,7 +175,7 @@ function AdminHome() {
       {/* Abandoned carts KPI + catalog health */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Link
-          to="/admin/abandoned"
+          to="/admin/leads"
           className={`block rounded-lg border p-5 transition-colors duration-160 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:border-primary/50 ${
             s.abandoned.openCount > 0
               ? "border-amber-400/60 bg-amber-50 dark:bg-amber-950/20"
@@ -194,7 +194,7 @@ function AdminHome() {
           <div className="text-2xl font-bold mt-1">{s.abandoned.openCount}</div>
           <div className="text-xs text-muted-foreground mt-1">
             {s.abandoned.openCount > 0
-              ? `${formatILS(s.abandoned.recoverable)} לשחזור`
+              ? `${formatILS(s.abandoned.recoverable)} לשחזור · לכל הלידים ←`
               : "אין עגלות נטושות פתוחות כרגע"}
           </div>
         </Link>
@@ -361,12 +361,13 @@ function AdminHome() {
               </div>
             ))}
           </div>
+          {/* To the leads, not to payment=unpaid: that filter leaves out the
+              failed payments this alert counts. */}
           <Link
-            to="/admin/orders"
-            search={{ payment: "unpaid" }}
+            to="/admin/leads"
             className="text-xs underline text-amber-700 dark:text-amber-400 mt-2 inline-block"
           >
-            לכל ההזמנות ←
+            לכל הלידים ←
           </Link>
         </div>
       )}
@@ -448,7 +449,7 @@ function AdminHome() {
                 <Link
                   key={o.id}
                   to="/admin/orders"
-                  search={{ q: o.order_number }}
+                  search={{ q: o.order_number, open: "1" }}
                   className="flex items-center justify-between border-b border-border/40 pb-2 last:border-0 transition-colors duration-160 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted/40"
                 >
                   <div>

@@ -45,7 +45,8 @@ export function PhoneOrderDialog({
   const createFn = useServerFn(createPhoneOrder);
   const [form, setForm] = useState(EMPTY);
   const [fulfillment, setFulfillment] = useState<Fulfillment>("delivery");
-  const [consent, setConsent] = useState(true);
+  // Unticked: the owner ticks it only after actually asking the customer.
+  const [consent, setConsent] = useState(false);
   const [q, setQ] = useState("");
   const [results, setResults] = useState<Found[]>([]);
   const [lines, setLines] = useState<Line[]>([]);
@@ -56,7 +57,7 @@ export function PhoneOrderDialog({
     if (!open) {
       setForm(EMPTY);
       setFulfillment("delivery");
-      setConsent(true);
+      setConsent(false);
       setQ("");
       setResults([]);
       setLines([]);
@@ -123,6 +124,16 @@ export function PhoneOrderDialog({
       toast.error("יש למלא שם, אימייל וטלפון");
       return;
     }
+    // Same checks as /checkout, so a typo gets a Hebrew message here instead
+    // of the server's validation error.
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+      toast.error("כתובת האימייל אינה תקינה");
+      return;
+    }
+    if (form.phone.replace(/\D/g, "").length < 9) {
+      toast.error("מספר הטלפון אינו תקין");
+      return;
+    }
     if (!pickup && !form.address.trim()) {
       toast.error("יש להזין כתובת למשלוח, או לבחור איסוף עצמי");
       return;
@@ -168,7 +179,14 @@ export function PhoneOrderDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" dir="rtl">
+      <DialogContent
+        className="max-w-2xl max-h-[90dvh] overflow-y-auto"
+        dir="rtl"
+        // A tap outside must not wipe a half-built order.
+        onInteractOutside={(e) => {
+          if (!created && (lines.length > 0 || form.name.trim())) e.preventDefault();
+        }}
+      >
         <DialogHeader>
           <DialogTitle>הזמנה טלפונית</DialogTitle>
         </DialogHeader>
@@ -404,7 +422,7 @@ export function PhoneOrderDialog({
               </span>
             </label>
 
-            <div className="flex items-center justify-between border-t pt-3">
+            <div className="sticky bottom-0 -mx-6 flex flex-wrap items-center justify-between gap-2 border-t bg-background px-6 pb-2 pt-3">
               <div className="text-xs text-muted-foreground">
                 פריטים {formatILS(itemsTotal)} ·{" "}
                 {pickup ? "איסוף עצמי" : `משלוח ${formatILS(shipping)}`}
@@ -412,7 +430,7 @@ export function PhoneOrderDialog({
                   הסכום הסופי נקבע בשרת (מבצעים והנחת חבר מועדון חלים אוטומטית)
                 </span>
               </div>
-              <Button onClick={submit} disabled={busy}>
+              <Button onClick={submit} disabled={busy} className="w-full sm:w-auto">
                 {busy ? "יוצר..." : `יצירת הזמנה · ${formatILS(itemsTotal + shipping)}`}
               </Button>
             </div>

@@ -89,7 +89,11 @@ const PhoneOrderSchema = z.object({
  * phone customer would be asked to log in before paying.
  */
 export const createPhoneOrder = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) => PhoneOrderSchema.parse(i))
+  .inputValidator((i: unknown) => {
+    const r = PhoneOrderSchema.safeParse(i);
+    if (!r.success) throw new Error("חלק מהפרטים אינם תקינים — בדקו אימייל, טלפון ומוצרים.");
+    return r.data;
+  })
   .handler(async ({ data }) => {
     const adminId = await requireAdmin();
     const email = data.customer_email.trim().toLowerCase();

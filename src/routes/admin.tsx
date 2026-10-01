@@ -6,7 +6,7 @@ import {
   useRouterState,
   redirect,
 } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import { CardSkeleton } from "@/components/Skeletons";
@@ -44,17 +44,21 @@ export const Route = createFileRoute("/admin")({
 });
 
 const items = [
+  // Daily work first: on a phone this is a sideways strip and only the first
+  // four or so are on screen. Catalog and settings follow.
   { to: "/admin", label: "סקירה", icon: LayoutDashboard, exact: true },
-  { to: "/admin/products", label: "מוצרים", icon: Package },
-  { to: "/admin/categories", label: "קטגוריות", icon: FolderTree },
   { to: "/admin/orders", label: "הזמנות", icon: ShoppingBag },
   // Right after orders: the people who almost were orders.
   { to: "/admin/leads", label: "לידים", icon: Target },
   { to: "/admin/customers", label: "לקוחות", icon: Users },
-  { to: "/admin/abandoned", label: "עגלות נטושות", icon: ShoppingCart },
+  { to: "/admin/products", label: "מוצרים", icon: Package },
+  { to: "/admin/categories", label: "קטגוריות", icon: FolderTree },
   { to: "/admin/promotions", label: "מבצעים", icon: BadgePercent },
   { to: "/admin/campaigns", label: "דיוור", icon: Mail },
   { to: "/admin/reviews", label: "חוות דעת", icon: Star },
+  // The carts' own history (reminder runs, converted carts). Day-to-day
+  // follow-up of open carts lives in לידים.
+  { to: "/admin/abandoned", label: "היסטוריית עגלות", icon: ShoppingCart },
   // Reachable only by typing the URL until now — a settings screen nothing
   // links to is a screen that does not exist.
   { to: "/admin/telegram", label: "התראות", icon: Send },
@@ -65,6 +69,12 @@ function AdminLayout() {
   const { user, isAdmin, loading } = useAuth();
   const navigate = useNavigate();
   const path = useRouterState({ select: (s) => s.location.pathname });
+  const scrollActiveIntoView = useCallback(
+    (el: HTMLAnchorElement | null) => el?.scrollIntoView({ inline: "center", block: "nearest" }),
+    // Re-run on navigation: a new callback identity makes React call it again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [path],
+  );
 
   useEffect(() => {
     // The real gate is the DB: RLS `has_role('admin')` policies on every admin
@@ -109,6 +119,8 @@ function AdminLayout() {
             <Link
               key={it.to}
               to={it.to}
+              // Keep the current screen visible in the phone's sideways strip.
+              ref={active ? scrollActiveIntoView : undefined}
               className={`flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-3 py-2.5 text-sm transition-colors duration-160 ease-out lg:py-2 ${
                 active
                   ? "bg-primary text-primary-foreground"
