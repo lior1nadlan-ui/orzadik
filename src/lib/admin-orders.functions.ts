@@ -14,6 +14,7 @@ import { applyMemberDiscount, getEffectivePrice, getShipping } from "@/lib/prici
 import { PICKUP } from "@/lib/business";
 import { orderPaymentUrl } from "@/lib/wa-templates";
 import { logOrderEvent } from "@/lib/order-events.server";
+import { PHONE_ORDER_TAG } from "@/lib/telegram-latch";
 
 const stripHtml = (v: string) => v.replace(/<[^>]*>/g, "").trim();
 
@@ -116,7 +117,7 @@ export const createPhoneOrder = createServerFn({ method: "POST" })
     const shipping = getShipping(subtotal, data.fulfillment);
     const total = subtotal + shipping;
 
-    const tags = ["[הזמנה טלפונית מה-CRM]"];
+    const tags = [PHONE_ORDER_TAG];
     if (isMember) tags.push(`[חבר מועדון — הנחת 5% (${rawSubtotal - subtotal} ₪)]`);
     const notes = [data.notes, ...tags].filter(Boolean).join("\n");
 
