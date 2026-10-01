@@ -138,11 +138,12 @@ function AdminAbandoned() {
       </p>
 
       {/* Filter tabs */}
-      <div className="flex flex-wrap gap-2 mb-4">
+      <div className="mb-4 grid grid-cols-3 gap-2 sm:flex sm:flex-wrap">
         {FILTERS.map((f) => (
           <Button
             key={f.value}
             size="sm"
+            className="max-sm:min-h-11"
             variant={show === f.value ? "default" : "outline"}
             onClick={() => setShow(f.value)}
           >
@@ -151,8 +152,100 @@ function AdminAbandoned() {
         ))}
       </div>
 
+      {/* Phone: one card per cart — who, how much, what was in it, and the two
+          ready-made messages as real buttons. */}
+      <ul
+        className={`space-y-2 sm:hidden transition-opacity duration-200 ease-out ${isFetching ? "opacity-60" : ""}`}
+      >
+        {carts.length === 0 && (
+          <li className="rounded-lg border bg-card p-8 text-center text-sm text-muted-foreground">
+            אין עגלות נטושות כרגע.
+          </li>
+        )}
+        {carts.map((c: any) => {
+          const items = (Array.isArray(c.items) ? c.items : []) as CartItem[];
+          const itemNames = items.map((it) => `${it.name} ×${it.quantity}`).join(" · ");
+          return (
+            <li key={c.id} className="rounded-xl border border-glass-line bg-card p-3.5">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="font-semibold">{c.name || "—"}</div>
+                  <div className="truncate text-xs text-muted-foreground">
+                    <bdi dir="ltr">{c.email}</bdi>
+                  </div>
+                </div>
+                <div className="shrink-0 text-end">
+                  <div className="text-lg font-bold">{formatILS(Number(c.subtotal))}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {new Date(c.created_at).toLocaleString("he-IL", {
+                      day: "numeric",
+                      month: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </div>
+                </div>
+              </div>
+              {itemNames && <p className="mt-1.5 text-sm">{itemNames}</p>}
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                {c.converted_order_id !== null ? (
+                  <span className="text-[11px] rounded-full px-2 py-0.5 bg-emerald-100 text-emerald-800">
+                    הומרה להזמנה
+                  </span>
+                ) : (
+                  <span className="text-[11px] rounded-full px-2 py-0.5 bg-amber-100 text-amber-800">
+                    פתוחה
+                  </span>
+                )}
+                <span
+                  className={`text-[11px] rounded-full px-2 py-0.5 ${
+                    c.reminder_1_sent_at
+                      ? "bg-primary/10 text-primary"
+                      : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  {c.reminder_2_sent_at
+                    ? "נשלחו 2 תזכורות"
+                    : c.reminder_1_sent_at
+                      ? "תזכורת 1 נשלחה"
+                      : "טרם נשלחה תזכורת"}
+                </span>
+                {c.unsubscribed && (
+                  <span className="text-[11px] rounded-full px-2 py-0.5 bg-muted text-muted-foreground">
+                    הוסר מרשימת התפוצה
+                  </span>
+                )}
+              </div>
+              {/* Unsubscribed customers asked not to be contacted — no actions. */}
+              {!c.unsubscribed && (
+                <div className="mt-3 flex gap-2">
+                  {c.phone && (
+                    <Button
+                      asChild
+                      className="min-w-0 flex-1 bg-emerald-700 text-white hover:bg-emerald-800"
+                    >
+                      <a href={waForCart(c, itemNames)} target="_blank" rel="noreferrer">
+                        <MessageCircle className="h-4 w-4" /> וואטסאפ
+                      </a>
+                    </Button>
+                  )}
+                  <Button asChild variant="outline" className={c.phone ? "" : "flex-1"}>
+                    <a
+                      href={mailtoForCart(c, itemNames)}
+                      title={`מייל ללקוח (${c.email}) — טיוטה מוכנה`}
+                    >
+                      <Mail className="h-4 w-4" /> מייל
+                    </a>
+                  </Button>
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+
       <div
-        className={`rounded-lg border bg-card overflow-x-auto transition-opacity duration-200 ease-out ${isFetching ? "opacity-60" : ""}`}
+        className={`rounded-lg border bg-card overflow-x-auto transition-opacity duration-200 ease-out max-sm:hidden ${isFetching ? "opacity-60" : ""}`}
       >
         <table className="w-full text-sm">
           <thead className="bg-muted/50">

@@ -76,7 +76,7 @@ function AdminTelegram() {
   };
 
   return (
-    <div className="mx-auto max-w-2xl p-4">
+    <div className="mx-auto max-w-2xl sm:p-4">
       <h1 className="mb-1 text-xl font-bold">התראות</h1>
       <p className="mb-6 text-sm text-muted-foreground">
         על כל הזמנה נשלחת הודעה עם כל הפרטים והתמונות של המוצרים, ובכל בוקר סיכום של מה שמחכה
