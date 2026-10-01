@@ -85,6 +85,7 @@ function TrackPage() {
   // for the entire fulfilment window. The admin can now set it (markOrderPreparing
   // in admin-crm.functions.ts) and this is where the buyer sees it land.
   const shipStatus = String(order?.shipping_status ?? "");
+  const isPickup = (order as { fulfillment?: string } | null | undefined)?.fulfillment === "pickup";
   const steps = order
     ? [
         {
@@ -108,15 +109,25 @@ function TrackPage() {
           at: null,
           // Shipped implies prepared, so a later stage never leaves this one
           // blank behind it.
-          done: ["preparing", "shipped", "delivered"].includes(shipStatus) || !!order.shipped_at,
+          done:
+            ["preparing", "ready_for_pickup", "shipped", "delivered"].includes(shipStatus) ||
+            !!order.shipped_at,
         },
-        {
-          key: "shipped",
-          icon: Package,
-          label: "ההזמנה נשלחה",
-          at: dt(order.shipped_at),
-          done: !!order.shipped_at,
-        },
+        isPickup
+          ? {
+              key: "shipped",
+              icon: Package,
+              label: order.shipped_at ? "ההזמנה נאספה מהחנות" : "מוכנה לאיסוף מהחנות",
+              at: dt(order.shipped_at),
+              done: shipStatus === "ready_for_pickup" || !!order.shipped_at,
+            }
+          : {
+              key: "shipped",
+              icon: Package,
+              label: "ההזמנה נשלחה",
+              at: dt(order.shipped_at),
+              done: !!order.shipped_at,
+            },
         {
           key: "completed",
           icon: Home,

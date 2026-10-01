@@ -129,3 +129,14 @@ export function waAbandonedCart(row: Recordish): string | null {
     `אם נשאר משהו לא ברור או שנוכל לעזור בהשלמת ההזמנה — אנחנו כאן בשבילך. 💛`;
   return waMessage(pick(row, "customerPhone", "customer_phone", "phone"), text);
 }
+
+/** Pickup order is ready at the shop: where and when to come. */
+export function waReadyForPickup(o: Recordish): string | null {
+  const name = pick(o, "customerName", "customer_name", "name");
+  const orderNumber = pick(o, "orderNumber", "order_number");
+  const text =
+    `${greet(name)}! 🛍️\n` +
+    `ההזמנה שלך${orderRef(orderNumber)} מוכנה ומחכה לך בחנות "${SHOP}", דרך עכו 190, קרית ביאליק. ` +
+    `נשמח לראות אותך בשעות הפתיחה — ואם נוח לתאם שעה, פשוט השיבו כאן. 💛`;
+  return waMessage(pick(o, "customerPhone", "customer_phone", "phone"), text);
+}

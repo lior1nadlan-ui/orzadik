@@ -9,7 +9,11 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { requireAdmin } from "@/lib/admin-authz.server";
-import { sendOrderShippedEmail, sendOrderConfirmationEmails } from "@/lib/order-emails.server";
+import {
+  sendOrderShippedEmail,
+  sendOrderConfirmationEmails,
+  sendOrderReadyForPickupEmail,
+} from "@/lib/order-emails.server";
 import { ORDER_ITEM_PRODUCT_JOIN } from "@/lib/order-item-photo";
 import { isOpenFailedPayment, recoveredBy } from "@/lib/crm-digest";
 import { buildFunnel, type Funnel } from "@/lib/funnel";
@@ -358,6 +362,8 @@ type ActionRow = {
   customerName: string;
   customerEmail?: string;
   customerPhone?: string;
+  /** Collected from the shop rather than shipped. */
+  pickup?: boolean;
   context: string;
   createdAt: string;
 };
@@ -368,7 +374,7 @@ export const getActionQueue = createServerFn({ method: "POST" }).handler(async (
   const now = Date.now();
   const [orders, statesRes, followUpsRes] = await Promise.all([
     fetchAllOrders(
-      "id, order_number, customer_name, customer_email, customer_phone, status, payment_status, created_at, paid_at, shipped_at, review_request_sent_at, payment_reminder_sent_at",
+      "id, order_number, customer_name, customer_email, customer_phone, status, payment_status, created_at, paid_at, shipped_at, review_request_sent_at, payment_reminder_sent_at, fulfillment, shipping_status",
     ),
     supabaseAdmin
       .from("crm_action_state")
@@ -446,6 +452,7 @@ export const getActionQueue = createServerFn({ method: "POST" }).handler(async (
       customerName: o.customer_name || "לקוח",
       customerEmail: o.customer_email || undefined,
       customerPhone: o.customer_phone || undefined,
+      ...(o.fulfillment === "pickup" ? { pickup: true } : {}),
     };
     const rowFor = (type: ActionType, createdAt: string, context: string): ActionRow =>
       withState({
@@ -471,6 +478,18 @@ export const getActionQueue = createServerFn({ method: "POST" }).handler(async (
         );
       } else {
         const d = Math.floor((now - since) / DAY);
+        if (o.fulfillment === "pickup") {
+          rows.push(
+            rowFor(
+              "ready_to_ship",
+              sinceIso,
+              o.shipping_status === "ready_for_pickup"
+                ? `איסוף עצמי · מוכנה ומחכה ללקוח כבר ${d} ימים. כשנאספה — "נאסף" 🛍️`
+                : `איסוף עצמי · שולם לפני ${d} ימים — להכין ולסמן "מוכן לאיסוף" 🛍️`,
+            ),
+          );
+          continue;
+        }
         rows.push(
           rowFor(
             "ready_to_ship",
@@ -1599,6 +1618,49 @@ export const markOrderPreparing = createServerFn({ method: "POST" })
       throw new Error("שגיאה בעדכון מצב ההכנה.");
     }
     return { ok: true };
+  });
+
+/**
+ * Pickup order is packed and waiting at the shop. Sets shipping_status to
+ * 'ready_for_pickup' (plain text, no CHECK) and emails the customer once — on
+ * the first move into that state. Collection itself is recorded with
+ * markOrderShipped({ delivered: true }), which completes the order and starts
+ * the review-request clock.
+ */
+export const markOrderReadyForPickup = createServerFn({ method: "POST" })
+  .inputValidator((i: unknown) => z.object({ order_id: z.string().uuid() }).parse(i))
+  .handler(async ({ data }) => {
+    await requireAdmin();
+    const { data: order, error } = await supabaseAdmin
+      .from("orders")
+      .select("id, status, payment_status, fulfillment, shipping_status, shipped_at")
+      .eq("id", data.order_id)
+      .maybeSingle();
+    if (error || !order) throw new Error("הזמנה לא נמצאה.");
+    if (order.fulfillment !== "pickup") throw new Error("זו הזמנה במשלוח, לא באיסוף עצמי.");
+    if ((TERMINAL_STATUSES as readonly string[]).includes(order.status)) {
+      throw new Error("ההזמנה בוטלה או זוכתה.");
+    }
+    if (order.payment_status !== "paid") throw new Error("ההזמנה עוד לא שולמה.");
+    if (order.shipped_at) throw new Error("ההזמנה כבר סומנה כנאספה.");
+    const first = order.shipping_status !== "ready_for_pickup";
+    const { error: uErr } = await supabaseAdmin
+      .from("orders")
+      .update({ shipping_status: "ready_for_pickup" })
+      .eq("id", order.id);
+    if (uErr) {
+      console.error("[markOrderReadyForPickup]:", uErr);
+      throw new Error("שגיאה בעדכון ההזמנה.");
+    }
+    let emailSent = false;
+    if (first) {
+      try {
+        emailSent = await sendOrderReadyForPickupEmail(order.id);
+      } catch (e) {
+        console.error("[markOrderReadyForPickup] email failed:", e);
+      }
+    }
+    return { ok: true, emailSent, alreadyReady: !first };
   });
 
 /**

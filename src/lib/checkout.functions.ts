@@ -7,9 +7,10 @@ import { checkOrderRateLimit, checkOrderRateLimitByIp, getClientIp } from "@/lib
 import { sendOrderCreatedOwnerAlert } from "@/lib/order-emails.server";
 import { recordNewsletterConsent } from "@/lib/newsletter.functions";
 import { orderCustomText } from "@/lib/personalization";
+import { PICKUP } from "@/lib/business";
 import { buildPromoIndex, promoFor, promoPrice, EMPTY_PROMO_INDEX } from "@/lib/promotions";
 import {
-  SHIPPING_FLAT,
+  getShipping,
   getEffectivePrice as effectivePrice,
   applyMemberDiscount as applyMember,
   isSellablePrice,
@@ -31,6 +32,9 @@ const CheckoutSchema = z.object({
   customer_city: z.string().trim().max(200).transform(stripHtml).optional().nullable(),
   notes: z.string().trim().max(2000).transform(stripHtml).optional().nullable(),
   contact_consent: z.boolean().optional(),
+  // Delivery by courier (default, and what an older cached bundle sends by
+  // omission) or collection from the shop, which waives the shipping fee.
+  fulfillment: z.enum(["delivery", "pickup"]).optional(),
   // Separate, optional marketing consent. Unrelated to contact_consent, whose
   // checkout label explicitly promises the details are NOT used for marketing.
   marketing_consent: z.boolean().optional(),
@@ -212,7 +216,8 @@ export const placeOrder = createServerFn({ method: "POST" })
     }
     const subtotal = applyMember(rawSubtotal, isMember);
     const memberDiscount = rawSubtotal - subtotal;
-    const shipping = subtotal > 0 ? SHIPPING_FLAT : 0;
+    const fulfillment = data.fulfillment ?? "delivery";
+    const shipping = getShipping(subtotal, fulfillment);
     const total = subtotal + shipping;
 
     const memberNote = isMember ? `[חבר מועדון — הנחת 5% (${memberDiscount} ₪)]` : "";
@@ -229,8 +234,11 @@ export const placeOrder = createServerFn({ method: "POST" })
         customer_name: data.customer_name,
         customer_email: normalizedEmail,
         customer_phone: data.customer_phone,
-        customer_address: data.customer_address,
-        customer_city: data.customer_city ?? null,
+        // A pickup order's address IS the shop, whatever the form held — the
+        // packing slip, the emails and the CRM then all say where it goes.
+        customer_address: fulfillment === "pickup" ? PICKUP.addressLine : data.customer_address,
+        customer_city: fulfillment === "pickup" ? PICKUP.city : (data.customer_city ?? null),
+        fulfillment,
         notes: finalNotes,
         subtotal,
         shipping,

@@ -501,6 +501,7 @@ function AccountPage() {
                 const shipLabel: Record<string, string> = {
                   pending: "ממתין לטיפול",
                   preparing: "בהכנה",
+                  ready_for_pickup: "מוכן לאיסוף",
                   shipped: "נשלח",
                   delivered: "נמסר",
                 };

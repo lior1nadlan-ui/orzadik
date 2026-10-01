@@ -573,6 +573,7 @@ export type Database = {
           customer_email: string
           customer_name: string
           customer_phone: string
+          fulfillment: string
           gift_note: string | null
           gift_wrap: boolean
           id: string
@@ -616,6 +617,7 @@ export type Database = {
           customer_email: string
           customer_name: string
           customer_phone: string
+          fulfillment?: string
           gift_note?: string | null
           gift_wrap?: boolean
           id?: string
@@ -659,6 +661,7 @@ export type Database = {
           customer_email?: string
           customer_name?: string
           customer_phone?: string
+          fulfillment?: string
           gift_note?: string | null
           gift_wrap?: boolean
           id?: string

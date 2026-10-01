@@ -11,7 +11,14 @@ import {
   ils,
   isEmailConfigured,
 } from "@/lib/email.server";
-import { BUSINESS, CONSUMER_POLICY, sellerIdentityLine } from "@/lib/business";
+import {
+  BUSINESS,
+  CONSUMER_POLICY,
+  OPENING_HOURS,
+  PICKUP,
+  openingHoursLabel,
+  sellerIdentityLine,
+} from "@/lib/business";
 import { orderItemImageUrl } from "@/lib/order-item-photo";
 import { sendOrderTelegramAlert } from "@/lib/telegram.server";
 import { getStaffRecipients } from "@/lib/staff-recipients.server";
@@ -99,7 +106,7 @@ export async function sendOrderConfirmationEmails(orderId: string): Promise<bool
   const { data: order } = await supabaseAdmin
     .from("orders")
     .select(
-      "id, order_number, customer_name, customer_email, customer_phone, customer_address, customer_city, subtotal, shipping, total, is_gift, gift_note, gift_wrap, order_items(product_name, quantity, line_total, variant_label, custom_text, products(slug, thumbnail_url))",
+      "id, order_number, customer_name, customer_email, customer_phone, customer_address, customer_city, fulfillment, subtotal, shipping, total, is_gift, gift_note, gift_wrap, order_items(product_name, quantity, line_total, variant_label, custom_text, products(slug, thumbnail_url))",
     )
     .eq("id", orderId)
     .single();
@@ -153,7 +160,12 @@ export async function sendOrderConfirmationEmails(orderId: string): Promise<bool
     ${giftBlock(order)}
     ${totalsBlock}
     ${emailButton("https://orzadik.com/track", "מעקב אחר ההזמנה")}
-    <p class="oz-muted" style="font-size:13px;color:#666;margin-top:16px;">
+    ${
+      order.fulfillment === "pickup"
+        ? `<p class="oz-muted" style="font-size:13px;color:#666;margin-top:16px;">
+      ${esc(PICKUP.addressLine)}. ${esc(PICKUP.note)}
+    </p>`
+        : `<p class="oz-muted" style="font-size:13px;color:#666;margin-top:16px;">
       כתובת למשלוח: ${esc(order.customer_address)}${order.customer_city ? ", " + esc(order.customer_city) : ""}
     </p>
     <!-- Delivery window from CONSUMER_POLICY — the same two numbers /shipping,
@@ -162,7 +174,8 @@ export async function sendOrderConfirmationEmails(orderId: string): Promise<bool
          visually reverses a numeric range in RTL. -->
     <p class="oz-muted" style="font-size:13px;color:#666;margin-top:4px;">
       זמן אספקה משוער: ${CONSUMER_POLICY.deliveryMinDays}-${CONSUMER_POLICY.deliveryMaxDays} ימי עסקים.
-    </p>
+    </p>`
+    }
     <p class="oz-muted" style="font-size:12px;color:#888;margin-top:4px;">כל המחירים בשקלים (₪) וכוללים מע"מ.</p>
 
     <!-- §14ג(ב) written confirmation: seller identity + cancellation rights -->
@@ -348,5 +361,55 @@ export async function sendOrderShippedEmail(orderId: string) {
   if (sent) console.log("[email] shipped email sent for", order.order_number);
   else
     console.error(`[email] HIGH: shipped email for order ${order.order_number} was NOT delivered.`);
+  return sent;
+}
+
+/**
+ * Customer "your order is ready for pickup" email, for an order collected from
+ * the shop. Caller (markOrderReadyForPickup) sends it once, on the first move
+ * into ready_for_pickup.
+ */
+export async function sendOrderReadyForPickupEmail(orderId: string): Promise<boolean> {
+  if (!isEmailConfigured()) return false;
+
+  const { data: order } = await supabaseAdmin
+    .from("orders")
+    .select(
+      "order_number, customer_name, customer_email, is_gift, gift_note, gift_wrap, order_items(product_name, quantity, line_total, variant_label, custom_text, products(slug, thumbnail_url))",
+    )
+    .eq("id", orderId)
+    .single();
+  if (!order) return false;
+
+  const rows = itemsRows((order.order_items as any[]) ?? []);
+  const hours = OPENING_HOURS.map(
+    (h) => `<div>${esc(h.he)}: ${esc(openingHoursLabel(h))}</div>`,
+  ).join("");
+  const html = emailShell(
+    `
+    <h1 style="font-size:20px;margin:0 0 8px;">ההזמנה מוכנה לאיסוף 🛍️</h1>
+    <p class="oz-muted" style="font-size:14px;color:#555;margin:0 0 16px;">
+      שלום ${esc(order.customer_name)}, הזמנה <strong>${esc(order.order_number)}</strong> מוכנה ומחכה לך בחנות.
+    </p>
+    <div style="background:#FAF6E9;border:1px solid #EADFBE;border-radius:8px;padding:12px;margin:16px 0;font-size:14px;color:#2b2b2b;line-height:1.7;">
+      <strong>${esc(BUSINESS.address)}</strong>
+      <div style="color:#666;font-size:13px;margin-top:6px;">${hours}</div>
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:14px;">${rows}</table>
+    ${giftBlock(order)}
+    <p class="oz-muted" style="font-size:13px;color:#666;margin-top:16px;text-align:center;">
+      כדאי להביא את מספר ההזמנה. לשאלות אפשר להשיב למייל הזה.
+    </p>`,
+    `הזמנה ${order.order_number} מוכנה לאיסוף מהחנות.`,
+  );
+
+  const sent = await sendEmail({
+    to: order.customer_email,
+    subject: `ההזמנה ${order.order_number} מוכנה לאיסוף — אור זרוע לצדיק`,
+    html,
+    replyTo: process.env.SHOP_OWNER_EMAIL,
+  });
+  if (!sent)
+    console.error(`[email] HIGH: ready-for-pickup email for ${order.order_number} NOT delivered.`);
   return sent;
 }

@@ -13,8 +13,15 @@ import {
   markOrderPreparing,
   resendOrderConfirmation,
   sendOrderPaymentReminder,
+  markOrderReadyForPickup,
 } from "@/lib/admin-crm.functions";
-import { waThankYou, waShipped, waFollowUpUnpaid, orderPaymentUrl } from "@/lib/wa-templates";
+import {
+  waThankYou,
+  waShipped,
+  waFollowUpUnpaid,
+  waReadyForPickup,
+  orderPaymentUrl,
+} from "@/lib/wa-templates";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -96,6 +103,56 @@ function waForOrder(o: any): string {
   return templated ?? waLink(o?.customer_phone);
 }
 
+/**
+ * Fulfilment for an order collected from the shop: "מוכן לאיסוף" (emails the
+ * customer once) and "נאסף" (completes the order without an email — the review
+ * request a week later is the next thing they hear).
+ */
+function PickupPanel({
+  order,
+  busy,
+  onReady,
+  onCollected,
+}: {
+  order: any;
+  busy: boolean;
+  onReady: () => void;
+  onCollected: () => void;
+}) {
+  if (order.payment_status !== "paid" || ["cancelled", "refunded"].includes(order.status)) {
+    return null;
+  }
+  const collected = !!order.shipped_at;
+  const ready = order.shipping_status === "ready_for_pickup";
+  const wa = waReadyForPickup(order);
+  return (
+    <div className="border-t pt-3 space-y-2">
+      <div className="text-sm font-semibold">איסוף עצמי מהחנות</div>
+      {collected ? (
+        <div className="text-xs text-emerald-700">
+          נאסף ב-{new Date(order.shipped_at).toLocaleDateString("he-IL")}
+        </div>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" disabled={busy || ready} onClick={onReady}>
+            {ready ? "מוכנה לאיסוף ✓" : "מוכן לאיסוף — הודע ללקוח ✉️"}
+          </Button>
+          {wa && (
+            <Button size="sm" variant="outline" asChild>
+              <a href={wa} target="_blank" rel="noopener noreferrer">
+                <MessageCircle className="h-4 w-4" /> הודעת איסוף בוואטסאפ
+              </a>
+            </Button>
+          )}
+          <Button size="sm" disabled={busy} onClick={onCollected}>
+            נאסף ✓
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PaymentBadge({ status }: { status: string }) {
   const cls =
     status === "paid"
@@ -120,6 +177,7 @@ function AdminOrders() {
   const shipOrder = useServerFn(markOrderShipped);
   const setOrderStatus = useServerFn(updateOrderStatus);
   const setPreparingFn = useServerFn(markOrderPreparing);
+  const readyForPickupFn = useServerFn(markOrderReadyForPickup);
   const resendConfirmation = useServerFn(resendOrderConfirmation);
   const payReminderFn = useServerFn(sendOrderPaymentReminder);
   const [sendingPayLink, setSendingPayLink] = useState(false);
@@ -260,6 +318,26 @@ function AdminOrders() {
       toast.error(e?.message ?? "שגיאה בעדכון המשלוח");
     } finally {
       setShipping(false);
+    }
+  };
+
+  const doReadyForPickup = async () => {
+    setPreparing(true);
+    try {
+      const r = await readyForPickupFn({ data: { order_id: selected.id } });
+      toast.success(
+        r.alreadyReady
+          ? "כבר מסומנת כמוכנה לאיסוף"
+          : r.emailSent
+            ? "סומנה כמוכנה לאיסוף ומייל נשלח ללקוח 🛍️"
+            : "סומנה כמוכנה לאיסוף (המייל לא נשלח — אפשר בוואטסאפ)",
+      );
+      setSelected(null);
+      refresh();
+    } catch (e: any) {
+      toast.error(e?.message ?? "שגיאה בעדכון ההזמנה");
+    } finally {
+      setPreparing(false);
     }
   };
 
@@ -452,6 +530,11 @@ function AdminOrders() {
                 <td className="p-3 font-bold">{formatILS(Number(o.total))}</td>
                 <td className="p-3">
                   <PaymentBadge status={o.payment_status} />
+                  {o.fulfillment === "pickup" && (
+                    <span className="mt-1 block w-fit rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-semibold text-sky-900">
+                      איסוף עצמי
+                    </span>
+                  )}
                 </td>
                 <td className="p-3">
                   <select
@@ -708,14 +791,23 @@ function AdminOrders() {
                   </div>
                 )}
 
-                <OrderShippingPanel
-                  key={selected.id}
-                  order={selected}
-                  busy={shipping}
-                  onShip={doShip}
-                  preparing={preparing}
-                  onPreparing={doPreparing}
-                />
+                {selected.fulfillment === "pickup" ? (
+                  <PickupPanel
+                    order={selected}
+                    busy={shipping || preparing}
+                    onReady={doReadyForPickup}
+                    onCollected={() => doShip({ delivered: true, carrier: "איסוף עצמי" })}
+                  />
+                ) : (
+                  <OrderShippingPanel
+                    key={selected.id}
+                    order={selected}
+                    busy={shipping}
+                    onShip={doShip}
+                    preparing={preparing}
+                    onPreparing={doPreparing}
+                  />
+                )}
 
                 {selected.payment_status === "paid" && (
                   <div className="border-t pt-3 flex items-center justify-between gap-3">

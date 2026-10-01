@@ -66,9 +66,20 @@ export function applyMemberDiscount(subtotal: number, isMember: boolean): number
   return Math.round(subtotal * (1 - MEMBER_DISCOUNT));
 }
 
-/** Shipping fee — flat rate charged whenever the cart has a positive subtotal. */
-export function getShipping(subtotalAfterDiscount: number): number {
+/** How the order reaches the customer. Mirrors orders.fulfillment. */
+export type Fulfillment = "delivery" | "pickup";
+
+/**
+ * Shipping fee — flat rate charged whenever the cart has a positive subtotal,
+ * except for collection from the shop, which costs nothing. The default keeps
+ * every caller that predates pickup (cart, drawer) on the delivery price.
+ */
+export function getShipping(
+  subtotalAfterDiscount: number,
+  fulfillment: Fulfillment = "delivery",
+): number {
   if (subtotalAfterDiscount <= 0) return 0;
+  if (fulfillment === "pickup") return 0;
   return SHIPPING_FLAT;
 }
 
