@@ -1071,7 +1071,7 @@ function HomePage() {
             paint; with the collections now above it, it would finish long before
             the shopper scrolled here. <Reveal> arms on scroll instead. */}
         <Reveal className="container mx-auto px-4 max-w-6xl py-14 md:py-20 w-full">
-          <div className="glass glass-gold grid md:grid-cols-2 gap-10 items-center p-8 md:p-12 [--glass-radius:1.5rem]">
+          <div className="glass glass-gold grid md:grid-cols-2 gap-6 md:gap-10 items-center p-5 sm:p-8 md:p-12 [--glass-radius:1.5rem]">
             {/* Text column (RTL start) */}
             <div>
               <p className="text-meta md:text-body tracking-[0.3em] text-accent mb-4">
@@ -1121,8 +1121,9 @@ function HomePage() {
               </div>
             </div>
 
-            {/* Image column */}
-            <div>
+            {/* Image column — first on a phone: the box is the reason to stop
+                scrolling, and below the copy it sat ~600px down the card. */}
+            <div className="max-md:order-first">
               <div className="relative overflow-hidden rounded-lg">
                 <img
                   src="/groom-sets/groom-01.jpeg"
@@ -1278,16 +1279,19 @@ function HomePage() {
             ].map((item) => (
               <div
                 key={item.title}
-                className="group flex flex-col items-center text-center gap-5 px-6 py-10 md:py-6"
+                className="group flex items-start gap-4 px-1 py-5 text-start md:flex-col md:items-center md:gap-5 md:px-6 md:py-6 md:text-center"
               >
-                <div className="text-accent transition-transform duration-200 ease-out motion-safe:[@media(hover:hover)_and_(pointer:fine)]:group-hover:-translate-y-1">
+                {/* Phone: icon beside the text, a compact list (three
+                    centred stacks with 40px padding cost ~1,000px). From md:
+                    the three columns it always was. */}
+                <div className="shrink-0 text-accent transition-transform duration-200 ease-out max-md:[&_svg]:h-8 max-md:[&_svg]:w-8 motion-safe:[@media(hover:hover)_and_(pointer:fine)]:group-hover:-translate-y-1">
                   {item.icon}
                 </div>
                 <div>
-                  <h3 className="font-display text-2xl md:text-[1.75rem] leading-tight mb-3">
+                  <h3 className="mb-1 font-display text-xl leading-tight md:mb-3 md:text-[1.75rem]">
                     {item.title}
                   </h3>
-                  <p className="text-base text-muted-foreground leading-relaxed max-w-xs mx-auto">
+                  <p className="text-sm leading-relaxed text-muted-foreground md:mx-auto md:max-w-xs md:text-base">
                     {item.desc}
                   </p>
                 </div>
@@ -1616,7 +1620,11 @@ function HomePage() {
             הארץ.
           </p>
           <p className="text-center text-xs text-muted-foreground leading-relaxed mb-12 max-w-3xl mx-auto">
-            הבעלים: ליאור בן עמי · דרך עכו 190, קרית ביאליק · טל׳ 054-581-8486.
+            הבעלים: ליאור בן עמי · דרך עכו 190, קרית ביאליק · טל׳{" "}
+            <bdi dir="ltr" className="whitespace-nowrap">
+              054-581-8486
+            </bdi>
+            .
           </p>
 
           {/* FAQ */}
