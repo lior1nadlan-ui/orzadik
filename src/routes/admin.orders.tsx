@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { paymentStatusHe } from "@/lib/order-labels";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { formatILS } from "@/lib/cart";
@@ -69,14 +70,6 @@ const STATUS_HE: Record<string, string> = {
 // Without them here they rendered as raw English tokens, and with no matching filter
 // option the owner could not even LIST a blocked order — so a charge that was taken
 // and refused would sit unnoticed. A block nobody can see is a block nobody fixes.
-const PAYMENT_HE: Record<string, string> = {
-  paid: "שולם",
-  unpaid: "לא שולם",
-  refunded: "זוכה",
-  failed: "נכשל",
-  pending_charge: "ממתין לחיוב",
-};
-
 /** Israeli local number -> wa.me international format. Also used by the
  * abandoned-carts screen (admin.abandoned.tsx). */
 export function waLink(phone: string): string {
@@ -176,7 +169,7 @@ function PaymentBadge({ status }: { status: string }) {
         : "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300";
   return (
     <span className={`text-[11px] rounded-full px-2 py-0.5 whitespace-nowrap ${cls}`}>
-      {PAYMENT_HE[status] ?? status}
+      {paymentStatusHe(status)}
     </span>
   );
 }

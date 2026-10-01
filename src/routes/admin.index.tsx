@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { paymentStatusHe } from "@/lib/order-labels";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getDashboardStats } from "@/lib/admin-crm.functions";
@@ -25,13 +26,6 @@ const STATUS_HE: Record<string, string> = {
   cancelled: "בוטלה",
   refunded: "זוכתה",
 };
-const PAYMENT_HE: Record<string, string> = {
-  paid: "שולם",
-  unpaid: "לא שולם",
-  failed: "תשלום נכשל",
-  refunded: "זוכה",
-};
-
 function daysAgoHe(ts: string): string {
   const d = Math.max(0, Math.floor((Date.now() - new Date(ts).getTime()) / 864e5));
   if (d === 0) return "היום";
@@ -462,7 +456,7 @@ function AdminHome() {
                           : "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
                       }`}
                     >
-                      {PAYMENT_HE[o.payment_status] ?? o.payment_status}
+                      {paymentStatusHe(o.payment_status)}
                     </span>
                   </div>
                   <div className="text-left">
