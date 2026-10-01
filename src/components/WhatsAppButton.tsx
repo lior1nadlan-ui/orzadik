@@ -1,7 +1,17 @@
+import { useRouterState } from "@tanstack/react-router";
+import { cn } from "@/lib/utils";
+
 export function WhatsAppButton() {
   const phone = "972545818486";
   const text = encodeURIComponent("הגעתי מהאתר");
   const href = `https://wa.me/${phone}?text=${text}`;
+  // On a phone the checkout form is one column under the thumb, and the pill
+  // sat on top of the address and phone fields while they were being filled
+  // in. The checkout carries its own "כתבו לנו בוואטסאפ" link, so the floating
+  // copy steps aside there (phones only).
+  const onCheckout = useRouterState({
+    select: (s) => s.location.pathname.startsWith("/checkout"),
+  });
 
   // Floats over whatever page is underneath, so glass-strong (94% white) is the
   // only contrast-safe pane here — it holds `text-accent` at 5.07:1 even over
@@ -17,7 +27,10 @@ export function WhatsAppButton() {
       target="_blank"
       rel="noopener noreferrer"
       aria-label="צור קשר בוואטסאפ"
-      className="press glass-strong glass-gold fab-float fixed bottom-5 right-5 z-50 inline-flex items-center gap-2 border-2 border-gold pl-4 pr-3 py-2.5 [--glass-radius:9999px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring motion-safe:[@media(hover:hover)_and_(pointer:fine)]:hover:[transform:scale(1.05)]"
+      className={cn(
+        "press glass-strong glass-gold fab-float fixed bottom-5 right-5 z-50 inline-flex items-center gap-2 border-2 border-gold pl-4 pr-3 py-2.5 [--glass-radius:9999px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring motion-safe:[@media(hover:hover)_and_(pointer:fine)]:hover:[transform:scale(1.05)]",
+        onCheckout && "max-sm:hidden",
+      )}
     >
       <svg viewBox="0 0 32 32" className="h-7 w-7" aria-hidden="true">
         <defs>

@@ -1970,7 +1970,10 @@ function ProductPage() {
                     href={`tel:${CONTACT_TEL}`}
                     className="font-semibold text-accent underline underline-offset-4"
                   >
-                    התקשרו {BUSINESS.phoneDisplay}
+                    התקשרו{" "}
+                    <bdi dir="ltr" className="whitespace-nowrap">
+                      {BUSINESS.phoneDisplay}
+                    </bdi>
                   </a>
                   .
                 </span>
