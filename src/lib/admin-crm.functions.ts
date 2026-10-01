@@ -1474,6 +1474,14 @@ export const listAbandonedCarts = createServerFn({ method: "POST" })
 
 // ---- Shipping --------------------------------------------------------------
 
+type ShipInput = {
+  order_id: string;
+  tracking_number?: string;
+  carrier?: string;
+  delivered?: boolean;
+  shipped_on?: string;
+};
+
 export const markOrderShipped = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) =>
     z
@@ -1494,90 +1502,96 @@ export const markOrderShipped = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     await requireAdmin();
-    const { data: order, error } = await supabaseAdmin
-      .from("orders")
-      .select("id, order_number, shipped_at, created_at, status")
-      .eq("id", data.order_id)
-      .maybeSingle();
-    if (error || !order) throw new Error("הזמנה לא נמצאה.");
+    return applyMarkShipped(data);
+  });
 
-    // A cancelled or refunded order has had its stock returned and, if paid,
-    // its money given back. Marking it shipped would mail the customer "your
-    // order is on its way" about an order they were told is off.
-    if ((TERMINAL_STATUSES as readonly string[]).includes(order.status)) {
-      throw new Error("ההזמנה בוטלה או זוכתה — לא ניתן לסמן אותה כנשלחה.");
+/** The body of markOrderShipped, callable without a CRM session (the Telegram
+ *  buttons authenticate the chat instead). Callers own authorization. */
+export async function applyMarkShipped(data: ShipInput) {
+  const { data: order, error } = await supabaseAdmin
+    .from("orders")
+    .select("id, order_number, shipped_at, created_at, status")
+    .eq("id", data.order_id)
+    .maybeSingle();
+  if (error || !order) throw new Error("הזמנה לא נמצאה.");
+
+  // A cancelled or refunded order has had its stock returned and, if paid,
+  // its money given back. Marking it shipped would mail the customer "your
+  // order is on its way" about an order they were told is off.
+  if ((TERMINAL_STATUSES as readonly string[]).includes(order.status)) {
+    throw new Error("ההזמנה בוטלה או זוכתה — לא ניתן לסמן אותה כנשלחה.");
+  }
+
+  // The shipped_at null→now() transition is the idempotency latch for the
+  // customer email. shipping_notified_at CANNOT gate it: notifyShippingCompany
+  // stamps that column on EVERY paid order at payment time (from the CardCom
+  // webhook), so it is already set here and the old guard never fired — the
+  // customer never got the shipped+tracking email. Read shipped_at BEFORE the
+  // update, then send exactly once, on the first mark-shipped.
+  const wasAlreadyShipped = !!order.shipped_at;
+
+  if (data.delivered) {
+    // An order already marked shipped keeps its real ship date; only a
+    // first mark takes the date the owner picked (today when none was).
+    let shippedAt: string | null = null;
+    if (!wasAlreadyShipped) {
+      const now = Date.now();
+      const picked = shippedAtFromDateInput(data.shipped_on ?? dateInputValue(now), {
+        notBefore: Date.parse(order.created_at),
+        now,
+      });
+      if (!picked.ok) throw new Error(picked.error);
+      shippedAt = picked.iso;
     }
-
-    // The shipped_at null→now() transition is the idempotency latch for the
-    // customer email. shipping_notified_at CANNOT gate it: notifyShippingCompany
-    // stamps that column on EVERY paid order at payment time (from the CardCom
-    // webhook), so it is already set here and the old guard never fired — the
-    // customer never got the shipped+tracking email. Read shipped_at BEFORE the
-    // update, then send exactly once, on the first mark-shipped.
-    const wasAlreadyShipped = !!order.shipped_at;
-
-    if (data.delivered) {
-      // An order already marked shipped keeps its real ship date; only a
-      // first mark takes the date the owner picked (today when none was).
-      let shippedAt: string | null = null;
-      if (!wasAlreadyShipped) {
-        const now = Date.now();
-        const picked = shippedAtFromDateInput(data.shipped_on ?? dateInputValue(now), {
-          notBefore: Date.parse(order.created_at),
-          now,
-        });
-        if (!picked.ok) throw new Error(picked.error);
-        shippedAt = picked.iso;
-      }
-      const { error: dErr } = await supabaseAdmin
-        .from("orders")
-        .update({
-          status: "completed",
-          shipping_status: "delivered",
-          ...(shippedAt ? { shipped_at: shippedAt } : {}),
-          tracking_number: data.tracking_number || null,
-          shipping_carrier: data.carrier || null,
-        })
-        .eq("id", order.id);
-      if (dErr) {
-        console.error("[markOrderShipped] delivered update:", dErr);
-        throw new Error("שגיאה בעדכון ההזמנה.");
-      }
-      // No email on purpose: the review request that follows (7 days after
-      // the ship date, from the morning job) is the next thing they hear.
-      return { ok: true, emailSent: false, delivered: true };
-    }
-
-    const { error: uErr } = await supabaseAdmin
+    const { error: dErr } = await supabaseAdmin
       .from("orders")
       .update({
-        status: "shipped",
-        shipping_status: "shipped",
-        // Set shipped_at only on the FIRST mark-shipped: re-marking (e.g. to add
-        // a tracking number later) must not drift the original ship date, which
-        // the admin screen shows to the owner.
-        ...(wasAlreadyShipped ? {} : { shipped_at: new Date().toISOString() }),
+        status: "completed",
+        shipping_status: "delivered",
+        ...(shippedAt ? { shipped_at: shippedAt } : {}),
         tracking_number: data.tracking_number || null,
         shipping_carrier: data.carrier || null,
       })
       .eq("id", order.id);
-    if (uErr) {
-      console.error("[markOrderShipped] update:", uErr);
+    if (dErr) {
+      console.error("[markOrderShipped] delivered update:", dErr);
       throw new Error("שגיאה בעדכון ההזמנה.");
     }
+    // No email on purpose: the review request that follows (7 days after
+    // the ship date, from the morning job) is the next thing they hear.
+    return { ok: true, emailSent: false, delivered: true };
+  }
 
-    // Send the shipped + tracking email only on the first transition to shipped.
-    // Wrapped so an email failure never fails the mark-shipped action.
-    let emailSent = false;
-    if (!wasAlreadyShipped) {
-      try {
-        emailSent = await sendOrderShippedEmail(order.id);
-      } catch (e) {
-        console.error("[markOrderShipped] email failed (order still marked shipped):", e);
-      }
+  const { error: uErr } = await supabaseAdmin
+    .from("orders")
+    .update({
+      status: "shipped",
+      shipping_status: "shipped",
+      // Set shipped_at only on the FIRST mark-shipped: re-marking (e.g. to add
+      // a tracking number later) must not drift the original ship date, which
+      // the admin screen shows to the owner.
+      ...(wasAlreadyShipped ? {} : { shipped_at: new Date().toISOString() }),
+      tracking_number: data.tracking_number || null,
+      shipping_carrier: data.carrier || null,
+    })
+    .eq("id", order.id);
+  if (uErr) {
+    console.error("[markOrderShipped] update:", uErr);
+    throw new Error("שגיאה בעדכון ההזמנה.");
+  }
+
+  // Send the shipped + tracking email only on the first transition to shipped.
+  // Wrapped so an email failure never fails the mark-shipped action.
+  let emailSent = false;
+  if (!wasAlreadyShipped) {
+    try {
+      emailSent = await sendOrderShippedEmail(order.id);
+    } catch (e) {
+      console.error("[markOrderShipped] email failed (order still marked shipped):", e);
     }
-    return { ok: true, emailSent, delivered: false };
-  });
+  }
+  return { ok: true, emailSent, delivered: false };
+}
 
 /**
  * Move a paid order into "בהכנה".
@@ -1598,27 +1612,33 @@ export const markOrderPreparing = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) => z.object({ order_id: z.string().uuid() }).parse(i))
   .handler(async ({ data }) => {
     await requireAdmin();
-    const { data: order, error } = await supabaseAdmin
-      .from("orders")
-      .select("id, shipping_status, shipped_at")
-      .eq("id", data.order_id)
-      .maybeSingle();
-    if (error || !order) throw new Error("הזמנה לא נמצאה.");
-    // Never walk an order backwards: once it has shipped, "בהכנה" is a lie the
-    // customer can see on /track.
-    if (order.shipped_at || order.shipping_status === "shipped") {
-      throw new Error("ההזמנה כבר סומנה כנשלחה — לא ניתן להחזיר אותה למצב בהכנה.");
-    }
-    const { error: uErr } = await supabaseAdmin
-      .from("orders")
-      .update({ shipping_status: "preparing" })
-      .eq("id", order.id);
-    if (uErr) {
-      console.error("[markOrderPreparing]:", uErr);
-      throw new Error("שגיאה בעדכון מצב ההכנה.");
-    }
-    return { ok: true };
+    return applyMarkPreparing(data);
   });
+
+/** The body of markOrderPreparing, callable without a CRM session (the Telegram
+ *  buttons authenticate the chat instead). Callers own authorization. */
+export async function applyMarkPreparing(data: { order_id: string }) {
+  const { data: order, error } = await supabaseAdmin
+    .from("orders")
+    .select("id, shipping_status, shipped_at")
+    .eq("id", data.order_id)
+    .maybeSingle();
+  if (error || !order) throw new Error("הזמנה לא נמצאה.");
+  // Never walk an order backwards: once it has shipped, "בהכנה" is a lie the
+  // customer can see on /track.
+  if (order.shipped_at || order.shipping_status === "shipped") {
+    throw new Error("ההזמנה כבר סומנה כנשלחה — לא ניתן להחזיר אותה למצב בהכנה.");
+  }
+  const { error: uErr } = await supabaseAdmin
+    .from("orders")
+    .update({ shipping_status: "preparing" })
+    .eq("id", order.id);
+  if (uErr) {
+    console.error("[markOrderPreparing]:", uErr);
+    throw new Error("שגיאה בעדכון מצב ההכנה.");
+  }
+  return { ok: true };
+}
 
 /**
  * Pickup order is packed and waiting at the shop. Sets shipping_status to
@@ -1631,37 +1651,43 @@ export const markOrderReadyForPickup = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) => z.object({ order_id: z.string().uuid() }).parse(i))
   .handler(async ({ data }) => {
     await requireAdmin();
-    const { data: order, error } = await supabaseAdmin
-      .from("orders")
-      .select("id, status, payment_status, fulfillment, shipping_status, shipped_at")
-      .eq("id", data.order_id)
-      .maybeSingle();
-    if (error || !order) throw new Error("הזמנה לא נמצאה.");
-    if (order.fulfillment !== "pickup") throw new Error("זו הזמנה במשלוח, לא באיסוף עצמי.");
-    if ((TERMINAL_STATUSES as readonly string[]).includes(order.status)) {
-      throw new Error("ההזמנה בוטלה או זוכתה.");
-    }
-    if (order.payment_status !== "paid") throw new Error("ההזמנה עוד לא שולמה.");
-    if (order.shipped_at) throw new Error("ההזמנה כבר סומנה כנאספה.");
-    const first = order.shipping_status !== "ready_for_pickup";
-    const { error: uErr } = await supabaseAdmin
-      .from("orders")
-      .update({ shipping_status: "ready_for_pickup" })
-      .eq("id", order.id);
-    if (uErr) {
-      console.error("[markOrderReadyForPickup]:", uErr);
-      throw new Error("שגיאה בעדכון ההזמנה.");
-    }
-    let emailSent = false;
-    if (first) {
-      try {
-        emailSent = await sendOrderReadyForPickupEmail(order.id);
-      } catch (e) {
-        console.error("[markOrderReadyForPickup] email failed:", e);
-      }
-    }
-    return { ok: true, emailSent, alreadyReady: !first };
+    return applyReadyForPickup(data);
   });
+
+/** The body of markOrderReadyForPickup, callable without a CRM session (the Telegram
+ *  buttons authenticate the chat instead). Callers own authorization. */
+export async function applyReadyForPickup(data: { order_id: string }) {
+  const { data: order, error } = await supabaseAdmin
+    .from("orders")
+    .select("id, status, payment_status, fulfillment, shipping_status, shipped_at")
+    .eq("id", data.order_id)
+    .maybeSingle();
+  if (error || !order) throw new Error("הזמנה לא נמצאה.");
+  if (order.fulfillment !== "pickup") throw new Error("זו הזמנה במשלוח, לא באיסוף עצמי.");
+  if ((TERMINAL_STATUSES as readonly string[]).includes(order.status)) {
+    throw new Error("ההזמנה בוטלה או זוכתה.");
+  }
+  if (order.payment_status !== "paid") throw new Error("ההזמנה עוד לא שולמה.");
+  if (order.shipped_at) throw new Error("ההזמנה כבר סומנה כנאספה.");
+  const first = order.shipping_status !== "ready_for_pickup";
+  const { error: uErr } = await supabaseAdmin
+    .from("orders")
+    .update({ shipping_status: "ready_for_pickup" })
+    .eq("id", order.id);
+  if (uErr) {
+    console.error("[markOrderReadyForPickup]:", uErr);
+    throw new Error("שגיאה בעדכון ההזמנה.");
+  }
+  let emailSent = false;
+  if (first) {
+    try {
+      emailSent = await sendOrderReadyForPickupEmail(order.id);
+    } catch (e) {
+      console.error("[markOrderReadyForPickup] email failed:", e);
+    }
+  }
+  return { ok: true, emailSent, alreadyReady: !first };
+}
 
 /**
  * The owner's "send the payment link" button on an unpaid order. The same

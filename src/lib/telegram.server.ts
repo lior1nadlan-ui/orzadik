@@ -17,6 +17,29 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { orderItemImageUrl } from "@/lib/order-item-photo";
 import { ils } from "@/lib/email.server";
+import { orderKeyboard } from "@/lib/telegram-actions";
+
+/** Path the webhook is registered on (/admin/telegram → "חיבור כפתורים"). */
+export const TELEGRAM_WEBHOOK_PATH = "/api/public/telegram-webhook";
+
+/**
+ * Buttons only when Telegram will actually deliver the press to us. Without a
+ * registered webhook a tap just spins, which is worse than no button.
+ */
+async function buttonsEnabled(): Promise<boolean> {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) return false;
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`, {
+      method: "POST",
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    const json: any = await res.json();
+    return String(json?.result?.url ?? "").endsWith(TELEGRAM_WEBHOOK_PATH);
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Photos are fetched by Telegram's servers, not by the phone, so the URL has to
@@ -120,6 +143,7 @@ export function buildOrderMessage(order: any, paid: boolean): string {
   const head = paid ? `✅ <b>הזמנה חדשה — שולם</b>\n` : `🕐 <b>הזמנה חדשה — ממתינה לתשלום</b>\n`;
 
   let msg = `${head}<b>${esc(order.order_number)}</b>\n\n`;
+  if (order.fulfillment === "pickup") msg += `🛍 <b>איסוף עצמי מהחנות</b>\n`;
 
   msg += line("לקוח", order.customer_name);
   msg += line("טלפון", order.customer_phone);
@@ -189,7 +213,7 @@ export async function sendOrderTelegramAlert(orderId: string, paid: boolean): Pr
     const { data: order } = await supabaseAdmin
       .from("orders")
       .select(
-        "order_number, customer_name, customer_email, customer_phone, customer_address, customer_city, notes, subtotal, shipping, total, is_gift, gift_note, gift_wrap, order_items(product_name, quantity, line_total, variant_label, custom_text, products(slug, thumbnail_url))",
+        "id, order_number, customer_name, customer_email, customer_phone, customer_address, customer_city, notes, subtotal, shipping, total, is_gift, gift_note, gift_wrap, fulfillment, payment_status, status, shipping_status, shipped_at, order_items(product_name, quantity, line_total, variant_label, custom_text, products(slug, thumbnail_url))",
       )
       .eq("id", orderId)
       .single();
@@ -201,11 +225,15 @@ export async function sendOrderTelegramAlert(orderId: string, paid: boolean): Pr
     // TEXT FIRST, PHOTOS SECOND, and the order matters. The details are the part
     // the owner cannot get anywhere else on their phone; a rejected photo URL
     // must not be able to take them down with it.
+    // Paid orders carry the buttons that close them from the chat
+    // (telegram-actions.ts) — when the webhook that receives them is live.
+    const keyboard = paid && (await buttonsEnabled()) ? orderKeyboard(order) : null;
     const sent = await callTelegram("sendMessage", {
       chat_id: chatId,
       text: buildOrderMessage(order, paid),
       parse_mode: "HTML",
       disable_web_page_preview: true,
+      ...(keyboard ? { reply_markup: keyboard } : {}),
     });
 
     const items = (order.order_items as any[]) ?? [];

@@ -3,7 +3,12 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { toast } from "sonner";
-import { getTelegramSetup, sendDailyDigestNow, sendTelegramTest } from "@/lib/telegram.functions";
+import {
+  getTelegramSetup,
+  sendDailyDigestNow,
+  sendTelegramTest,
+  setTelegramButtons,
+} from "@/lib/telegram.functions";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/admin/telegram")({
@@ -14,6 +19,21 @@ function AdminTelegram() {
   const load = useServerFn(getTelegramSetup);
   const test = useServerFn(sendTelegramTest);
   const digestNow = useServerFn(sendDailyDigestNow);
+  const buttonsFn = useServerFn(setTelegramButtons);
+  const [switching, setSwitching] = useState(false);
+  const onButtons = async (on: boolean) => {
+    setSwitching(true);
+    try {
+      const r = await buttonsFn({ data: { on } });
+      if (r.ok) toast.success(on ? "הכפתורים הופעלו — יופיעו בהזמנה הבאה ששולמה" : "הכפתורים כובו");
+      else toast.error(r.error ?? "השינוי נכשל");
+      await refetch();
+    } catch (e: any) {
+      toast.error(e?.message ?? "שגיאה");
+    } finally {
+      setSwitching(false);
+    }
+  };
   const [testing, setTesting] = useState<string | null>(null);
   const [sendingDigest, setSendingDigest] = useState(false);
 
@@ -119,6 +139,34 @@ function AdminTelegram() {
               </ul>
             </div>
           )}
+
+          <div className="rounded-lg border bg-card p-4">
+            <h2 className="mb-1 font-semibold">כפתורים בהתראת הזמנה</h2>
+            <p className="mb-3 text-sm text-muted-foreground">
+              מתחת לכל הזמנה ששולמה יופיעו כפתורים: "בהכנה", "נשלח", "כבר נמסר" — ובאיסוף עצמי "מוכן
+              לאיסוף" ו"נאסף". לחיצה מעדכנת את ההזמנה ישר מהטלגרם, בלי להיכנס לניהול. כל פעולה
+              ששולחת מייל ללקוח או סוגרת הזמנה מבקשת אישור נוסף.
+            </p>
+            <div className="flex items-center gap-3">
+              <span
+                className={
+                  data.buttonsOn
+                    ? "font-semibold text-green-700"
+                    : "font-semibold text-muted-foreground"
+                }
+              >
+                {data.buttonsOn ? "פעילים ✓" : "כבויים"}
+              </span>
+              <Button
+                size="sm"
+                variant={data.buttonsOn ? "outline" : "default"}
+                disabled={switching || !data.hasChatId}
+                onClick={() => onButtons(!data.buttonsOn)}
+              >
+                {switching ? "מעדכן…" : data.buttonsOn ? "כיבוי" : "הפעלת הכפתורים"}
+              </Button>
+            </div>
+          </div>
 
           <div className="rounded-lg border bg-card p-4">
             <h2 className="mb-1 font-semibold">סיכום בוקר יומי</h2>

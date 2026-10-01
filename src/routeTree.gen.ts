@@ -51,6 +51,7 @@ import { Route as AdminCategoriesRouteImport } from './routes/admin.categories'
 import { Route as AdminCampaignsRouteImport } from './routes/admin.campaigns'
 import { Route as AdminAbandonedRouteImport } from './routes/admin.abandoned'
 import { Route as ApiPublicUnsubscribeRouteImport } from './routes/api/public/unsubscribe'
+import { Route as ApiPublicTelegramWebhookRouteImport } from './routes/api/public/telegram-webhook'
 import { Route as ApiPublicCardcomWebhookRouteImport } from './routes/api/public/cardcom-webhook'
 import { Route as ApiCronReviewRequestsRouteImport } from './routes/api/cron/review-requests'
 import { Route as ApiCronPaymentRemindersRouteImport } from './routes/api/cron/payment-reminders'
@@ -270,6 +271,12 @@ const ApiPublicUnsubscribeRoute = ApiPublicUnsubscribeRouteImport.update({
   path: '/api/public/unsubscribe',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicTelegramWebhookRoute =
+  ApiPublicTelegramWebhookRouteImport.update({
+    id: '/api/public/telegram-webhook',
+    path: '/api/public/telegram-webhook',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicCardcomWebhookRoute = ApiPublicCardcomWebhookRouteImport.update({
   id: '/api/public/cardcom-webhook',
   path: '/api/public/cardcom-webhook',
@@ -361,6 +368,7 @@ export interface FileRoutesByFullPath {
   '/api/cron/payment-reminders': typeof ApiCronPaymentRemindersRoute
   '/api/cron/review-requests': typeof ApiCronReviewRequestsRoute
   '/api/public/cardcom-webhook': typeof ApiPublicCardcomWebhookRoute
+  '/api/public/telegram-webhook': typeof ApiPublicTelegramWebhookRoute
   '/api/public/unsubscribe': typeof ApiPublicUnsubscribeRoute
   '/admin/orders/$orderId/print': typeof AdminOrdersOrderIdPrintRoute
 }
@@ -412,6 +420,7 @@ export interface FileRoutesByTo {
   '/api/cron/payment-reminders': typeof ApiCronPaymentRemindersRoute
   '/api/cron/review-requests': typeof ApiCronReviewRequestsRoute
   '/api/public/cardcom-webhook': typeof ApiPublicCardcomWebhookRoute
+  '/api/public/telegram-webhook': typeof ApiPublicTelegramWebhookRoute
   '/api/public/unsubscribe': typeof ApiPublicUnsubscribeRoute
   '/admin/orders/$orderId/print': typeof AdminOrdersOrderIdPrintRoute
 }
@@ -465,6 +474,7 @@ export interface FileRoutesById {
   '/api/cron/payment-reminders': typeof ApiCronPaymentRemindersRoute
   '/api/cron/review-requests': typeof ApiCronReviewRequestsRoute
   '/api/public/cardcom-webhook': typeof ApiPublicCardcomWebhookRoute
+  '/api/public/telegram-webhook': typeof ApiPublicTelegramWebhookRoute
   '/api/public/unsubscribe': typeof ApiPublicUnsubscribeRoute
   '/admin/orders_/$orderId/print': typeof AdminOrdersOrderIdPrintRoute
 }
@@ -519,6 +529,7 @@ export interface FileRouteTypes {
     | '/api/cron/payment-reminders'
     | '/api/cron/review-requests'
     | '/api/public/cardcom-webhook'
+    | '/api/public/telegram-webhook'
     | '/api/public/unsubscribe'
     | '/admin/orders/$orderId/print'
   fileRoutesByTo: FileRoutesByTo
@@ -570,6 +581,7 @@ export interface FileRouteTypes {
     | '/api/cron/payment-reminders'
     | '/api/cron/review-requests'
     | '/api/public/cardcom-webhook'
+    | '/api/public/telegram-webhook'
     | '/api/public/unsubscribe'
     | '/admin/orders/$orderId/print'
   id:
@@ -622,6 +634,7 @@ export interface FileRouteTypes {
     | '/api/cron/payment-reminders'
     | '/api/cron/review-requests'
     | '/api/public/cardcom-webhook'
+    | '/api/public/telegram-webhook'
     | '/api/public/unsubscribe'
     | '/admin/orders_/$orderId/print'
   fileRoutesById: FileRoutesById
@@ -664,6 +677,7 @@ export interface RootRouteChildren {
   ApiCronPaymentRemindersRoute: typeof ApiCronPaymentRemindersRoute
   ApiCronReviewRequestsRoute: typeof ApiCronReviewRequestsRoute
   ApiPublicCardcomWebhookRoute: typeof ApiPublicCardcomWebhookRoute
+  ApiPublicTelegramWebhookRoute: typeof ApiPublicTelegramWebhookRoute
   ApiPublicUnsubscribeRoute: typeof ApiPublicUnsubscribeRoute
 }
 
@@ -963,6 +977,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicUnsubscribeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/telegram-webhook': {
+      id: '/api/public/telegram-webhook'
+      path: '/api/public/telegram-webhook'
+      fullPath: '/api/public/telegram-webhook'
+      preLoaderRoute: typeof ApiPublicTelegramWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/cardcom-webhook': {
       id: '/api/public/cardcom-webhook'
       path: '/api/public/cardcom-webhook'
@@ -1092,6 +1113,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCronPaymentRemindersRoute: ApiCronPaymentRemindersRoute,
   ApiCronReviewRequestsRoute: ApiCronReviewRequestsRoute,
   ApiPublicCardcomWebhookRoute: ApiPublicCardcomWebhookRoute,
+  ApiPublicTelegramWebhookRoute: ApiPublicTelegramWebhookRoute,
   ApiPublicUnsubscribeRoute: ApiPublicUnsubscribeRoute,
 }
 export const routeTree = rootRouteImport

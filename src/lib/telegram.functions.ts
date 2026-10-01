@@ -16,6 +16,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/admin-authz.server";
 import { runDailyDigest, type DigestRunResult } from "@/lib/crm-digest.server";
+import { TELEGRAM_WEBHOOK_PATH } from "@/lib/telegram.server";
+import { telegramWebhookSecret } from "@/lib/telegram-webhook.server";
 
 const TIMEOUT_MS = 8000;
 
@@ -48,6 +50,8 @@ export type TelegramSetupStatus = {
   candidates: TelegramChatCandidate[];
   /** A human-readable reason when discovery found nothing. */
   note: string | null;
+  /** The order buttons' webhook is registered (telegram-webhook.server.ts). */
+  buttonsOn: boolean;
 };
 
 export const getTelegramSetup = createServerFn({ method: "GET" }).handler(
@@ -61,6 +65,7 @@ export const getTelegramSetup = createServerFn({ method: "GET" }).handler(
       botUsername: null,
       candidates: [],
       note: null,
+      buttonsOn: false,
     };
     if (!out.hasToken) {
       out.note = "לא הוגדר TELEGRAM_BOT_TOKEN ב-Worker.";
@@ -80,6 +85,12 @@ export const getTelegramSetup = createServerFn({ method: "GET" }).handler(
     // delivery modes are mutually exclusive. Without this check an empty list
     // reads as "the bot never got a message", which would be the wrong fix.
     const hook = await telegram("getWebhookInfo").catch(() => null);
+    if (hook?.ok && String(hook.result?.url ?? "").endsWith(TELEGRAM_WEBHOOK_PATH)) {
+      // Our own webhook — the order buttons. Discovery (getUpdates) cannot run
+      // beside it, but once TELEGRAM_CHAT_ID is set nothing needs it.
+      out.buttonsOn = true;
+      return out;
+    }
     if (hook?.ok && hook.result?.url) {
       out.note = `לבוט מוגדר webhook (${hook.result.url}), ולכן getUpdates ריק תמיד. צריך להסיר אותו כדי לגלות כך את המזהה.`;
       return out;
@@ -141,3 +152,29 @@ export const sendDailyDigestNow = createServerFn({ method: "POST" }).handler(
     return runDailyDigest({ force: true });
   },
 );
+
+/**
+ * Turn the buttons under order alerts on or off. On registers our webhook with
+ * Telegram (callback presses only) and its secret; off removes it, which also
+ * gives getUpdates-based chat discovery back.
+ */
+export const setTelegramButtons = createServerFn({ method: "POST" })
+  .validator(z.object({ on: z.boolean() }))
+  .handler(async ({ data }): Promise<{ ok: boolean; error: string | null }> => {
+    await requireAdmin();
+    if (!process.env.TELEGRAM_BOT_TOKEN) return { ok: false, error: "אין טוקן ב-Worker." };
+    if (data.on && !process.env.TELEGRAM_CHAT_ID) {
+      return { ok: false, error: "קודם צריך להגדיר TELEGRAM_CHAT_ID." };
+    }
+    const origin = process.env.APP_URL || "https://orzadik.com";
+    const res = data.on
+      ? await telegram("setWebhook", {
+          url: `${origin}${TELEGRAM_WEBHOOK_PATH}`,
+          secret_token: await telegramWebhookSecret(),
+          allowed_updates: ["callback_query"],
+          drop_pending_updates: true,
+        }).catch(() => null)
+      : await telegram("deleteWebhook", { drop_pending_updates: true }).catch(() => null);
+    if (res?.ok) return { ok: true, error: null };
+    return { ok: false, error: res?.description ?? "טלגרם לא אישרה את השינוי." };
+  });
