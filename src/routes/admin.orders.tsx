@@ -30,6 +30,7 @@ import { Input } from "@/components/ui/input";
 import { Download, Phone, Mail, MessageCircle, Printer, User, RefreshCw } from "lucide-react";
 import { orderItemImageUrl } from "@/lib/order-item-photo";
 import { OrderShippingPanel, type ShipRequest } from "@/components/admin/OrderShippingPanel";
+import { PhoneOrderDialog } from "@/components/admin/PhoneOrderDialog";
 
 export const Route = createFileRoute("/admin/orders")({
   // Deep-linkable filters: the dashboard KPIs/chips and the customer card link
@@ -181,6 +182,7 @@ function AdminOrders() {
   const resendConfirmation = useServerFn(resendOrderConfirmation);
   const payReminderFn = useServerFn(sendOrderPaymentReminder);
   const [sendingPayLink, setSendingPayLink] = useState(false);
+  const [phoneOrderOpen, setPhoneOrderOpen] = useState(false);
   const custNotesFn = useServerFn(listCustomerNotes);
   const addNoteFn = useServerFn(addCustomerNote);
 
@@ -420,6 +422,9 @@ function AdminOrders() {
           </span>
         </div>
         <div className="flex items-center gap-2">
+          <Button size="sm" onClick={() => setPhoneOrderOpen(true)}>
+            <Phone className="h-4 w-4 ml-1" /> הזמנה טלפונית
+          </Button>
           <Button size="sm" variant="outline" onClick={() => refetch()} disabled={isFetching}>
             <RefreshCw className={`h-4 w-4 ml-1 ${isFetching ? "animate-spin" : ""}`} />
             {isFetching ? "מרענן..." : "רענון"}
@@ -429,6 +434,12 @@ function AdminOrders() {
           </Button>
         </div>
       </div>
+
+      <PhoneOrderDialog
+        open={phoneOrderOpen}
+        onOpenChange={setPhoneOrderOpen}
+        onCreated={() => refresh()}
+      />
 
       {/* Filters */}
       <div className="flex flex-wrap gap-2 mb-4">
