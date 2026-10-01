@@ -17,7 +17,9 @@ import {
   markOrderPaidOffline,
   markOrderReadyForPickup,
   listOrderEvents,
+  countOrdersToHandle,
 } from "@/lib/admin-crm.functions";
+import { cn } from "@/lib/utils";
 import {
   waThankYou,
   waShipped,
@@ -40,8 +42,20 @@ export const Route = createFileRoute("/admin/orders")({
   // here with concrete filter states.
   validateSearch: (
     s: Record<string, unknown>,
-  ): { q?: string; status?: string; payment?: string; days?: number; open?: string } => ({
+  ): {
+    q?: string;
+    status?: string;
+    payment?: string;
+    days?: number;
+    open?: string;
+    new?: "phone";
+    view?: OrdersView;
+  } => ({
     q: typeof s.q === "string" ? s.q : undefined,
+    // "phone" = open the phone-order form straight away (the home-screen
+    // shortcut "הזמנה טלפונית" in /admin.webmanifest).
+    new: s.new === "phone" ? "phone" : undefined,
+    view: VIEWS.some((v) => v.id === s.view) ? (s.view as OrdersView) : undefined,
     // "1" = open the order's details as soon as the search finds exactly one
     // (links from the action queue, the dashboard and the leads screen).
     open: s.open === "1" || s.open === 1 ? "1" : undefined,
@@ -56,6 +70,16 @@ export const Route = createFileRoute("/admin/orders")({
   }),
   component: AdminOrders,
 });
+
+// One-tap views above the list — what the owner actually asks the screen on a
+// phone. "לטיפול" is the same rule as the badge on the orders tab.
+type OrdersView = "todo" | "unpaid" | "pickup";
+const VIEWS: { id: OrdersView | ""; label: string }[] = [
+  { id: "", label: "הכל" },
+  { id: "todo", label: "לטיפול" },
+  { id: "unpaid", label: "לא שולמו" },
+  { id: "pickup", label: "איסוף עצמי" },
+];
 
 const STATUSES = ["pending", "processing", "shipped", "completed", "cancelled", "refunded"];
 const STATUS_HE: Record<string, string> = {
@@ -303,12 +327,20 @@ function AdminOrders() {
   const [status, setStatus] = useState(search.status ?? "");
   const [payment, setPayment] = useState(search.payment ?? "");
   const [days, setDays] = useState(search.days ?? 0);
+  const [view, setView] = useState<OrdersView | "">(search.view ?? "");
+  // Same query key as the tab badge in admin.tsx — one request, one number.
+  const countToHandle = useServerFn(countOrdersToHandle);
+  const { data: toHandle = 0 } = useQuery({
+    queryKey: ["admin-orders-to-handle"],
+    queryFn: () => countToHandle(),
+    staleTime: 60_000,
+  });
   const [page, setPage] = useState(0);
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQ(q), 300);
     return () => clearTimeout(t);
   }, [q]);
-  useEffect(() => setPage(0), [debouncedQ, status, payment, days]);
+  useEffect(() => setPage(0), [debouncedQ, status, payment, days, view]);
 
   // Shipping form state lives in OrderShippingPanel (keyed by order id).
   const [shipping, setShipping] = useState(false);
@@ -355,6 +387,7 @@ function AdminOrders() {
     status: status || undefined,
     payment: payment || undefined,
     days: days || undefined,
+    view: view || undefined,
     page,
   };
 
@@ -376,6 +409,13 @@ function AdminOrders() {
   const total = data?.total ?? 0;
   // A deep link with open=1 lands IN the order, not on a one-row list.
   const autoOpened = useRef(false);
+  const navigate = Route.useNavigate();
+  useEffect(() => {
+    if (search.new !== "phone") return;
+    setPhoneOrderOpen(true);
+    // Drop the flag so closing the form and refreshing doesn't reopen it.
+    navigate({ search: (prev) => ({ ...prev, new: undefined }), replace: true });
+  }, [search.new, navigate]);
   useEffect(() => {
     if (search.open === "1" && !autoOpened.current && !isPlaceholderData && orders.length === 1) {
       autoOpened.current = true;
@@ -388,6 +428,7 @@ function AdminOrders() {
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ["admin-orders"] });
     qc.invalidateQueries({ queryKey: ["order-events"] });
+    qc.invalidateQueries({ queryKey: ["admin-orders-to-handle"] });
   };
 
   const updateStatus = async (o: any, st: string): Promise<boolean> => {
@@ -607,6 +648,53 @@ function AdminOrders() {
         onOpenChange={setPhoneOrderOpen}
         onCreated={() => refresh()}
       />
+
+      {/* Quick views: one tap instead of combining two selects. "הכל" also
+          clears the selects, so it is always a way back to the full list. */}
+      <div
+        role="group"
+        aria-label="תצוגה מהירה"
+        className="-mx-4 mb-3 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:px-0"
+      >
+        {VIEWS.map((v) => {
+          const active =
+            view === v.id && (v.id !== "" || (!status && !payment && !days && !debouncedQ));
+          return (
+            <button
+              key={v.id || "all"}
+              type="button"
+              aria-pressed={active}
+              onClick={() => {
+                setView(v.id);
+                if (v.id === "") {
+                  setStatus("");
+                  setPayment("");
+                  setDays(0);
+                  setQ("");
+                }
+              }}
+              className={cn(
+                "min-h-10 shrink-0 rounded-full border px-3.5 text-sm font-medium transition-colors duration-160 ease-out",
+                active
+                  ? "border-accent bg-accent text-accent-foreground"
+                  : "border-glass-line bg-card/70 text-foreground active:bg-muted",
+              )}
+            >
+              {v.label}
+              {v.id === "todo" && toHandle > 0 && (
+                <span
+                  className={cn(
+                    "ms-1.5 inline-block min-w-5 rounded-full px-1 text-[11px] font-bold leading-5",
+                    active ? "bg-white/25" : "bg-amber-500 text-white",
+                  )}
+                >
+                  {toHandle}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
 
       {/* Filters — on a phone the search takes the full row and the three
           selects share the next one, instead of wrapping into a ragged stack. */}
@@ -896,9 +984,38 @@ function AdminOrders() {
                   </a>
                 </div>
                 {(selected.customer_address || selected.customer_city) && (
-                  <div>
-                    {selected.customer_address}
-                    {selected.customer_city ? `, ${selected.customer_city}` : ""}
+                  <div className="flex items-start gap-2">
+                    <span className="min-w-0 flex-1">
+                      {selected.customer_address}
+                      {selected.customer_city ? `, ${selected.customer_city}` : ""}
+                    </span>
+                    {/* Name, phone and address in one tap — what a courier
+                        form asks for, without three long-presses on a phone. */}
+                    {selected.fulfillment !== "pickup" && (
+                      <button
+                        type="button"
+                        className={cn(CHIP, "shrink-0")}
+                        onClick={async () => {
+                          const text = [
+                            selected.customer_name,
+                            selected.customer_phone,
+                            [selected.customer_address, selected.customer_city]
+                              .filter(Boolean)
+                              .join(", "),
+                          ]
+                            .filter(Boolean)
+                            .join("\n");
+                          try {
+                            await navigator.clipboard.writeText(text);
+                            toast.success("פרטי המשלוח הועתקו");
+                          } catch {
+                            toast.error("לא ניתן להעתיק — סמנו את הכתובת ידנית");
+                          }
+                        }}
+                      >
+                        <Copy className="h-3.5 w-3.5 shrink-0" /> העתקה לשליח
+                      </button>
+                    )}
                   </div>
                 )}
                 {selected.notes && (

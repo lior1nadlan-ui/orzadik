@@ -10,6 +10,13 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { listLeads } from "@/lib/leads.functions";
+import { countOrdersToHandle } from "@/lib/admin-crm.functions";
+import {
+  PullToRefresh,
+  useAdminManifest,
+  useAppBadge,
+  useRefreshOnReturn,
+} from "@/components/admin/AdminAppShell";
 import { AdminSheet, AdminSheetContent } from "@/components/admin/AdminSheet";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
@@ -101,7 +108,28 @@ function TabIcon({ icon: Icon, active }: { icon: LucideIcon; active: boolean }) 
   );
 }
 
-function MobileTabBar({ path, leadCount }: { path: string; leadCount: number }) {
+/** The number on a tab: something is waiting on that screen. */
+function TabBadge({ count, label }: { count: number; label: string }) {
+  if (count <= 0) return null;
+  return (
+    <span
+      className="absolute top-1 start-[calc(50%+0.5rem)] min-w-5 rounded-full bg-amber-500 px-1 text-center text-[11px] font-bold leading-5 text-white"
+      aria-label={label}
+    >
+      {count > 99 ? "99+" : count}
+    </span>
+  );
+}
+
+function MobileTabBar({
+  path,
+  leadCount,
+  toShipCount,
+}: {
+  path: string;
+  leadCount: number;
+  toShipCount: number;
+}) {
   const [moreOpen, setMoreOpen] = useState(false);
   // Close the "עוד" sheet once one of its screens has opened.
   useEffect(() => setMoreOpen(false), [path]);
@@ -128,13 +156,18 @@ function MobileTabBar({ path, leadCount }: { path: string; leadCount: number }) 
             >
               <TabIcon icon={it.icon} active={active} />
               {it.label}
-              {it.to === "/admin/leads" && leadCount > 0 && (
-                <span
-                  className="absolute top-1 start-[calc(50%+0.5rem)] min-w-5 rounded-full bg-amber-500 px-1 text-center text-[11px] font-bold leading-5 text-white"
-                  aria-label={`${leadCount} לידים פתוחים`}
-                >
-                  {leadCount > 99 ? "99+" : leadCount}
-                </span>
+              {it.to === "/admin/leads" && (
+                <TabBadge count={leadCount} label={`${leadCount} לידים פתוחים`} />
+              )}
+              {it.to === "/admin/orders" && (
+                <TabBadge
+                  count={toShipCount}
+                  label={
+                    toShipCount === 1
+                      ? "הזמנה אחת ששולמה ממתינה לטיפול"
+                      : `${toShipCount} הזמנות ששולמו ממתינות לטיפול`
+                  }
+                />
               )}
             </Link>
           );
@@ -228,6 +261,20 @@ function AdminLayout() {
     refetchInterval: 5 * 60_000,
   });
   const leadCount = (leads ?? []).filter((l) => l.state === "open").length;
+  // Paid orders still waiting to go out (or to be collected) — the count on
+  // the "הזמנות" tab, and what its "לטיפול" view lists.
+  const countToHandle = useServerFn(countOrdersToHandle);
+  const { data: toShipCount = 0 } = useQuery({
+    queryKey: ["admin-orders-to-handle"],
+    queryFn: () => countToHandle(),
+    enabled: !!user && isAdmin,
+    staleTime: 60_000,
+    refetchInterval: 2 * 60_000,
+  });
+
+  useAdminManifest();
+  useRefreshOnReturn();
+  useAppBadge(isAdmin ? leadCount + toShipCount : 0);
 
   useEffect(() => {
     // The real gate is the DB: RLS `has_role('admin')` policies on every admin
@@ -283,6 +330,11 @@ function AdminLayout() {
                   {leadCount}
                 </span>
               )}
+              {it.to === "/admin/orders" && toShipCount > 0 && (
+                <span className="ms-auto rounded-full bg-amber-100 px-1.5 text-[11px] font-semibold text-amber-900">
+                  {toShipCount}
+                </span>
+              )}
             </Link>
           );
         })}
@@ -301,7 +353,8 @@ function AdminLayout() {
       <section className="min-w-0">
         <Outlet />
       </section>
-      <MobileTabBar path={path} leadCount={leadCount} />
+      <MobileTabBar path={path} leadCount={leadCount} toShipCount={toShipCount} />
+      <PullToRefresh />
     </div>
   );
 }
