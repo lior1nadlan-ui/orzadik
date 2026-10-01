@@ -61,7 +61,7 @@ function NotFoundComponent() {
   );
 }
 
-function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
+function ErrorComponent({ error, reset }: { error: unknown; reset: () => void }) {
   console.error(error);
   const router = useRouter();
   return (
@@ -106,7 +106,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
 // failures), this keeps the shopper's navigation and offers both retry and a
 // path home. min-h, not min-h-screen: it sits within <main>, between the header
 // and footer, so it fills the content area without pushing the footer offscreen.
-function LayoutErrorComponent({ reset }: { error: Error; reset: () => void }) {
+function LayoutErrorComponent({ reset }: { error: unknown; reset: () => void }) {
   const router = useRouter();
   return (
     <div className="flex min-h-[60vh] items-center justify-center px-4 py-16">
