@@ -15,6 +15,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/admin-authz.server";
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { runDailyDigest, type DigestRunResult } from "@/lib/crm-digest.server";
 import { TELEGRAM_WEBHOOK_PATH } from "@/lib/telegram.server";
 import { telegramWebhookSecret } from "@/lib/telegram-webhook.server";
@@ -177,4 +178,34 @@ export const setTelegramButtons = createServerFn({ method: "POST" })
       : await telegram("deleteWebhook", { drop_pending_updates: true }).catch(() => null);
     if (res?.ok) return { ok: true, error: null };
     return { ok: false, error: res?.description ?? "טלגרם לא אישרה את השינוי." };
+  });
+
+export type MyAlertPrefs = { orders: boolean; contacts: boolean; digest: boolean };
+
+/** This admin's owner-email choices (no row = everything on). */
+export const getMyAlertPrefs = createServerFn({ method: "GET" }).handler(
+  async (): Promise<MyAlertPrefs> => {
+    const userId = await requireAdmin();
+    const { data } = await supabaseAdmin
+      .from("staff_alert_prefs")
+      .select("orders, contacts, digest")
+      .eq("user_id", userId)
+      .maybeSingle();
+    return {
+      orders: data?.orders ?? true,
+      contacts: data?.contacts ?? true,
+      digest: data?.digest ?? true,
+    };
+  },
+);
+
+export const setMyAlertPrefs = createServerFn({ method: "POST" })
+  .validator(z.object({ orders: z.boolean(), contacts: z.boolean(), digest: z.boolean() }))
+  .handler(async ({ data }): Promise<{ ok: true }> => {
+    const userId = await requireAdmin();
+    const { error } = await supabaseAdmin
+      .from("staff_alert_prefs")
+      .upsert({ user_id: userId, ...data, updated_at: new Date().toISOString() });
+    if (error) throw new Error("שמירת ההעדפות נכשלה.");
+    return { ok: true };
   });

@@ -555,6 +555,68 @@ export type Database = {
           },
         ]
       }
+      order_events: {
+        Row: {
+          actor_label: string | null
+          actor_user_id: string | null
+          created_at: string
+          detail: string | null
+          id: string
+          kind: string
+          order_id: string
+        }
+        Insert: {
+          actor_label?: string | null
+          actor_user_id?: string | null
+          created_at?: string
+          detail?: string | null
+          id?: string
+          kind: string
+          order_id: string
+        }
+        Update: {
+          actor_label?: string | null
+          actor_user_id?: string | null
+          created_at?: string
+          detail?: string | null
+          id?: string
+          kind?: string
+          order_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_events_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      staff_alert_prefs: {
+        Row: {
+          contacts: boolean
+          digest: boolean
+          orders: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          contacts?: boolean
+          digest?: boolean
+          orders?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          contacts?: boolean
+          digest?: boolean
+          orders?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       orders: {
         Row: {
           cardcom_description: string | null

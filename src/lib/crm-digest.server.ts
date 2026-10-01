@@ -153,7 +153,7 @@ export async function runDailyDigest(
     : false;
 
   let email = false;
-  const recipients = hasEmail ? await getStaffRecipients() : [];
+  const recipients = hasEmail ? await getStaffRecipients("digest") : [];
   if (recipients.length > 0) {
     const html = emailShell(renderDigestEmailInner(digest, now, ORIGIN), digestSubject(digest));
     const results = await Promise.all(

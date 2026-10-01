@@ -24,3 +24,20 @@ export function mergeStaffRecipients(
   }
   return out;
 }
+
+/** The kinds of owner email an admin can switch off (staff_alert_prefs). */
+export type StaffAlertKind = "orders" | "contacts" | "digest";
+
+export type AdminContact = {
+  email: string | null | undefined;
+  /** Their staff_alert_prefs row; absent = everything on. */
+  prefs?: Partial<Record<StaffAlertKind, boolean>> | null;
+};
+
+/** The admins who still want this kind of email. Only an explicit false opts out. */
+export function adminsWanting(admins: ReadonlyArray<AdminContact>, kind: StaffAlertKind): string[] {
+  return admins
+    .filter((a) => a.prefs?.[kind] !== false)
+    .map((a) => a.email)
+    .filter((e): e is string => !!e);
+}

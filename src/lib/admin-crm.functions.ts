@@ -9,6 +9,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { requireAdmin } from "@/lib/admin-authz.server";
+import { logOrderEvent, type Actor } from "@/lib/order-events.server";
 import {
   sendOrderShippedEmail,
   sendOrderConfirmationEmails,
@@ -1501,13 +1502,13 @@ export const markOrderShipped = createServerFn({ method: "POST" })
       .parse(i),
   )
   .handler(async ({ data }) => {
-    await requireAdmin();
-    return applyMarkShipped(data);
+    const userId = await requireAdmin();
+    return applyMarkShipped(data, { userId });
   });
 
 /** The body of markOrderShipped, callable without a CRM session (the Telegram
  *  buttons authenticate the chat instead). Callers own authorization. */
-export async function applyMarkShipped(data: ShipInput) {
+export async function applyMarkShipped(data: ShipInput, actor?: Actor) {
   const { data: order, error } = await supabaseAdmin
     .from("orders")
     .select("id, order_number, shipped_at, created_at, status")
@@ -1557,6 +1558,12 @@ export async function applyMarkShipped(data: ShipInput) {
       console.error("[markOrderShipped] delivered update:", dErr);
       throw new Error("שגיאה בעדכון ההזמנה.");
     }
+    await logOrderEvent(
+      order.id,
+      data.carrier === "איסוף עצמי" ? "picked_up" : "delivered",
+      actor,
+      data.tracking_number ? `מעקב ${data.tracking_number}` : null,
+    );
     // No email on purpose: the review request that follows (7 days after
     // the ship date, from the morning job) is the next thing they hear.
     return { ok: true, emailSent: false, delivered: true };
@@ -1590,6 +1597,12 @@ export async function applyMarkShipped(data: ShipInput) {
       console.error("[markOrderShipped] email failed (order still marked shipped):", e);
     }
   }
+  await logOrderEvent(
+    order.id,
+    "shipped",
+    actor,
+    [data.carrier, data.tracking_number].filter(Boolean).join(" · ") || null,
+  );
   return { ok: true, emailSent, delivered: false };
 }
 
@@ -1611,13 +1624,13 @@ export async function applyMarkShipped(data: ShipInput) {
 export const markOrderPreparing = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) => z.object({ order_id: z.string().uuid() }).parse(i))
   .handler(async ({ data }) => {
-    await requireAdmin();
-    return applyMarkPreparing(data);
+    const userId = await requireAdmin();
+    return applyMarkPreparing(data, { userId });
   });
 
 /** The body of markOrderPreparing, callable without a CRM session (the Telegram
  *  buttons authenticate the chat instead). Callers own authorization. */
-export async function applyMarkPreparing(data: { order_id: string }) {
+export async function applyMarkPreparing(data: { order_id: string }, actor?: Actor) {
   const { data: order, error } = await supabaseAdmin
     .from("orders")
     .select("id, shipping_status, shipped_at")
@@ -1637,6 +1650,7 @@ export async function applyMarkPreparing(data: { order_id: string }) {
     console.error("[markOrderPreparing]:", uErr);
     throw new Error("שגיאה בעדכון מצב ההכנה.");
   }
+  await logOrderEvent(order.id, "preparing", actor);
   return { ok: true };
 }
 
@@ -1650,13 +1664,13 @@ export async function applyMarkPreparing(data: { order_id: string }) {
 export const markOrderReadyForPickup = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) => z.object({ order_id: z.string().uuid() }).parse(i))
   .handler(async ({ data }) => {
-    await requireAdmin();
-    return applyReadyForPickup(data);
+    const userId = await requireAdmin();
+    return applyReadyForPickup(data, { userId });
   });
 
 /** The body of markOrderReadyForPickup, callable without a CRM session (the Telegram
  *  buttons authenticate the chat instead). Callers own authorization. */
-export async function applyReadyForPickup(data: { order_id: string }) {
+export async function applyReadyForPickup(data: { order_id: string }, actor?: Actor) {
   const { data: order, error } = await supabaseAdmin
     .from("orders")
     .select("id, status, payment_status, fulfillment, shipping_status, shipped_at")
@@ -1686,6 +1700,7 @@ export async function applyReadyForPickup(data: { order_id: string }) {
       console.error("[markOrderReadyForPickup] email failed:", e);
     }
   }
+  if (first) await logOrderEvent(order.id, "ready_for_pickup", actor);
   return { ok: true, emailSent, alreadyReady: !first };
 }
 
@@ -1699,8 +1714,10 @@ export async function applyReadyForPickup(data: { order_id: string }) {
 export const sendOrderPaymentReminder = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) => z.object({ id: z.string().uuid() }).parse(i))
   .handler(async ({ data }) => {
-    await requireAdmin();
-    return sendPaymentReminderNow(data.id);
+    const userId = await requireAdmin();
+    const r = await sendPaymentReminderNow(data.id);
+    if (r.ok) await logOrderEvent(data.id, "payment_link_email", { userId });
+    return r;
   });
 
 /**
@@ -1880,7 +1897,7 @@ export const updateOrderStatus = createServerFn({ method: "POST" })
       .parse(i),
   )
   .handler(async ({ data }) => {
-    await requireAdmin();
+    const userId = await requireAdmin();
 
     // Read the pre-update status so we can distinguish a FIRST transition into a
     // terminal (cancelled/refunded) state from a no-op or terminal→terminal move.
@@ -1918,5 +1935,53 @@ export const updateOrderStatus = createServerFn({ method: "POST" })
       }
     }
 
+    if (order.status !== data.status) {
+      await logOrderEvent(order.id, "status", { userId }, `${order.status} → ${data.status}`);
+    }
     return { ok: true };
+  });
+
+/** Labels for order_events.kind, as the CRM shows them. */
+const ORDER_EVENT_HE: Record<string, string> = {
+  created_by_phone: "נפתחה כהזמנה טלפונית",
+  preparing: "סומנה כבהכנה",
+  shipped: "סומנה כנשלחה",
+  delivered: "סומנה כנמסרה",
+  ready_for_pickup: "סומנה כמוכנה לאיסוף",
+  picked_up: "סומנה כנאספה",
+  status: "שינוי סטטוס",
+  payment_link_email: "נשלח קישור לתשלום במייל",
+};
+
+/** An order's history, oldest first, with a readable name for each actor. */
+export const listOrderEvents = createServerFn({ method: "POST" })
+  .inputValidator((i: unknown) => z.object({ order_id: z.string().uuid() }).parse(i))
+  .handler(async ({ data }) => {
+    await requireAdmin();
+    const { data: rows, error } = await supabaseAdmin
+      .from("order_events")
+      .select("id, kind, detail, actor_user_id, actor_label, created_at")
+      .eq("order_id", data.order_id)
+      .order("created_at", { ascending: true })
+      .limit(100);
+    if (error) throw new Error("שגיאה בטעינת היסטוריית ההזמנה.");
+    const ids = [...new Set((rows ?? []).map((r) => r.actor_user_id).filter(Boolean))] as string[];
+    const names = new Map<string, string>();
+    if (ids.length) {
+      const { data: profs } = await supabaseAdmin
+        .from("profiles")
+        .select("id, full_name, email")
+        .in("id", ids);
+      for (const p of profs ?? []) names.set(p.id, p.full_name || p.email || "מנהל");
+    }
+    return (rows ?? []).map((r) => ({
+      id: r.id,
+      at: r.created_at,
+      what: ORDER_EVENT_HE[r.kind] ?? r.kind,
+      detail: r.detail,
+      who:
+        [r.actor_user_id ? names.get(r.actor_user_id) : null, r.actor_label]
+          .filter(Boolean)
+          .join(" · ") || "המערכת",
+    }));
   });

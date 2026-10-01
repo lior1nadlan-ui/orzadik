@@ -202,7 +202,7 @@ export async function sendOrderConfirmationEmails(orderId: string): Promise<bool
   });
 
   // 2) Staff alert — the owner inbox plus every admin, one email each.
-  const staff = await getStaffRecipients();
+  const staff = await getStaffRecipients("orders");
   if (staff.length > 0) {
     const ownerHtml = emailShell(
       `
@@ -257,7 +257,7 @@ export async function sendOrderCreatedOwnerAlert(orderId: string) {
   await sendOrderTelegramAlert(orderId, false);
 
   if (!isEmailConfigured()) return;
-  const staff = await getStaffRecipients();
+  const staff = await getStaffRecipients("orders");
   if (staff.length === 0) return;
 
   const { data: order } = await supabaseAdmin

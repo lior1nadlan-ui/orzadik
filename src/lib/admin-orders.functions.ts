@@ -13,6 +13,7 @@ import { priceOrderLines } from "@/lib/order-pricing.server";
 import { applyMemberDiscount, getEffectivePrice, getShipping } from "@/lib/pricing";
 import { PICKUP } from "@/lib/business";
 import { orderPaymentUrl } from "@/lib/wa-templates";
+import { logOrderEvent } from "@/lib/order-events.server";
 
 const stripHtml = (v: string) => v.replace(/<[^>]*>/g, "").trim();
 
@@ -150,6 +151,8 @@ export const createPhoneOrder = createServerFn({ method: "POST" })
       await supabaseAdmin.from("orders").delete().eq("id", order.id);
       throw new Error("שגיאה בשמירת פריטי ההזמנה.");
     }
+
+    await logOrderEvent(order.id, "created_by_phone", { userId: adminId });
 
     // Who opened it, on the customer's timeline — the CRM's own notes table.
     await supabaseAdmin.from("crm_customer_notes").insert({

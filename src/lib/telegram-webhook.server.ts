@@ -26,6 +26,7 @@ import {
   parseCallback,
   type OrderAction,
 } from "@/lib/telegram-actions";
+import type { Actor } from "@/lib/order-events.server";
 
 const TIMEOUT_MS = 8000;
 
@@ -88,19 +89,23 @@ async function loadOrder(orderId: string) {
   return data;
 }
 
-async function runAction(a: OrderAction, orderId: string): Promise<{ emailSent?: boolean }> {
+async function runAction(
+  a: OrderAction,
+  orderId: string,
+  actor: Actor,
+): Promise<{ emailSent?: boolean }> {
   switch (a) {
     case "prep":
-      await applyMarkPreparing({ order_id: orderId });
+      await applyMarkPreparing({ order_id: orderId }, actor);
       return {};
     case "ship":
-      return applyMarkShipped({ order_id: orderId });
+      return applyMarkShipped({ order_id: orderId }, actor);
     case "dlvr":
-      return applyMarkShipped({ order_id: orderId, delivered: true });
+      return applyMarkShipped({ order_id: orderId, delivered: true }, actor);
     case "ready":
-      return applyReadyForPickup({ order_id: orderId });
+      return applyReadyForPickup({ order_id: orderId }, actor);
     case "pick":
-      return applyMarkShipped({ order_id: orderId, delivered: true, carrier: "איסוף עצמי" });
+      return applyMarkShipped({ order_id: orderId, delivered: true, carrier: "איסוף עצמי" }, actor);
   }
 }
 
@@ -158,7 +163,7 @@ export async function handleTelegramWebhook(request: Request): Promise<Response>
       return new Response("ok");
     }
 
-    const r = await runAction(parsed.action, order.id);
+    const r = await runAction(parsed.action, order.id, { label: `טלגרם · ${who}` });
     const fresh = (await loadOrder(order.id)) ?? order;
     await tg("editMessageReplyMarkup", {
       ...messageRef,

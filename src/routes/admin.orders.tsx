@@ -14,6 +14,7 @@ import {
   resendOrderConfirmation,
   sendOrderPaymentReminder,
   markOrderReadyForPickup,
+  listOrderEvents,
 } from "@/lib/admin-crm.functions";
 import {
   waThankYou,
@@ -216,6 +217,14 @@ function AdminOrders() {
     enabled: !!selected?.customer_email,
     queryFn: () => custNotesFn({ data: { email: selected!.customer_email } }),
   });
+  // Who moved this order and when (order_events) — with two admins, the
+  // question after "נשלח?" is always "מי שלח?".
+  const eventsFn = useServerFn(listOrderEvents);
+  const { data: orderEvents } = useQuery({
+    queryKey: ["order-events", selected?.id],
+    enabled: !!selected?.id,
+    queryFn: () => eventsFn({ data: { order_id: selected!.id } }),
+  });
   const noteMutation = useMutation({
     mutationFn: (note: string) => addNoteFn({ data: { email: selected.customer_email, note } }),
     onSuccess: () => {
@@ -259,7 +268,10 @@ function AdminOrders() {
   const pageSize = data?.pageSize ?? 25;
   const pages = Math.max(1, Math.ceil(total / pageSize));
 
-  const refresh = () => qc.invalidateQueries({ queryKey: ["admin-orders"] });
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: ["admin-orders"] });
+    qc.invalidateQueries({ queryKey: ["order-events"] });
+  };
 
   const updateStatus = async (o: any, st: string) => {
     // A terminal transition — cancelled/refunded — restores reserved stock and
@@ -673,6 +685,31 @@ function AdminOrders() {
                         </div>
                       </div>
                     )}
+                  </div>
+                )}
+
+                {orderEvents && orderEvents.length > 0 && (
+                  <div className="border-t pt-3 space-y-1">
+                    <div className="font-semibold">היסטוריה</div>
+                    <ul className="space-y-1 text-xs">
+                      {orderEvents.map((ev) => (
+                        <li key={ev.id} className="flex flex-wrap gap-x-2">
+                          <span className="text-muted-foreground">
+                            {new Date(ev.at).toLocaleString("he-IL", {
+                              day: "numeric",
+                              month: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </span>
+                          <span>{ev.what}</span>
+                          {ev.detail && (
+                            <span className="text-muted-foreground">({ev.detail})</span>
+                          )}
+                          <span className="text-muted-foreground">· {ev.who}</span>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 )}
 

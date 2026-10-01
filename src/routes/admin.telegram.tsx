@@ -8,7 +8,11 @@ import {
   sendDailyDigestNow,
   sendTelegramTest,
   setTelegramButtons,
+  getMyAlertPrefs,
+  setMyAlertPrefs,
+  type MyAlertPrefs,
 } from "@/lib/telegram.functions";
+import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/admin/telegram")({
@@ -78,6 +82,8 @@ function AdminTelegram() {
         על כל הזמנה נשלחת הודעה עם כל הפרטים והתמונות של המוצרים, ובכל בוקר סיכום של מה שמחכה
         לטיפול.
       </p>
+
+      <MyEmailAlerts />
 
       {isLoading && <p className="text-sm text-muted-foreground">טוען…</p>}
 
@@ -185,6 +191,50 @@ function AdminTelegram() {
           </Button>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Each admin's own owner emails. Every admin gets them by default
+ * (staff-recipients.server.ts); the shop inbox always does, whatever is set here.
+ */
+function MyEmailAlerts() {
+  const load = useServerFn(getMyAlertPrefs);
+  const save = useServerFn(setMyAlertPrefs);
+  const { data, refetch } = useQuery({ queryKey: ["my-alert-prefs"], queryFn: () => load() });
+  const [busy, setBusy] = useState(false);
+  if (!data) return null;
+  const toggle = async (k: keyof MyAlertPrefs, v: boolean) => {
+    setBusy(true);
+    try {
+      await save({ data: { ...data, [k]: v } });
+      await refetch();
+      toast.success("נשמר");
+    } catch (e: any) {
+      toast.error(e?.message ?? "השמירה נכשלה");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const rows: Array<[keyof MyAlertPrefs, string]> = [
+    ["orders", "הזמנות חדשות (שולמו וממתינות לתשלום)"],
+    ["contacts", "פניות מטופס יצירת הקשר"],
+    ["digest", "סיכום בוקר יומי"],
+  ];
+  return (
+    <div className="mb-6 rounded-lg border bg-card p-4 text-sm">
+      <h2 className="mb-1 font-semibold">המיילים שלי</h2>
+      <p className="mb-3 text-muted-foreground">
+        כל מנהל מקבל את המיילים האלה לתיבה שלו. אפשר לכבות כאן מה שלא צריך — זה משפיע רק עליך, ותיבת
+        המייל של החנות ממשיכה לקבל הכול.
+      </p>
+      {rows.map(([k, label]) => (
+        <label key={k} className="flex items-center justify-between border-b py-2 last:border-0">
+          <span>{label}</span>
+          <Switch checked={data[k]} disabled={busy} onCheckedChange={(v) => toggle(k, v)} />
+        </label>
+      ))}
     </div>
   );
 }

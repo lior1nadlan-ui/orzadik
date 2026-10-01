@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mergeStaffRecipients } from "./staff-recipients";
+import { adminsWanting, mergeStaffRecipients } from "./staff-recipients";
 
 describe("mergeStaffRecipients", () => {
   it("puts the owner inbox first and appends admins", () => {
@@ -25,5 +25,19 @@ describe("mergeStaffRecipients", () => {
 
   it("returns an empty list when nothing is configured", () => {
     expect(mergeStaffRecipients("", [])).toEqual([]);
+  });
+});
+
+describe("adminsWanting", () => {
+  const admins = [
+    { email: "a@x.com" },
+    { email: "b@x.com", prefs: { orders: false, contacts: true, digest: true } },
+    { email: "c@x.com", prefs: { digest: false } },
+    { email: null },
+  ];
+  it("keeps admins with no prefs row and drops only explicit opt-outs", () => {
+    expect(adminsWanting(admins, "orders")).toEqual(["a@x.com", "c@x.com"]);
+    expect(adminsWanting(admins, "digest")).toEqual(["a@x.com", "b@x.com"]);
+    expect(adminsWanting(admins, "contacts")).toEqual(["a@x.com", "b@x.com", "c@x.com"]);
   });
 });
