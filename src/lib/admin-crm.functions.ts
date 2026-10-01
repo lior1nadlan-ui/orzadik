@@ -658,10 +658,32 @@ const OrdersFilterSchema = z.object({
   status: z.string().max(20).optional(),
   payment: z.string().max(20).optional(),
   days: z.number().int().min(0).max(3650).optional(), // 0/undefined = all time
+  view: z.enum(["todo", "unpaid", "pickup"]).optional(),
   page: z.number().int().min(0).default(0),
 });
 
+// Paid and still waiting to go out — the same rule the action queue uses for
+// "thank you" / "ready to ship" (a paid order with no shipped_at that is still
+// pending or processing). The quick filter "לטיפול" and the badge on the
+// orders tab both read it, so the number and the list always agree.
+function onlyToHandle(query: any) {
+  return query
+    .eq("payment_status", "paid")
+    .is("shipped_at", null)
+    .in("status", ["pending", "processing"]);
+}
+
 function applyOrderFilters(query: any, f: z.infer<typeof OrdersFilterSchema>) {
+  // The phone's one-tap views. They narrow on top of the selects below.
+  if (f.view === "todo") query = onlyToHandle(query);
+  if (f.view === "unpaid") {
+    query = query
+      .in("payment_status", ["unpaid", "failed"])
+      .not("status", "in", "(cancelled,refunded)");
+  }
+  if (f.view === "pickup") {
+    query = query.eq("fulfillment", "pickup").in("status", ["pending", "processing"]);
+  }
   if (f.status) query = query.eq("status", f.status);
   if (f.payment) query = query.eq("payment_status", f.payment);
   if (f.days) query = query.gte("created_at", new Date(Date.now() - f.days * 864e5).toISOString());
@@ -674,6 +696,19 @@ function applyOrderFilters(query: any, f: z.infer<typeof OrdersFilterSchema>) {
   }
   return query;
 }
+
+/** Count for the "הזמנות" tab badge and the app icon. */
+export const countOrdersToHandle = createServerFn({ method: "POST" }).handler(async () => {
+  await requireAdmin();
+  const { count, error } = await onlyToHandle(
+    supabaseAdmin.from("orders").select("id", { count: "exact", head: true }),
+  );
+  if (error) {
+    console.error("[countOrdersToHandle]:", error);
+    return 0;
+  }
+  return count ?? 0;
+});
 
 export const listOrdersPaged = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) => OrdersFilterSchema.parse(i))
