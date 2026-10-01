@@ -123,7 +123,7 @@ function LeadCard({ lead: l }: { lead: LeadRow }) {
 
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ["admin-leads"] });
-    qc.invalidateQueries({ queryKey: ["action-queue"] });
+    qc.invalidateQueries({ queryKey: ["admin-action-queue"] });
   };
 
   const remind = async () => {
