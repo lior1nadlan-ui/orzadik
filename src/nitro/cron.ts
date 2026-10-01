@@ -27,6 +27,7 @@ import { runCardcomReconciliation } from "@/lib/cardcom-settle.server";
 import { runDataRetentionSweep } from "@/lib/retention.server";
 import { runDailyDigest } from "@/lib/crm-digest.server";
 import { runPaymentReminders } from "@/lib/payment-reminder.server";
+import { runLeadAlerts } from "@/lib/lead-alerts.server";
 
 type NitroAppLike = {
   hooks: { hook: (name: string, fn: (payload: any) => unknown) => void };
@@ -77,6 +78,27 @@ async function runHourlyRecovery() {
   return out;
 }
 
+/**
+ * The 10-minute slot: CardCom reconciliation FIRST (money on it), then the
+ * staff alert for new abandoned carts. Caught separately, so a Telegram or
+ * Resend failure can never cost a settlement.
+ */
+async function runTenMinuteJobs() {
+  const out: Record<string, unknown> = {};
+  for (const [name, run] of [
+    ["cardcom-reconcile", runCardcomReconciliation],
+    ["lead-alerts", runLeadAlerts],
+  ] as const) {
+    try {
+      out[name] = await run();
+    } catch (e) {
+      console.error(`[cron] ${name} failed:`, e);
+      out[name] = "failed";
+    }
+  }
+  return out;
+}
+
 // The keys MUST match wrangler.jsonc `triggers.crons` string-for-string —
 // Cloudflare passes the schedule back verbatim in controller.cron, so a
 // reformatted expression (e.g. "0 */1 * * *" vs "15 * * * *") silently maps to
@@ -90,7 +112,7 @@ const JOBS: Record<string, { name: string; run: () => Promise<unknown> }> = {
   // plain Worker error. Without this, a charged card can sit against an unpaid order
   // forever and nothing notices. 10 minutes is well clear of the 15-minute grace
   // window inside the job, so it never races a webhook that is merely in flight.
-  "*/10 * * * *": { name: "cardcom-reconcile", run: runCardcomReconciliation },
+  "*/10 * * * *": { name: "cardcom-reconcile + lead-alerts", run: runTenMinuteJobs },
   // The first job here that DELETES. Until it existed nothing in the system ever
   // removed a row, so payment secrets (card token + Israeli ID number) and
   // abandoned carts (email + cart contents) accumulated with no end date.
