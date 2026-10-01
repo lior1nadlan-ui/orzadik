@@ -176,7 +176,8 @@ function timeAgoHe(iso: string): string {
 }
 
 const ACTION_BTN =
-  "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs press transition-colors duration-160 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted";
+  // 40px tall on a phone (a thumb, between customers); compact from sm up.
+  "inline-flex min-h-10 items-center gap-1 rounded-full border px-3 text-sm sm:min-h-0 sm:px-2.5 sm:py-1 sm:text-xs press transition-colors duration-160 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted";
 
 // ---- rows ------------------------------------------------------------------
 
@@ -195,7 +196,7 @@ function OpenRow({ row, onDecide, busy }: { row: QueueRow; onDecide: Decide; bus
             {row.orderNumber && (
               <Link
                 to="/admin/orders"
-                search={{ q: row.orderNumber }}
+                search={{ q: row.orderNumber, open: "1" }}
                 className="font-mono text-[11px] text-muted-foreground underline-offset-2 [@media(hover:hover)_and_(pointer:fine)]:hover:underline"
               >
                 {row.orderNumber}
@@ -211,7 +212,7 @@ function OpenRow({ row, onDecide, busy }: { row: QueueRow; onDecide: Decide; bus
           )}
         >
           <meta.Icon className="h-3 w-3" />
-          {meta.label}
+          {row.type === "ready_to_ship" && row.pickup ? "להכין לאיסוף" : meta.label}
         </span>
       </div>
 
@@ -270,7 +271,7 @@ function OpenRow({ row, onDecide, busy }: { row: QueueRow; onDecide: Decide; bus
             disabled={busy}
             onClick={() => onDecide(row, "days3")}
             className={cn(ACTION_BTN, "text-muted-foreground disabled:opacity-50")}
-            title="הזכר לי שוב בעוד 3 ימים"
+            title="להזכיר שוב בעוד 3 ימים"
           >
             <Clock className="h-3.5 w-3.5" /> 3 ימים
           </button>
@@ -325,7 +326,7 @@ function SetAsideRow({
           <span className="font-medium">{row.customerName}</span>
           <span className="text-muted-foreground">
             {" "}
-            · {meta.label} · {why}
+            · {row.type === "ready_to_ship" && row.pickup ? "להכין לאיסוף" : meta.label} · {why}
           </span>
         </span>
       </div>
@@ -362,12 +363,18 @@ export function ActionCockpit() {
 
   /** Run one decision with the row locked, then refetch — the server is the
    *  source of truth for what comes back when. */
-  const run = async (row: QueueRow, fn: () => Promise<unknown>, done: string) => {
+  const run = async (row: QueueRow, fn: () => Promise<unknown>, done: string, undoable = false) => {
     setBusyId(row.id);
     try {
       await fn();
       await qc.invalidateQueries({ queryKey: QUEUE_KEY });
-      toast.success(done);
+      qc.invalidateQueries({ queryKey: ["admin-leads"] });
+      // Every set-aside can be taken back from the toast — "לא רלוונטי" sits
+      // next to "3 ימים", and a mis-tap must not lose a customer.
+      toast.success(
+        done,
+        undoable ? { action: { label: "ביטול", onClick: () => onRestore(row) } } : undefined,
+      );
     } catch (e: any) {
       toast.error(e?.message ?? "השמירה נכשלה");
     } finally {
@@ -393,6 +400,7 @@ export function ActionCockpit() {
         : d === "days3"
           ? "נדחה ב-3 ימים"
           : "הוסר מהרשימה",
+      true,
     );
   };
 

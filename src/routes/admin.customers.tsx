@@ -604,7 +604,7 @@ function AdminCustomers() {
                               <div>
                                 <Link
                                   to="/admin/orders"
-                                  search={{ q: o.order_number }}
+                                  search={{ q: o.order_number, open: "1" }}
                                   className="font-mono text-xs underline text-primary"
                                 >
                                   {o.order_number}
@@ -983,7 +983,7 @@ function CustomerTimeline({ cust }: { cust: any }) {
                 {" · "}
                 <Link
                   to="/admin/orders"
-                  search={{ q: e.orderNumber }}
+                  search={{ q: e.orderNumber, open: "1" }}
                   className="font-mono underline-offset-2 [@media(hover:hover)_and_(pointer:fine)]:hover:underline"
                 >
                   <bdi>{e.orderNumber}</bdi>

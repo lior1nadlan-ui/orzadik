@@ -80,3 +80,14 @@ describe("buildLeads", () => {
     expect(leads.map((l) => l.email)).toEqual(["new@x.com", "old@x.com"]);
   });
 });
+
+describe("lead action keys", () => {
+  it("match the action queue's keys", () => {
+    expect(buildLeads([cart({ id: "c9" })], [], new Map(), NOW)[0].actionKey).toBe(
+      "recover_cart:c9",
+    );
+    expect(buildLeads([], [order({ id: "o9" })], new Map(), NOW)[0].actionKey).toBe(
+      "stuck_unpaid:o9",
+    );
+  });
+});

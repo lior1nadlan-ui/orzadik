@@ -50,7 +50,7 @@ function AdminTelegram() {
     setTesting(chatId);
     try {
       const r = await test({ data: { chatId } });
-      if (r.ok) toast.success("נשלחה הודעת בדיקה — תבדוק בטלגרם");
+      if (r.ok) toast.success("נשלחה הודעת בדיקה — אפשר לבדוק בטלגרם");
       else toast.error(r.error ?? "השליחה נכשלה");
     } catch (e: any) {
       toast.error(e?.message ?? "שגיאה");
@@ -77,7 +77,7 @@ function AdminTelegram() {
 
   return (
     <div className="mx-auto max-w-2xl p-4">
-      <h1 className="mb-1 text-xl font-bold">התראות טלגרם</h1>
+      <h1 className="mb-1 text-xl font-bold">התראות</h1>
       <p className="mb-6 text-sm text-muted-foreground">
         על כל הזמנה נשלחת הודעה עם כל הפרטים והתמונות של המוצרים, ובכל בוקר סיכום של מה שמחכה
         לטיפול.
@@ -89,62 +89,78 @@ function AdminTelegram() {
 
       {data && (
         <div className="space-y-4">
-          <div className="rounded-lg border bg-card p-4 text-sm">
-            <Row label="טוקן ב-Worker" ok={data.hasToken} />
-            <Row label="מזהה שיחה (CHAT ID)" ok={data.hasChatId} />
-            {data.botUsername && (
-              <p className="mt-2 text-muted-foreground">בוט: @{data.botUsername}</p>
-            )}
-            {data.configuredChatId && (
-              <p className="mt-1 text-muted-foreground">
-                מוגדר כרגע: <code>{data.configuredChatId}</code>
-              </p>
-            )}
-          </div>
+          {/* Setup details for whoever configures the bot — folded away
+              once it works, open while something is missing. */}
+          <details
+            className="rounded-lg border bg-card p-4 text-sm"
+            open={!data.hasToken || !data.hasChatId}
+          >
+            <summary className="cursor-pointer font-semibold">
+              הגדרות טכניות של טלגרם {data.hasToken && data.hasChatId ? "✓" : "— חסר משהו"}
+            </summary>
+            <div className="mt-3 space-y-4">
+              <div className="rounded-lg border bg-card p-4 text-sm">
+                <Row label="טוקן ב-Worker" ok={data.hasToken} />
+                <Row label="מזהה שיחה (CHAT ID)" ok={data.hasChatId} />
+                {data.botUsername && (
+                  <p className="mt-2 text-muted-foreground">בוט: @{data.botUsername}</p>
+                )}
+                {data.configuredChatId && (
+                  <p className="mt-1 text-muted-foreground">
+                    מוגדר כרגע: <code>{data.configuredChatId}</code>
+                  </p>
+                )}
+              </div>
 
-          {data.note && (
-            <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
-              {data.note}
-            </div>
-          )}
+              {data.note && (
+                <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+                  {data.note}
+                </div>
+              )}
 
-          {data.candidates.length > 0 && (
-            <div className="rounded-lg border bg-card p-4">
-              <h2 className="mb-1 font-semibold">שיחות שדיברו עם הבוט</h2>
-              <p className="mb-3 text-sm text-muted-foreground">
-                שלח בדיקה כדי לוודא שזו השיחה הנכונה, ואז העתק את המספר ל-
-                <code>TELEGRAM_CHAT_ID</code> ב-Cloudflare.
-              </p>
-              <ul className="space-y-2">
-                {data.candidates.map((c) => (
-                  <li
-                    key={c.id}
-                    className="flex flex-wrap items-center justify-between gap-3 rounded border p-3"
-                  >
-                    <div>
-                      <div className="font-mono text-base font-bold">{c.id}</div>
-                      <div className="text-sm text-muted-foreground">{c.label}</div>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          navigator.clipboard?.writeText(c.id);
-                          toast.success("הועתק");
-                        }}
+              {data.candidates.length > 0 && (
+                <div className="rounded-lg border bg-card p-4">
+                  <h2 className="mb-1 font-semibold">שיחות שדיברו עם הבוט</h2>
+                  <p className="mb-3 text-sm text-muted-foreground">
+                    שולחים בדיקה כדי לוודא שזו השיחה הנכונה, ואז מעתיקים את המספר ל-
+                    <code>TELEGRAM_CHAT_ID</code> ב-Cloudflare.
+                  </p>
+                  <ul className="space-y-2">
+                    {data.candidates.map((c) => (
+                      <li
+                        key={c.id}
+                        className="flex flex-wrap items-center justify-between gap-3 rounded border p-3"
                       >
-                        העתק
-                      </Button>
-                      <Button size="sm" disabled={testing === c.id} onClick={() => onTest(c.id)}>
-                        {testing === c.id ? "שולח…" : "שלח בדיקה"}
-                      </Button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+                        <div>
+                          <div className="font-mono text-base font-bold">{c.id}</div>
+                          <div className="text-sm text-muted-foreground">{c.label}</div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              navigator.clipboard?.writeText(c.id);
+                              toast.success("הועתק");
+                            }}
+                          >
+                            העתקה
+                          </Button>
+                          <Button
+                            size="sm"
+                            disabled={testing === c.id}
+                            onClick={() => onTest(c.id)}
+                          >
+                            {testing === c.id ? "שולח…" : "שליחת בדיקה"}
+                          </Button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
-          )}
+          </details>
 
           <div className="rounded-lg border bg-card p-4">
             <h2 className="mb-1 font-semibold">כפתורים בהתראת הזמנה</h2>
@@ -167,11 +183,17 @@ function AdminTelegram() {
                 size="sm"
                 variant={data.buttonsOn ? "outline" : "default"}
                 disabled={switching || !data.hasChatId}
+                aria-describedby={!data.hasChatId ? "buttons-need-chat" : undefined}
                 onClick={() => onButtons(!data.buttonsOn)}
               >
                 {switching ? "מעדכן…" : data.buttonsOn ? "כיבוי" : "הפעלת הכפתורים"}
               </Button>
             </div>
+            {!data.hasChatId && (
+              <p id="buttons-need-chat" className="mt-2 text-xs text-amber-800">
+                צריך קודם לחבר שיחת טלגרם (בהגדרות הטכניות למעלה).
+              </p>
+            )}
           </div>
 
           <div className="rounded-lg border bg-card p-4">
@@ -182,7 +204,7 @@ function AdminTelegram() {
               לאישור. ביום בלי משימות פתוחות לא נשלח כלום.
             </p>
             <Button size="sm" disabled={sendingDigest} onClick={onDigest}>
-              {sendingDigest ? "שולח…" : "שלח סיכום עכשיו"}
+              {sendingDigest ? "שולח…" : "שליחת סיכום עכשיו"}
             </Button>
           </div>
 
@@ -202,9 +224,23 @@ function AdminTelegram() {
 function MyEmailAlerts() {
   const load = useServerFn(getMyAlertPrefs);
   const save = useServerFn(setMyAlertPrefs);
-  const { data, refetch } = useQuery({ queryKey: ["my-alert-prefs"], queryFn: () => load() });
+  const { data, refetch, isLoading, error } = useQuery({
+    queryKey: ["my-alert-prefs"],
+    queryFn: () => load(),
+  });
   const [busy, setBusy] = useState(false);
-  if (!data) return null;
+  if (!data) {
+    // Never vanish silently: the section is the only place to change these.
+    return (
+      <div className="mb-6 rounded-lg border bg-card p-4 text-sm text-muted-foreground">
+        {isLoading
+          ? "טוען את הגדרות המיילים…"
+          : error
+            ? "טעינת הגדרות המיילים נכשלה. נסו לרענן."
+            : null}
+      </div>
+    );
+  }
   const toggle = async (k: keyof MyAlertPrefs, v: boolean) => {
     setBusy(true);
     try {

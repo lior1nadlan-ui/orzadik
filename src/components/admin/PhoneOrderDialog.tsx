@@ -45,9 +45,12 @@ export function PhoneOrderDialog({
   const createFn = useServerFn(createPhoneOrder);
   const [form, setForm] = useState(EMPTY);
   const [fulfillment, setFulfillment] = useState<Fulfillment>("delivery");
-  const [consent, setConsent] = useState(true);
+  // Unticked: the owner ticks it only after actually asking the customer.
+  const [consent, setConsent] = useState(false);
   const [q, setQ] = useState("");
   const [results, setResults] = useState<Found[]>([]);
+  // "idle" | "searching" | "done" | "error" — so an empty result says so.
+  const [searchState, setSearchState] = useState<"idle" | "searching" | "done" | "error">("idle");
   const [lines, setLines] = useState<Line[]>([]);
   const [busy, setBusy] = useState(false);
   const [created, setCreated] = useState<Created | null>(null);
@@ -56,7 +59,7 @@ export function PhoneOrderDialog({
     if (!open) {
       setForm(EMPTY);
       setFulfillment("delivery");
-      setConsent(true);
+      setConsent(false);
       setQ("");
       setResults([]);
       setLines([]);
@@ -68,15 +71,23 @@ export function PhoneOrderDialog({
     const term = q.trim();
     if (term.length < 2) {
       setResults([]);
+      setSearchState("idle");
       return;
     }
     let cancelled = false;
+    setSearchState("searching");
     const t = setTimeout(async () => {
       try {
         const r = await searchFn({ data: { q: term } });
-        if (!cancelled) setResults(r);
+        if (!cancelled) {
+          setResults(r);
+          setSearchState("done");
+        }
       } catch {
-        if (!cancelled) setResults([]);
+        if (!cancelled) {
+          setResults([]);
+          setSearchState("error");
+        }
       }
     }, 300);
     return () => {
@@ -121,6 +132,16 @@ export function PhoneOrderDialog({
   const submit = async () => {
     if (!form.name.trim() || !form.email.trim() || !form.phone.trim()) {
       toast.error("יש למלא שם, אימייל וטלפון");
+      return;
+    }
+    // Same checks as /checkout, so a typo gets a Hebrew message here instead
+    // of the server's validation error.
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+      toast.error("כתובת האימייל אינה תקינה");
+      return;
+    }
+    if (form.phone.replace(/\D/g, "").length < 9) {
+      toast.error("מספר הטלפון אינו תקין");
       return;
     }
     if (!pickup && !form.address.trim()) {
@@ -168,7 +189,14 @@ export function PhoneOrderDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" dir="rtl">
+      <DialogContent
+        className="max-w-2xl max-h-[90dvh] overflow-y-auto"
+        dir="rtl"
+        // A tap outside must not wipe a half-built order.
+        onInteractOutside={(e) => {
+          if (!created && (lines.length > 0 || form.name.trim())) e.preventDefault();
+        }}
+      >
         <DialogHeader>
           <DialogTitle>הזמנה טלפונית</DialogTitle>
         </DialogHeader>
@@ -244,14 +272,20 @@ export function PhoneOrderDialog({
 
             <fieldset>
               <legend className="mb-2 font-medium">קבלת ההזמנה</legend>
-              <div className="flex flex-wrap gap-4">
+              {/* Same option cards as the checkout, so both read the same. */}
+              <div className="grid gap-2 sm:grid-cols-2">
                 {(
                   [
                     ["delivery", "משלוח"],
                     ["pickup", "איסוף עצמי מהחנות"],
                   ] as const
                 ).map(([v, label]) => (
-                  <label key={v} className="flex items-center gap-2 cursor-pointer">
+                  <label
+                    key={v}
+                    className={`flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border p-3 ${
+                      fulfillment === v ? "border-accent bg-accent/5" : "border-border"
+                    }`}
+                  >
                     <input
                       type="radio"
                       name="po-fulfillment"
@@ -292,6 +326,21 @@ export function PhoneOrderDialog({
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
               />
+              {searchState === "searching" && (
+                <p className="mt-1 text-xs text-muted-foreground" role="status">
+                  מחפש…
+                </p>
+              )}
+              {searchState === "done" && results.length === 0 && (
+                <p className="mt-1 text-xs text-muted-foreground" role="status">
+                  לא נמצאו מוצרים ל-"{q.trim()}"
+                </p>
+              )}
+              {searchState === "error" && (
+                <p className="mt-1 text-xs text-destructive" role="status">
+                  החיפוש נכשל — נסו שוב.
+                </p>
+              )}
               {results.length > 0 && (
                 <ul className="mt-1 max-h-60 overflow-y-auto rounded-md border divide-y">
                   {results.map((p) => (
@@ -363,11 +412,12 @@ export function PhoneOrderDialog({
                         >
                           <Plus className="h-4 w-4" />
                         </Button>
-                        <span className="w-20 text-left">{formatILS(l.price * l.quantity)}</span>
+                        <span className="w-20 text-end">{formatILS(l.price * l.quantity)}</span>
                       </div>
                     </div>
                     <Input
                       placeholder="כיתוב / הקדשה (לא חובה)"
+                      aria-label={`כיתוב או הקדשה ל${l.name}`}
                       maxLength={120}
                       value={l.customText}
                       onChange={(e) =>
@@ -404,7 +454,7 @@ export function PhoneOrderDialog({
               </span>
             </label>
 
-            <div className="flex items-center justify-between border-t pt-3">
+            <div className="sticky bottom-0 -mx-6 flex flex-wrap items-center justify-between gap-2 border-t bg-background px-6 pb-2 pt-3">
               <div className="text-xs text-muted-foreground">
                 פריטים {formatILS(itemsTotal)} ·{" "}
                 {pickup ? "איסוף עצמי" : `משלוח ${formatILS(shipping)}`}
@@ -412,7 +462,7 @@ export function PhoneOrderDialog({
                   הסכום הסופי נקבע בשרת (מבצעים והנחת חבר מועדון חלים אוטומטית)
                 </span>
               </div>
-              <Button onClick={submit} disabled={busy}>
+              <Button onClick={submit} disabled={busy} className="w-full sm:w-auto">
                 {busy ? "יוצר..." : `יצירת הזמנה · ${formatILS(itemsTotal + shipping)}`}
               </Button>
             </div>

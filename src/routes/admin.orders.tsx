@@ -13,6 +13,7 @@ import {
   markOrderPreparing,
   resendOrderConfirmation,
   sendOrderPaymentReminder,
+  markOrderPaidOffline,
   markOrderReadyForPickup,
   listOrderEvents,
 } from "@/lib/admin-crm.functions";
@@ -23,7 +24,7 @@ import {
   waReadyForPickup,
   orderPaymentUrl,
 } from "@/lib/wa-templates";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -38,8 +39,11 @@ export const Route = createFileRoute("/admin/orders")({
   // here with concrete filter states.
   validateSearch: (
     s: Record<string, unknown>,
-  ): { q?: string; status?: string; payment?: string; days?: number } => ({
+  ): { q?: string; status?: string; payment?: string; days?: number; open?: string } => ({
     q: typeof s.q === "string" ? s.q : undefined,
+    // "1" = open the order's details as soon as the search finds exactly one
+    // (links from the action queue, the dashboard and the leads screen).
+    open: s.open === "1" || s.open === 1 ? "1" : undefined,
     status: typeof s.status === "string" ? s.status : undefined,
     payment: typeof s.payment === "string" ? s.payment : undefined,
     days:
@@ -155,6 +159,14 @@ function PickupPanel({
   );
 }
 
+type OfflineMethod = "cash" | "terminal" | "bit" | "transfer";
+const OFFLINE_HE: Record<OfflineMethod, string> = {
+  cash: "מזומן",
+  terminal: "מסוף אשראי בחנות",
+  bit: "ביט",
+  transfer: "העברה בנקאית",
+};
+
 function PaymentBadge({ status }: { status: string }) {
   const cls =
     status === "paid"
@@ -184,6 +196,9 @@ function AdminOrders() {
   const payReminderFn = useServerFn(sendOrderPaymentReminder);
   const [sendingPayLink, setSendingPayLink] = useState(false);
   const [phoneOrderOpen, setPhoneOrderOpen] = useState(false);
+  const paidOfflineFn = useServerFn(markOrderPaidOffline);
+  const [offlineMethod, setOfflineMethod] = useState<OfflineMethod>("cash");
+  const [markingPaid, setMarkingPaid] = useState(false);
   const custNotesFn = useServerFn(listCustomerNotes);
   const addNoteFn = useServerFn(addCustomerNote);
 
@@ -265,6 +280,14 @@ function AdminOrders() {
   });
   const orders = data?.rows ?? [];
   const total = data?.total ?? 0;
+  // A deep link with open=1 lands IN the order, not on a one-row list.
+  const autoOpened = useRef(false);
+  useEffect(() => {
+    if (search.open === "1" && !autoOpened.current && !isPlaceholderData && orders.length === 1) {
+      autoOpened.current = true;
+      setSelected(orders[0]);
+    }
+  }, [search.open, orders, isPlaceholderData]);
   const pageSize = data?.pageSize ?? 25;
   const pages = Math.max(1, Math.ceil(total / pageSize));
 
@@ -283,7 +306,7 @@ function AdminOrders() {
     // own — no manual revert needed. Non-destructive transitions are unchanged.
     if ((st === "cancelled" || st === "refunded") && st !== o.status) {
       const ok = window.confirm(
-        `לשנות את סטטוס הזמנה ${o.order_number} ל"${STATUS_HE[st] ?? st}"? פעולה זו עלולה להחזיר מלאי ולשנות את מצב התשלום.`,
+        `לשנות את סטטוס הזמנה ${o.order_number} ל"${STATUS_HE[st] ?? st}"? המלאי יוחזר. זה לא מחזיר כסף ללקוח — לזיכוי השתמשו ב"זיכוי מלא" בפרטי ההזמנה.`,
       );
       if (!ok) return;
     }
@@ -332,6 +355,28 @@ function AdminOrders() {
       toast.error(e?.message ?? "שגיאה בעדכון המשלוח");
     } finally {
       setShipping(false);
+    }
+  };
+
+  const doMarkPaidOffline = async () => {
+    const label = OFFLINE_HE[offlineMethod];
+    if (
+      !window.confirm(
+        `לסמן שהזמנה ${selected.order_number} שולמה (${label})? ההזמנה תצא מהלידים ותעבור לטיפול.`,
+      )
+    ) {
+      return;
+    }
+    setMarkingPaid(true);
+    try {
+      await paidOfflineFn({ data: { order_id: selected.id, method: offlineMethod } });
+      toast.success(`סומנה כשולמה (${label})`);
+      setSelected(null);
+      refresh();
+    } catch (e: any) {
+      toast.error(e?.message ?? "העדכון נכשל");
+    } finally {
+      setMarkingPaid(false);
     }
   };
 
@@ -433,16 +478,17 @@ function AdminOrders() {
               : "טוען..."}
           </span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button size="sm" onClick={() => setPhoneOrderOpen(true)}>
-            <Phone className="h-4 w-4 ml-1" /> הזמנה טלפונית
+            <Phone className="h-4 w-4" /> הזמנה טלפונית
           </Button>
           <Button size="sm" variant="outline" onClick={() => refetch()} disabled={isFetching}>
-            <RefreshCw className={`h-4 w-4 ml-1 ${isFetching ? "animate-spin" : ""}`} />
+            <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
             {isFetching ? "מרענן..." : "רענון"}
           </Button>
-          <Button size="sm" variant="outline" onClick={doExport}>
-            <Download className="h-4 w-4 ml-1" /> ייצוא CSV
+          <Button size="sm" variant="outline" onClick={doExport} aria-label="ייצוא CSV">
+            <Download className="h-4 w-4" />
+            <span className="hidden sm:inline">ייצוא CSV</span>
           </Button>
         </div>
       </div>
@@ -457,6 +503,7 @@ function AdminOrders() {
       <div className="flex flex-wrap gap-2 mb-4">
         <Input
           placeholder="חיפוש: מס׳ הזמנה / שם / טלפון / אימייל"
+          aria-label="חיפוש הזמנות"
           value={q}
           onChange={(e) => setQ(e.target.value)}
           className="max-w-xs"
@@ -464,7 +511,8 @@ function AdminOrders() {
         <select
           value={status}
           onChange={(e) => setStatus(e.target.value)}
-          className="rounded-md border bg-background px-3 py-2 text-sm"
+          aria-label="סינון לפי סטטוס"
+          className="min-h-10 rounded-md border bg-background px-3 py-2 text-sm"
         >
           <option value="">כל הסטטוסים</option>
           {STATUSES.map((s) => (
@@ -476,7 +524,8 @@ function AdminOrders() {
         <select
           value={payment}
           onChange={(e) => setPayment(e.target.value)}
-          className="rounded-md border bg-background px-3 py-2 text-sm"
+          aria-label="סינון לפי תשלום"
+          className="min-h-10 rounded-md border bg-background px-3 py-2 text-sm"
         >
           <option value="">כל התשלומים</option>
           <option value="paid">שולם</option>
@@ -487,7 +536,8 @@ function AdminOrders() {
         <select
           value={days}
           onChange={(e) => setDays(Number(e.target.value))}
-          className="rounded-md border bg-background px-3 py-2 text-sm"
+          aria-label="תקופה"
+          className="min-h-10 rounded-md border bg-background px-3 py-2 text-sm"
         >
           <option value={0}>כל הזמן</option>
           <option value={7}>7 ימים</option>
@@ -513,11 +563,13 @@ function AdminOrders() {
             <tr className="text-right">
               <th className="p-3">מס׳</th>
               <th className="p-3">לקוח</th>
-              <th className="p-3">תאריך</th>
+              <th className="hidden p-3 sm:table-cell">תאריך</th>
               <th className="p-3">סכום</th>
               <th className="p-3">תשלום</th>
               <th className="p-3">סטטוס</th>
-              <th></th>
+              <th>
+                <span className="sr-only">פעולות</span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -531,23 +583,33 @@ function AdminOrders() {
             {orders.map((o: any) => (
               <tr key={o.id} className={`border-t ${isNew(o) ? "bg-primary/5" : ""}`}>
                 <td className="p-3 font-mono text-xs">
-                  {o.order_number}
+                  {/* The order number opens the order — on a phone the "פרטים"
+                      column sits past a sideways scroll. */}
+                  <button
+                    type="button"
+                    onClick={() => setSelected(o)}
+                    className="min-h-10 font-semibold text-primary underline underline-offset-2"
+                  >
+                    {o.order_number}
+                  </button>
                   {o.is_gift && (
-                    <span className="mr-1" title="מתנה — יש לארוז ולהדפיס הקדשה">
+                    <span className="ms-1" title="מתנה — יש לארוז ולהדפיס הקדשה">
                       🎁
                     </span>
                   )}
                   {isNew(o) && (
-                    <span className="mr-1 text-[10px] text-primary font-sans font-semibold">
+                    <span className="ms-1 text-[10px] text-primary font-sans font-semibold">
                       חדש
                     </span>
                   )}
                 </td>
                 <td className="p-3">
                   <div>{o.customer_name}</div>
-                  <div className="text-xs text-muted-foreground">{o.customer_phone}</div>
+                  <div className="text-xs text-muted-foreground" dir="ltr">
+                    {o.customer_phone}
+                  </div>
                 </td>
-                <td className="p-3 text-xs">
+                <td className="hidden p-3 text-xs sm:table-cell">
                   {new Date(o.created_at).toLocaleDateString("he-IL")}
                 </td>
                 <td className="p-3 font-bold">{formatILS(Number(o.total))}</td>
@@ -563,9 +625,15 @@ function AdminOrders() {
                   <select
                     value={o.status}
                     onChange={(e) => updateStatus(o, e.target.value)}
-                    className="rounded border bg-background px-2 py-1 text-xs"
+                    aria-label={`סטטוס הזמנה ${o.order_number}`}
+                    className="min-h-10 rounded border bg-background px-2 text-sm"
                   >
-                    {STATUSES.map((s) => (
+                    {/* "נשלחה" and "זוכתה" are not offered here: the dropdown only
+                        changes the label — no shipping email, no tracking, and no
+                        money back. They have their own buttons in the order. */}
+                    {STATUSES.filter(
+                      (s) => (s !== "shipped" && s !== "refunded") || s === o.status,
+                    ).map((s) => (
                       <option key={s} value={s}>
                         {STATUS_HE[s]}
                       </option>
@@ -618,7 +686,7 @@ function AdminOrders() {
                   <Link
                     to="/admin/customers"
                     search={{ q: selected.customer_email }}
-                    className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"
+                    className="inline-flex min-h-10 max-w-full items-center gap-1 rounded-full border px-3 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"
                     title="כרטיס לקוח"
                   >
                     <User className="h-3 w-3" /> כרטיס לקוח
@@ -629,7 +697,7 @@ function AdminOrders() {
                     to="/admin/orders/$orderId/print"
                     params={{ orderId: selected.id }}
                     target="_blank"
-                    className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"
+                    className="inline-flex min-h-10 max-w-full items-center gap-1 rounded-full border px-3 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"
                     title="דף אריזה להדפסה — פריטים, כיתוב אישי והקדשה, בלי מחירים"
                   >
                     <Printer className="h-3 w-3" /> דף אריזה
@@ -641,26 +709,29 @@ function AdminOrders() {
                   <strong>{selected.customer_name}</strong>
                   <a
                     href={`tel:${selected.customer_phone}`}
-                    className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"
+                    className="inline-flex min-h-10 max-w-full items-center gap-1 rounded-full border px-3 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"
                     title="חיוג"
                   >
-                    <Phone className="h-3 w-3" /> {selected.customer_phone}
+                    <Phone className="h-3 w-3" /> <bdi dir="ltr">{selected.customer_phone}</bdi>
                   </a>
                   <a
                     href={waForOrder(selected)}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted text-emerald-700"
+                    className="inline-flex min-h-10 max-w-full items-center gap-1 rounded-full border px-3 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted text-emerald-700"
                     title="WhatsApp — הודעה מוכנה לפי סטטוס ההזמנה"
                   >
                     <MessageCircle className="h-3 w-3" /> וואטסאפ
                   </a>
                   <a
                     href={`mailto:${selected.customer_email}`}
-                    className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"
+                    className="inline-flex min-h-10 max-w-full items-center gap-1 rounded-full border px-3 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"
                     title="אימייל"
                   >
-                    <Mail className="h-3 w-3" /> {selected.customer_email}
+                    <Mail className="h-3 w-3" />{" "}
+                    <bdi dir="ltr" className="break-all">
+                      {selected.customer_email}
+                    </bdi>
                   </a>
                 </div>
                 <div>
@@ -844,7 +915,15 @@ function AdminOrders() {
                     order={selected}
                     busy={shipping || preparing}
                     onReady={doReadyForPickup}
-                    onCollected={() => doShip({ delivered: true, carrier: "איסוף עצמי" })}
+                    onCollected={() => {
+                      if (
+                        window.confirm(
+                          `לסמן שהזמנה ${selected.order_number} נאספה? ההזמנה תיסגר ותישלח בקשת חוות דעת בעוד שבוע.`,
+                        )
+                      ) {
+                        void doShip({ delivered: true, carrier: "איסוף עצמי" });
+                      }
+                    }}
                   />
                 ) : (
                   <OrderShippingPanel
@@ -860,16 +939,19 @@ function AdminOrders() {
                 {selected.payment_status === "paid" && (
                   <div className="border-t pt-3 flex items-center justify-between gap-3">
                     <div className="text-xs text-muted-foreground">
-                      שולם בכרטיס אשראי
+                      {selected.payment_provider === "offline"
+                        ? `שולם מחוץ לאתר (${OFFLINE_HE[selected.payment_method as OfflineMethod] ?? selected.payment_method})`
+                        : "שולם בכרטיס אשראי"}
                       {selected.cardcom_document_number
                         ? ` · מסמך ${selected.cardcom_document_type ?? ""} מס׳ ${selected.cardcom_document_number}`
                         : ""}
-                      {!Number(selected.cardcom_tranzaction_id) && (
-                        <span className="block text-destructive">
-                          אין מזהה עסקה מקארדקום — זיכוי אוטומטי אינו זמין. בצעו זיכוי ידני בממשק
-                          קארדקום.
-                        </span>
-                      )}
+                      {selected.payment_provider !== "offline" &&
+                        !Number(selected.cardcom_tranzaction_id) && (
+                          <span className="block text-destructive">
+                            אין מזהה עסקה מקארדקום — זיכוי אוטומטי אינו זמין. בצעו זיכוי ידני בממשק
+                            קארדקום.
+                          </span>
+                        )}
                     </div>
                     <Button
                       size="sm"
@@ -939,6 +1021,25 @@ function AdminOrders() {
                             : selected.payment_reminder_sent_at
                               ? "שלח שוב קישור לתשלום"
                               : "שלח ללקוח קישור לתשלום ✉️"}
+                        </Button>
+                      </div>
+                      {/* Paid at the counter (cash / the shop's terminal / Bit /
+                          transfer): closes the lead and opens fulfilment. */}
+                      <div className="flex w-full flex-wrap items-center gap-2 border-t border-dashed pt-3">
+                        <span className="text-xs text-muted-foreground">שולם מחוץ לאתר?</span>
+                        <select
+                          aria-label="אמצעי התשלום"
+                          value={offlineMethod}
+                          onChange={(e) => setOfflineMethod(e.target.value as OfflineMethod)}
+                          className="min-h-10 rounded border bg-background px-2 text-sm"
+                        >
+                          <option value="cash">מזומן</option>
+                          <option value="terminal">מסוף אשראי בחנות</option>
+                          <option value="bit">ביט</option>
+                          <option value="transfer">העברה בנקאית</option>
+                        </select>
+                        <Button size="sm" disabled={markingPaid} onClick={doMarkPaidOffline}>
+                          {markingPaid ? "מעדכן..." : "סימון כשולם ✓"}
                         </Button>
                       </div>
                     </div>

@@ -61,6 +61,11 @@ export type Lead = {
   customerReminded: boolean;
   /** Also left a cart (when the lead is an order). */
   alsoCart: boolean;
+  /** The abandoned_carts row, when the lead is a cart. */
+  cartId: string | null;
+  /** The key its "טופל / לא רלוונטי" decision is stored under — the SAME key
+   *  the action queue uses, so a decision in either place applies to both. */
+  actionKey: string;
 };
 
 const lc = (v: unknown) =>
@@ -140,6 +145,8 @@ export function buildLeads(
       reason: o.cardcom_description ?? null,
       customerReminded: !!o.payment_reminder_sent_at,
       alsoCart: false,
+      cartId: null,
+      actionKey: `stuck_unpaid:${o.id}`,
     });
   }
 
@@ -171,6 +178,8 @@ export function buildLeads(
       reason: null,
       customerReminded: !!(c.reminder_1_sent_at || c.reminder_2_sent_at),
       alsoCart: false,
+      cartId: c.id,
+      actionKey: `recover_cart:${c.id}`,
     });
   }
 

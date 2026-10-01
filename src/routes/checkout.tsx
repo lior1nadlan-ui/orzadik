@@ -29,7 +29,7 @@ import { TrustBadges, instalmentsLine } from "@/components/cart/TrustBadges";
 import { Lock } from "lucide-react";
 import { toast } from "sonner";
 import { customMethodLabel } from "@/lib/personalization";
-import { PICKUP } from "@/lib/business";
+import { BUSINESS, PICKUP } from "@/lib/business";
 import type { Fulfillment } from "@/lib/pricing";
 import { promoFor, promoPrice } from "@/lib/promotions";
 import { usePromoIndex, useRefreshPromotionsOnMount } from "@/lib/promotions-data";
@@ -505,11 +505,15 @@ function CheckoutPage() {
             <div className="grid gap-2 sm:grid-cols-2">
               {(
                 [
-                  { value: "delivery", title: "משלוח עד הבית", sub: "תעריף אחיד לכל הזמנה" },
+                  {
+                    value: "delivery",
+                    title: "משלוח עד הבית",
+                    sub: `${formatILS(getShipping(memberSubtotal, "delivery"))} · תעריף אחיד לכל הזמנה`,
+                  },
                   {
                     value: "pickup",
                     title: "איסוף עצמי מהחנות — חינם",
-                    sub: "דרך עכו 190, קרית ביאליק",
+                    sub: BUSINESS.address,
                   },
                 ] as const
               ).map((o) => (

@@ -118,7 +118,7 @@ export const getTelegramSetup = createServerFn({ method: "GET" }).handler(
 
     if (out.candidates.length === 0) {
       // Telegram keeps updates for about 24 hours, so an old /start is gone.
-      out.note = "לא נמצאו שיחות. שלח לבוט הודעה כלשהי בטלגרם ורענן את הדף.";
+      out.note = "לא נמצאו שיחות. שלחו לבוט הודעה כלשהי בטלגרם ורעננו את הדף.";
     }
     return out;
   },

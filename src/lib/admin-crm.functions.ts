@@ -574,7 +574,7 @@ export const getActionQueue = createServerFn({ method: "POST" }).handler(async (
   try {
     const { data: carts, error: cErr } = await supabaseAdmin
       .from("abandoned_carts")
-      .select("id, email, name, subtotal, created_at")
+      .select("id, email, name, phone, subtotal, created_at")
       .is("converted_order_id", null)
       .eq("unsubscribed", false)
       .gt("subtotal", 0)
@@ -629,7 +629,8 @@ export const getActionQueue = createServerFn({ method: "POST" }).handler(async (
             priority: ACTION_PRIORITY.recover_cart,
             customerName: c.name || "לקוח",
             customerEmail: c.email || undefined,
-            customerPhone: phoneByEmail.get(key) || undefined,
+            // The phone typed at checkout first; else one from their orders.
+            customerPhone: c.phone || phoneByEmail.get(key) || undefined,
             context: "עגלה נטושה עם פריטים — הזמנה בהמתנה, שווה תזכורת עדינה 🛒",
             createdAt: c.created_at,
           }),
@@ -1448,7 +1449,7 @@ export const listAbandonedCarts = createServerFn({ method: "POST" })
     let q = supabaseAdmin
       .from("abandoned_carts")
       .select(
-        "id, email, name, items, subtotal, reminder_1_sent_at, reminder_2_sent_at, converted_order_id, unsubscribed, created_at",
+        "id, email, name, phone, items, subtotal, reminder_1_sent_at, reminder_2_sent_at, converted_order_id, unsubscribed, created_at",
         { count: "exact" },
       )
       .order("created_at", { ascending: false })
@@ -1489,7 +1490,7 @@ export const listAbandonedCarts = createServerFn({ method: "POST" })
     return {
       rows: (rows ?? []).map((r) => ({
         ...r,
-        phone: phoneByEmail.get(String(r.email).toLowerCase()) ?? null,
+        phone: r.phone || phoneByEmail.get(String(r.email).toLowerCase()) || null,
       })),
       total: count ?? 0,
       pageSize: PAGE_SIZE,
@@ -1974,6 +1975,7 @@ const ORDER_EVENT_HE: Record<string, string> = {
   picked_up: "סומנה כנאספה",
   status: "שינוי סטטוס",
   payment_link_email: "נשלח קישור לתשלום במייל",
+  paid_offline: "סומנה כשולמה בחנות",
 };
 
 /** An order's history, oldest first, with a readable name for each actor. */
@@ -2007,4 +2009,82 @@ export const listOrderEvents = createServerFn({ method: "POST" })
           .filter(Boolean)
           .join(" · ") || "המערכת",
     }));
+  });
+
+/**
+ * "שולם בחנות" — the customer paid in person (cash or the shop's card
+ * terminal), outside CardCom. Without this an order paid at the counter stayed
+ * unpaid forever: it sat in לידים, raised lead alerts, filled the
+ * "תשלום שלא הושלם" queue and never offered "נאסף".
+ *
+ * Mirrors what a CardCom settlement does after the money is in — stock
+ * decrement and the abandoned-cart conversion stamp — minus the card-specific
+ * parts (no receipt email: the customer got a receipt at the counter). Refused
+ * when CardCom already captured money for the order, so it cannot hide a
+ * double charge.
+ */
+export const markOrderPaidOffline = createServerFn({ method: "POST" })
+  .inputValidator((i: unknown) =>
+    z
+      .object({
+        order_id: z.string().uuid(),
+        method: z.enum(["cash", "terminal", "transfer", "bit"]),
+      })
+      .parse(i),
+  )
+  .handler(async ({ data }) => {
+    const userId = await requireAdmin();
+    const { data: order, error } = await supabaseAdmin
+      .from("orders")
+      .select("id, order_number, status, payment_status, cardcom_tranzaction_id, customer_email")
+      .eq("id", data.order_id)
+      .maybeSingle();
+    if (error || !order) throw new Error("הזמנה לא נמצאה.");
+    if (order.payment_status === "paid") throw new Error("ההזמנה כבר מסומנת כשולמה.");
+    if ((TERMINAL_STATUSES as readonly string[]).includes(order.status)) {
+      throw new Error("ההזמנה בוטלה או זוכתה.");
+    }
+    if (Number(order.cardcom_tranzaction_id) > 0) {
+      throw new Error(
+        "כבר בוצע חיוב בכרטיס להזמנה זו — צריך לברר מול חברת האשראי לפני סימון ידני.",
+      );
+    }
+    const METHOD_HE = {
+      cash: "מזומן",
+      terminal: "מסוף אשראי בחנות",
+      transfer: "העברה בנקאית",
+      bit: "ביט",
+    };
+    const { error: uErr } = await supabaseAdmin
+      .from("orders")
+      .update({
+        payment_status: "paid",
+        paid_at: new Date().toISOString(),
+        payment_method: data.method,
+        payment_provider: "offline",
+        ...(order.status === "pending" ? { status: "processing" } : {}),
+      })
+      .eq("id", order.id)
+      .neq("payment_status", "paid");
+    if (uErr) {
+      console.error("[markOrderPaidOffline]:", uErr);
+      throw new Error("שגיאה בעדכון ההזמנה.");
+    }
+    try {
+      await supabaseAdmin.rpc("decrement_order_stock", { p_order_id: order.id });
+    } catch (e) {
+      console.error("[markOrderPaidOffline] stock decrement:", e);
+    }
+    const email = String(order.customer_email ?? "")
+      .trim()
+      .toLowerCase();
+    if (email) {
+      await supabaseAdmin
+        .from("abandoned_carts")
+        .update({ converted_order_id: order.id })
+        .eq("email", email)
+        .is("converted_order_id", null);
+    }
+    await logOrderEvent(order.id, "paid_offline", { userId }, METHOD_HE[data.method]);
+    return { ok: true as const };
   });
