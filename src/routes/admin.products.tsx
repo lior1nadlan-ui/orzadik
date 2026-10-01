@@ -52,13 +52,16 @@ import { toast } from "sonner";
 import { Pencil, Trash2, Plus, Layers, History, Copy, ImagePlus } from "lucide-react";
 
 /** Catalog-health filters — the same two predicates the dashboard tile counts. */
-type HealthFilter = "no-image" | "out-of-stock";
+type HealthFilter = "no-image" | "out-of-stock" | "no-price" | "no-sku";
+const HEALTH_FILTERS: HealthFilter[] = ["no-image", "out-of-stock", "no-price", "no-sku"];
 type SortKey = "created_at" | "name" | "price";
 type SortDir = "asc" | "desc";
 
 const HEALTH_HE: Record<HealthFilter, string> = {
   "no-image": "מוצרים פעילים ללא תמונה",
   "out-of-stock": "מוצרים פעילים שאזלו מהמלאי",
+  "no-price": "מוצרים פעילים ללא מחיר (לא ניתנים לקנייה)",
+  "no-sku": "מוצרים פעילים ללא מק״ט",
 };
 
 export const Route = createFileRoute("/admin/products")({
@@ -71,7 +74,9 @@ export const Route = createFileRoute("/admin/products")({
     q: typeof s.q === "string" && s.q ? s.q : undefined,
     // Category slug. Filtering by a category includes its sub-categories.
     cat: typeof s.cat === "string" && s.cat && s.cat.length <= 120 ? s.cat : undefined,
-    health: s.health === "no-image" || s.health === "out-of-stock" ? s.health : undefined,
+    health: HEALTH_FILTERS.includes(s.health as HealthFilter)
+      ? (s.health as HealthFilter)
+      : undefined,
     sort: s.sort === "created_at" || s.sort === "name" || s.sort === "price" ? s.sort : undefined,
     dir: s.dir === "asc" || s.dir === "desc" ? s.dir : undefined,
   }),
@@ -199,6 +204,10 @@ function AdminProducts() {
         query = query.eq("is_active", true).or("thumbnail_url.is.null,thumbnail_url.eq.");
       } else if (health === "out-of-stock") {
         query = query.eq("is_active", true).eq("stock_status", "outofstock");
+      } else if (health === "no-price") {
+        query = query.eq("is_active", true).or("price.is.null,price.lte.0");
+      } else if (health === "no-sku") {
+        query = query.eq("is_active", true).or("sku.is.null,sku.eq.");
       }
       const from = page * PAGE_SIZE;
       const { data, error, count } = await query
@@ -493,8 +502,11 @@ function AdminProducts() {
             className="flex h-10 w-full rounded-md border bg-background px-3 text-sm"
           >
             <option value="">כל המוצרים</option>
-            <option value="no-image">{HEALTH_HE["no-image"]}</option>
-            <option value="out-of-stock">{HEALTH_HE["out-of-stock"]}</option>
+            {HEALTH_FILTERS.map((h) => (
+              <option key={h} value={h}>
+                {HEALTH_HE[h]}
+              </option>
+            ))}
           </select>
         </div>
         <div className="w-56">

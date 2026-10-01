@@ -167,20 +167,38 @@ export const getDashboardStats = createServerFn({ method: "POST" }).handler(asyn
   // already walks the orders table; across 4,672 SKUs these must stay
   // `count: "exact", head: true` (near-zero cost), never a row walk. The .or()
   // also counts empty-string thumbnails — the manual product form can save "".
-  const [{ count: noImageCount, error: niErr }, { count: oosCount, error: oosErr }] =
-    await Promise.all([
-      supabaseAdmin
-        .from("products")
-        .select("id", { count: "exact", head: true })
-        .eq("is_active", true)
-        .or("thumbnail_url.is.null,thumbnail_url.eq."),
-      supabaseAdmin
-        .from("products")
-        .select("id", { count: "exact", head: true })
-        .eq("is_active", true)
-        .eq("stock_status", "outofstock"),
-    ]);
-  if (niErr || oosErr) console.error("[getDashboardStats] catalog health:", niErr ?? oosErr);
+  const [
+    { count: noImageCount, error: niErr },
+    { count: oosCount, error: oosErr },
+    { count: noPriceCount, error: npErr },
+    { count: noSkuCount, error: nsErr },
+  ] = await Promise.all([
+    supabaseAdmin
+      .from("products")
+      .select("id", { count: "exact", head: true })
+      .eq("is_active", true)
+      .or("thumbnail_url.is.null,thumbnail_url.eq."),
+    supabaseAdmin
+      .from("products")
+      .select("id", { count: "exact", head: true })
+      .eq("is_active", true)
+      .eq("stock_status", "outofstock"),
+    // Live but unsellable: checkout refuses a line with no price
+    // (isSellablePrice), so a shopper can add it and then hit an error.
+    supabaseAdmin
+      .from("products")
+      .select("id", { count: "exact", head: true })
+      .eq("is_active", true)
+      .or("price.is.null,price.lte.0"),
+    // No SKU: the phone-order and product searches find a product by it.
+    supabaseAdmin
+      .from("products")
+      .select("id", { count: "exact", head: true })
+      .eq("is_active", true)
+      .or("sku.is.null,sku.eq."),
+  ]);
+  const healthErr = niErr ?? oosErr ?? npErr ?? nsErr;
+  if (healthErr) console.error("[getDashboardStats] catalog health:", healthErr);
 
   // Low stock — only products that actually opted into tracking, so the 4,672
   // untracked supplier SKUs (stock_qty 0 and meaningless) never show up here.
@@ -291,7 +309,12 @@ export const getDashboardStats = createServerFn({ method: "POST" }).handler(asyn
       openCount: acErr ? 0 : (openCarts ?? []).length,
       recoverable: acErr ? 0 : (openCarts ?? []).reduce((s, c) => s + Number(c.subtotal ?? 0), 0),
     },
-    catalogHealth: { noImage: noImageCount ?? 0, outOfStock: oosCount ?? 0 },
+    catalogHealth: {
+      noImage: noImageCount ?? 0,
+      outOfStock: oosCount ?? 0,
+      noPrice: noPriceCount ?? 0,
+      noSku: noSkuCount ?? 0,
+    },
     series,
     statusCounts,
     topProducts,
