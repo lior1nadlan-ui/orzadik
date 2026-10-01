@@ -697,6 +697,15 @@ html:has(#app-root.a11y-grayscale) body::before { filter: grayscale(100%); }
   body:has([data-mobile-actionbar]) [data-cookie-consent] { bottom: 5rem; }
 }
 
+/* The admin panel on a phone: its bottom tab bar is the navigation, and a
+   floating button lifted above it sat on the left edge of every card — over
+   the secondary actions of the action queue and the order cards. The panel's
+   "עוד" sheet opens the same accessibility menu instead (it clicks this very
+   button), so the setting is one tap further, never gone. */
+@media (max-width: 1023px) {
+  body:has([data-admin-tabbar]) [data-a11y-fab] { display: none; }
+}
+
 /* Respect a system "reduce motion" preference by default.
    Per the standard: KEEP opacity and colour, DROP movement. */
 @media (prefers-reduced-motion: reduce) {

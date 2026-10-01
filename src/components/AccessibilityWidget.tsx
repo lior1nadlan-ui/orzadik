@@ -150,6 +150,7 @@ export function AccessibilityWidget() {
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-label="תפריט נגישות"
+        data-a11y-fab
         aria-haspopup="dialog"
         aria-expanded={open}
         className="press fab-float fixed bottom-5 left-5 z-50 inline-flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring motion-safe:[@media(hover:hover)_and_(pointer:fine)]:hover:[transform:scale(1.05)]"

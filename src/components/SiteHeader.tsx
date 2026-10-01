@@ -244,7 +244,7 @@ function OccasionMenu() {
   );
 }
 
-export function SiteHeader() {
+export function SiteHeader({ hideOnMobile = false }: { hideOnMobile?: boolean } = {}) {
   // Search results quote the same promotional price the product page charges.
   const promoIndex = usePromoIndex();
   const { count, openCart, isCartOpen } = useCart();
@@ -569,7 +569,9 @@ export function SiteHeader() {
       fixed -top-9 there pushed the top 36px of the logo bar off screen once the
       page scrolled, which on a phone is most of the bar: logo, cart, search.
       z-40 matches the old layout wrapper so overlay layering is unchanged. */}
-      <header className={`sticky ${stripShown ? "-top-9" : "top-0"} z-40 w-full`}>
+      <header
+        className={`sticky ${stripShown ? "-top-9" : "top-0"} z-40 w-full ${hideOnMobile ? "max-lg:hidden" : ""}`}
+      >
         {promoLive ? <PromoStrip /> : <ClubBadge variant="strip" />}
         {/* Main bar: white glass, gold hairline at rest, soft shadow after scroll.
           .glass-strong (94% white) and NOT .glass — this bar scrolls over the
@@ -1240,12 +1242,14 @@ export function SiteHeader() {
   );
 }
 
-export function SiteFooter() {
+export function SiteFooter({ hideOnMobile = false }: { hideOnMobile?: boolean } = {}) {
   return (
     // --cream is no longer warm parchment — it is now the pale COOL tint
     // #F4F6F9, so bg-cream survives the redesign as the faint surface that
     // separates the footer from the white page above it.
-    <footer className="relative mt-24 bg-cream text-foreground">
+    <footer
+      className={`relative mt-24 bg-cream text-foreground ${hideOnMobile ? "max-lg:hidden" : ""}`}
+    >
       {/* Top edge: gold hairline — the direction's signature rule. Verbatim. */}
       <div
         aria-hidden="true"
