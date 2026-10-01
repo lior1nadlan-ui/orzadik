@@ -49,6 +49,8 @@ export function PhoneOrderDialog({
   const [consent, setConsent] = useState(false);
   const [q, setQ] = useState("");
   const [results, setResults] = useState<Found[]>([]);
+  // "idle" | "searching" | "done" | "error" — so an empty result says so.
+  const [searchState, setSearchState] = useState<"idle" | "searching" | "done" | "error">("idle");
   const [lines, setLines] = useState<Line[]>([]);
   const [busy, setBusy] = useState(false);
   const [created, setCreated] = useState<Created | null>(null);
@@ -69,15 +71,23 @@ export function PhoneOrderDialog({
     const term = q.trim();
     if (term.length < 2) {
       setResults([]);
+      setSearchState("idle");
       return;
     }
     let cancelled = false;
+    setSearchState("searching");
     const t = setTimeout(async () => {
       try {
         const r = await searchFn({ data: { q: term } });
-        if (!cancelled) setResults(r);
+        if (!cancelled) {
+          setResults(r);
+          setSearchState("done");
+        }
       } catch {
-        if (!cancelled) setResults([]);
+        if (!cancelled) {
+          setResults([]);
+          setSearchState("error");
+        }
       }
     }, 300);
     return () => {
@@ -262,14 +272,20 @@ export function PhoneOrderDialog({
 
             <fieldset>
               <legend className="mb-2 font-medium">קבלת ההזמנה</legend>
-              <div className="flex flex-wrap gap-4">
+              {/* Same option cards as the checkout, so both read the same. */}
+              <div className="grid gap-2 sm:grid-cols-2">
                 {(
                   [
                     ["delivery", "משלוח"],
                     ["pickup", "איסוף עצמי מהחנות"],
                   ] as const
                 ).map(([v, label]) => (
-                  <label key={v} className="flex items-center gap-2 cursor-pointer">
+                  <label
+                    key={v}
+                    className={`flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border p-3 ${
+                      fulfillment === v ? "border-accent bg-accent/5" : "border-border"
+                    }`}
+                  >
                     <input
                       type="radio"
                       name="po-fulfillment"
@@ -310,6 +326,21 @@ export function PhoneOrderDialog({
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
               />
+              {searchState === "searching" && (
+                <p className="mt-1 text-xs text-muted-foreground" role="status">
+                  מחפש…
+                </p>
+              )}
+              {searchState === "done" && results.length === 0 && (
+                <p className="mt-1 text-xs text-muted-foreground" role="status">
+                  לא נמצאו מוצרים ל-"{q.trim()}"
+                </p>
+              )}
+              {searchState === "error" && (
+                <p className="mt-1 text-xs text-destructive" role="status">
+                  החיפוש נכשל — נסו שוב.
+                </p>
+              )}
               {results.length > 0 && (
                 <ul className="mt-1 max-h-60 overflow-y-auto rounded-md border divide-y">
                   {results.map((p) => (
@@ -381,11 +412,12 @@ export function PhoneOrderDialog({
                         >
                           <Plus className="h-4 w-4" />
                         </Button>
-                        <span className="w-20 text-left">{formatILS(l.price * l.quantity)}</span>
+                        <span className="w-20 text-end">{formatILS(l.price * l.quantity)}</span>
                       </div>
                     </div>
                     <Input
                       placeholder="כיתוב / הקדשה (לא חובה)"
+                      aria-label={`כיתוב או הקדשה ל${l.name}`}
                       maxLength={120}
                       value={l.customText}
                       onChange={(e) =>

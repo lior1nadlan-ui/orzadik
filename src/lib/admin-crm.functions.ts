@@ -574,7 +574,7 @@ export const getActionQueue = createServerFn({ method: "POST" }).handler(async (
   try {
     const { data: carts, error: cErr } = await supabaseAdmin
       .from("abandoned_carts")
-      .select("id, email, name, subtotal, created_at")
+      .select("id, email, name, phone, subtotal, created_at")
       .is("converted_order_id", null)
       .eq("unsubscribed", false)
       .gt("subtotal", 0)
@@ -629,7 +629,8 @@ export const getActionQueue = createServerFn({ method: "POST" }).handler(async (
             priority: ACTION_PRIORITY.recover_cart,
             customerName: c.name || "לקוח",
             customerEmail: c.email || undefined,
-            customerPhone: phoneByEmail.get(key) || undefined,
+            // The phone typed at checkout first; else one from their orders.
+            customerPhone: c.phone || phoneByEmail.get(key) || undefined,
             context: "עגלה נטושה עם פריטים — הזמנה בהמתנה, שווה תזכורת עדינה 🛒",
             createdAt: c.created_at,
           }),
@@ -1448,7 +1449,7 @@ export const listAbandonedCarts = createServerFn({ method: "POST" })
     let q = supabaseAdmin
       .from("abandoned_carts")
       .select(
-        "id, email, name, items, subtotal, reminder_1_sent_at, reminder_2_sent_at, converted_order_id, unsubscribed, created_at",
+        "id, email, name, phone, items, subtotal, reminder_1_sent_at, reminder_2_sent_at, converted_order_id, unsubscribed, created_at",
         { count: "exact" },
       )
       .order("created_at", { ascending: false })
@@ -1489,7 +1490,7 @@ export const listAbandonedCarts = createServerFn({ method: "POST" })
     return {
       rows: (rows ?? []).map((r) => ({
         ...r,
-        phone: phoneByEmail.get(String(r.email).toLowerCase()) ?? null,
+        phone: r.phone || phoneByEmail.get(String(r.email).toLowerCase()) || null,
       })),
       total: count ?? 0,
       pageSize: PAGE_SIZE,

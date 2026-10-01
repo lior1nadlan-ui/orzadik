@@ -138,7 +138,7 @@ function AdminHome() {
       <div className="flex items-center justify-between gap-3">
         <h1 className="font-display text-2xl font-bold">סקירה כללית</h1>
         <Button size="sm" variant="outline" onClick={() => refetch()} disabled={isFetching}>
-          <RefreshCw className={`h-4 w-4 ml-1 ${isFetching ? "animate-spin" : ""}`} />
+          <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
           {isFetching ? "מרענן..." : "רענון"}
         </Button>
       </div>

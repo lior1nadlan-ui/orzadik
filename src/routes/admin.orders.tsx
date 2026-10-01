@@ -478,16 +478,17 @@ function AdminOrders() {
               : "טוען..."}
           </span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button size="sm" onClick={() => setPhoneOrderOpen(true)}>
-            <Phone className="h-4 w-4 ml-1" /> הזמנה טלפונית
+            <Phone className="h-4 w-4" /> הזמנה טלפונית
           </Button>
           <Button size="sm" variant="outline" onClick={() => refetch()} disabled={isFetching}>
-            <RefreshCw className={`h-4 w-4 ml-1 ${isFetching ? "animate-spin" : ""}`} />
+            <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
             {isFetching ? "מרענן..." : "רענון"}
           </Button>
-          <Button size="sm" variant="outline" onClick={doExport}>
-            <Download className="h-4 w-4 ml-1" /> ייצוא CSV
+          <Button size="sm" variant="outline" onClick={doExport} aria-label="ייצוא CSV">
+            <Download className="h-4 w-4" />
+            <span className="hidden sm:inline">ייצוא CSV</span>
           </Button>
         </div>
       </div>
@@ -502,6 +503,7 @@ function AdminOrders() {
       <div className="flex flex-wrap gap-2 mb-4">
         <Input
           placeholder="חיפוש: מס׳ הזמנה / שם / טלפון / אימייל"
+          aria-label="חיפוש הזמנות"
           value={q}
           onChange={(e) => setQ(e.target.value)}
           className="max-w-xs"
@@ -509,7 +511,8 @@ function AdminOrders() {
         <select
           value={status}
           onChange={(e) => setStatus(e.target.value)}
-          className="rounded-md border bg-background px-3 py-2 text-sm"
+          aria-label="סינון לפי סטטוס"
+          className="min-h-10 rounded-md border bg-background px-3 py-2 text-sm"
         >
           <option value="">כל הסטטוסים</option>
           {STATUSES.map((s) => (
@@ -521,7 +524,8 @@ function AdminOrders() {
         <select
           value={payment}
           onChange={(e) => setPayment(e.target.value)}
-          className="rounded-md border bg-background px-3 py-2 text-sm"
+          aria-label="סינון לפי תשלום"
+          className="min-h-10 rounded-md border bg-background px-3 py-2 text-sm"
         >
           <option value="">כל התשלומים</option>
           <option value="paid">שולם</option>
@@ -532,7 +536,8 @@ function AdminOrders() {
         <select
           value={days}
           onChange={(e) => setDays(Number(e.target.value))}
-          className="rounded-md border bg-background px-3 py-2 text-sm"
+          aria-label="תקופה"
+          className="min-h-10 rounded-md border bg-background px-3 py-2 text-sm"
         >
           <option value={0}>כל הזמן</option>
           <option value={7}>7 ימים</option>
@@ -681,7 +686,7 @@ function AdminOrders() {
                   <Link
                     to="/admin/customers"
                     search={{ q: selected.customer_email }}
-                    className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"
+                    className="inline-flex min-h-10 max-w-full items-center gap-1 rounded-full border px-3 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"
                     title="כרטיס לקוח"
                   >
                     <User className="h-3 w-3" /> כרטיס לקוח
@@ -692,7 +697,7 @@ function AdminOrders() {
                     to="/admin/orders/$orderId/print"
                     params={{ orderId: selected.id }}
                     target="_blank"
-                    className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"
+                    className="inline-flex min-h-10 max-w-full items-center gap-1 rounded-full border px-3 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"
                     title="דף אריזה להדפסה — פריטים, כיתוב אישי והקדשה, בלי מחירים"
                   >
                     <Printer className="h-3 w-3" /> דף אריזה
@@ -704,26 +709,29 @@ function AdminOrders() {
                   <strong>{selected.customer_name}</strong>
                   <a
                     href={`tel:${selected.customer_phone}`}
-                    className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"
+                    className="inline-flex min-h-10 max-w-full items-center gap-1 rounded-full border px-3 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"
                     title="חיוג"
                   >
-                    <Phone className="h-3 w-3" /> {selected.customer_phone}
+                    <Phone className="h-3 w-3" /> <bdi dir="ltr">{selected.customer_phone}</bdi>
                   </a>
                   <a
                     href={waForOrder(selected)}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted text-emerald-700"
+                    className="inline-flex min-h-10 max-w-full items-center gap-1 rounded-full border px-3 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted text-emerald-700"
                     title="WhatsApp — הודעה מוכנה לפי סטטוס ההזמנה"
                   >
                     <MessageCircle className="h-3 w-3" /> וואטסאפ
                   </a>
                   <a
                     href={`mailto:${selected.customer_email}`}
-                    className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"
+                    className="inline-flex min-h-10 max-w-full items-center gap-1 rounded-full border px-3 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"
                     title="אימייל"
                   >
-                    <Mail className="h-3 w-3" /> {selected.customer_email}
+                    <Mail className="h-3 w-3" />{" "}
+                    <bdi dir="ltr" className="break-all">
+                      {selected.customer_email}
+                    </bdi>
                   </a>
                 </div>
                 <div>
