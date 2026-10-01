@@ -4,6 +4,7 @@ import imgChalaka from "@/assets/cat-chalaka.webp";
 import imgNewHome from "@/assets/other-cats/mezuzot.webp";
 import imgRoshHashana from "@/assets/other-cats/rosh-hashana.webp";
 import imgPassover from "@/assets/occasions/passover-table.webp";
+import imgHanukkah from "@/assets/occasions/hanukkah-art.svg";
 
 /**
  * Photograph for each occasion hub's homepage tile, keyed by the slug in
@@ -14,9 +15,11 @@ import imgPassover from "@/assets/occasions/passover-table.webp";
  * images in this repo do not, and both were checked by eye on 2026-09-24:
  *
  *   • other-cats/hanukkah.webp (and .jpg) is a generated חנוכייה with TEN
- *     candles. A kosher חנוכייה holds eight plus the שמש. There is no other
- *     Hanukkah image in the repo, so `matanot-hanukkah` has NO entry and its
- *     tile renders the ivory plate — until the shop supplies a real photograph.
+ *     candles. A kosher חנוכייה holds eight plus the שמש. The tile now uses
+ *     occasions/hanukkah-art.svg instead: a drawn (not photographed) gold
+ *     חנוכייה with exactly eight lights in a row and the שמש raised in the
+ *     middle — an illustration claims nothing about stock, so it can stand in
+ *     until the shop supplies a real photograph.
  *   • other-cats/passover.webp is a "seder plate" of cheese slabs. The Pesach
  *     tile uses occasions/passover-table.webp instead: a square crop of
  *     category-banners/passover-hero.jpg (matza, a kiddush cup, candles),
@@ -32,4 +35,5 @@ export const OCCASION_ART: Record<
   "bait-chadash": { img: imgNewHome, w: 760, h: 760 },
   "matanot-rosh-hashana": { img: imgRoshHashana, w: 760, h: 760 },
   "matanot-pesach": { img: imgPassover, w: 760, h: 760, position: "60% 50%" },
+  "matanot-hanukkah": { img: imgHanukkah, w: 760, h: 950, position: "50% 30%" },
 };

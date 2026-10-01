@@ -12,6 +12,11 @@ import { MEMBER_DISCOUNT } from "@/lib/pricing";
  * <CategoryTile> (title on the photo, no plate), which is also what the
  * reference does there — twenty-odd framed plates in a row read as noise.
  *
+ * On a phone the grid hands it HALF the row (~170px), so below a 14rem card
+ * the plate drops its eyebrow and ✦ rule, the inner second frame goes, and the
+ * title and medallion shrink — seven full-width squares used to cost a phone
+ * ~2,900px of scrolling before anything else on the page.
+ *
  * SIZED BY A CONTAINER QUERY, NOT BY BREAKPOINTS. The grid around it hands the
  * card anything from ~290px (two columns at 640px) to ~570px (one column on a
  * large phone), and the viewport says nothing reliable about which. `@container`
@@ -70,23 +75,25 @@ export function CollectionCard({ cat }: { cat: CatTile }) {
             photograph it is a line, never text. */}
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute inset-3 rounded-[1.125rem] border border-gold-bright/80"
+          className="pointer-events-none absolute inset-3 rounded-[1.125rem] border border-gold-bright/80 @max-[14rem]:inset-2 @max-[14rem]:rounded-[0.9rem]"
         />
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute inset-[1.125rem] rounded-[0.875rem] border border-gold-bright/45"
+          className="pointer-events-none absolute inset-[1.125rem] rounded-[0.875rem] border border-gold-bright/45 @max-[14rem]:hidden"
         />
 
         {/* The medallion — physically top-left, where the reference puts it. */}
         <span
           aria-hidden="true"
-          className="absolute left-[6%] top-[6%] flex size-[clamp(3.75rem,19cqw,5.25rem)] flex-col items-center justify-center rounded-full text-white shadow-[0_8px_18px_-8px_rgb(60_42_22/0.7)] ring-[3px] ring-white/90 [background:radial-gradient(120%_120%_at_30%_20%,#D1B056_0%,#AE8829_35%,#8F6B1A_65%,#7A5B13_100%)] [text-shadow:0_1px_1px_rgb(0_0_0/0.3)]"
+          className="absolute left-[6%] top-[6%] flex size-[clamp(2.75rem,19cqw,5.25rem)] @max-[14rem]:ring-2 flex-col items-center justify-center rounded-full text-white shadow-[0_8px_18px_-8px_rgb(60_42_22/0.7)] ring-[3px] ring-white/90 [background:radial-gradient(120%_120%_at_30%_20%,#D1B056_0%,#AE8829_35%,#8F6B1A_65%,#7A5B13_100%)] [text-shadow:0_1px_1px_rgb(0_0_0/0.3)]"
         >
           <span className="absolute inset-[4px] rounded-full border border-white/45" />
-          <span className="font-display text-[clamp(1.375rem,7cqw,1.875rem)] font-bold leading-none">
+          <span className="font-display text-[clamp(0.95rem,7cqw,1.875rem)] font-bold leading-none">
             {MEMBER_PCT}%
           </span>
-          <span className="mt-1 text-micro leading-none">במועדון</span>
+          <span className="mt-1 text-micro leading-none @max-[14rem]:mt-0.5 @max-[14rem]:text-[0.5rem]">
+            במועדון
+          </span>
         </span>
 
         {/* The plate, anchored to the bottom edge of the square. */}
@@ -98,7 +105,7 @@ export function CollectionCard({ cat }: { cat: CatTile }) {
             make it a backdrop root; and html.a11y-contrast kills backdrop-filter
             outright. The warm off-white gradient is the reference's plate.
           */}
-          <div className="relative flex flex-col items-center gap-2 rounded-[1.125rem] bg-[linear-gradient(180deg,#FFFDF9,#F4EFE7)] px-4 py-4 text-center shadow-[0_10px_24px_-14px_rgb(30_24_18/0.6)] ring-1 ring-gold/35 @min-[20rem]:gap-2.5 @min-[20rem]:py-5">
+          <div className="relative flex flex-col items-center gap-2 rounded-[1.125rem] bg-[linear-gradient(180deg,#FFFDF9,#F4EFE7)] px-4 py-4 text-center @max-[14rem]:gap-1 @max-[14rem]:rounded-[0.8rem] @max-[14rem]:px-2 @max-[14rem]:py-2.5 shadow-[0_10px_24px_-14px_rgb(30_24_18/0.6)] ring-1 ring-gold/35 @min-[20rem]:gap-2.5 @min-[20rem]:py-5">
             {/* Inner hairline, and the short gold glint along the top edge. */}
             <span
               aria-hidden="true"
@@ -109,7 +116,7 @@ export function CollectionCard({ cat }: { cat: CatTile }) {
               className="pointer-events-none absolute -top-px left-1/2 h-px w-2/5 -translate-x-1/2 bg-[linear-gradient(90deg,transparent,var(--gold),transparent)]"
             />
 
-            <span className="text-meta font-medium tracking-[0.3em] text-accent [margin-inline-end:-0.3em] @min-[20rem]:text-body">
+            <span className="text-meta font-medium tracking-[0.3em] text-accent [margin-inline-end:-0.3em] @max-[14rem]:hidden @min-[20rem]:text-body">
               קולקציה
             </span>
 
@@ -120,7 +127,7 @@ export function CollectionCard({ cat }: { cat: CatTile }) {
             */}
             <span
               aria-hidden="true"
-              className="flex w-full max-w-[11rem] items-center gap-2.5 @min-[20rem]:max-w-[15rem]"
+              className="flex w-full max-w-[11rem] items-center gap-2.5 @max-[14rem]:hidden @min-[20rem]:max-w-[15rem]"
             >
               <span className="gold-rule flex-1" />
               <span className="text-micro leading-none text-accent">✦</span>
@@ -132,7 +139,7 @@ export function CollectionCard({ cat }: { cat: CatTile }) {
               positioned, so a second line grows it UPWARD and card heights stay
               equal — a webfont swap that changes the wrap costs no layout shift.
             */}
-            <span className="line-clamp-2 font-display text-[1.625rem] leading-tight text-foreground transition-colors duration-200 ease-out @min-[20rem]:text-[2rem] [@media(hover:hover)_and_(pointer:fine)]:group-hover/collection:text-accent">
+            <span className="line-clamp-2 font-display text-[1.625rem] leading-tight text-foreground @max-[14rem]:text-[1.05rem] transition-colors duration-200 ease-out @min-[20rem]:text-[2rem] [@media(hover:hover)_and_(pointer:fine)]:group-hover/collection:text-accent">
               {cat.name}
             </span>
           </div>
