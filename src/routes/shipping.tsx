@@ -65,6 +65,13 @@ function ShippingPage() {
         </p>
       </PolicySection>
 
+      <PolicySection id="isuf-atzmi" title="איסוף עצמי מהחנות">
+        <p>
+          אפשר לבחור בעמוד התשלום <strong>איסוף עצמי</strong> מהחנות ב{BUSINESS.address}, ללא דמי
+          משלוח. כשההזמנה מוכנה נודיע לכם במייל או בוואטסאפ, ואפשר לאסוף אותה בשעות הפתיחה.
+        </p>
+      </PolicySection>
+
       <PolicySection id="ezorim" title="אזורי אספקה">
         <p>
           המשלוחים מתבצעים בתחומי מדינת ישראל בלבד, באמצעות חברת שילוח או דואר. ייתכנו אזורים

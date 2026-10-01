@@ -9,7 +9,12 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { requireAdmin } from "@/lib/admin-authz.server";
-import { sendOrderShippedEmail, sendOrderConfirmationEmails } from "@/lib/order-emails.server";
+import { logOrderEvent, type Actor } from "@/lib/order-events.server";
+import {
+  sendOrderShippedEmail,
+  sendOrderConfirmationEmails,
+  sendOrderReadyForPickupEmail,
+} from "@/lib/order-emails.server";
 import { ORDER_ITEM_PRODUCT_JOIN } from "@/lib/order-item-photo";
 import { isOpenFailedPayment, recoveredBy } from "@/lib/crm-digest";
 import { buildFunnel, type Funnel } from "@/lib/funnel";
@@ -162,20 +167,38 @@ export const getDashboardStats = createServerFn({ method: "POST" }).handler(asyn
   // already walks the orders table; across 4,672 SKUs these must stay
   // `count: "exact", head: true` (near-zero cost), never a row walk. The .or()
   // also counts empty-string thumbnails — the manual product form can save "".
-  const [{ count: noImageCount, error: niErr }, { count: oosCount, error: oosErr }] =
-    await Promise.all([
-      supabaseAdmin
-        .from("products")
-        .select("id", { count: "exact", head: true })
-        .eq("is_active", true)
-        .or("thumbnail_url.is.null,thumbnail_url.eq."),
-      supabaseAdmin
-        .from("products")
-        .select("id", { count: "exact", head: true })
-        .eq("is_active", true)
-        .eq("stock_status", "outofstock"),
-    ]);
-  if (niErr || oosErr) console.error("[getDashboardStats] catalog health:", niErr ?? oosErr);
+  const [
+    { count: noImageCount, error: niErr },
+    { count: oosCount, error: oosErr },
+    { count: noPriceCount, error: npErr },
+    { count: noSkuCount, error: nsErr },
+  ] = await Promise.all([
+    supabaseAdmin
+      .from("products")
+      .select("id", { count: "exact", head: true })
+      .eq("is_active", true)
+      .or("thumbnail_url.is.null,thumbnail_url.eq."),
+    supabaseAdmin
+      .from("products")
+      .select("id", { count: "exact", head: true })
+      .eq("is_active", true)
+      .eq("stock_status", "outofstock"),
+    // Live but unsellable: checkout refuses a line with no price
+    // (isSellablePrice), so a shopper can add it and then hit an error.
+    supabaseAdmin
+      .from("products")
+      .select("id", { count: "exact", head: true })
+      .eq("is_active", true)
+      .or("price.is.null,price.lte.0"),
+    // No SKU: the phone-order and product searches find a product by it.
+    supabaseAdmin
+      .from("products")
+      .select("id", { count: "exact", head: true })
+      .eq("is_active", true)
+      .or("sku.is.null,sku.eq."),
+  ]);
+  const healthErr = niErr ?? oosErr ?? npErr ?? nsErr;
+  if (healthErr) console.error("[getDashboardStats] catalog health:", healthErr);
 
   // Low stock — only products that actually opted into tracking, so the 4,672
   // untracked supplier SKUs (stock_qty 0 and meaningless) never show up here.
@@ -286,7 +309,12 @@ export const getDashboardStats = createServerFn({ method: "POST" }).handler(asyn
       openCount: acErr ? 0 : (openCarts ?? []).length,
       recoverable: acErr ? 0 : (openCarts ?? []).reduce((s, c) => s + Number(c.subtotal ?? 0), 0),
     },
-    catalogHealth: { noImage: noImageCount ?? 0, outOfStock: oosCount ?? 0 },
+    catalogHealth: {
+      noImage: noImageCount ?? 0,
+      outOfStock: oosCount ?? 0,
+      noPrice: noPriceCount ?? 0,
+      noSku: noSkuCount ?? 0,
+    },
     series,
     statusCounts,
     topProducts,
@@ -358,6 +386,8 @@ type ActionRow = {
   customerName: string;
   customerEmail?: string;
   customerPhone?: string;
+  /** Collected from the shop rather than shipped. */
+  pickup?: boolean;
   context: string;
   createdAt: string;
 };
@@ -368,7 +398,7 @@ export const getActionQueue = createServerFn({ method: "POST" }).handler(async (
   const now = Date.now();
   const [orders, statesRes, followUpsRes] = await Promise.all([
     fetchAllOrders(
-      "id, order_number, customer_name, customer_email, customer_phone, status, payment_status, created_at, paid_at, shipped_at, review_request_sent_at, payment_reminder_sent_at",
+      "id, order_number, customer_name, customer_email, customer_phone, status, payment_status, created_at, paid_at, shipped_at, review_request_sent_at, payment_reminder_sent_at, fulfillment, shipping_status",
     ),
     supabaseAdmin
       .from("crm_action_state")
@@ -446,6 +476,7 @@ export const getActionQueue = createServerFn({ method: "POST" }).handler(async (
       customerName: o.customer_name || "לקוח",
       customerEmail: o.customer_email || undefined,
       customerPhone: o.customer_phone || undefined,
+      ...(o.fulfillment === "pickup" ? { pickup: true } : {}),
     };
     const rowFor = (type: ActionType, createdAt: string, context: string): ActionRow =>
       withState({
@@ -471,6 +502,18 @@ export const getActionQueue = createServerFn({ method: "POST" }).handler(async (
         );
       } else {
         const d = Math.floor((now - since) / DAY);
+        if (o.fulfillment === "pickup") {
+          rows.push(
+            rowFor(
+              "ready_to_ship",
+              sinceIso,
+              o.shipping_status === "ready_for_pickup"
+                ? `איסוף עצמי · מוכנה ומחכה ללקוח כבר ${d} ימים. כשנאספה — "נאסף" 🛍️`
+                : `איסוף עצמי · שולם לפני ${d} ימים — להכין ולסמן "מוכן לאיסוף" 🛍️`,
+            ),
+          );
+          continue;
+        }
         rows.push(
           rowFor(
             "ready_to_ship",
@@ -1455,6 +1498,14 @@ export const listAbandonedCarts = createServerFn({ method: "POST" })
 
 // ---- Shipping --------------------------------------------------------------
 
+type ShipInput = {
+  order_id: string;
+  tracking_number?: string;
+  carrier?: string;
+  delivered?: boolean;
+  shipped_on?: string;
+};
+
 export const markOrderShipped = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) =>
     z
@@ -1474,91 +1525,109 @@ export const markOrderShipped = createServerFn({ method: "POST" })
       .parse(i),
   )
   .handler(async ({ data }) => {
-    await requireAdmin();
-    const { data: order, error } = await supabaseAdmin
-      .from("orders")
-      .select("id, order_number, shipped_at, created_at, status")
-      .eq("id", data.order_id)
-      .maybeSingle();
-    if (error || !order) throw new Error("הזמנה לא נמצאה.");
+    const userId = await requireAdmin();
+    return applyMarkShipped(data, { userId });
+  });
 
-    // A cancelled or refunded order has had its stock returned and, if paid,
-    // its money given back. Marking it shipped would mail the customer "your
-    // order is on its way" about an order they were told is off.
-    if ((TERMINAL_STATUSES as readonly string[]).includes(order.status)) {
-      throw new Error("ההזמנה בוטלה או זוכתה — לא ניתן לסמן אותה כנשלחה.");
+/** The body of markOrderShipped, callable without a CRM session (the Telegram
+ *  buttons authenticate the chat instead). Callers own authorization. */
+export async function applyMarkShipped(data: ShipInput, actor?: Actor) {
+  const { data: order, error } = await supabaseAdmin
+    .from("orders")
+    .select("id, order_number, shipped_at, created_at, status")
+    .eq("id", data.order_id)
+    .maybeSingle();
+  if (error || !order) throw new Error("הזמנה לא נמצאה.");
+
+  // A cancelled or refunded order has had its stock returned and, if paid,
+  // its money given back. Marking it shipped would mail the customer "your
+  // order is on its way" about an order they were told is off.
+  if ((TERMINAL_STATUSES as readonly string[]).includes(order.status)) {
+    throw new Error("ההזמנה בוטלה או זוכתה — לא ניתן לסמן אותה כנשלחה.");
+  }
+
+  // The shipped_at null→now() transition is the idempotency latch for the
+  // customer email. shipping_notified_at CANNOT gate it: notifyShippingCompany
+  // stamps that column on EVERY paid order at payment time (from the CardCom
+  // webhook), so it is already set here and the old guard never fired — the
+  // customer never got the shipped+tracking email. Read shipped_at BEFORE the
+  // update, then send exactly once, on the first mark-shipped.
+  const wasAlreadyShipped = !!order.shipped_at;
+
+  if (data.delivered) {
+    // An order already marked shipped keeps its real ship date; only a
+    // first mark takes the date the owner picked (today when none was).
+    let shippedAt: string | null = null;
+    if (!wasAlreadyShipped) {
+      const now = Date.now();
+      const picked = shippedAtFromDateInput(data.shipped_on ?? dateInputValue(now), {
+        notBefore: Date.parse(order.created_at),
+        now,
+      });
+      if (!picked.ok) throw new Error(picked.error);
+      shippedAt = picked.iso;
     }
-
-    // The shipped_at null→now() transition is the idempotency latch for the
-    // customer email. shipping_notified_at CANNOT gate it: notifyShippingCompany
-    // stamps that column on EVERY paid order at payment time (from the CardCom
-    // webhook), so it is already set here and the old guard never fired — the
-    // customer never got the shipped+tracking email. Read shipped_at BEFORE the
-    // update, then send exactly once, on the first mark-shipped.
-    const wasAlreadyShipped = !!order.shipped_at;
-
-    if (data.delivered) {
-      // An order already marked shipped keeps its real ship date; only a
-      // first mark takes the date the owner picked (today when none was).
-      let shippedAt: string | null = null;
-      if (!wasAlreadyShipped) {
-        const now = Date.now();
-        const picked = shippedAtFromDateInput(data.shipped_on ?? dateInputValue(now), {
-          notBefore: Date.parse(order.created_at),
-          now,
-        });
-        if (!picked.ok) throw new Error(picked.error);
-        shippedAt = picked.iso;
-      }
-      const { error: dErr } = await supabaseAdmin
-        .from("orders")
-        .update({
-          status: "completed",
-          shipping_status: "delivered",
-          ...(shippedAt ? { shipped_at: shippedAt } : {}),
-          tracking_number: data.tracking_number || null,
-          shipping_carrier: data.carrier || null,
-        })
-        .eq("id", order.id);
-      if (dErr) {
-        console.error("[markOrderShipped] delivered update:", dErr);
-        throw new Error("שגיאה בעדכון ההזמנה.");
-      }
-      // No email on purpose: the review request that follows (7 days after
-      // the ship date, from the morning job) is the next thing they hear.
-      return { ok: true, emailSent: false, delivered: true };
-    }
-
-    const { error: uErr } = await supabaseAdmin
+    const { error: dErr } = await supabaseAdmin
       .from("orders")
       .update({
-        status: "shipped",
-        shipping_status: "shipped",
-        // Set shipped_at only on the FIRST mark-shipped: re-marking (e.g. to add
-        // a tracking number later) must not drift the original ship date, which
-        // the admin screen shows to the owner.
-        ...(wasAlreadyShipped ? {} : { shipped_at: new Date().toISOString() }),
+        status: "completed",
+        shipping_status: "delivered",
+        ...(shippedAt ? { shipped_at: shippedAt } : {}),
         tracking_number: data.tracking_number || null,
         shipping_carrier: data.carrier || null,
       })
       .eq("id", order.id);
-    if (uErr) {
-      console.error("[markOrderShipped] update:", uErr);
+    if (dErr) {
+      console.error("[markOrderShipped] delivered update:", dErr);
       throw new Error("שגיאה בעדכון ההזמנה.");
     }
+    await logOrderEvent(
+      order.id,
+      data.carrier === "איסוף עצמי" ? "picked_up" : "delivered",
+      actor,
+      data.tracking_number ? `מעקב ${data.tracking_number}` : null,
+    );
+    // No email on purpose: the review request that follows (7 days after
+    // the ship date, from the morning job) is the next thing they hear.
+    return { ok: true, emailSent: false, delivered: true };
+  }
 
-    // Send the shipped + tracking email only on the first transition to shipped.
-    // Wrapped so an email failure never fails the mark-shipped action.
-    let emailSent = false;
-    if (!wasAlreadyShipped) {
-      try {
-        emailSent = await sendOrderShippedEmail(order.id);
-      } catch (e) {
-        console.error("[markOrderShipped] email failed (order still marked shipped):", e);
-      }
+  const { error: uErr } = await supabaseAdmin
+    .from("orders")
+    .update({
+      status: "shipped",
+      shipping_status: "shipped",
+      // Set shipped_at only on the FIRST mark-shipped: re-marking (e.g. to add
+      // a tracking number later) must not drift the original ship date, which
+      // the admin screen shows to the owner.
+      ...(wasAlreadyShipped ? {} : { shipped_at: new Date().toISOString() }),
+      tracking_number: data.tracking_number || null,
+      shipping_carrier: data.carrier || null,
+    })
+    .eq("id", order.id);
+  if (uErr) {
+    console.error("[markOrderShipped] update:", uErr);
+    throw new Error("שגיאה בעדכון ההזמנה.");
+  }
+
+  // Send the shipped + tracking email only on the first transition to shipped.
+  // Wrapped so an email failure never fails the mark-shipped action.
+  let emailSent = false;
+  if (!wasAlreadyShipped) {
+    try {
+      emailSent = await sendOrderShippedEmail(order.id);
+    } catch (e) {
+      console.error("[markOrderShipped] email failed (order still marked shipped):", e);
     }
-    return { ok: true, emailSent, delivered: false };
-  });
+  }
+  await logOrderEvent(
+    order.id,
+    "shipped",
+    actor,
+    [data.carrier, data.tracking_number].filter(Boolean).join(" · ") || null,
+  );
+  return { ok: true, emailSent, delivered: false };
+}
 
 /**
  * Move a paid order into "בהכנה".
@@ -1578,28 +1647,85 @@ export const markOrderShipped = createServerFn({ method: "POST" })
 export const markOrderPreparing = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) => z.object({ order_id: z.string().uuid() }).parse(i))
   .handler(async ({ data }) => {
-    await requireAdmin();
-    const { data: order, error } = await supabaseAdmin
-      .from("orders")
-      .select("id, shipping_status, shipped_at")
-      .eq("id", data.order_id)
-      .maybeSingle();
-    if (error || !order) throw new Error("הזמנה לא נמצאה.");
-    // Never walk an order backwards: once it has shipped, "בהכנה" is a lie the
-    // customer can see on /track.
-    if (order.shipped_at || order.shipping_status === "shipped") {
-      throw new Error("ההזמנה כבר סומנה כנשלחה — לא ניתן להחזיר אותה למצב בהכנה.");
-    }
-    const { error: uErr } = await supabaseAdmin
-      .from("orders")
-      .update({ shipping_status: "preparing" })
-      .eq("id", order.id);
-    if (uErr) {
-      console.error("[markOrderPreparing]:", uErr);
-      throw new Error("שגיאה בעדכון מצב ההכנה.");
-    }
-    return { ok: true };
+    const userId = await requireAdmin();
+    return applyMarkPreparing(data, { userId });
   });
+
+/** The body of markOrderPreparing, callable without a CRM session (the Telegram
+ *  buttons authenticate the chat instead). Callers own authorization. */
+export async function applyMarkPreparing(data: { order_id: string }, actor?: Actor) {
+  const { data: order, error } = await supabaseAdmin
+    .from("orders")
+    .select("id, shipping_status, shipped_at")
+    .eq("id", data.order_id)
+    .maybeSingle();
+  if (error || !order) throw new Error("הזמנה לא נמצאה.");
+  // Never walk an order backwards: once it has shipped, "בהכנה" is a lie the
+  // customer can see on /track.
+  if (order.shipped_at || order.shipping_status === "shipped") {
+    throw new Error("ההזמנה כבר סומנה כנשלחה — לא ניתן להחזיר אותה למצב בהכנה.");
+  }
+  const { error: uErr } = await supabaseAdmin
+    .from("orders")
+    .update({ shipping_status: "preparing" })
+    .eq("id", order.id);
+  if (uErr) {
+    console.error("[markOrderPreparing]:", uErr);
+    throw new Error("שגיאה בעדכון מצב ההכנה.");
+  }
+  await logOrderEvent(order.id, "preparing", actor);
+  return { ok: true };
+}
+
+/**
+ * Pickup order is packed and waiting at the shop. Sets shipping_status to
+ * 'ready_for_pickup' (plain text, no CHECK) and emails the customer once — on
+ * the first move into that state. Collection itself is recorded with
+ * markOrderShipped({ delivered: true }), which completes the order and starts
+ * the review-request clock.
+ */
+export const markOrderReadyForPickup = createServerFn({ method: "POST" })
+  .inputValidator((i: unknown) => z.object({ order_id: z.string().uuid() }).parse(i))
+  .handler(async ({ data }) => {
+    const userId = await requireAdmin();
+    return applyReadyForPickup(data, { userId });
+  });
+
+/** The body of markOrderReadyForPickup, callable without a CRM session (the Telegram
+ *  buttons authenticate the chat instead). Callers own authorization. */
+export async function applyReadyForPickup(data: { order_id: string }, actor?: Actor) {
+  const { data: order, error } = await supabaseAdmin
+    .from("orders")
+    .select("id, status, payment_status, fulfillment, shipping_status, shipped_at")
+    .eq("id", data.order_id)
+    .maybeSingle();
+  if (error || !order) throw new Error("הזמנה לא נמצאה.");
+  if (order.fulfillment !== "pickup") throw new Error("זו הזמנה במשלוח, לא באיסוף עצמי.");
+  if ((TERMINAL_STATUSES as readonly string[]).includes(order.status)) {
+    throw new Error("ההזמנה בוטלה או זוכתה.");
+  }
+  if (order.payment_status !== "paid") throw new Error("ההזמנה עוד לא שולמה.");
+  if (order.shipped_at) throw new Error("ההזמנה כבר סומנה כנאספה.");
+  const first = order.shipping_status !== "ready_for_pickup";
+  const { error: uErr } = await supabaseAdmin
+    .from("orders")
+    .update({ shipping_status: "ready_for_pickup" })
+    .eq("id", order.id);
+  if (uErr) {
+    console.error("[markOrderReadyForPickup]:", uErr);
+    throw new Error("שגיאה בעדכון ההזמנה.");
+  }
+  let emailSent = false;
+  if (first) {
+    try {
+      emailSent = await sendOrderReadyForPickupEmail(order.id);
+    } catch (e) {
+      console.error("[markOrderReadyForPickup] email failed:", e);
+    }
+  }
+  if (first) await logOrderEvent(order.id, "ready_for_pickup", actor);
+  return { ok: true, emailSent, alreadyReady: !first };
+}
 
 /**
  * The owner's "send the payment link" button on an unpaid order. The same
@@ -1611,8 +1737,10 @@ export const markOrderPreparing = createServerFn({ method: "POST" })
 export const sendOrderPaymentReminder = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) => z.object({ id: z.string().uuid() }).parse(i))
   .handler(async ({ data }) => {
-    await requireAdmin();
-    return sendPaymentReminderNow(data.id);
+    const userId = await requireAdmin();
+    const r = await sendPaymentReminderNow(data.id);
+    if (r.ok) await logOrderEvent(data.id, "payment_link_email", { userId });
+    return r;
   });
 
 /**
@@ -1792,7 +1920,7 @@ export const updateOrderStatus = createServerFn({ method: "POST" })
       .parse(i),
   )
   .handler(async ({ data }) => {
-    await requireAdmin();
+    const userId = await requireAdmin();
 
     // Read the pre-update status so we can distinguish a FIRST transition into a
     // terminal (cancelled/refunded) state from a no-op or terminal→terminal move.
@@ -1830,5 +1958,53 @@ export const updateOrderStatus = createServerFn({ method: "POST" })
       }
     }
 
+    if (order.status !== data.status) {
+      await logOrderEvent(order.id, "status", { userId }, `${order.status} → ${data.status}`);
+    }
     return { ok: true };
+  });
+
+/** Labels for order_events.kind, as the CRM shows them. */
+const ORDER_EVENT_HE: Record<string, string> = {
+  created_by_phone: "נפתחה כהזמנה טלפונית",
+  preparing: "סומנה כבהכנה",
+  shipped: "סומנה כנשלחה",
+  delivered: "סומנה כנמסרה",
+  ready_for_pickup: "סומנה כמוכנה לאיסוף",
+  picked_up: "סומנה כנאספה",
+  status: "שינוי סטטוס",
+  payment_link_email: "נשלח קישור לתשלום במייל",
+};
+
+/** An order's history, oldest first, with a readable name for each actor. */
+export const listOrderEvents = createServerFn({ method: "POST" })
+  .inputValidator((i: unknown) => z.object({ order_id: z.string().uuid() }).parse(i))
+  .handler(async ({ data }) => {
+    await requireAdmin();
+    const { data: rows, error } = await supabaseAdmin
+      .from("order_events")
+      .select("id, kind, detail, actor_user_id, actor_label, created_at")
+      .eq("order_id", data.order_id)
+      .order("created_at", { ascending: true })
+      .limit(100);
+    if (error) throw new Error("שגיאה בטעינת היסטוריית ההזמנה.");
+    const ids = [...new Set((rows ?? []).map((r) => r.actor_user_id).filter(Boolean))] as string[];
+    const names = new Map<string, string>();
+    if (ids.length) {
+      const { data: profs } = await supabaseAdmin
+        .from("profiles")
+        .select("id, full_name, email")
+        .in("id", ids);
+      for (const p of profs ?? []) names.set(p.id, p.full_name || p.email || "מנהל");
+    }
+    return (rows ?? []).map((r) => ({
+      id: r.id,
+      at: r.created_at,
+      what: ORDER_EVENT_HE[r.kind] ?? r.kind,
+      detail: r.detail,
+      who:
+        [r.actor_user_id ? names.get(r.actor_user_id) : null, r.actor_label]
+          .filter(Boolean)
+          .join(" · ") || "המערכת",
+    }));
   });

@@ -13,8 +13,16 @@ import {
   markOrderPreparing,
   resendOrderConfirmation,
   sendOrderPaymentReminder,
+  markOrderReadyForPickup,
+  listOrderEvents,
 } from "@/lib/admin-crm.functions";
-import { waThankYou, waShipped, waFollowUpUnpaid } from "@/lib/wa-templates";
+import {
+  waThankYou,
+  waShipped,
+  waFollowUpUnpaid,
+  waReadyForPickup,
+  orderPaymentUrl,
+} from "@/lib/wa-templates";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -23,6 +31,7 @@ import { Input } from "@/components/ui/input";
 import { Download, Phone, Mail, MessageCircle, Printer, User, RefreshCw } from "lucide-react";
 import { orderItemImageUrl } from "@/lib/order-item-photo";
 import { OrderShippingPanel, type ShipRequest } from "@/components/admin/OrderShippingPanel";
+import { PhoneOrderDialog } from "@/components/admin/PhoneOrderDialog";
 
 export const Route = createFileRoute("/admin/orders")({
   // Deep-linkable filters: the dashboard KPIs/chips and the customer card link
@@ -85,13 +94,65 @@ function waForOrder(o: any): string {
   if (["cancelled", "refunded"].includes(o?.status) || o?.payment_status === "refunded") {
     return waLink(o?.customer_phone);
   }
+  // "failed" too: a declined or expired card used to fall through to the
+  // "thank you, we're preparing it" draft below.
   const templated =
-    o?.payment_status === "unpaid"
-      ? waFollowUpUnpaid(o)
+    o?.payment_status === "unpaid" || o?.payment_status === "failed"
+      ? waFollowUpUnpaid(o, o?.id ? orderPaymentUrl(o.id) : undefined)
       : o?.status === "shipped" || o?.status === "completed" || o?.shipped_at
         ? waShipped(o)
         : waThankYou(o);
   return templated ?? waLink(o?.customer_phone);
+}
+
+/**
+ * Fulfilment for an order collected from the shop: "מוכן לאיסוף" (emails the
+ * customer once) and "נאסף" (completes the order without an email — the review
+ * request a week later is the next thing they hear).
+ */
+function PickupPanel({
+  order,
+  busy,
+  onReady,
+  onCollected,
+}: {
+  order: any;
+  busy: boolean;
+  onReady: () => void;
+  onCollected: () => void;
+}) {
+  if (order.payment_status !== "paid" || ["cancelled", "refunded"].includes(order.status)) {
+    return null;
+  }
+  const collected = !!order.shipped_at;
+  const ready = order.shipping_status === "ready_for_pickup";
+  const wa = waReadyForPickup(order);
+  return (
+    <div className="border-t pt-3 space-y-2">
+      <div className="text-sm font-semibold">איסוף עצמי מהחנות</div>
+      {collected ? (
+        <div className="text-xs text-emerald-700">
+          נאסף ב-{new Date(order.shipped_at).toLocaleDateString("he-IL")}
+        </div>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" disabled={busy || ready} onClick={onReady}>
+            {ready ? "מוכנה לאיסוף ✓" : "מוכן לאיסוף — הודע ללקוח ✉️"}
+          </Button>
+          {wa && (
+            <Button size="sm" variant="outline" asChild>
+              <a href={wa} target="_blank" rel="noopener noreferrer">
+                <MessageCircle className="h-4 w-4" /> הודעת איסוף בוואטסאפ
+              </a>
+            </Button>
+          )}
+          <Button size="sm" disabled={busy} onClick={onCollected}>
+            נאסף ✓
+          </Button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function PaymentBadge({ status }: { status: string }) {
@@ -118,9 +179,11 @@ function AdminOrders() {
   const shipOrder = useServerFn(markOrderShipped);
   const setOrderStatus = useServerFn(updateOrderStatus);
   const setPreparingFn = useServerFn(markOrderPreparing);
+  const readyForPickupFn = useServerFn(markOrderReadyForPickup);
   const resendConfirmation = useServerFn(resendOrderConfirmation);
   const payReminderFn = useServerFn(sendOrderPaymentReminder);
   const [sendingPayLink, setSendingPayLink] = useState(false);
+  const [phoneOrderOpen, setPhoneOrderOpen] = useState(false);
   const custNotesFn = useServerFn(listCustomerNotes);
   const addNoteFn = useServerFn(addCustomerNote);
 
@@ -153,6 +216,14 @@ function AdminOrders() {
     queryKey: ["order-cust-notes", selected?.customer_email],
     enabled: !!selected?.customer_email,
     queryFn: () => custNotesFn({ data: { email: selected!.customer_email } }),
+  });
+  // Who moved this order and when (order_events) — with two admins, the
+  // question after "נשלח?" is always "מי שלח?".
+  const eventsFn = useServerFn(listOrderEvents);
+  const { data: orderEvents } = useQuery({
+    queryKey: ["order-events", selected?.id],
+    enabled: !!selected?.id,
+    queryFn: () => eventsFn({ data: { order_id: selected!.id } }),
   });
   const noteMutation = useMutation({
     mutationFn: (note: string) => addNoteFn({ data: { email: selected.customer_email, note } }),
@@ -197,7 +268,10 @@ function AdminOrders() {
   const pageSize = data?.pageSize ?? 25;
   const pages = Math.max(1, Math.ceil(total / pageSize));
 
-  const refresh = () => qc.invalidateQueries({ queryKey: ["admin-orders"] });
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: ["admin-orders"] });
+    qc.invalidateQueries({ queryKey: ["order-events"] });
+  };
 
   const updateStatus = async (o: any, st: string) => {
     // A terminal transition — cancelled/refunded — restores reserved stock and
@@ -258,6 +332,26 @@ function AdminOrders() {
       toast.error(e?.message ?? "שגיאה בעדכון המשלוח");
     } finally {
       setShipping(false);
+    }
+  };
+
+  const doReadyForPickup = async () => {
+    setPreparing(true);
+    try {
+      const r = await readyForPickupFn({ data: { order_id: selected.id } });
+      toast.success(
+        r.alreadyReady
+          ? "כבר מסומנת כמוכנה לאיסוף"
+          : r.emailSent
+            ? "סומנה כמוכנה לאיסוף ומייל נשלח ללקוח 🛍️"
+            : "סומנה כמוכנה לאיסוף (המייל לא נשלח — אפשר בוואטסאפ)",
+      );
+      setSelected(null);
+      refresh();
+    } catch (e: any) {
+      toast.error(e?.message ?? "שגיאה בעדכון ההזמנה");
+    } finally {
+      setPreparing(false);
     }
   };
 
@@ -340,6 +434,9 @@ function AdminOrders() {
           </span>
         </div>
         <div className="flex items-center gap-2">
+          <Button size="sm" onClick={() => setPhoneOrderOpen(true)}>
+            <Phone className="h-4 w-4 ml-1" /> הזמנה טלפונית
+          </Button>
           <Button size="sm" variant="outline" onClick={() => refetch()} disabled={isFetching}>
             <RefreshCw className={`h-4 w-4 ml-1 ${isFetching ? "animate-spin" : ""}`} />
             {isFetching ? "מרענן..." : "רענון"}
@@ -349,6 +446,12 @@ function AdminOrders() {
           </Button>
         </div>
       </div>
+
+      <PhoneOrderDialog
+        open={phoneOrderOpen}
+        onOpenChange={setPhoneOrderOpen}
+        onCreated={() => refresh()}
+      />
 
       {/* Filters */}
       <div className="flex flex-wrap gap-2 mb-4">
@@ -450,6 +553,11 @@ function AdminOrders() {
                 <td className="p-3 font-bold">{formatILS(Number(o.total))}</td>
                 <td className="p-3">
                   <PaymentBadge status={o.payment_status} />
+                  {o.fulfillment === "pickup" && (
+                    <span className="mt-1 block w-fit rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-semibold text-sky-900">
+                      איסוף עצמי
+                    </span>
+                  )}
                 </td>
                 <td className="p-3">
                   <select
@@ -580,6 +688,31 @@ function AdminOrders() {
                   </div>
                 )}
 
+                {orderEvents && orderEvents.length > 0 && (
+                  <div className="border-t pt-3 space-y-1">
+                    <div className="font-semibold">היסטוריה</div>
+                    <ul className="space-y-1 text-xs">
+                      {orderEvents.map((ev) => (
+                        <li key={ev.id} className="flex flex-wrap gap-x-2">
+                          <span className="text-muted-foreground">
+                            {new Date(ev.at).toLocaleString("he-IL", {
+                              day: "numeric",
+                              month: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </span>
+                          <span>{ev.what}</span>
+                          {ev.detail && (
+                            <span className="text-muted-foreground">({ev.detail})</span>
+                          )}
+                          <span className="text-muted-foreground">· {ev.who}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
                 {/* Internal CRM notes — same store as the customer card. */}
                 <div className="border-t pt-3 space-y-2">
                   <div className="font-semibold">הערות פנימיות</div>
@@ -706,14 +839,23 @@ function AdminOrders() {
                   </div>
                 )}
 
-                <OrderShippingPanel
-                  key={selected.id}
-                  order={selected}
-                  busy={shipping}
-                  onShip={doShip}
-                  preparing={preparing}
-                  onPreparing={doPreparing}
-                />
+                {selected.fulfillment === "pickup" ? (
+                  <PickupPanel
+                    order={selected}
+                    busy={shipping || preparing}
+                    onReady={doReadyForPickup}
+                    onCollected={() => doShip({ delivered: true, carrier: "איסוף עצמי" })}
+                  />
+                ) : (
+                  <OrderShippingPanel
+                    key={selected.id}
+                    order={selected}
+                    busy={shipping}
+                    onShip={doShip}
+                    preparing={preparing}
+                    onPreparing={doPreparing}
+                  />
+                )}
 
                 {selected.payment_status === "paid" && (
                   <div className="border-t pt-3 flex items-center justify-between gap-3">
@@ -758,18 +900,47 @@ function AdminOrders() {
                             : "עדיין לא נשלח ללקוח קישור להשלמת התשלום."}
                         </span>
                       </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={sendingPayLink}
-                        onClick={doSendPayLink}
-                      >
-                        {sendingPayLink
-                          ? "שולח..."
-                          : selected.payment_reminder_sent_at
-                            ? "שלח שוב קישור לתשלום"
-                            : "שלח ללקוח קישור לתשלום ✉️"}
-                      </Button>
+                      <div className="flex flex-wrap gap-2">
+                        {/* The same page the email links to; opening it mints a
+                          fresh CardCom session, so it outlives the 24h expiry. */}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={async () => {
+                            try {
+                              await navigator.clipboard.writeText(orderPaymentUrl(selected.id));
+                              toast.success("קישור התשלום הועתק — אפשר להדביק בוואטסאפ או ב-SMS");
+                            } catch {
+                              toast.error("ההעתקה נכשלה");
+                            }
+                          }}
+                        >
+                          העתק קישור לתשלום
+                        </Button>
+                        {waFollowUpUnpaid(selected, orderPaymentUrl(selected.id)) && (
+                          <Button size="sm" variant="outline" asChild>
+                            <a
+                              href={waFollowUpUnpaid(selected, orderPaymentUrl(selected.id))!}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <MessageCircle className="h-4 w-4" /> קישור בוואטסאפ
+                            </a>
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={sendingPayLink}
+                          onClick={doSendPayLink}
+                        >
+                          {sendingPayLink
+                            ? "שולח..."
+                            : selected.payment_reminder_sent_at
+                              ? "שלח שוב קישור לתשלום"
+                              : "שלח ללקוח קישור לתשלום ✉️"}
+                        </Button>
+                      </div>
                     </div>
                   )}
                 {selected.payment_status === "refunded" && (

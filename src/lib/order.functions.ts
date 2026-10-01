@@ -105,7 +105,7 @@ export const trackOrder = createServerFn({ method: "POST" })
     const { data: order, error } = await supabaseAdmin
       .from("orders")
       .select(
-        "id, order_number, status, payment_status, shipping_status, created_at, paid_at, shipped_at, shipping_notified_at, tracking_number, shipping_carrier, customer_email, customer_city, user_id, is_gift, order_items(product_name, quantity, custom_text, variant_label)",
+        "id, order_number, status, payment_status, shipping_status, fulfillment, created_at, paid_at, shipped_at, shipping_notified_at, tracking_number, shipping_carrier, customer_email, customer_city, user_id, is_gift, order_items(product_name, quantity, custom_text, variant_label)",
       )
       .eq("order_number", data.order_number.trim())
       .maybeSingle();

@@ -205,7 +205,12 @@ function AdminHome() {
             itself is no longer one big link: the two rows go to different
             filtered views. */}
         {(() => {
-          const healthIssues = s.catalogHealth.noImage > 0 || s.catalogHealth.outOfStock > 0;
+          // Missing SKUs are housekeeping, not a problem a shopper meets, so they
+          // are listed but do not turn the tile amber.
+          const healthIssues =
+            s.catalogHealth.noImage > 0 ||
+            s.catalogHealth.outOfStock > 0 ||
+            s.catalogHealth.noPrice > 0;
           return (
             <div
               className={`rounded-lg border p-5 ${
@@ -227,26 +232,26 @@ function AdminHome() {
                 )}
               </div>
               <div className="mt-2 space-y-1 text-sm">
-                <Link
-                  to="/admin/products"
-                  search={{ health: "no-image" }}
-                  className="flex justify-between gap-3 rounded px-1 -mx-1 py-0.5 transition-colors duration-160 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-black/5 dark:[@media(hover:hover)_and_(pointer:fine)]:hover:bg-white/10"
-                >
-                  <span className="underline-offset-2 [@media(hover:hover)_and_(pointer:fine)]:hover:underline">
-                    מוצרים פעילים ללא תמונה:
-                  </span>
-                  <strong>{s.catalogHealth.noImage}</strong>
-                </Link>
-                <Link
-                  to="/admin/products"
-                  search={{ health: "out-of-stock" }}
-                  className="flex justify-between gap-3 rounded px-1 -mx-1 py-0.5 transition-colors duration-160 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-black/5 dark:[@media(hover:hover)_and_(pointer:fine)]:hover:bg-white/10"
-                >
-                  <span className="underline-offset-2 [@media(hover:hover)_and_(pointer:fine)]:hover:underline">
-                    מוצרים פעילים שאזלו מהמלאי:
-                  </span>
-                  <strong>{s.catalogHealth.outOfStock}</strong>
-                </Link>
+                {(
+                  [
+                    ["no-price", "פעילים ללא מחיר (לא ניתנים לקנייה):", s.catalogHealth.noPrice],
+                    ["no-image", "מוצרים פעילים ללא תמונה:", s.catalogHealth.noImage],
+                    ["out-of-stock", "מוצרים פעילים שאזלו מהמלאי:", s.catalogHealth.outOfStock],
+                    ["no-sku", "מוצרים פעילים ללא מק״ט:", s.catalogHealth.noSku],
+                  ] as const
+                ).map(([health, label, n]) => (
+                  <Link
+                    key={health}
+                    to="/admin/products"
+                    search={{ health }}
+                    className="flex justify-between gap-3 rounded px-1 -mx-1 py-0.5 transition-colors duration-160 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-black/5 dark:[@media(hover:hover)_and_(pointer:fine)]:hover:bg-white/10"
+                  >
+                    <span className="underline-offset-2 [@media(hover:hover)_and_(pointer:fine)]:hover:underline">
+                      {label}
+                    </span>
+                    <strong>{n}</strong>
+                  </Link>
+                ))}
               </div>
               <div className="mt-2 text-[11px] text-muted-foreground">
                 לחצו על שורה כדי לפתוח את רשימת המוצרים המסוננת.

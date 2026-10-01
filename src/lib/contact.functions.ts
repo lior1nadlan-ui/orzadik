@@ -57,7 +57,7 @@ export const sendContactMessage = createServerFn({ method: "POST" })
       throw new Error("נשלחו יותר מדי פניות מהכתובת הזו. נסו שוב מאוחר יותר או התקשרו אלינו.");
     }
 
-    const recipients = isEmailConfigured() ? await getStaffRecipients() : [];
+    const recipients = isEmailConfigured() ? await getStaffRecipients("contacts") : [];
     const canEmail = recipients.length > 0;
     if (!canEmail && !isTelegramConfigured()) {
       console.error("[contact] neither email nor Telegram is configured — message not delivered");

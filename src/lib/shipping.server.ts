@@ -14,6 +14,9 @@ export async function notifyShippingCompany(orderId: string) {
     .eq("id", orderId)
     .single();
   if (error || !order) throw new Error("order not found");
+  // Collected from the shop — there is nothing for a carrier to pick up. Kept
+  // ahead of the real carrier call this stub will become.
+  if (order.fulfillment === "pickup") return;
 
   const { data: items } = await supabaseAdmin
     .from("order_items")

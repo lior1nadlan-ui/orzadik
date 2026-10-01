@@ -194,3 +194,19 @@ describe("isCallOnlyProduct", () => {
     expect(isCallOnlyProduct(1800, [null, undefined])).toBe(false);
   });
 });
+
+describe("getShipping with fulfillment", () => {
+  it("charges the flat fee for delivery by default", () => {
+    expect(getShipping(100)).toBe(SHIPPING_FLAT);
+    expect(getShipping(100, "delivery")).toBe(SHIPPING_FLAT);
+  });
+
+  it("charges nothing for pickup from the shop", () => {
+    expect(getShipping(100, "pickup")).toBe(0);
+  });
+
+  it("charges nothing on an empty basket either way", () => {
+    expect(getShipping(0, "delivery")).toBe(0);
+    expect(getShipping(0, "pickup")).toBe(0);
+  });
+});

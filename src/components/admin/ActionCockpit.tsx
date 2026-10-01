@@ -32,6 +32,8 @@ import {
   waThankYou,
   waShipped,
   waFollowUpUnpaid,
+  waReadyForPickup,
+  orderPaymentUrl,
   waAbandonedCart,
   waReviewRequest,
   waMessage,
@@ -77,6 +79,7 @@ type QueueRow = {
   customerName: string;
   customerEmail?: string;
   customerPhone?: string;
+  pickup?: boolean;
   context: string;
   createdAt: string;
 };
@@ -144,9 +147,11 @@ function waForRow(row: QueueRow): string | null {
     case "thank_you":
       return waThankYou(row);
     case "ready_to_ship":
-      return waShipped(row);
+      return row.pickup ? waReadyForPickup(row) : waShipped(row);
     case "stuck_unpaid":
-      return waFollowUpUnpaid(row);
+      // The link goes straight back to this order's payment page, which opens
+      // a fresh CardCom session — CardCom's own page expires after 24 hours.
+      return waFollowUpUnpaid(row, orderPaymentUrl(row.id.slice(row.id.indexOf(":") + 1)));
     case "recover_cart":
       return waAbandonedCart(row);
     case "review_request":

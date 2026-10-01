@@ -82,6 +82,18 @@ export const OPENING_HOURS = [
   { days: ["Friday"], he: "שישי", opens: "09:30", closes: "12:00" },
 ] as const;
 
+/**
+ * Collection from the shop ("איסוף עצמי"). Free; written onto the order as its
+ * address so the packing slip, the emails and the CRM all say where it goes.
+ */
+export const PICKUP = {
+  city: "קרית ביאליק",
+  /** Stored in orders.customer_address for a pickup order. */
+  addressLine: "איסוף עצמי מהחנות — דרך עכו 190, קרית ביאליק",
+  /** One-line checkout/email copy. */
+  note: "אפשר לאסוף מהחנות בשעות הפתיחה, אחרי שנודיע לכם שההזמנה מוכנה.",
+} as const;
+
 /** The visible "09:30 - 14:00" label for an hours row. ASCII hyphen only. */
 export function openingHoursLabel(row: { opens: string; closes: string }): string {
   return `${row.opens} - ${row.closes}`;

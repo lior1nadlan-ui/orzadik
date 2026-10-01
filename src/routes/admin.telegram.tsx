@@ -3,7 +3,16 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { toast } from "sonner";
-import { getTelegramSetup, sendDailyDigestNow, sendTelegramTest } from "@/lib/telegram.functions";
+import {
+  getTelegramSetup,
+  sendDailyDigestNow,
+  sendTelegramTest,
+  setTelegramButtons,
+  getMyAlertPrefs,
+  setMyAlertPrefs,
+  type MyAlertPrefs,
+} from "@/lib/telegram.functions";
+import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/admin/telegram")({
@@ -14,6 +23,21 @@ function AdminTelegram() {
   const load = useServerFn(getTelegramSetup);
   const test = useServerFn(sendTelegramTest);
   const digestNow = useServerFn(sendDailyDigestNow);
+  const buttonsFn = useServerFn(setTelegramButtons);
+  const [switching, setSwitching] = useState(false);
+  const onButtons = async (on: boolean) => {
+    setSwitching(true);
+    try {
+      const r = await buttonsFn({ data: { on } });
+      if (r.ok) toast.success(on ? "הכפתורים הופעלו — יופיעו בהזמנה הבאה ששולמה" : "הכפתורים כובו");
+      else toast.error(r.error ?? "השינוי נכשל");
+      await refetch();
+    } catch (e: any) {
+      toast.error(e?.message ?? "שגיאה");
+    } finally {
+      setSwitching(false);
+    }
+  };
   const [testing, setTesting] = useState<string | null>(null);
   const [sendingDigest, setSendingDigest] = useState(false);
 
@@ -58,6 +82,8 @@ function AdminTelegram() {
         על כל הזמנה נשלחת הודעה עם כל הפרטים והתמונות של המוצרים, ובכל בוקר סיכום של מה שמחכה
         לטיפול.
       </p>
+
+      <MyEmailAlerts />
 
       {isLoading && <p className="text-sm text-muted-foreground">טוען…</p>}
 
@@ -121,6 +147,34 @@ function AdminTelegram() {
           )}
 
           <div className="rounded-lg border bg-card p-4">
+            <h2 className="mb-1 font-semibold">כפתורים בהתראת הזמנה</h2>
+            <p className="mb-3 text-sm text-muted-foreground">
+              מתחת לכל הזמנה ששולמה יופיעו כפתורים: "בהכנה", "נשלח", "כבר נמסר" — ובאיסוף עצמי "מוכן
+              לאיסוף" ו"נאסף". לחיצה מעדכנת את ההזמנה ישר מהטלגרם, בלי להיכנס לניהול. כל פעולה
+              ששולחת מייל ללקוח או סוגרת הזמנה מבקשת אישור נוסף.
+            </p>
+            <div className="flex items-center gap-3">
+              <span
+                className={
+                  data.buttonsOn
+                    ? "font-semibold text-green-700"
+                    : "font-semibold text-muted-foreground"
+                }
+              >
+                {data.buttonsOn ? "פעילים ✓" : "כבויים"}
+              </span>
+              <Button
+                size="sm"
+                variant={data.buttonsOn ? "outline" : "default"}
+                disabled={switching || !data.hasChatId}
+                onClick={() => onButtons(!data.buttonsOn)}
+              >
+                {switching ? "מעדכן…" : data.buttonsOn ? "כיבוי" : "הפעלת הכפתורים"}
+              </Button>
+            </div>
+          </div>
+
+          <div className="rounded-lg border bg-card p-4">
             <h2 className="mb-1 font-semibold">סיכום בוקר יומי</h2>
             <p className="mb-3 text-sm text-muted-foreground">
               כל בוקר בסביבות 10:00 (9:00 בחורף) נשלח לטלגרם ולמייל של החנות סיכום של מה שמחכה
@@ -137,6 +191,50 @@ function AdminTelegram() {
           </Button>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Each admin's own owner emails. Every admin gets them by default
+ * (staff-recipients.server.ts); the shop inbox always does, whatever is set here.
+ */
+function MyEmailAlerts() {
+  const load = useServerFn(getMyAlertPrefs);
+  const save = useServerFn(setMyAlertPrefs);
+  const { data, refetch } = useQuery({ queryKey: ["my-alert-prefs"], queryFn: () => load() });
+  const [busy, setBusy] = useState(false);
+  if (!data) return null;
+  const toggle = async (k: keyof MyAlertPrefs, v: boolean) => {
+    setBusy(true);
+    try {
+      await save({ data: { ...data, [k]: v } });
+      await refetch();
+      toast.success("נשמר");
+    } catch (e: any) {
+      toast.error(e?.message ?? "השמירה נכשלה");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const rows: Array<[keyof MyAlertPrefs, string]> = [
+    ["orders", "הזמנות חדשות (שולמו וממתינות לתשלום)"],
+    ["contacts", "פניות מטופס יצירת הקשר"],
+    ["digest", "סיכום בוקר יומי"],
+  ];
+  return (
+    <div className="mb-6 rounded-lg border bg-card p-4 text-sm">
+      <h2 className="mb-1 font-semibold">המיילים שלי</h2>
+      <p className="mb-3 text-muted-foreground">
+        כל מנהל מקבל את המיילים האלה לתיבה שלו. אפשר לכבות כאן מה שלא צריך — זה משפיע רק עליך, ותיבת
+        המייל של החנות ממשיכה לקבל הכול.
+      </p>
+      {rows.map(([k, label]) => (
+        <label key={k} className="flex items-center justify-between border-b py-2 last:border-0">
+          <span>{label}</span>
+          <Switch checked={data[k]} disabled={busy} onCheckedChange={(v) => toggle(k, v)} />
+        </label>
+      ))}
     </div>
   );
 }

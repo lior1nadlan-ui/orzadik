@@ -29,6 +29,8 @@ import { TrustBadges, instalmentsLine } from "@/components/cart/TrustBadges";
 import { Lock } from "lucide-react";
 import { toast } from "sonner";
 import { customMethodLabel } from "@/lib/personalization";
+import { PICKUP } from "@/lib/business";
+import type { Fulfillment } from "@/lib/pricing";
 import { promoFor, promoPrice } from "@/lib/promotions";
 import { usePromoIndex, useRefreshPromotionsOnMount } from "@/lib/promotions-data";
 
@@ -62,6 +64,9 @@ function CheckoutPage() {
   const [marketingConsent, setMarketingConsent] = useState(false);
   // Gift options — free, so none of this touches the summary column below.
   const [isGift, setIsGift] = useState(false);
+  // Courier delivery (the default) or collection from the shop, which is free.
+  const [fulfillment, setFulfillment] = useState<Fulfillment>("delivery");
+  const isPickup = fulfillment === "pickup";
   const [giftNote, setGiftNote] = useState("");
   const [giftWrap, setGiftWrap] = useState(false);
   const [form, setForm] = useState({
@@ -100,14 +105,14 @@ function CheckoutPage() {
     // too-short. Real IL numbers carry >= 9 digits; do NOT tighten this into a
     // strict format check that could reject a valid number.
     else if (form.phone.replace(/\D/g, "").length < 9) e.phone = "מספר הטלפון אינו תקין";
-    if (!form.address.trim()) e.address = "יש להזין כתובת מלאה למשלוח";
+    if (!isPickup && !form.address.trim()) e.address = "יש להזין כתובת מלאה למשלוח";
     // עיר is now required HERE, not in CheckoutSchema. The server keeps accepting
     // a null city on purpose: tightening the zod schema would make a stale cached
     // bundle fail with a raw ZodError and no Hebrew message, at the pay button, on
     // the one path that has to work. Client-required is what the parcel actually
     // needs — the shipping company gets an address with no city otherwise, and the
     // only person who can fix that afterwards is the owner, by phone.
-    if (!form.city.trim()) e.city = "יש להזין עיר";
+    if (!isPickup && !form.city.trim()) e.city = "יש להזין עיר";
     return e;
   };
 
@@ -202,7 +207,7 @@ function CheckoutPage() {
   // Same helper + input as the server and /cart (SHIPPING_FLAT on a positive
   // post-member subtotal), computed from the revalidated subtotal rather than the
   // stale cart's shipping so a fully-blocked cart never quotes a phantom fee.
-  const shipping = getShipping(memberSubtotal);
+  const shipping = getShipping(memberSubtotal, fulfillment);
   const finalTotal = memberSubtotal + shipping;
   // Nothing here can actually be ordered (every line is one placeOrder() would
   // reject): itemsTotal — and with it משלוח and סך הכל — collapses to 0. Printing
@@ -324,8 +329,11 @@ function CheckoutPage() {
           customer_name: form.name,
           customer_email: form.email,
           customer_phone: form.phone,
-          customer_address: form.address,
-          customer_city: form.city || null,
+          // For pickup the server writes the shop's address itself; this only
+          // satisfies the schema for a field the customer was not shown.
+          customer_address: isPickup ? PICKUP.addressLine : form.address,
+          customer_city: isPickup ? PICKUP.city : form.city || null,
+          fulfillment,
           notes: form.notes || null,
           contact_consent: contactConsent,
           marketing_consent: marketingConsent,
@@ -405,8 +413,8 @@ function CheckoutPage() {
           <div className="lg:hidden mb-4 rounded-xl hairline bg-muted/40 px-4 py-3">
             <div className="flex items-baseline justify-between gap-3 text-sm">
               <span className="text-muted-foreground">
-                {items.length === 1 ? "פריט אחד" : `${items.length} פריטים`} · משלוח{" "}
-                {formatILS(shipping)}
+                {items.length === 1 ? "פריט אחד" : `${items.length} פריטים`} ·{" "}
+                {isPickup ? "איסוף עצמי" : `משלוח ${formatILS(shipping)}`}
               </span>
               <span className="font-bold text-accent whitespace-nowrap">
                 {formatILS(finalTotal)}
@@ -488,44 +496,86 @@ function CheckoutPage() {
               </p>
             )}
           </div>
-          <div>
-            <Label htmlFor="city">עיר *</Label>
-            <Input
-              id="city"
-              required
-              maxLength={200}
-              enterKeyHint="next"
-              autoComplete="address-level2"
-              aria-invalid={!!errors.city}
-              aria-describedby={errors.city ? "city-error" : undefined}
-              value={form.city}
-              onChange={(e) => setField("city", e.target.value)}
-            />
-            {errors.city && (
-              <p id="city-error" role="alert" className="mt-1 text-xs text-destructive">
-                {errors.city}
-              </p>
+          <fieldset className="md:col-span-2">
+            <legend className="text-sm font-medium mb-2">איך תרצו לקבל את ההזמנה?</legend>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {(
+                [
+                  { value: "delivery", title: "משלוח עד הבית", sub: "תעריף אחיד לכל הזמנה" },
+                  {
+                    value: "pickup",
+                    title: "איסוף עצמי מהחנות — חינם",
+                    sub: "דרך עכו 190, קרית ביאליק",
+                  },
+                ] as const
+              ).map((o) => (
+                <label
+                  key={o.value}
+                  className={`flex cursor-pointer items-start gap-2 rounded-lg border p-3 text-sm ${
+                    fulfillment === o.value ? "border-accent bg-accent/5" : "border-border"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="fulfillment"
+                    value={o.value}
+                    checked={fulfillment === o.value}
+                    onChange={() => setFulfillment(o.value)}
+                    className="mt-1 accent-[var(--accent)]"
+                  />
+                  <span>
+                    <span className="block font-semibold">{o.title}</span>
+                    <span className="block text-xs text-muted-foreground">{o.sub}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+            {isPickup && (
+              <p className="mt-2 text-xs text-muted-foreground leading-relaxed">{PICKUP.note}</p>
             )}
-          </div>
-          <div className="md:col-span-2">
-            <Label htmlFor="address">כתובת מלאה *</Label>
-            <Input
-              id="address"
-              required
-              maxLength={500}
-              enterKeyHint="done"
-              autoComplete="street-address"
-              aria-invalid={!!errors.address}
-              aria-describedby={errors.address ? "address-error" : undefined}
-              value={form.address}
-              onChange={(e) => setField("address", e.target.value)}
-            />
-            {errors.address && (
-              <p id="address-error" role="alert" className="mt-1 text-xs text-destructive">
-                {errors.address}
-              </p>
-            )}
-          </div>
+          </fieldset>
+          {!isPickup && (
+            <>
+              <div>
+                <Label htmlFor="city">עיר *</Label>
+                <Input
+                  id="city"
+                  required
+                  maxLength={200}
+                  enterKeyHint="next"
+                  autoComplete="address-level2"
+                  aria-invalid={!!errors.city}
+                  aria-describedby={errors.city ? "city-error" : undefined}
+                  value={form.city}
+                  onChange={(e) => setField("city", e.target.value)}
+                />
+                {errors.city && (
+                  <p id="city-error" role="alert" className="mt-1 text-xs text-destructive">
+                    {errors.city}
+                  </p>
+                )}
+              </div>
+              <div className="md:col-span-2">
+                <Label htmlFor="address">כתובת מלאה *</Label>
+                <Input
+                  id="address"
+                  required
+                  maxLength={500}
+                  enterKeyHint="done"
+                  autoComplete="street-address"
+                  aria-invalid={!!errors.address}
+                  aria-describedby={errors.address ? "address-error" : undefined}
+                  value={form.address}
+                  onChange={(e) => setField("address", e.target.value)}
+                />
+                {errors.address && (
+                  <p id="address-error" role="alert" className="mt-1 text-xs text-destructive">
+                    {errors.address}
+                  </p>
+                )}
+              </div>
+            </>
+          )}
           <div className="md:col-span-2">
             <Label htmlFor="notes">הערות להזמנה</Label>
             <Textarea
@@ -809,7 +859,9 @@ function CheckoutPage() {
                 </div>
               )}
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">משלוח (תעריף אחיד לכל הזמנה)</span>
+                <span className="text-muted-foreground">
+                  {isPickup ? "איסוף עצמי מהחנות" : "משלוח (תעריף אחיד לכל הזמנה)"}
+                </span>
                 <span className="whitespace-nowrap">{formatILS(shipping)}</span>
               </div>
             </div>
