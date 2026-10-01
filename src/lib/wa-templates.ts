@@ -81,14 +81,29 @@ export function waShipped(o: Recordish, tracking?: string): string | null {
   return waMessage(pick(o, "customerPhone", "customer_phone", "phone"), text);
 }
 
+const SITE = "https://orzadik.com";
+
+/**
+ * The customer's own payment page for an order. Opening it mints a FRESH
+ * CardCom session (createCardcomPayment), so it keeps working after CardCom's
+ * 24-hour page expiry — the reason most unpaid orders here failed. The same
+ * page the hourly payment-reminder email links to.
+ */
+export function orderPaymentUrl(orderId: string): string {
+  return `${SITE}/order/${orderId}`;
+}
+
 /** Order started but payment never completed: a gentle, helpful nudge —
- *  no discount, no urgency, just an offer to help finish. */
-export function waFollowUpUnpaid(o: Recordish): string | null {
+ *  no discount, no urgency, just an offer to help finish. With `payUrl` the
+ *  message carries the link straight back to that order's payment page. */
+export function waFollowUpUnpaid(o: Recordish, payUrl?: string): string | null {
   const name = pick(o, "customerName", "customer_name", "name");
   const orderNumber = pick(o, "orderNumber", "order_number");
+  const linkLine = payUrl ? `\nלהשלמת התשלום על אותה הזמנה: ${payUrl}\n` : "";
   const text =
     `${greet(name)},\n` +
     `ראינו שהתחלת הזמנה${orderRef(orderNumber)} באתר "${SHOP}", אך נראה שהתשלום עדיין לא הושלם. ` +
+    linkLine +
     `אם נתקלת בקושי כלשהו או שיש שאלה — נשמח לעזור לך להשלים אותה בכל דרך שנוחה לך. 🙏`;
   return waMessage(pick(o, "customerPhone", "customer_phone", "phone"), text);
 }

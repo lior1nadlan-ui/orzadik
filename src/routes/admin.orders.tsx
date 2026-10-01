@@ -14,7 +14,7 @@ import {
   resendOrderConfirmation,
   sendOrderPaymentReminder,
 } from "@/lib/admin-crm.functions";
-import { waThankYou, waShipped, waFollowUpUnpaid } from "@/lib/wa-templates";
+import { waThankYou, waShipped, waFollowUpUnpaid, orderPaymentUrl } from "@/lib/wa-templates";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -85,9 +85,11 @@ function waForOrder(o: any): string {
   if (["cancelled", "refunded"].includes(o?.status) || o?.payment_status === "refunded") {
     return waLink(o?.customer_phone);
   }
+  // "failed" too: a declined or expired card used to fall through to the
+  // "thank you, we're preparing it" draft below.
   const templated =
-    o?.payment_status === "unpaid"
-      ? waFollowUpUnpaid(o)
+    o?.payment_status === "unpaid" || o?.payment_status === "failed"
+      ? waFollowUpUnpaid(o, o?.id ? orderPaymentUrl(o.id) : undefined)
       : o?.status === "shipped" || o?.status === "completed" || o?.shipped_at
         ? waShipped(o)
         : waThankYou(o);
@@ -758,18 +760,47 @@ function AdminOrders() {
                             : "עדיין לא נשלח ללקוח קישור להשלמת התשלום."}
                         </span>
                       </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={sendingPayLink}
-                        onClick={doSendPayLink}
-                      >
-                        {sendingPayLink
-                          ? "שולח..."
-                          : selected.payment_reminder_sent_at
-                            ? "שלח שוב קישור לתשלום"
-                            : "שלח ללקוח קישור לתשלום ✉️"}
-                      </Button>
+                      <div className="flex flex-wrap gap-2">
+                        {/* The same page the email links to; opening it mints a
+                          fresh CardCom session, so it outlives the 24h expiry. */}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={async () => {
+                            try {
+                              await navigator.clipboard.writeText(orderPaymentUrl(selected.id));
+                              toast.success("קישור התשלום הועתק — אפשר להדביק בוואטסאפ או ב-SMS");
+                            } catch {
+                              toast.error("ההעתקה נכשלה");
+                            }
+                          }}
+                        >
+                          העתק קישור לתשלום
+                        </Button>
+                        {waFollowUpUnpaid(selected, orderPaymentUrl(selected.id)) && (
+                          <Button size="sm" variant="outline" asChild>
+                            <a
+                              href={waFollowUpUnpaid(selected, orderPaymentUrl(selected.id))!}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <MessageCircle className="h-4 w-4" /> קישור בוואטסאפ
+                            </a>
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={sendingPayLink}
+                          onClick={doSendPayLink}
+                        >
+                          {sendingPayLink
+                            ? "שולח..."
+                            : selected.payment_reminder_sent_at
+                              ? "שלח שוב קישור לתשלום"
+                              : "שלח ללקוח קישור לתשלום ✉️"}
+                        </Button>
+                      </div>
                     </div>
                   )}
                 {selected.payment_status === "refunded" && (
