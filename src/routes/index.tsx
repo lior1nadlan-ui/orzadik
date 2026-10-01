@@ -776,42 +776,6 @@ function IconShieldCheck({ className }: { className?: string }) {
   );
 }
 
-// Three house facts, each already asserted in FAQ_ITEMS: personal embroidery &
-// engraving, careful selection, and 3-14-day home delivery. Nothing new is
-// claimed here — the strip only restates truths stated in the FAQ.
-// The middle badge used to read "כשרות מהודרת עם תעודות", which asserted a
-// certificate for EVERY product — candlesticks and gold jewelry included — and
-// contradicted the FAQ answer above it. Keep this strip and FAQ_ITEMS in step:
-// this comment is exactly the link that let the two drift apart before.
-// The delivery range is kept on one line: in a ~110px tile the browser broke
-// "3-14" at its hyphen, stranding "3-" at the end of one line and "14 ימים" on
-// the next. It reads CONSUMER_POLICY, like the trust band below, so the two
-// strips cannot quote different windows.
-const DIFFERENTIATORS = [
-  {
-    key: "personalize",
-    label: "רקמה וחריטה אישית",
-    icon: <IconGem className="w-8 h-8 md:w-9 md:h-9" />,
-  },
-  {
-    key: "curated",
-    label: "פריטים נבחרים בקפידה",
-    icon: <IconShieldCheck className="w-8 h-8 md:w-9 md:h-9" />,
-  },
-  {
-    key: "delivery",
-    label: (
-      <>
-        משלוח עד הבית{" "}
-        <span className="whitespace-nowrap">
-          {CONSUMER_POLICY.deliveryMinDays}-{CONSUMER_POLICY.deliveryMaxDays} ימים
-        </span>
-      </>
-    ),
-    icon: <IconTruck className="w-8 h-8 md:w-9 md:h-9" />,
-  },
-];
-
 /**
  * RTL "forward" arrow — points to the reading start (right→left), and slides
  * further on hover where the caller wraps it in a `group`. Decorative: every
@@ -1067,19 +1031,19 @@ function HomePage() {
           answer that sat below the groom flagship, the trust band, the store
           card, the gift rail and the occasion rail — roughly 5,000px down a
           phone. The reference leads with them, and so does this.
-          One full-width card per row on a phone, as in the reference; two from
-          640px, three from 1024px. flex-wrap + justify-center rather than a
+          Two compact cards per row on a phone (one per row cost ~2,900px of
+          scrolling before anything else), two from 640px, three from 1024px. flex-wrap + justify-center rather than a
           grid so the seventh card sits centred under the others instead of
           stranded in the first column. The phone cap (28rem) stops a large
           phone in landscape from rendering a 600px square. */}
       <section>
         <Reveal className="container mx-auto px-4 py-14 md:py-20">
           <SectionHeader eyebrow="הקולקציות שלנו" title="מה תרצו לגלות?" />
-          <div className="mx-auto flex max-w-6xl flex-wrap justify-center gap-6">
+          <div className="mx-auto flex max-w-6xl flex-wrap justify-center gap-3 sm:gap-6">
             {cats.map((c) => (
               <div
                 key={c.slug}
-                className="w-full max-w-[28rem] sm:w-[calc(50%-0.75rem)] sm:max-w-none lg:w-[calc(33.333%-1rem)]"
+                className="w-[calc(50%-0.375rem)] sm:w-[calc(50%-0.75rem)] lg:w-[calc(33.333%-1rem)]"
               >
                 <CollectionCard cat={c} />
               </div>
@@ -1230,29 +1194,10 @@ function HomePage() {
         </Reveal>
       </section>
 
-      {/* 4.1. Differentiators — three TRUE house facts on a glass-soft strip that
-          hugs the flagship and leads into the trust band. The only motion is the
-          shared hover-lift (.glass-lift); no new claim is made. */}
-      <section>
-        <Reveal className="container mx-auto px-4 pb-14 md:pb-20 max-w-6xl">
-          <div className="grid grid-cols-3 gap-3 md:gap-6">
-            {DIFFERENTIATORS.map((d) => (
-              <div
-                key={d.key}
-                className="glass-soft glass-lift flex flex-col items-center text-center gap-3 md:gap-4 px-3 py-6 md:px-6 md:py-8 [--glass-radius:1rem]"
-              >
-                <span className="text-accent">{d.icon}</span>
-                <span className="font-display text-xs md:text-lg text-foreground leading-tight">
-                  {d.label}
-                </span>
-              </div>
-            ))}
-          </div>
-        </Reveal>
-      </section>
-
       {/* 4.2. Personalization teaser — the store's moat (רקמה/חריטה) as a compact
-          band, placed right after the differentiators strip that names it. Honest:
+          band, placed right after the flagship. (The three-card differentiators strip that
+          used to sit here repeated the trust band below it almost word for word,
+          and was removed.) Honest:
           it only restates what the PDP and /collection/personalized already
           promise — the personalization is coordinated with the customer AFTER the
           order. --accent is the only gold; the ✦ gold-rule bracket is the reused
