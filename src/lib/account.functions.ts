@@ -42,6 +42,21 @@ export const deleteMyAccount = createServerFn({ method: "POST" })
     const claims = (context.claims ?? {}) as Record<string, unknown>;
     const email = typeof claims.email === "string" ? claims.email.toLowerCase() : null;
 
+    // Staff accounts cannot self-delete: the auth delete cascades user_roles, so
+    // the owner who pressed this on 2026-09-30 was locked out of the CRM. An
+    // admin who really wants out has the role removed first, deliberately.
+    const { data: adminRole } = await supabaseAdmin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId)
+      .eq("role", "admin")
+      .maybeSingle();
+    if (adminRole) {
+      throw new Error(
+        "לא ניתן למחוק חשבון מנהל מהאתר. כדי לסגור חשבון מנהל יש לפנות לתמיכה הטכנית.",
+      );
+    }
+
     // 1. Collect the user's orders so we can scrub their payment secrets.
     const { data: orders } = await supabaseAdmin.from("orders").select("id").eq("user_id", userId);
     const orderIds = (orders ?? []).map((o) => o.id);

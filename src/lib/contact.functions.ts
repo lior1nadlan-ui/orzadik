@@ -24,7 +24,7 @@ import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { getClientIp, checkContactRateLimitByIp } from "@/lib/rate-limit.server";
 import { sendEmail, emailShell, esc, isEmailConfigured } from "@/lib/email.server";
-import { BUSINESS } from "@/lib/business";
+import { getStaffRecipients } from "@/lib/staff-recipients.server";
 import { alertOwnerContact } from "@/lib/owner-alerts.server";
 import { isTelegramConfigured } from "@/lib/telegram.server";
 
@@ -57,8 +57,8 @@ export const sendContactMessage = createServerFn({ method: "POST" })
       throw new Error("נשלחו יותר מדי פניות מהכתובת הזו. נסו שוב מאוחר יותר או התקשרו אלינו.");
     }
 
-    const to = (process.env.SHOP_OWNER_EMAIL || BUSINESS.email || "").trim();
-    const canEmail = isEmailConfigured() && !!to;
+    const recipients = isEmailConfigured() ? await getStaffRecipients() : [];
+    const canEmail = recipients.length > 0;
     if (!canEmail && !isTelegramConfigured()) {
       console.error("[contact] neither email nor Telegram is configured — message not delivered");
       throw new Error("שליחת ההודעה נכשלה כרגע. אפשר להתקשר אלינו או לכתוב בוואטסאפ.");
@@ -72,16 +72,15 @@ export const sendContactMessage = createServerFn({ method: "POST" })
       phone,
       message: data.message,
     });
-    const emailed = !canEmail
-      ? false
-      : await sendEmail({
-          to,
-          subject: `פנייה חדשה מהאתר — ${data.name}`,
-          // reply_to is the whole point: the owner hits Reply and answers the
-          // customer directly, without copying the address out of the body.
-          replyTo: data.email,
-          html: emailShell(
-            `
+    const sendTo = (to: string) =>
+      sendEmail({
+        to,
+        subject: `פנייה חדשה מהאתר — ${data.name}`,
+        // reply_to is the whole point: the owner hits Reply and answers the
+        // customer directly, without copying the address out of the body.
+        replyTo: data.email,
+        html: emailShell(
+          `
         <h1 style="font-size:20px;margin:0 0 12px;">פנייה חדשה מטופס יצירת הקשר</h1>
         <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="width:100%;font-size:14px;line-height:1.8;">
           <tr><td style="padding:2px 0;"><strong>שם:</strong> ${esc(data.name)}</td></tr>
@@ -96,9 +95,11 @@ export const sendContactMessage = createServerFn({ method: "POST" })
           נשלח מטופס יצירת הקשר באתר. השיבו למייל הזה כדי לענות ללקוח ישירות.
         </p>
       `,
-            `פנייה חדשה מ${data.name}`,
-          ),
-        });
+          `פנייה חדשה מ${data.name}`,
+        ),
+      });
+    // One email per staff inbox; any one arriving counts as delivered.
+    const emailed = canEmail ? (await Promise.all(recipients.map(sendTo))).some(Boolean) : false;
 
     // sendEmail and the alert both swallow transport errors and return false.
     // Only when neither arrived is it a real failure — then the visitor must be

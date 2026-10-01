@@ -52,8 +52,30 @@ function AuthPage() {
   const [resendDeadline, setResendDeadline] = useState<number | null>(null);
   const [cooldown, setCooldown] = useState(0);
 
+  // Typed verification code (the same email carries a link AND a code).
+  const [code, setCode] = useState("");
+  const [verifying, setVerifying] = useState(false);
+
+  // Once signed in, staff land in the CRM and everyone else on the home page.
+  // The role is read here rather than from useAuth().isAdmin, which starts out
+  // false and is filled in asynchronously — reading it would send an admin to
+  // "/" before the lookup finished. Every sign-in path (Google, the link, the
+  // typed code) now returns to /auth so this one place decides.
   useEffect(() => {
-    if (user) navigate({ to: "/" });
+    if (!user) return;
+    let cancelled = false;
+    void (async () => {
+      const { data } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "admin")
+        .maybeSingle();
+      if (!cancelled) navigate({ to: data ? "/admin" : "/" });
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [user, navigate]);
 
   // Cooldown ticker. SSR-safe by construction: the timer is only ever created
@@ -89,7 +111,7 @@ function AuthPage() {
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: window.location.origin,
+        emailRedirectTo: `${window.location.origin}/auth`,
         shouldCreateUser: opts.isSignup,
         data: opts.isSignup
           ? { full_name: fullName, phone, marketing_consent: marketingConsent }
@@ -119,15 +141,44 @@ function AuthPage() {
     // ticker below only runs after paint, so leaving this to the effect would
     // flash one frame of an unlocked resend button before it locks.
     setCooldown(Math.round(RESEND_COOLDOWN_MS / 1000));
-    toast.success(opts.resend ? "שלחנו קישור חדש למייל" : "שלחנו לך קישור כניסה למייל");
+    setCode("");
+    toast.success(opts.resend ? "שלחנו קוד וקישור חדשים למייל" : "שלחנו לך קוד וקישור כניסה למייל");
     setStatus(
       opts.resend
-        ? `שלחנו שוב קישור כניסה לכתובת ${email}`
-        : `שלחנו לך קישור כניסה לכתובת ${email}`,
+        ? `שלחנו שוב קוד וקישור כניסה לכתובת ${email}`
+        : `שלחנו לך קוד וקישור כניסה לכתובת ${email}`,
     );
   };
 
   const canResend = !loading && cooldown === 0;
+
+  // Supabase's OTP length is a project setting (config.toml pins 8, the live
+  // value is set in the dashboard), so accept any 6-10 digit code rather than
+  // hard-coding one length and rejecting a valid code client-side.
+  const codeDigits = code.replace(/\D/g, "");
+  const codeValid = codeDigits.length >= 6 && codeDigits.length <= 10;
+
+  const verifyCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!sentTo || !codeValid || verifying) return;
+    setVerifying(true);
+    setStatus("");
+    const { error } = await supabase.auth.verifyOtp({
+      email: sentTo,
+      token: codeDigits,
+      type: "email",
+    });
+    setVerifying(false);
+    if (error) {
+      const message = "הקוד שגוי או שפג תוקפו. נסו שוב או בקשו קוד חדש.";
+      toast.error(message);
+      setStatus(message);
+      return;
+    }
+    // Success fires onAuthStateChange; the effect above routes by role.
+    toast.success("נכנסת בהצלחה");
+    setStatus("נכנסת בהצלחה");
+  };
 
   // aria-disabled rather than `disabled`: a disabled button leaves the tab order
   // entirely, so during the cooldown a keyboard/AT user would lose the control
@@ -165,7 +216,7 @@ function AuthPage() {
     setLoading(true);
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/` },
+      options: { redirectTo: `${window.location.origin}/auth` },
     });
     // On success the browser is already navigating to Google, so there is
     // nothing to do; only an immediate failure comes back here.
@@ -200,12 +251,29 @@ function AuthPage() {
             <div className="text-4xl mb-4">✉️</div>
             <h1 className="font-display text-2xl font-bold mb-3">בדקו את תיבת המייל</h1>
             <p className="text-sm text-foreground/80 leading-relaxed mb-4">
-              שלחנו קישור כניסה לכתובת:
+              שלחנו קוד אימות וקישור כניסה לכתובת:
               <br />
               <strong className="text-accent">{sentTo}</strong>
             </p>
+            <form onSubmit={verifyCode} className="space-y-2 mb-4 text-start">
+              <Label htmlFor="otp-code">קוד האימות מהמייל</Label>
+              <Input
+                id="otp-code"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                dir="ltr"
+                maxLength={12}
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder="12345678"
+                className="text-center tracking-[0.3em] text-lg"
+              />
+              <Button type="submit" className="w-full press" disabled={!codeValid || verifying}>
+                {verifying ? "מאמת..." : "כניסה עם הקוד"}
+              </Button>
+            </form>
             <p className="text-xs text-muted-foreground leading-relaxed mb-6">
-              לחצו על הקישור במייל כדי להיכנס לחשבון. הקישור תקף ל-15 דקות.
+              אפשר להקליד את הקוד כאן, או ללחוץ על הקישור במייל. שניהם תקפים ל-15 דקות.
               <br />
               לא רואים את המייל? בדקו בתיקיית הספאם.
             </p>
@@ -229,7 +297,7 @@ function AuthPage() {
               <p id="resend-hint" className="text-xs text-muted-foreground leading-relaxed">
                 {cooldown > 0
                   ? `אפשר לשלוח שוב בעוד ${secondsHe(cooldown)}`
-                  : "הקישור לא הגיע? אפשר לשלוח אותו שוב."}
+                  : "המייל לא הגיע? אפשר לשלוח אותו שוב."}
               </p>
               <Button
                 variant="outline"
@@ -237,6 +305,7 @@ function AuthPage() {
                 onClick={() => {
                   setSentTo(null);
                   setEmail("");
+                  setCode("");
                   // A different address is a different send: nothing about the
                   // previous one should keep the new one waiting.
                   setResendDeadline(null);
@@ -324,10 +393,10 @@ function AuthPage() {
                 />
               </div>
               <Button type="submit" className="w-full press" disabled={loading}>
-                {loading ? "שולח..." : "שלחו לי קישור כניסה"}
+                {loading ? "שולח..." : "שלחו לי קוד כניסה"}
               </Button>
               <p className="text-[11px] text-muted-foreground text-center leading-relaxed">
-                נשלח אליך קישור חד-פעמי למייל. בלי סיסמאות.
+                נשלח אליך קוד חד-פעמי וקישור כניסה למייל. בלי סיסמאות.
               </p>
             </form>
           </TabsContent>

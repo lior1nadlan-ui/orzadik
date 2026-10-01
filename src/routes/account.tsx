@@ -33,6 +33,7 @@ import {
   Trash2,
   Download,
   Pencil,
+  LayoutDashboard,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -133,7 +134,7 @@ ${cartsHtml}
 }
 
 function AccountPage() {
-  const { user, loading: authLoading, signOut } = useAuth();
+  const { user, loading: authLoading, signOut, isAdmin } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -282,6 +283,21 @@ function AccountPage() {
 
   return (
     <div className="container mx-auto px-4 py-10 max-w-4xl">
+      {isAdmin && (
+        <Link
+          to="/admin"
+          className="mb-6 flex items-center justify-between gap-4 glass glass-gold press p-5"
+        >
+          <div className="flex items-center gap-3">
+            <LayoutDashboard className="h-5 w-5 text-accent" />
+            <div>
+              <div className="text-sm font-semibold">פאנל ניהול (CRM)</div>
+              <div className="text-xs text-muted-foreground">הזמנות, לקוחות, מוצרים ופניות</div>
+            </div>
+          </div>
+          <span className="text-sm font-bold text-accent">כניסה ←</span>
+        </Link>
+      )}
       {/* Member banner — the one hero pane on this route.
           `glass-strong` (94% white + blur) rather than `glass`, because the page
           mesh is at its most saturated behind the top of the viewport and the
@@ -534,45 +550,50 @@ function AccountPage() {
       {/* Semantic destructive panel — deliberately NOT glass. A glass pane would
           wash the warning tint out; the destructive surface has to stay legible
           as a warning, so it keeps a solid tint and a destructive border. */}
-      <section className="mt-10 rounded-xl border border-destructive/30 bg-destructive/5 p-5">
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div className="flex items-start gap-3">
-            <Trash2 className="h-5 w-5 text-destructive mt-0.5" />
-            <div>
-              <div className="text-sm font-semibold">מחיקת חשבון</div>
-              <p className="text-xs text-muted-foreground mt-1 leading-relaxed max-w-md">
-                מחיקת החשבון תסיר את הפרופיל והמידע האישי שלך. הזמנות עבר יישמרו באופן אנונימי בלבד,
-                כנדרש בחוק לצורכי הנהלת חשבונות. הפעולה אינה הפיכה.
-              </p>
+      {/* Hidden for staff: an admin who deletes their account loses the role
+          with it (user_roles cascades on the auth user), which locked the owner
+          out of the CRM on 2026-09-30. The server refuses it as well. */}
+      {!isAdmin && (
+        <section className="mt-10 rounded-xl border border-destructive/30 bg-destructive/5 p-5">
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div className="flex items-start gap-3">
+              <Trash2 className="h-5 w-5 text-destructive mt-0.5" />
+              <div>
+                <div className="text-sm font-semibold">מחיקת חשבון</div>
+                <p className="text-xs text-muted-foreground mt-1 leading-relaxed max-w-md">
+                  מחיקת החשבון תסיר את הפרופיל והמידע האישי שלך. הזמנות עבר יישמרו באופן אנונימי
+                  בלבד, כנדרש בחוק לצורכי הנהלת חשבונות. הפעולה אינה הפיכה.
+                </p>
+              </div>
             </div>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="sm" className="press" disabled={deleting}>
+                  {deleting ? "מוחק..." : "מחיקת החשבון"}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>למחוק את החשבון?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    המידע האישי שלך יימחק לצמיתות ולא ניתן לשחזרו. הזמנות עבר יישמרו באופן אנונימי
+                    בלבד כנדרש בחוק. להמשיך?
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>ביטול</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={onDeleteAccount}
+                    className="bg-destructive text-destructive-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:bg-destructive/90"
+                  >
+                    מחק לצמיתות
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="destructive" size="sm" className="press" disabled={deleting}>
-                {deleting ? "מוחק..." : "מחיקת החשבון"}
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>למחוק את החשבון?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  המידע האישי שלך יימחק לצמיתות ולא ניתן לשחזרו. הזמנות עבר יישמרו באופן אנונימי
-                  בלבד כנדרש בחוק. להמשיך?
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>ביטול</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={onDeleteAccount}
-                  className="bg-destructive text-destructive-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:bg-destructive/90"
-                >
-                  מחק לצמיתות
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </div>
-      </section>
+        </section>
+      )}
     </div>
   );
 }
