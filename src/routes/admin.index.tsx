@@ -5,7 +5,14 @@ import { useServerFn } from "@tanstack/react-start";
 import { getDashboardStats } from "@/lib/admin-crm.functions";
 import { formatILS } from "@/lib/cart";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from "recharts";
-import { TrendingUp, TrendingDown, RefreshCw } from "lucide-react";
+import {
+  TrendingUp,
+  TrendingDown,
+  RefreshCw,
+  Package,
+  AlertCircle,
+  ShoppingCart,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ActionCockpit } from "@/components/admin/ActionCockpit";
 import { pct, type Funnel } from "@/lib/funnel";
@@ -39,18 +46,24 @@ function daysAgoHe(ts: string): string {
 function TrendDelta({ curr, prev }: { curr: number; prev: number }) {
   const pct = prev > 0 ? Math.round(((curr - prev) / prev) * 100) : null;
   if (pct === null) {
-    return <span className="text-xs text-muted-foreground">— אין נתונים לתקופה הקודמת</span>;
+    return (
+      <span className="text-xs text-muted-foreground">
+        — אין נתונים<span className="max-sm:hidden"> לתקופה הקודמת</span>
+      </span>
+    );
   }
   if (pct === 0) {
     return <span className="text-xs text-muted-foreground">ללא שינוי</span>;
   }
   return pct > 0 ? (
     <span className="inline-flex items-center gap-1 text-xs text-emerald-600">
-      <TrendingUp className="h-3.5 w-3.5" /> {pct}%+ לעומת התקופה הקודמת
+      <TrendingUp className="h-3.5 w-3.5" /> {pct}%+{" "}
+      <span className="max-sm:hidden">לעומת התקופה הקודמת</span>
     </span>
   ) : (
     <span className="inline-flex items-center gap-1 text-xs text-red-600">
-      <TrendingDown className="h-3.5 w-3.5" /> {Math.abs(pct)}%- לעומת התקופה הקודמת
+      <TrendingDown className="h-3.5 w-3.5" /> {Math.abs(pct)}%-{" "}
+      <span className="max-sm:hidden">לעומת התקופה הקודמת</span>
     </span>
   );
 }
@@ -74,7 +87,7 @@ function AdminHome() {
 
   if (isLoading || !s) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-5 sm:space-y-6">
         <h1 className="font-display text-2xl font-bold">סקירה כללית</h1>
         {/* The action queue owns its own fetch, so it shows immediately —
             before the revenue stats finish loading. */}
@@ -128,32 +141,41 @@ function AdminHome() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 sm:space-y-6">
       <div className="flex items-center justify-between gap-3">
         <h1 className="font-display text-2xl font-bold">סקירה כללית</h1>
-        <Button size="sm" variant="outline" onClick={() => refetch()} disabled={isFetching}>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => refetch()}
+          disabled={isFetching}
+          aria-label="רענון"
+          className="shrink-0 max-sm:min-h-11 max-sm:w-11 max-sm:px-0"
+        >
           <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
-          {isFetching ? "מרענן..." : "רענון"}
+          <span className="max-sm:sr-only">{isFetching ? "מרענן..." : "רענון"}</span>
         </Button>
       </div>
 
       <SystemHealthBanner />
+
+      <AttentionTiles s={s} />
 
       {/* Action queue first — "מה לעשות היום" is what the owner should act on
           before scanning any analytics below. */}
       <ActionCockpit />
 
       {/* KPI row — each card deep-links to the orders page pre-filtered */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
         {kpis.map((c) => (
           <Link
             key={c.label}
             to="/admin/orders"
             search={c.days ? { payment: "paid", days: c.days } : { payment: "paid" }}
-            className="block rounded-lg border bg-card p-5 transition-colors duration-160 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:border-primary/50"
+            className="block rounded-lg border bg-card p-3.5 transition-colors duration-160 ease-out sm:p-5 [@media(hover:hover)_and_(pointer:fine)]:hover:border-primary/50"
           >
             <div className="text-sm text-muted-foreground">{c.label}</div>
-            <div className="text-2xl font-bold mt-1">{c.value}</div>
+            <div className="text-xl font-bold mt-1 sm:text-2xl">{c.value}</div>
             <div className="text-xs text-muted-foreground mt-1">{c.sub}</div>
             {c.prev !== undefined && (
               <div className="mt-1">
@@ -345,21 +367,26 @@ function AdminHome() {
           </div>
           <div className="space-y-1 text-sm">
             {s.stuckUnpaid.map((o: any) => (
-              <div key={o.id} className="flex justify-between">
-                <span>
+              <Link
+                key={o.id}
+                to="/admin/orders"
+                search={{ q: o.order_number, open: "1" }}
+                className={ATTN_ROW}
+              >
+                <span className="min-w-0">
                   <span className="font-mono text-xs">{o.order_number}</span> · {o.customer_name}
                 </span>
-                <span className="text-muted-foreground">
+                <span className="shrink-0 text-muted-foreground">
                   {formatILS(o.total)} · {new Date(o.created_at).toLocaleDateString("he-IL")}
                 </span>
-              </div>
+              </Link>
             ))}
           </div>
           {/* To the leads, not to payment=unpaid: that filter leaves out the
               failed payments this alert counts. */}
           <Link
             to="/admin/leads"
-            className="text-xs underline text-amber-700 dark:text-amber-400 mt-2 inline-block"
+            className="mt-1 inline-flex min-h-11 items-center text-xs underline text-amber-700 dark:text-amber-400 sm:min-h-0"
           >
             לכל הלידים ←
           </Link>
@@ -374,20 +401,25 @@ function AdminHome() {
           </div>
           <div className="space-y-1 text-sm">
             {s.readyToShip.items.map((o: any) => (
-              <div key={o.id} className="flex justify-between">
-                <span>
+              <Link
+                key={o.id}
+                to="/admin/orders"
+                search={{ q: o.order_number, open: "1" }}
+                className={ATTN_ROW}
+              >
+                <span className="min-w-0">
                   <span className="font-mono text-xs">{o.order_number}</span> · {o.customer_name}
                 </span>
-                <span className="text-muted-foreground">
+                <span className="shrink-0 text-muted-foreground">
                   {formatILS(o.total)} · {daysAgoHe(o.paid_at)}
                 </span>
-              </div>
+              </Link>
             ))}
           </div>
           <Link
             to="/admin/orders"
             search={{ payment: "paid" }}
-            className="text-xs underline text-emerald-700 dark:text-emerald-400 mt-2 inline-block"
+            className="mt-1 inline-flex min-h-11 items-center text-xs underline text-emerald-700 dark:text-emerald-400 sm:min-h-0"
           >
             לכל ההזמנות הממתינות ←
           </Link>
@@ -444,9 +476,9 @@ function AdminHome() {
                   key={o.id}
                   to="/admin/orders"
                   search={{ q: o.order_number, open: "1" }}
-                  className="flex items-center justify-between border-b border-border/40 pb-2 last:border-0 transition-colors duration-160 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted/40"
+                  className="flex min-h-11 items-center justify-between gap-3 border-b border-border/40 pb-2 last:border-0 transition-colors duration-160 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted/40"
                 >
-                  <div>
+                  <div className="min-w-0">
                     <span className="font-mono text-xs">{o.order_number}</span>
                     <span className="mx-2">{o.customer_name}</span>
                     <span
@@ -459,7 +491,7 @@ function AdminHome() {
                       {paymentStatusHe(o.payment_status)}
                     </span>
                   </div>
-                  <div className="text-left">
+                  <div className="shrink-0 text-end">
                     <div className="font-bold">{formatILS(o.total)}</div>
                     <div className="text-[11px] text-muted-foreground">
                       {new Date(o.created_at).toLocaleDateString("he-IL")}
@@ -514,6 +546,67 @@ function AdminHome() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+const ATTN_ROW =
+  "flex min-h-11 items-center justify-between gap-3 rounded px-1 -mx-1 transition-colors duration-160 ease-out sm:min-h-0 sm:py-0.5 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-black/5";
+
+type Stats = Awaited<ReturnType<typeof getDashboardStats>>;
+
+/**
+ * Three counters at the very top — the questions the owners open the panel
+ * with between customers: is there anything to pack, did someone not finish
+ * paying, is anyone's cart sitting there. Each one is a tap to the list that
+ * holds those people. A zero is shown, quietly, because "nothing to pack" is
+ * an answer too.
+ */
+function AttentionTiles({ s }: { s: Stats }) {
+  const tiles = [
+    {
+      label: "לארוז ולשלוח",
+      n: s.readyToShip.count,
+      to: "/admin/orders" as const,
+      search: { payment: "paid" },
+      tone: "border-emerald-400/60 bg-emerald-50 text-emerald-900 dark:bg-emerald-950/20 dark:text-emerald-200",
+      Icon: Package,
+    },
+    {
+      label: "לא שולמו",
+      n: s.stuckUnpaidCount,
+      to: "/admin/leads" as const,
+      search: {},
+      tone: "border-amber-400/60 bg-amber-50 text-amber-900 dark:bg-amber-950/20 dark:text-amber-200",
+      Icon: AlertCircle,
+    },
+    {
+      label: "עגלות פתוחות",
+      n: s.abandoned.openCount,
+      to: "/admin/leads" as const,
+      search: {},
+      tone: "border-violet-300/70 bg-violet-50 text-violet-900 dark:bg-violet-950/20 dark:text-violet-200",
+      Icon: ShoppingCart,
+    },
+  ];
+  return (
+    <div className="grid grid-cols-3 gap-2 sm:gap-3">
+      {tiles.map((t) => (
+        <Link
+          key={t.label}
+          to={t.to}
+          search={t.search}
+          className={`flex min-h-20 flex-col justify-between rounded-xl border p-3 transition-colors duration-160 ease-out ${
+            t.n > 0 ? t.tone : "border-glass-line bg-card text-muted-foreground"
+          }`}
+        >
+          <t.Icon className="h-4 w-4" aria-hidden="true" />
+          <div>
+            <div className="text-2xl font-bold leading-none">{t.n}</div>
+            <div className="mt-1 text-xs font-medium leading-tight">{t.label}</div>
+          </div>
+        </Link>
+      ))}
     </div>
   );
 }

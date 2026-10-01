@@ -176,47 +176,65 @@ function timeAgoHe(iso: string): string {
 }
 
 const ACTION_BTN =
-  // 40px tall on a phone (a thumb, between customers); compact from sm up.
-  "inline-flex min-h-10 items-center gap-1 rounded-full border px-3 text-sm sm:min-h-0 sm:px-2.5 sm:py-1 sm:text-xs press transition-colors duration-160 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted";
+  // 44px on a phone (a thumb, between customers); compact from sm up.
+  "inline-flex min-h-11 items-center justify-center gap-1 rounded-full border px-3 text-sm sm:min-h-0 sm:px-2.5 sm:py-1 sm:text-xs press transition-colors duration-160 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted";
+
+/** A secondary contact action: a 44px round icon on a phone (with the label
+ *  for screen readers), the labelled pill from sm up. */
+const ICON_BTN = cn(ACTION_BTN, "max-sm:w-11 max-sm:px-0");
 
 // ---- rows ------------------------------------------------------------------
 
 type Decide = (row: QueueRow, decision: "today" | "days3" | "dismiss" | "done") => void;
 
 function OpenRow({ row, onDecide, busy }: { row: QueueRow; onDecide: Decide; busy: boolean }) {
-  const meta = TYPE_META[row.type];
   const wa = waForRow(row);
   const isReminder = row.type === "follow_up";
+  const orderId = row.id.slice(row.id.indexOf(":") + 1);
   return (
-    <div className="glass-lift rounded-xl border border-glass-line bg-card/70 p-3.5">
-      <div className="flex flex-wrap items-start justify-between gap-2">
+    <div className="glass-lift rounded-xl border border-glass-line bg-card/70 p-3 sm:p-3.5">
+      <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <strong className="text-sm">{row.customerName}</strong>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+            {/* The name opens the customer card — on a phone that saves a
+                fifth button in a row that has room for four. */}
+            {row.customerEmail ? (
+              <Link
+                to="/admin/customers"
+                search={{ q: row.customerEmail }}
+                className="text-base font-bold underline-offset-4 sm:text-sm [@media(hover:hover)_and_(pointer:fine)]:hover:underline"
+              >
+                {row.customerName}
+              </Link>
+            ) : (
+              <strong className="text-base sm:text-sm">{row.customerName}</strong>
+            )}
             {row.orderNumber && (
               <Link
                 to="/admin/orders"
                 search={{ q: row.orderNumber, open: "1" }}
-                className="font-mono text-[11px] text-muted-foreground underline-offset-2 [@media(hover:hover)_and_(pointer:fine)]:hover:underline"
+                className="inline-flex min-h-8 items-center font-mono text-xs text-muted-foreground underline underline-offset-2 sm:min-h-0 sm:text-[11px] sm:no-underline [@media(hover:hover)_and_(pointer:fine)]:hover:underline"
               >
                 {row.orderNumber}
               </Link>
             )}
+            {row.type === "ready_to_ship" && row.pickup && (
+              <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-900">
+                איסוף עצמי
+              </span>
+            )}
           </div>
           <div className="mt-1 text-sm text-muted-foreground">{row.context}</div>
         </div>
-        <span
-          className={cn(
-            "inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold",
-            meta.badge,
-          )}
-        >
-          <meta.Icon className="h-3 w-3" />
-          {row.type === "ready_to_ship" && row.pickup ? "להכין לאיסוף" : meta.label}
+        <span className="shrink-0 text-[11px] text-muted-foreground">
+          {isReminder ? "תזכורת" : timeAgoHe(row.createdAt)}
         </span>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-2">
+      {/* Contact first: WhatsApp is THE action — it opens a ready-to-send draft
+          — so on a phone it is the one wide, filled button; the rest are round
+          icons next to it. */}
+      <div className="mt-3 flex items-center gap-2 sm:flex-wrap">
         {wa && (
           <a
             href={wa}
@@ -224,73 +242,81 @@ function OpenRow({ row, onDecide, busy }: { row: QueueRow; onDecide: Decide; bus
             rel="noreferrer"
             className={cn(
               ACTION_BTN,
-              "border-emerald-600/30 text-emerald-700 dark:text-emerald-400",
+              "max-sm:min-w-0 max-sm:flex-1 max-sm:border-transparent max-sm:bg-emerald-700 max-sm:font-semibold max-sm:text-white border-emerald-600/30 text-emerald-700 dark:text-emerald-400",
             )}
           >
-            <MessageCircle className="h-3.5 w-3.5" /> וואטסאפ
+            <MessageCircle className="h-4 w-4 sm:h-3.5 sm:w-3.5" /> וואטסאפ
           </a>
         )}
         {row.customerPhone && (
-          <a href={`tel:${row.customerPhone}`} className={ACTION_BTN}>
-            <Phone className="h-3.5 w-3.5" /> חיוג
+          <a href={`tel:${row.customerPhone}`} className={ICON_BTN} aria-label="חיוג">
+            <Phone className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+            <span className="max-sm:sr-only">חיוג</span>
           </a>
         )}
         {row.customerEmail && (
-          <a href={`mailto:${row.customerEmail}`} className={ACTION_BTN}>
-            <Mail className="h-3.5 w-3.5" /> אימייל
+          <a href={`mailto:${row.customerEmail}`} className={ICON_BTN} aria-label="אימייל">
+            <Mail className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+            <span className="max-sm:sr-only">אימייל</span>
           </a>
         )}
         {(row.type === "thank_you" || row.type === "ready_to_ship") && (
           <Link
             to="/admin/orders/$orderId/print"
-            params={{ orderId: row.id.slice(row.id.indexOf(":") + 1) }}
+            params={{ orderId }}
             target="_blank"
-            className={ACTION_BTN}
+            className={ICON_BTN}
+            aria-label="דף אריזה"
           >
-            <Printer className="h-3.5 w-3.5" /> דף אריזה
+            <Printer className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+            <span className="max-sm:sr-only">דף אריזה</span>
           </Link>
         )}
         {row.customerEmail && (
-          <Link to="/admin/customers" search={{ q: row.customerEmail }} className={ACTION_BTN}>
-            <UserRound className="h-3.5 w-3.5" /> כרטיס
+          <Link
+            to="/admin/customers"
+            search={{ q: row.customerEmail }}
+            className={cn(ICON_BTN, "max-sm:hidden")}
+            aria-label="כרטיס לקוח"
+          >
+            <UserRound className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+            <span className="max-sm:sr-only">כרטיס</span>
           </Link>
         )}
-
-        <div className="ms-auto flex flex-wrap items-center gap-1.5">
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => onDecide(row, isReminder ? "done" : "today")}
-            className={cn(ACTION_BTN, "border-accent/40 text-accent disabled:opacity-50")}
-            title={isReminder ? "סמן שהתזכורת בוצעה" : "טופל להיום — יחזור מחר אם עדיין רלוונטי"}
-          >
-            <Check className="h-3.5 w-3.5" /> {isReminder ? "בוצע" : "טופל היום"}
-          </button>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => onDecide(row, "days3")}
-            className={cn(ACTION_BTN, "text-muted-foreground disabled:opacity-50")}
-            title="להזכיר שוב בעוד 3 ימים"
-          >
-            <Clock className="h-3.5 w-3.5" /> 3 ימים
-          </button>
-          {!isReminder && (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => onDecide(row, "dismiss")}
-              className={cn(ACTION_BTN, "text-muted-foreground disabled:opacity-50")}
-              title="לא רלוונטי — להסיר מהרשימה ומסיכום הבוקר"
-            >
-              <X className="h-3.5 w-3.5" /> לא רלוונטי
-            </button>
-          )}
-        </div>
       </div>
 
-      <div className="mt-2 text-[11px] text-muted-foreground">
-        {isReminder ? "תזכורת" : timeAgoHe(row.createdAt)}
+      {/* The decisions, kept apart from the contact buttons (own row, hairline
+          above) so a slip of the thumb cannot take someone off the list. */}
+      <div className="mt-3 grid grid-cols-3 gap-1.5 border-t border-glass-line pt-3 max-sm:[&_svg]:hidden max-sm:[&>button]:whitespace-nowrap sm:flex sm:flex-wrap sm:justify-end">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => onDecide(row, isReminder ? "done" : "today")}
+          className={cn(ACTION_BTN, "border-accent/40 px-2 text-accent disabled:opacity-50")}
+          title={isReminder ? "סמן שהתזכורת בוצעה" : "טופל להיום — יחזור מחר אם עדיין רלוונטי"}
+        >
+          <Check className="h-3.5 w-3.5 shrink-0" /> {isReminder ? "בוצע" : "טופל היום"}
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => onDecide(row, "days3")}
+          className={cn(ACTION_BTN, "px-2 text-muted-foreground disabled:opacity-50")}
+          title="להזכיר שוב בעוד 3 ימים"
+        >
+          <Clock className="h-3.5 w-3.5 shrink-0" /> 3 ימים
+        </button>
+        {!isReminder && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => onDecide(row, "dismiss")}
+            className={cn(ACTION_BTN, "px-2 text-muted-foreground disabled:opacity-50")}
+            title="לא רלוונטי — להסיר מהרשימה ומסיכום הבוקר"
+          >
+            <X className="h-3.5 w-3.5 shrink-0" /> לא רלוונטי
+          </button>
+        )}
       </div>
     </div>
   );
@@ -416,7 +442,7 @@ export function ActionCockpit() {
   })).filter((g) => g.rows.length > 0);
 
   return (
-    <section className="glass glass-gold reveal p-5 md:p-6 [--glass-radius:1.25rem]">
+    <section className="glass glass-gold reveal p-3 sm:p-5 md:p-6 [--glass-radius:1.25rem]">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="flex items-center gap-2 font-display text-xl font-bold">
           <ClipboardList className="h-5 w-5 text-accent" />
@@ -428,7 +454,7 @@ export function ActionCockpit() {
           </span>
         )}
       </div>
-      <p className="mt-1 text-xs text-muted-foreground">
+      <p className="mt-1 text-xs text-muted-foreground max-sm:hidden">
         הפעולות החשובות ביותר על הזמנות, עגלות ותזכורות שקבעת — בלחיצה אחת. מה שמסומן כאן מסתנכרן
         בין המחשב לטלפון ולסיכום הבוקר.
       </p>

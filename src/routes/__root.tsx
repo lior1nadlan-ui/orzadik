@@ -556,6 +556,13 @@ function RootShell({ children }: { children: React.ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  // The admin panel on a phone is an app of its own: its bottom tab bar is the
+  // navigation, so the shop's header, footer and "talk to us on WhatsApp"
+  // button (the shop's own number) only take screen from it. From lg up the
+  // header and footer stay, as they always were.
+  const isAdminPath = useRouterState({
+    select: (s) => s.location.pathname === "/admin" || s.location.pathname.startsWith("/admin/"),
+  });
   const { promoPayload } = Route.useLoaderData();
 
   // Defer the two non-critical global widgets (WhatsApp FAB + Accessibility
@@ -612,7 +619,7 @@ function RootComponent() {
               {/* The header pins itself (sticky -top-9). No sticky wrapper here:
                 sticky can't travel beyond its parent, so the header must sit
                 directly in the full-height app root. */}
-              <SiteHeader />
+              <SiteHeader hideOnMobile={isAdminPath} />
               {/* min-h-screen (not just flex-1) reserves the streaming window.
                 The route content streams in AFTER the shell, so for ~750ms
                 <main> is empty; with only `flex-1` the footer then sat exactly
@@ -631,14 +638,14 @@ function RootComponent() {
               >
                 <RouteErrorBoundary />
               </main>
-              <SiteFooter />
+              <SiteFooter hideOnMobile={isAdminPath} />
             </div>
             <Toaster position="top-center" richColors />
             <CookieConsent />
             <GoogleAnalytics />
             <MetaPixel />
             {/* Deferred to browser-idle after first paint (see the effect above). */}
-            {idle && <WhatsAppButton />}
+            {idle && !isAdminPath && <WhatsAppButton />}
             {idle && <AccessibilityWidget />}
           </CartProvider>
         </AuthProvider>

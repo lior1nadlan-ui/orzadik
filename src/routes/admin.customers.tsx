@@ -24,7 +24,7 @@ import { dateInputValue } from "@/lib/crm-tasks";
 import { waMessage } from "@/lib/wa-templates";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AdminSheet, AdminSheetContent } from "@/components/admin/AdminSheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -117,6 +117,83 @@ function waGreeting(c: { name?: string; phone?: string } | null | undefined): st
     `כאן מהחנות "${SHOP}". רצינו רק להגיד תודה שאתה חלק מהמשפחה שלנו — ` +
     `ואם יש שאלה, בקשה מיוחדת או משהו שנוכל לעזור בו, אנחנו כאן בשבילך. 🙏`;
   return waMessage(c?.phone, text);
+}
+
+/** A row's small icon action: a 40px target on a phone around a 14px glyph. */
+const ROW_ICON_BTN =
+  "-my-2 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-muted-foreground sm:my-0 sm:h-auto sm:w-auto";
+
+const CHIP =
+  "inline-flex min-h-11 max-w-full items-center gap-1.5 rounded-full border px-3 text-sm sm:min-h-9 sm:text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted";
+
+/** One customer on a phone. The name block is the button that opens the
+ *  card; WhatsApp and call are separate targets beside it, never nested. */
+function CustomerCard({ c, onOpen }: { c: any; onOpen: () => void }) {
+  return (
+    <div className="flex items-stretch gap-1 rounded-xl border border-glass-line bg-card">
+      <button
+        type="button"
+        onClick={onOpen}
+        data-open-customer
+        aria-label={`כרטיס לקוח — ${c.name || c.email}`}
+        className="press min-w-0 flex-1 rounded-xl p-3.5 text-start transition-colors duration-160 ease-out active:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="font-semibold">
+            {c.name || <span className="text-muted-foreground">ללא שם</span>}
+          </span>
+          <span
+            className={`text-[11px] rounded-full px-2 py-0.5 ${SEGMENT_STYLE[c.segment as CustomerSegment]}`}
+          >
+            {SEGMENT_HE[c.segment as CustomerSegment]}
+          </span>
+          {c.dormant && (
+            <span className="text-[11px] rounded-full bg-muted text-muted-foreground px-2 py-0.5">
+              רדום
+            </span>
+          )}
+          <ContactBadges c={c} />
+        </div>
+        <div className="mt-0.5 truncate text-xs text-muted-foreground">
+          <bdi dir="ltr">{c.email}</bdi>
+        </div>
+        <div className="mt-1.5 flex flex-wrap gap-x-3 text-xs">
+          <span className={c.ltv > 0 ? "font-bold" : "text-muted-foreground"}>
+            {formatILS(c.ltv)}
+          </span>
+          <span className="text-muted-foreground">
+            {c.orders} הזמנות
+            {c.paidOrders !== c.orders ? ` (${c.paidOrders} שולמו)` : ""}
+          </span>
+          <span className={c.dormant ? "text-amber-700" : "text-muted-foreground"}>
+            {c.lastOrderAt
+              ? sinceLabel(c.daysSinceLastOrder)
+              : `פעילות: ${sinceLabel(c.daysSinceActivity) || "—"}`}
+          </span>
+        </div>
+      </button>
+      {c.phone && (
+        <div className="flex shrink-0 flex-col justify-center gap-1.5 p-2 ps-0">
+          <a
+            href={(c.dormant ? waWeMissYou(c) : waGreeting(c)) ?? waLink(c.phone)}
+            target="_blank"
+            rel="noreferrer"
+            aria-label={`וואטסאפ ל${c.name || "לקוח"}`}
+            className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-emerald-700 text-white"
+          >
+            <MessageCircle className="h-4 w-4" />
+          </a>
+          <a
+            href={`tel:${c.phone}`}
+            aria-label={`חיוג ל${c.name || "לקוח"}`}
+            className="inline-flex h-11 w-11 items-center justify-center rounded-full border"
+          >
+            <Phone className="h-4 w-4" />
+          </a>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function AdminCustomers() {
@@ -214,24 +291,34 @@ function AdminCustomers() {
     <div>
       <h1 className="font-display text-2xl font-bold mb-4">לקוחות ({total})</h1>
 
-      <div className="flex flex-wrap gap-2 mb-4">
+      <div className="mb-4 flex flex-wrap gap-2">
         <Input
+          type="search"
+          enterKeyHint="search"
           placeholder="חיפוש: שם / אימייל / טלפון"
+          aria-label="חיפוש לקוחות"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          className="max-w-xs"
+          className="min-h-11 basis-full sm:min-h-0 sm:max-w-xs sm:basis-auto"
         />
         <select
           value={sort}
           onChange={(e) => setSort(e.target.value as any)}
-          className="rounded-md border bg-background px-3 py-2 text-sm"
+          aria-label="מיון"
+          className="min-h-11 min-w-0 flex-1 rounded-md border bg-background px-3 py-2 text-sm sm:min-h-0 sm:flex-none"
         >
           <option value="ltv">לפי סך קניות</option>
           <option value="recent">לפי פעילות אחרונה</option>
           <option value="orders">לפי מס׳ הזמנות</option>
         </select>
-        <Button size="sm" variant="outline" onClick={doExport}>
-          <Download className="h-4 w-4 ml-1" /> ייצוא CSV
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={doExport}
+          aria-label="ייצוא CSV"
+          className="shrink-0 max-sm:min-h-11"
+        >
+          <Download className="h-4 w-4" /> ייצוא CSV
         </Button>
       </div>
 
@@ -239,7 +326,13 @@ function AdminCustomers() {
           dropdown hides "3 people ordered and never paid" behind a click
           nobody makes, and that is the row worth acting on today. Counts
           follow the search box, so they always describe the list on screen. */}
-      <div className="flex flex-wrap gap-1.5 mb-4" role="group" aria-label="סינון לפי סוג לקוח">
+      {/* On a phone the chips are one sideways-scrolling row (bled to the
+          screen edge) rather than three wrapped rows above the list. */}
+      <div
+        className="-mx-4 mb-4 flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0"
+        role="group"
+        aria-label="סינון לפי סוג לקוח"
+      >
         {SEGMENT_CHIPS.map((chip) => {
           const n = counts?.[chip.key] ?? 0;
           const active = segment === chip.key;
@@ -253,7 +346,7 @@ function AdminCustomers() {
               // "0 רדומים" is genuinely good news and worth reading, while a
               // chip that filters to nothing is a dead end.
               disabled={n === 0 && chip.key !== "all"}
-              className={`rounded-full border px-3 py-1 text-xs transition-colors duration-150 ${
+              className={`min-h-11 shrink-0 whitespace-nowrap rounded-full border px-3 py-1 text-sm transition-colors duration-150 sm:min-h-0 sm:text-xs ${
                 active
                   ? "bg-primary text-primary-foreground border-primary"
                   : n === 0 && chip.key !== "all"
@@ -267,8 +360,27 @@ function AdminCustomers() {
         })}
       </div>
 
+      {/* Phone: one card per person. Tapping the card opens the customer
+          card; WhatsApp and call sit on it as their own 44px buttons. */}
+      <ul
+        className={`space-y-2 sm:hidden transition-opacity duration-200 ease-out ${isFetching ? "opacity-60" : ""}`}
+      >
+        {customers.length === 0 && (
+          <li className="rounded-lg border bg-card p-8 text-center text-sm text-muted-foreground">
+            {debouncedQ
+              ? "אין לקוחות תואמים."
+              : "אין עדיין לקוחות — הם יופיעו כאן עם ההרשמה או ההזמנה הראשונה."}
+          </li>
+        )}
+        {customers.map((c: any) => (
+          <li key={c.email}>
+            <CustomerCard c={c} onOpen={() => setSelected(c)} />
+          </li>
+        ))}
+      </ul>
+
       <div
-        className={`rounded-lg border bg-card overflow-x-auto transition-opacity duration-200 ease-out ${isFetching ? "opacity-60" : ""}`}
+        className={`rounded-lg border bg-card overflow-x-auto transition-opacity duration-200 ease-out max-sm:hidden ${isFetching ? "opacity-60" : ""}`}
       >
         <table className="w-full text-sm">
           <thead className="bg-muted/50">
@@ -383,7 +495,12 @@ function AdminCustomers() {
                   )}
                 </td>
                 <td className="p-3">
-                  <Button size="sm" variant="outline" onClick={() => setSelected(c)}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    data-open-customer
+                    onClick={() => setSelected(c)}
+                  >
                     כרטיס לקוח
                   </Button>
                 </td>
@@ -398,6 +515,7 @@ function AdminCustomers() {
           <Button
             size="sm"
             variant="outline"
+            className="max-sm:min-h-11"
             disabled={page === 0}
             onClick={() => setPage((p) => p - 1)}
           >
@@ -409,6 +527,7 @@ function AdminCustomers() {
           <Button
             size="sm"
             variant="outline"
+            className="max-sm:min-h-11"
             disabled={page >= pages - 1}
             onClick={() => setPage((p) => p + 1)}
           >
@@ -417,41 +536,36 @@ function AdminCustomers() {
         </div>
       )}
 
-      <Dialog open={!!selected} onOpenChange={(v) => !v && setSelected(null)}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-          {selected && (
-            <>
-              <DialogHeader>
-                <DialogTitle className="flex flex-wrap items-center gap-2">
-                  {selected.name || selected.email}
-                  {/* The same two badges the row carries. The card is where a
-                      note gets written and a decision gets made, so losing the
-                      context that made the row worth opening would be the wrong
-                      place to save space. */}
-                  <span
-                    className={`text-[11px] font-normal rounded-full px-2 py-0.5 ${SEGMENT_STYLE[selected.segment as CustomerSegment]}`}
-                  >
-                    {SEGMENT_HE[selected.segment as CustomerSegment]}
+      <AdminSheet open={!!selected} onOpenChange={(v) => !v && setSelected(null)}>
+        {selected && (
+          <AdminSheetContent
+            title={selected.name || selected.email}
+            // The same badges the row carries. The card is where a note gets
+            // written and a decision gets made, so losing the context that
+            // made the row worth opening would be the wrong place to save
+            // space.
+            headerExtra={
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span
+                  className={`text-[11px] rounded-full px-2 py-0.5 ${SEGMENT_STYLE[selected.segment as CustomerSegment]}`}
+                >
+                  {SEGMENT_HE[selected.segment as CustomerSegment]}
+                </span>
+                {selected.dormant && (
+                  <span className="text-[11px] rounded-full bg-muted text-muted-foreground px-2 py-0.5">
+                    רדום
                   </span>
-                  {selected.dormant && (
-                    <span className="text-[11px] font-normal rounded-full bg-muted text-muted-foreground px-2 py-0.5">
-                      רדום
-                    </span>
-                  )}
-                  <ContactBadges c={selected} />
-                </DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 text-sm">
-                <div className="flex flex-wrap items-center gap-2">
-                  {selected.phone && (
-                    <a
-                      href={`tel:${selected.phone}`}
-                      className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"
-                    >
-                      <Phone className="h-3 w-3" /> {selected.phone}
-                    </a>
-                  )}
-                  {selected.phone && (
+                )}
+                <ContactBadges c={selected} />
+              </div>
+            }
+            footer={
+              <div className="flex items-center gap-2">
+                {selected.phone && (
+                  <Button
+                    asChild
+                    className="flex-1 bg-emerald-700 text-white hover:bg-emerald-800 sm:flex-none sm:px-6"
+                  >
                     <a
                       href={
                         (selected.dormant ? waWeMissYou(selected) : waGreeting(selected)) ??
@@ -459,182 +573,214 @@ function AdminCustomers() {
                       }
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted text-emerald-700"
                       title={
                         selected.dormant
                           ? "WhatsApp — הודעת ״מזמן לא התראינו״"
                           : "WhatsApp — הודעת ברכה מוכנה"
                       }
                     >
-                      <MessageCircle className="h-3 w-3" /> וואטסאפ
+                      <MessageCircle className="h-4 w-4" /> וואטסאפ
                     </a>
-                  )}
-                  <a
-                    href={`mailto:${selected.email}`}
-                    className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs [@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted"
-                  >
-                    <Mail className="h-3 w-3" /> {selected.email}
+                  </Button>
+                )}
+                {selected.phone && (
+                  <Button asChild variant="outline" size="icon" aria-label="חיוג">
+                    <a href={`tel:${selected.phone}`}>
+                      <Phone className="h-4 w-4" />
+                    </a>
+                  </Button>
+                )}
+                <Button
+                  asChild
+                  variant="outline"
+                  size={selected.phone ? "icon" : "default"}
+                  aria-label="אימייל"
+                  className={selected.phone ? "" : "flex-1"}
+                >
+                  <a href={`mailto:${selected.email}`}>
+                    <Mail className="h-4 w-4" />
+                    {!selected.phone && "אימייל"}
                   </a>
-                  {selected.contactConsent && (
-                    <span className="text-[11px] rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5">
-                      אישר/ה יצירת קשר
-                    </span>
+                </Button>
+              </div>
+            }
+          >
+            <div className="space-y-4 text-sm">
+              <div className="flex flex-wrap items-center gap-2">
+                {selected.phone && (
+                  <a href={`tel:${selected.phone}`} className={CHIP}>
+                    <Phone className="h-3.5 w-3.5 shrink-0" />
+                    <bdi dir="ltr">{selected.phone}</bdi>
+                  </a>
+                )}
+                <a href={`mailto:${selected.email}`} className={CHIP}>
+                  <Mail className="h-3.5 w-3.5 shrink-0" />
+                  <bdi dir="ltr" className="truncate">
+                    {selected.email}
+                  </bdi>
+                </a>
+                {selected.contactConsent && (
+                  <span className="text-[11px] rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5">
+                    אישר/ה יצירת קשר
+                  </span>
+                )}
+              </div>
+              <div className="grid grid-cols-4 gap-1.5 text-center sm:gap-2">
+                <div className="rounded-lg border px-1 py-2 sm:p-3">
+                  <div className="text-xs text-muted-foreground">הזמנות</div>
+                  <div className="text-sm font-bold sm:text-lg">{selected.orders}</div>
+                  {selected.paidOrders !== selected.orders && (
+                    <div className="text-xs text-muted-foreground">{selected.paidOrders} שולמו</div>
                   )}
                 </div>
-                <div className="grid grid-cols-2 gap-2 text-center sm:grid-cols-4">
-                  <div className="rounded-lg border p-3">
-                    <div className="text-xs text-muted-foreground">הזמנות</div>
-                    <div className="text-lg font-bold">{selected.orders}</div>
-                    {selected.paidOrders !== selected.orders && (
-                      <div className="text-xs text-muted-foreground">
-                        {selected.paidOrders} שולמו
-                      </div>
-                    )}
-                  </div>
-                  <div className="rounded-lg border p-3">
-                    <div className="text-xs text-muted-foreground">סך קניות</div>
-                    <div className="text-lg font-bold">{formatILS(selected.ltv)}</div>
-                  </div>
-                  {/* Average order: over PAID orders only, the same money the
+                <div className="rounded-lg border px-1 py-2 sm:p-3">
+                  <div className="text-xs text-muted-foreground">סך קניות</div>
+                  <div className="text-sm font-bold sm:text-lg">{formatILS(selected.ltv)}</div>
+                </div>
+                {/* Average order: over PAID orders only, the same money the
                       "סך קניות" box counts — an unpaid attempt is not a basket
                       size. */}
-                  <div className="rounded-lg border p-3">
-                    <div className="text-xs text-muted-foreground">ממוצע להזמנה</div>
-                    <div className="text-lg font-bold">
-                      {selected.paidOrders > 0
-                        ? formatILS(Math.round(selected.ltv / selected.paidOrders))
-                        : "—"}
-                    </div>
+                <div className="rounded-lg border px-1 py-2 sm:p-3">
+                  <div className="text-xs text-muted-foreground">
+                    ממוצע<span className="max-sm:hidden"> להזמנה</span>
                   </div>
-                  <div className="rounded-lg border p-3">
-                    <div className="text-xs text-muted-foreground">הזמנה אחרונה</div>
-                    <div className="text-lg font-bold">{dateHe(selected.lastOrderAt)}</div>
-                    <div
-                      className={`text-xs ${selected.dormant ? "text-amber-700" : "text-muted-foreground"}`}
-                    >
-                      {sinceLabel(selected.daysSinceLastOrder)}
-                    </div>
+                  <div className="text-sm font-bold sm:text-lg">
+                    {selected.paidOrders > 0
+                      ? formatILS(Math.round(selected.ltv / selected.paidOrders))
+                      : "—"}
                   </div>
                 </div>
+                <div className="rounded-lg border px-1 py-2 sm:p-3">
+                  <div className="text-xs text-muted-foreground">
+                    <span className="max-sm:hidden">הזמנה </span>אחרונה
+                  </div>
+                  <div className="text-xs font-bold sm:text-lg">{dateHe(selected.lastOrderAt)}</div>
+                  <div
+                    className={`text-xs ${selected.dormant ? "text-amber-700" : "text-muted-foreground"}`}
+                  >
+                    {sinceLabel(selected.daysSinceLastOrder)}
+                  </div>
+                </div>
+              </div>
 
-                <CustomerTimelineFacts selected={selected} cust={cust} />
+              <CustomerTimelineFacts selected={selected} cust={cust} />
 
-                {/* Four tabs instead of one long scroll: the card had grown to
+              {/* Four tabs instead of one long scroll: the card had grown to
                     seven stacked sections, and the two the owner opens it for —
                     a reminder and a note — sat above everything else anyway. */}
-                <Tabs defaultValue="overview" dir="rtl" className="border-t pt-3">
-                  <TabsList className="w-full justify-start overflow-x-auto">
-                    <TabsTrigger value="overview">סקירה</TabsTrigger>
-                    <TabsTrigger value="timeline">ציר זמן</TabsTrigger>
-                    <TabsTrigger value="orders">הזמנות ({cust?.orders.length ?? 0})</TabsTrigger>
-                    <TabsTrigger value="carts">עגלות ({cust?.carts.length ?? 0})</TabsTrigger>
-                  </TabsList>
+              <Tabs defaultValue="overview" dir="rtl" className="border-t pt-3">
+                <TabsList className="grid w-full grid-cols-4 sm:flex sm:justify-start">
+                  <TabsTrigger value="overview">סקירה</TabsTrigger>
+                  <TabsTrigger value="timeline">ציר זמן</TabsTrigger>
+                  <TabsTrigger value="orders">הזמנות ({cust?.orders.length ?? 0})</TabsTrigger>
+                  <TabsTrigger value="carts">עגלות ({cust?.carts.length ?? 0})</TabsTrigger>
+                </TabsList>
 
-                  <TabsContent value="overview" className="space-y-4">
-                    <FollowUpsSection
-                      email={selected.email}
-                      onChanged={() => qc.invalidateQueries({ queryKey: ["admin-customers"] })}
-                    />
+                <TabsContent value="overview" className="space-y-4">
+                  <FollowUpsSection
+                    email={selected.email}
+                    onChanged={() => qc.invalidateQueries({ queryKey: ["admin-customers"] })}
+                  />
 
-                    {/* Notes */}
-                    <div className="border-t pt-3">
-                      <div className="font-semibold mb-2">הערות פנימיות</div>
-                      <div className="flex gap-2 mb-2">
-                        <Input
-                          placeholder='למשל: "ביקש הקדשה עד חמישי"'
-                          value={noteText}
-                          onChange={(e) => setNoteText(e.target.value)}
-                          onKeyDown={(e) => e.key === "Enter" && onAddNote()}
-                        />
-                        <Button
-                          size="sm"
-                          disabled={savingNote || !noteText.trim()}
-                          onClick={onAddNote}
+                  {/* Notes */}
+                  <div className="border-t pt-3">
+                    <div className="font-semibold mb-2">הערות פנימיות</div>
+                    <div className="flex gap-2 mb-2">
+                      <Input
+                        placeholder='למשל: "ביקש הקדשה עד חמישי"'
+                        value={noteText}
+                        onChange={(e) => setNoteText(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && onAddNote()}
+                      />
+                      <Button
+                        size="sm"
+                        disabled={savingNote || !noteText.trim()}
+                        onClick={onAddNote}
+                      >
+                        {savingNote ? "שומר..." : "הוסף"}
+                      </Button>
+                    </div>
+                    <div className="space-y-1.5">
+                      {(cust?.notes ?? []).map((n: any) => (
+                        <div
+                          key={n.id}
+                          className="flex items-start justify-between gap-2 rounded-md bg-muted/40 px-3 py-2"
                         >
-                          {savingNote ? "שומר..." : "הוסף"}
-                        </Button>
-                      </div>
-                      <div className="space-y-1.5">
-                        {(cust?.notes ?? []).map((n: any) => (
-                          <div
-                            key={n.id}
-                            className="flex items-start justify-between gap-2 rounded-md bg-muted/40 px-3 py-2"
+                          <div>
+                            <div>{n.note}</div>
+                            <div className="text-[11px] text-muted-foreground">
+                              {new Date(n.created_at).toLocaleString("he-IL")}
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => onDeleteNote(n.id)}
+                            className={`${ROW_ICON_BTN} [@media(hover:hover)_and_(pointer:fine)]:hover:text-destructive`}
+                            title="מחק"
+                            aria-label="מחיקת ההערה"
                           >
-                            <div>
-                              <div>{n.note}</div>
-                              <div className="text-[11px] text-muted-foreground">
-                                {new Date(n.created_at).toLocaleString("he-IL")}
-                              </div>
-                            </div>
-                            <button
-                              onClick={() => onDeleteNote(n.id)}
-                              className="text-muted-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:text-destructive"
-                              title="מחק"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        ))}
-                        {(cust?.notes ?? []).length === 0 && (
-                          <div className="text-xs text-muted-foreground">אין הערות עדיין.</div>
-                        )}
-                      </div>
-                    </div>
-                  </TabsContent>
-
-                  <TabsContent value="timeline">
-                    <CustomerTimeline cust={cust} />
-                  </TabsContent>
-
-                  <TabsContent value="orders">
-                    <div>
-                      {cust && cust.orders.length === 0 && (
-                        <div className="text-xs text-muted-foreground">עדיין לא הזמין/ה.</div>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                      {(cust?.notes ?? []).length === 0 && (
+                        <div className="text-xs text-muted-foreground">אין הערות עדיין.</div>
                       )}
-                      <div className="space-y-2">
-                        {(cust?.orders ?? []).map((o: any) => (
-                          <div key={o.id} className="rounded-md border px-3 py-2">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <Link
-                                  to="/admin/orders"
-                                  search={{ q: o.order_number, open: "1" }}
-                                  className="font-mono text-xs underline text-primary"
-                                >
-                                  {o.order_number}
-                                </Link>
-                                <span className="mx-2 text-xs text-muted-foreground">
-                                  {new Date(o.created_at).toLocaleDateString("he-IL")}
-                                </span>
-                                <span className="text-[11px] rounded-full bg-muted px-2 py-0.5">
-                                  {paymentStatusHe(o.payment_status)}
-                                </span>
-                              </div>
-                              <div className="font-bold">{formatILS(Number(o.total))}</div>
-                            </div>
-                            <div className="text-xs text-muted-foreground mt-1">
-                              {(o.order_items ?? [])
-                                .map((it: any) => `${it.product_name} ×${it.quantity}`)
-                                .join(" · ")}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
                     </div>
-                  </TabsContent>
+                  </div>
+                </TabsContent>
 
-                  <TabsContent value="carts">
-                    <CartsSection carts={cust?.carts ?? []} />
-                    {cust && cust.carts.length === 0 && (
-                      <div className="text-xs text-muted-foreground">אין עגלות.</div>
+                <TabsContent value="timeline">
+                  <CustomerTimeline cust={cust} />
+                </TabsContent>
+
+                <TabsContent value="orders">
+                  <div>
+                    {cust && cust.orders.length === 0 && (
+                      <div className="text-xs text-muted-foreground">עדיין לא הזמין/ה.</div>
                     )}
-                  </TabsContent>
-                </Tabs>
-              </div>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
+                    <div className="space-y-2">
+                      {(cust?.orders ?? []).map((o: any) => (
+                        <div key={o.id} className="rounded-md border px-3 py-2">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <Link
+                                to="/admin/orders"
+                                search={{ q: o.order_number, open: "1" }}
+                                className="font-mono text-xs underline text-primary"
+                              >
+                                {o.order_number}
+                              </Link>
+                              <span className="mx-2 text-xs text-muted-foreground">
+                                {new Date(o.created_at).toLocaleDateString("he-IL")}
+                              </span>
+                              <span className="text-[11px] rounded-full bg-muted px-2 py-0.5">
+                                {paymentStatusHe(o.payment_status)}
+                              </span>
+                            </div>
+                            <div className="font-bold">{formatILS(Number(o.total))}</div>
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            {(o.order_items ?? [])
+                              .map((it: any) => `${it.product_name} ×${it.quantity}`)
+                              .join(" · ")}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="carts">
+                  <CartsSection carts={cust?.carts ?? []} />
+                  {cust && cust.carts.length === 0 && (
+                    <div className="text-xs text-muted-foreground">אין עגלות.</div>
+                  )}
+                </TabsContent>
+              </Tabs>
+            </div>
+          </AdminSheetContent>
+        )}
+      </AdminSheet>
     </div>
   );
 }
@@ -894,8 +1040,9 @@ function FollowUpsSection({ email, onChanged }: { email: string; onChanged: () =
                         "נדחה ב-3 ימים",
                       )
                     }
-                    className="text-muted-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:text-foreground"
+                    className={`${ROW_ICON_BTN} [@media(hover:hover)_and_(pointer:fine)]:hover:text-foreground`}
                     title="דחה ב-3 ימים"
+                    aria-label="דחייה ב-3 ימים"
                   >
                     <Clock className="h-3.5 w-3.5" />
                   </button>
@@ -904,8 +1051,9 @@ function FollowUpsSection({ email, onChanged }: { email: string; onChanged: () =
                   type="button"
                   disabled={busy}
                   onClick={() => void act(() => remove({ data: { id: f.id } }), "התזכורת נמחקה")}
-                  className="text-muted-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:text-destructive"
+                  className={`${ROW_ICON_BTN} [@media(hover:hover)_and_(pointer:fine)]:hover:text-destructive`}
                   title="מחק"
+                  aria-label="מחיקת התזכורת"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>

@@ -403,7 +403,7 @@ function AdminProducts() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4 gap-3">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h1 className="font-display text-2xl font-bold">מוצרים ({total})</h1>
         {/* Radix routes Escape, outside-pointer AND the X through onOpenChange,
             so this single guard covers all three ways the dialog could silently
@@ -427,11 +427,18 @@ function AdminProducts() {
           }}
         >
           <div className="flex flex-wrap items-center justify-end gap-2">
-            <Button variant="outline" className="gap-2" onClick={() => setHistoryOpen(true)}>
-              <History className="h-4 w-4" /> היסטוריית מחירים
+            <Button
+              variant="outline"
+              className="gap-2 max-sm:w-11 max-sm:px-0"
+              aria-label="היסטוריית מחירים"
+              onClick={() => setHistoryOpen(true)}
+            >
+              <History className="h-4 w-4" />
+              <span className="max-sm:sr-only">היסטוריית מחירים</span>
             </Button>
             <Button variant="outline" className="gap-2" onClick={() => setQuickOpen(true)}>
-              <ImagePlus className="h-4 w-4" /> הוספה מהירה מתמונות
+              <ImagePlus className="h-4 w-4" /> הוספה מהירה
+              <span className="max-sm:hidden"> מתמונות</span>
             </Button>
             <DialogTrigger asChild>
               <Button
@@ -459,19 +466,22 @@ function AdminProducts() {
           />
         </Dialog>
       </div>
-      <div className="mb-4 flex flex-wrap items-end gap-3">
-        <div className="min-w-[220px] flex-1 max-w-sm">
+      <div className="mb-4 grid grid-cols-2 items-end gap-2 sm:flex sm:flex-wrap sm:gap-3">
+        <div className="col-span-2 sm:min-w-[220px] sm:max-w-sm sm:flex-1">
           <Label htmlFor="prod-search" className="text-xs text-muted-foreground">
             חיפוש
           </Label>
           <Input
             id="prod-search"
+            type="search"
+            enterKeyHint="search"
+            className="max-sm:min-h-11"
             placeholder="חיפוש: שם / מק״ט / slug..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <div className="w-64">
+        <div className="col-span-2 sm:w-64">
           <Label htmlFor="prod-cat" className="text-xs text-muted-foreground">
             קטגוריה
           </Label>
@@ -479,7 +489,7 @@ function AdminProducts() {
             id="prod-cat"
             value={cat ?? ""}
             onChange={(e) => patchSearch({ cat: e.target.value || undefined })}
-            className="flex h-10 w-full rounded-md border bg-background px-3 text-sm"
+            className="flex h-11 w-full rounded-md border bg-background px-3 text-sm sm:h-10"
           >
             <option value="">כל הקטגוריות</option>
             {catOptions.map((o) => (
@@ -489,7 +499,7 @@ function AdminProducts() {
             ))}
           </select>
         </div>
-        <div className="w-56">
+        <div className="min-w-0 sm:w-56">
           <Label htmlFor="prod-health" className="text-xs text-muted-foreground">
             סינון תקינות
           </Label>
@@ -499,7 +509,7 @@ function AdminProducts() {
             onChange={(e) =>
               patchSearch({ health: (e.target.value || undefined) as HealthFilter | undefined })
             }
-            className="flex h-10 w-full rounded-md border bg-background px-3 text-sm"
+            className="flex h-11 w-full rounded-md border bg-background px-3 text-sm sm:h-10"
           >
             <option value="">כל המוצרים</option>
             {HEALTH_FILTERS.map((h) => (
@@ -509,7 +519,7 @@ function AdminProducts() {
             ))}
           </select>
         </div>
-        <div className="w-56">
+        <div className="min-w-0 sm:w-56">
           <Label htmlFor="prod-sort" className="text-xs text-muted-foreground">
             מיון
           </Label>
@@ -521,7 +531,7 @@ function AdminProducts() {
               const isDefault = k === "created_at" && d === "desc";
               patchSearch({ sort: isDefault ? undefined : k, dir: isDefault ? undefined : d });
             }}
-            className="flex h-10 w-full rounded-md border bg-background px-3 text-sm"
+            className="flex h-11 w-full rounded-md border bg-background px-3 text-sm sm:h-10"
           >
             <option value="created_at:desc">נוספו לאחרונה</option>
             <option value="created_at:asc">הוותיקים ביותר</option>
@@ -572,8 +582,118 @@ function AdminProducts() {
         </div>
       )}
 
+      {/* Phone: a card per product — photo, name, stock, the inline price and
+          the three row actions as 44px buttons. Same handlers as the table. */}
+      <ul
+        className={`space-y-2 sm:hidden transition-opacity duration-200 ease-out ${isFetching ? "opacity-60" : ""}`}
+      >
+        {!isFetching && filtered.length === 0 && (
+          <li className="rounded-lg border bg-card p-8 text-center text-sm text-muted-foreground">
+            לא נמצאו מוצרים התואמים לסינון הנוכחי.
+          </li>
+        )}
+        {filtered.length > 0 && (
+          <li>
+            <label className="flex min-h-11 items-center gap-3 px-1 text-sm text-muted-foreground">
+              <Checkbox
+                checked={allOnPageSelected}
+                onCheckedChange={toggleAll}
+                aria-label="בחר את כל המוצרים בעמוד"
+              />
+              בחירת כל המוצרים בעמוד
+            </label>
+          </li>
+        )}
+        {filtered.map((p) => (
+          <li
+            key={p.id}
+            className={`rounded-xl border border-glass-line p-3 ${selected.has(p.id) ? "bg-primary/5" : "bg-card"}`}
+          >
+            <div className="flex items-start gap-3">
+              <label className="-m-2 flex h-11 w-11 shrink-0 items-center justify-center">
+                <Checkbox
+                  checked={selected.has(p.id)}
+                  onCheckedChange={() => toggleOne(p.id)}
+                  aria-label={`בחר ${p.name}`}
+                />
+              </label>
+              {p.thumbnail_url ? (
+                <img
+                  src={p.thumbnail_url}
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                  className="h-14 w-14 shrink-0 rounded-md object-cover"
+                />
+              ) : (
+                <div
+                  aria-hidden="true"
+                  className="h-14 w-14 shrink-0 rounded-md border border-dashed bg-muted"
+                />
+              )}
+              <div className="min-w-0 flex-1">
+                <div className="line-clamp-2 text-sm font-medium">{p.name}</div>
+                <div className="mt-0.5 text-xs">
+                  <span
+                    className={p.stock_status === "instock" ? "text-green-700" : "text-destructive"}
+                  >
+                    {p.stock_status === "instock" ? "במלאי" : "אזל"}
+                  </span>
+                  {p.track_stock && (
+                    <span className="text-muted-foreground"> · במעקב {p.stock_qty ?? 0}</span>
+                  )}
+                  {!p.is_active && <span className="text-muted-foreground"> · לא פעיל</span>}
+                </div>
+              </div>
+            </div>
+            <div className="mt-2 flex items-start justify-between gap-2">
+              <PriceCell
+                price={Number(p.price)}
+                salePrice={p.sale_price === null ? null : Number(p.sale_price)}
+                label={p.name}
+                onSave={(next) => saveInlinePrice(p, next)}
+              />
+              <div className="flex gap-1.5">
+                <Button
+                  size="icon"
+                  variant="outline"
+                  aria-label={`עריכת ${p.name}`}
+                  onClick={() => {
+                    setDuplicateFrom(null);
+                    setEditing(p);
+                    setOpen(true);
+                  }}
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="outline"
+                  aria-label={`שכפול ${p.name}`}
+                  onClick={() => {
+                    setEditing(null);
+                    setDuplicateFrom(p);
+                    setOpen(true);
+                  }}
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="outline"
+                  aria-label={`מחיקת ${p.name}`}
+                  onClick={() => onDelete(p.id)}
+                >
+                  <Trash2 className="h-4 w-4 text-destructive" />
+                </Button>
+              </div>
+            </div>
+          </li>
+        ))}
+      </ul>
+
       <div
-        className={`rounded-lg border bg-card overflow-x-auto transition-opacity duration-200 ease-out ${isFetching ? "opacity-60" : ""}`}
+        className={`rounded-lg border bg-card overflow-x-auto transition-opacity duration-200 ease-out max-sm:hidden ${isFetching ? "opacity-60" : ""}`}
       >
         <table className="w-full text-sm">
           <thead className="bg-muted/50">
@@ -859,7 +979,7 @@ function BulkDialog({
               id="bulk-kind"
               value={kind}
               onChange={(e) => setKind(e.target.value as BulkKind)}
-              className="flex h-10 w-full rounded-md border bg-background px-3 text-sm"
+              className="flex h-11 w-full rounded-md border bg-background px-3 text-sm sm:h-10"
             >
               <option value="active">שינוי סטטוס פעיל</option>
               <option value="stock_status">שינוי סטטוס מלאי</option>
@@ -881,7 +1001,7 @@ function BulkDialog({
             <select
               value={stockValue}
               onChange={(e) => setStockValue(e.target.value as any)}
-              className="flex h-10 w-full rounded-md border bg-background px-3 text-sm"
+              className="flex h-11 w-full rounded-md border bg-background px-3 text-sm sm:h-10"
             >
               <option value="instock">במלאי</option>
               <option value="outofstock">אזל</option>
@@ -945,7 +1065,7 @@ function BulkDialog({
               <select
                 value={categoryMode}
                 onChange={(e) => setCategoryMode(e.target.value as any)}
-                className="flex h-10 w-full rounded-md border bg-background px-3 text-sm"
+                className="flex h-11 w-full rounded-md border bg-background px-3 text-sm sm:h-10"
               >
                 <option value="add">הוסף לקטגוריה</option>
                 <option value="remove">הסר מקטגוריה</option>
@@ -953,7 +1073,7 @@ function BulkDialog({
               <select
                 value={categoryId}
                 onChange={(e) => setCategoryId(e.target.value)}
-                className="flex h-10 w-full rounded-md border bg-background px-3 text-sm"
+                className="flex h-11 w-full rounded-md border bg-background px-3 text-sm sm:h-10"
               >
                 <option value="">— בחרו קטגוריה —</option>
                 {categoryOptions(categories).map((o) => (
@@ -1213,7 +1333,7 @@ function ProductDialog({
             <select
               value={form.stock_status ?? "instock"}
               onChange={(e) => setForm({ ...form, stock_status: e.target.value })}
-              className="flex h-10 w-full rounded-md border bg-background px-3 text-sm"
+              className="flex h-11 w-full rounded-md border bg-background px-3 text-sm sm:h-10"
             >
               <option value="instock">במלאי</option>
               <option value="outofstock">אזל</option>

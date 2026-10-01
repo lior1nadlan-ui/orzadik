@@ -11,7 +11,7 @@ import { createPhoneOrder, searchOrderProducts } from "@/lib/admin-orders.functi
 import { waMessage } from "@/lib/wa-templates";
 import { formatILS } from "@/lib/cart";
 import { getShipping, type Fulfillment } from "@/lib/pricing";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AdminSheet, AdminSheetContent } from "@/components/admin/AdminSheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -188,19 +188,45 @@ export function PhoneOrderDialog({
   const wa = created ? waMessage(form.phone, waText) : null;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className="max-w-2xl max-h-[90dvh] overflow-y-auto"
-        dir="rtl"
+    <AdminSheet open={open} onOpenChange={onOpenChange}>
+      <AdminSheetContent
+        title="הזמנה טלפונית"
         // A tap outside must not wipe a half-built order.
         onInteractOutside={(e) => {
           if (!created && (lines.length > 0 || form.name.trim())) e.preventDefault();
         }}
+        // The total and the one button that creates the order stay in reach
+        // at the bottom of the screen while the form scrolls above them.
+        footer={
+          created ? (
+            <div className="flex items-center gap-2">
+              {wa && (
+                <Button asChild className="flex-1">
+                  <a href={wa} target="_blank" rel="noopener noreferrer">
+                    <MessageCircle className="h-4 w-4" /> שליחה בוואטסאפ
+                  </a>
+                </Button>
+              )}
+              <Button variant="ghost" onClick={() => onOpenChange(false)}>
+                סגירה
+              </Button>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+              <div className="text-xs text-muted-foreground">
+                פריטים {formatILS(itemsTotal)} ·{" "}
+                {pickup ? "איסוף עצמי" : `משלוח ${formatILS(shipping)}`}
+                <span className="block">
+                  הסכום הסופי נקבע בשרת (מבצעים והנחת חבר מועדון חלים אוטומטית)
+                </span>
+              </div>
+              <Button onClick={submit} disabled={busy} className="w-full sm:w-auto">
+                {busy ? "יוצר..." : `יצירת הזמנה · ${formatILS(itemsTotal + shipping)}`}
+              </Button>
+            </div>
+          )
+        }
       >
-        <DialogHeader>
-          <DialogTitle>הזמנה טלפונית</DialogTitle>
-        </DialogHeader>
-
         {created ? (
           <div className="space-y-4 text-sm">
             <p>
@@ -212,13 +238,6 @@ export function PhoneOrderDialog({
               {created.payUrl}
             </div>
             <div className="flex flex-wrap gap-2">
-              {wa && (
-                <Button asChild>
-                  <a href={wa} target="_blank" rel="noopener noreferrer">
-                    <MessageCircle className="h-4 w-4" /> שליחה בוואטסאפ
-                  </a>
-                </Button>
-              )}
               <Button
                 variant="outline"
                 onClick={async () => {
@@ -232,14 +251,11 @@ export function PhoneOrderDialog({
               >
                 <Copy className="h-4 w-4" /> העתקת הודעה
               </Button>
-              <Button variant="ghost" onClick={() => onOpenChange(false)}>
-                סגירה
-              </Button>
             </div>
           </div>
         ) : (
           <div className="space-y-4 text-sm">
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label htmlFor="po-name">שם *</Label>
                 <Input
@@ -253,16 +269,20 @@ export function PhoneOrderDialog({
                 <Input
                   id="po-phone"
                   type="tel"
+                  inputMode="tel"
+                  autoComplete="off"
                   dir="ltr"
                   value={form.phone}
                   onChange={(e) => setForm({ ...form, phone: e.target.value })}
                 />
               </div>
-              <div className="sm:col-span-2">
+              <div className="col-span-2">
                 <Label htmlFor="po-email">אימייל * (לאישור ההזמנה והקבלה)</Label>
                 <Input
                   id="po-email"
                   type="email"
+                  inputMode="email"
+                  autoComplete="off"
                   dir="ltr"
                   value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
@@ -273,16 +293,16 @@ export function PhoneOrderDialog({
             <fieldset>
               <legend className="mb-2 font-medium">קבלת ההזמנה</legend>
               {/* Same option cards as the checkout, so both read the same. */}
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid grid-cols-2 gap-2">
                 {(
                   [
                     ["delivery", "משלוח"],
-                    ["pickup", "איסוף עצמי מהחנות"],
+                    ["pickup", "איסוף עצמי"],
                   ] as const
                 ).map(([v, label]) => (
                   <label
                     key={v}
-                    className={`flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border p-3 ${
+                    className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border p-3 ${
                       fulfillment === v ? "border-accent bg-accent/5" : "border-border"
                     }`}
                   >
@@ -322,6 +342,8 @@ export function PhoneOrderDialog({
               <Label htmlFor="po-search">הוספת מוצר</Label>
               <Input
                 id="po-search"
+                type="search"
+                enterKeyHint="search"
                 placeholder="שם מוצר או מק״ט"
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
@@ -453,22 +475,9 @@ export function PhoneOrderDialog({
                 הלקוח הסכים שניצור איתו קשר בנושא ההזמנה (תזכורת תשלום ובקשת חוות דעת)
               </span>
             </label>
-
-            <div className="sticky bottom-0 -mx-6 flex flex-wrap items-center justify-between gap-2 border-t bg-background px-6 pb-2 pt-3">
-              <div className="text-xs text-muted-foreground">
-                פריטים {formatILS(itemsTotal)} ·{" "}
-                {pickup ? "איסוף עצמי" : `משלוח ${formatILS(shipping)}`}
-                <span className="block">
-                  הסכום הסופי נקבע בשרת (מבצעים והנחת חבר מועדון חלים אוטומטית)
-                </span>
-              </div>
-              <Button onClick={submit} disabled={busy} className="w-full sm:w-auto">
-                {busy ? "יוצר..." : `יצירת הזמנה · ${formatILS(itemsTotal + shipping)}`}
-              </Button>
-            </div>
           </div>
         )}
-      </DialogContent>
-    </Dialog>
+      </AdminSheetContent>
+    </AdminSheet>
   );
 }

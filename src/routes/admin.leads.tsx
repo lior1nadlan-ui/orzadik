@@ -45,7 +45,9 @@ function ago(iso: string): string {
   return d === 1 ? "אתמול" : `לפני ${d} ימים`;
 }
 
-const ACTION_BTN = "min-h-10";
+// 44px on a phone, the panel's compact size from sm up.
+const ACTION_BTN = "max-sm:min-h-11";
+const ICON_ONLY = "shrink-0 max-sm:w-11 max-sm:px-0";
 
 function AdminLeads() {
   const load = useServerFn(listLeads);
@@ -61,17 +63,27 @@ function AdminLeads() {
 
   return (
     <div>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div>
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div className="min-w-0">
           <h1 className="font-display text-2xl font-bold">לידים ({open.length})</h1>
           <p className="text-sm text-muted-foreground">
-            כל מי שהתחיל לקנות ולא שילם ב-30 הימים האחרונים — עגלות נטושות והזמנות שהתשלום שלהן לא
-            הושלם. {open.length > 0 && <>סה״כ {formatILS(total)} שמחכים לשיחה.</>}
+            <span className="max-sm:hidden">
+              כל מי שהתחיל לקנות ולא שילם ב-30 הימים האחרונים — עגלות נטושות והזמנות שהתשלום שלהן לא
+              הושלם.{" "}
+            </span>
+            {open.length > 0 && <>סה״כ {formatILS(total)} שמחכים לשיחה.</>}
           </p>
         </div>
-        <Button size="sm" variant="outline" onClick={() => refetch()} disabled={isFetching}>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => refetch()}
+          disabled={isFetching}
+          aria-label="רענון"
+          className="shrink-0 max-sm:min-h-11 max-sm:w-11 max-sm:px-0"
+        >
           <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
-          רענון
+          <span className="max-sm:sr-only">רענון</span>
         </Button>
       </div>
 
@@ -177,8 +189,8 @@ function LeadCard({ lead: l }: { lead: LeadRow }) {
   };
 
   return (
-    <li className="rounded-lg border bg-card p-4">
-      <div className="flex flex-wrap items-start justify-between gap-2">
+    <li className="rounded-xl border bg-card p-3.5 sm:rounded-lg sm:p-4">
+      <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-semibold">{l.name}</span>
@@ -205,8 +217,8 @@ function LeadCard({ lead: l }: { lead: LeadRow }) {
             {[l.phone, l.email].filter(Boolean).join(" · ")}
           </div>
         </div>
-        <div className="text-end">
-          <div className="font-bold text-accent">{formatILS(l.value)}</div>
+        <div className="shrink-0 text-end">
+          <div className="text-lg font-bold text-accent sm:text-base">{formatILS(l.value)}</div>
           <div className="text-xs text-muted-foreground">{ago(l.at)}</div>
         </div>
       </div>
@@ -222,26 +234,41 @@ function LeadCard({ lead: l }: { lead: LeadRow }) {
         {l.customerReminded ? "הלקוח כבר קיבל תזכורת אוטומטית במייל" : "עוד לא נשלחה ללקוח תזכורת"}
       </p>
 
-      <div className="mt-3 flex flex-wrap gap-2">
+      {/* Contact: WhatsApp is the action (a draft with the payment link when
+          there is an order), so on a phone it is the wide filled button and
+          call / email are round icons next to it. The less frequent actions
+          sit on their own row below. */}
+      <div className="mt-3 flex items-center gap-2 sm:flex-wrap">
         {wa && (
-          <Button size="sm" className={ACTION_BTN} asChild>
+          <Button
+            size="sm"
+            className={`${ACTION_BTN} max-sm:min-w-0 max-sm:flex-1 bg-emerald-700 text-white hover:bg-emerald-800`}
+            asChild
+          >
             <a href={wa} target="_blank" rel="noopener noreferrer">
               <MessageCircle className="h-4 w-4" /> וואטסאפ
             </a>
           </Button>
         )}
         {l.phone && (
-          <Button size="sm" variant="outline" className={ACTION_BTN} asChild>
-            <a href={`tel:${l.phone}`}>
-              <Phone className="h-4 w-4" /> חיוג
+          <Button size="sm" variant="outline" className={`${ACTION_BTN} ${ICON_ONLY}`} asChild>
+            <a href={`tel:${l.phone}`} aria-label="חיוג">
+              <Phone className="h-4 w-4" /> <span className="max-sm:sr-only">חיוג</span>
             </a>
           </Button>
         )}
-        <Button size="sm" variant="outline" className={ACTION_BTN} asChild>
-          <a href={`mailto:${l.email}`}>
-            <Mail className="h-4 w-4" /> אימייל
+        <Button
+          size="sm"
+          variant="outline"
+          className={`${ACTION_BTN} ${wa ? ICON_ONLY : "max-sm:flex-1"}`}
+          asChild
+        >
+          <a href={`mailto:${l.email}`} aria-label="אימייל">
+            <Mail className="h-4 w-4" /> <span className={wa ? "max-sm:sr-only" : ""}>אימייל</span>
           </a>
         </Button>
+      </div>
+      <div className="mt-2 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
         {payUrl && (
           <Button
             size="sm"
@@ -284,10 +311,10 @@ function LeadCard({ lead: l }: { lead: LeadRow }) {
 
       {/* Same three decisions as "מה לעשות היום", kept apart from the contact
           buttons so a slip of the thumb cannot take someone off the list. */}
-      <div className="mt-3 flex flex-wrap items-center gap-2 border-t pt-3">
+      <div className="mt-3 grid grid-cols-3 items-center gap-2 border-t pt-3 sm:flex sm:flex-wrap">
         {l.state === "open" ? (
           <>
-            <span className="text-xs text-muted-foreground">אחרי שדיברתם:</span>
+            <span className="col-span-3 text-xs text-muted-foreground">אחרי שדיברתם:</span>
             <Button
               size="sm"
               variant="outline"
@@ -304,7 +331,8 @@ function LeadCard({ lead: l }: { lead: LeadRow }) {
               disabled={busy}
               onClick={() => decide("days3")}
             >
-              לחזור בעוד 3 ימים
+              <span className="sm:hidden">עוד 3 ימים</span>
+              <span className="max-sm:hidden">לחזור בעוד 3 ימים</span>
             </Button>
             <Button
               size="sm"
@@ -317,7 +345,12 @@ function LeadCard({ lead: l }: { lead: LeadRow }) {
             </Button>
           </>
         ) : (
-          <Button size="sm" variant="outline" className={ACTION_BTN} onClick={restore}>
+          <Button
+            size="sm"
+            variant="outline"
+            className={`${ACTION_BTN} col-span-3`}
+            onClick={restore}
+          >
             החזרה לרשימה
           </Button>
         )}
