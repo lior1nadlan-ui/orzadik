@@ -26,7 +26,7 @@ import {
 import { daysOverdue, endOfIsraelDay, hiddenActionKeys } from "@/lib/crm-tasks";
 import { isTelegramConfigured, sendTelegramText } from "@/lib/telegram.server";
 import { emailShell, isEmailConfigured, sendEmail } from "@/lib/email.server";
-import { BUSINESS } from "@/lib/business";
+import { getStaffRecipients } from "@/lib/staff-recipients.server";
 
 const ORIGIN = process.env.APP_URL || "https://orzadik.com";
 const DAY = 24 * 60 * 60 * 1000;
@@ -153,13 +153,13 @@ export async function runDailyDigest(
     : false;
 
   let email = false;
-  const to = (process.env.SHOP_OWNER_EMAIL || BUSINESS.email || "").trim();
-  if (hasEmail && to) {
-    email = await sendEmail({
-      to,
-      subject: digestSubject(digest),
-      html: emailShell(renderDigestEmailInner(digest, now, ORIGIN), digestSubject(digest)),
-    });
+  const recipients = hasEmail ? await getStaffRecipients() : [];
+  if (recipients.length > 0) {
+    const html = emailShell(renderDigestEmailInner(digest, now, ORIGIN), digestSubject(digest));
+    const results = await Promise.all(
+      recipients.map((to) => sendEmail({ to, subject: digestSubject(digest), html })),
+    );
+    email = results.some(Boolean);
   }
 
   return { sent: telegram || email, telegram, email, actionable: digest.actionable };

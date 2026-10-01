@@ -14,6 +14,7 @@ import {
 import { BUSINESS, CONSUMER_POLICY, sellerIdentityLine } from "@/lib/business";
 import { orderItemImageUrl } from "@/lib/order-item-photo";
 import { sendOrderTelegramAlert } from "@/lib/telegram.server";
+import { getStaffRecipients } from "@/lib/staff-recipients.server";
 
 /**
  * Origin for image URLs in mail. Absolute, always: a mail client has no page to
@@ -187,8 +188,9 @@ export async function sendOrderConfirmationEmails(orderId: string): Promise<bool
     replyTo: ownerEmail,
   });
 
-  // 2) Shop-owner alert
-  if (ownerEmail) {
+  // 2) Staff alert — the owner inbox plus every admin, one email each.
+  const staff = await getStaffRecipients();
+  if (staff.length > 0) {
     const ownerHtml = emailShell(
       `
       <h1 style="font-size:20px;margin:0 0 8px;">התקבלה הזמנה חדשה 🛒</h1>
@@ -205,12 +207,14 @@ export async function sendOrderConfirmationEmails(orderId: string): Promise<bool
     `,
       `הזמנה ${order.order_number} מ${order.customer_name} — שולם ${ils(order.total)}.`,
     );
-    await sendEmail({
-      to: ownerEmail,
-      subject: `הזמנה חדשה ${order.order_number} — ${order.customer_name}`,
-      html: ownerHtml,
-      replyTo: order.customer_email,
-    });
+    for (const to of staff) {
+      await sendEmail({
+        to,
+        subject: `הזמנה חדשה ${order.order_number} — ${order.customer_name}`,
+        html: ownerHtml,
+        replyTo: order.customer_email,
+      });
+    }
   }
 
   // Report the CUSTOMER send only. The owner alert is a nice-to-have; the
@@ -235,13 +239,13 @@ export async function sendOrderConfirmationEmails(orderId: string): Promise<bool
  * one is clearly labeled "ממתינה לתשלום" so it can't be mistaken for money in.
  */
 export async function sendOrderCreatedOwnerAlert(orderId: string) {
-  const ownerEmail = process.env.SHOP_OWNER_EMAIL;
-
   // Same reasoning as in the paid path: above the guard, so the phone alert
   // survives an email outage. This one is labelled "ממתינה לתשלום".
   await sendOrderTelegramAlert(orderId, false);
 
-  if (!ownerEmail || !isEmailConfigured()) return;
+  if (!isEmailConfigured()) return;
+  const staff = await getStaffRecipients();
+  if (staff.length === 0) return;
 
   const { data: order } = await supabaseAdmin
     .from("orders")
@@ -276,12 +280,14 @@ export async function sendOrderCreatedOwnerAlert(orderId: string) {
     `הזמנה ${order.order_number} מ${order.customer_name} — ממתינה לתשלום.`,
   );
 
-  await sendEmail({
-    to: ownerEmail,
-    subject: `🕐 הזמנה חדשה ${order.order_number} (ממתינה לתשלום) — ${order.customer_name}`,
-    html,
-    replyTo: order.customer_email,
-  });
+  for (const to of staff) {
+    await sendEmail({
+      to,
+      subject: `🕐 הזמנה חדשה ${order.order_number} (ממתינה לתשלום) — ${order.customer_name}`,
+      html,
+      replyTo: order.customer_email,
+    });
+  }
   console.log("[email] created-order owner alert sent for", order.order_number);
 }
 
