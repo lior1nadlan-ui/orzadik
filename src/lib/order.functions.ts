@@ -23,7 +23,7 @@ const InputSchema = z.object({ order_id: z.string().uuid() });
  * Only display-safe columns are returned — never Cardcom internals/notes.
  */
 export const getOrderConfirmation = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => InputSchema.parse(input))
+  .validator((input: unknown) => InputSchema.parse(input))
   .handler(async ({ data }) => {
     const { data: order, error } = await supabaseAdmin
       .from("orders")
@@ -92,7 +92,7 @@ const TrackSchema = z.object({
  * production starts, so the buyer must be able to re-read them.
  */
 export const trackOrder = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => TrackSchema.parse(input))
+  .validator((input: unknown) => TrackSchema.parse(input))
   .handler(async ({ data }) => {
     const ip = getClientIp(getRequest());
     const { limited } = await checkTrackRateLimitByIp(ip);

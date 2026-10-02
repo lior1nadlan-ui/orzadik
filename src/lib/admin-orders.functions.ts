@@ -20,7 +20,7 @@ const stripHtml = (v: string) => v.replace(/<[^>]*>/g, "").trim();
 
 /** Product picker for a phone order: active products, with their sizes. */
 export const searchOrderProducts = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) => z.object({ q: z.string().trim().max(120) }).parse(i))
+  .validator((i: unknown) => z.object({ q: z.string().trim().max(120) }).parse(i))
   .handler(async ({ data }) => {
     await requireAdmin();
     const term = data.q
@@ -90,7 +90,7 @@ const PhoneOrderSchema = z.object({
  * phone customer would be asked to log in before paying.
  */
 export const createPhoneOrder = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) => {
+  .validator((i: unknown) => {
     const r = PhoneOrderSchema.safeParse(i);
     if (!r.success) throw new Error("חלק מהפרטים אינם תקינים — בדקו אימייל, טלפון ומוצרים.");
     return r.data;

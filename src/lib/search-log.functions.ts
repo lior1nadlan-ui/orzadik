@@ -13,7 +13,7 @@ import { normalizeSearchTerm, summarizeSearches, type SearchInsights } from "@/l
 
 /** Public: record one settled search. Best effort — never throws to the page. */
 export const logSearch = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) =>
+  .validator((d: unknown) =>
     z
       .object({
         term: z.string().max(200),
@@ -42,7 +42,7 @@ export const logSearch = createServerFn({ method: "POST" })
 
 /** Admin: the top and zero-result terms over the last `days` days. */
 export const getSearchInsights = createServerFn({ method: "GET" })
-  .inputValidator((d: unknown) =>
+  .validator((d: unknown) =>
     z.object({ days: z.number().int().min(1).max(365).default(30) }).parse(d ?? {}),
   )
   .handler(
@@ -74,7 +74,7 @@ const RedirectSchema = z.object({
 
 /** Admin: "when someone searches `term`, search `target`". Upserts by term. */
 export const saveSearchRedirect = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => RedirectSchema.parse(d))
+  .validator((d: unknown) => RedirectSchema.parse(d))
   .handler(async ({ data }) => {
     await requireAdmin();
     const term = normalizeSearchTerm(data.term);
@@ -90,7 +90,7 @@ export const saveSearchRedirect = createServerFn({ method: "POST" })
 
 /** Admin: remove a redirect, so the term is searched as typed again. */
 export const deleteSearchRedirect = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => z.object({ term: z.string().max(200) }).parse(d))
+  .validator((d: unknown) => z.object({ term: z.string().max(200) }).parse(d))
   .handler(async ({ data }) => {
     await requireAdmin();
     const { error } = await supabaseAdmin

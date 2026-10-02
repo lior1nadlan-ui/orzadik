@@ -150,7 +150,7 @@ export async function sendNewsletterWelcome(email: string, name?: string | null)
 }
 
 export const subscribeNewsletter = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) => Schema.parse(i))
+  .validator((i: unknown) => Schema.parse(i))
   .handler(async ({ data }) => {
     // Honeypot tripped — behave exactly like success so bots learn nothing.
     if (data.website) return { ok: true as const };

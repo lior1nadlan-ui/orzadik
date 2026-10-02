@@ -712,7 +712,7 @@ export const countOrdersToHandle = createServerFn({ method: "POST" }).handler(as
 });
 
 export const listOrdersPaged = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) => OrdersFilterSchema.parse(i))
+  .validator((i: unknown) => OrdersFilterSchema.parse(i))
   .handler(async ({ data: f }) => {
     await requireAdmin();
     // The product join is what lets the order drawer show a thumbnail per line.
@@ -735,7 +735,7 @@ export const listOrdersPaged = createServerFn({ method: "POST" })
   });
 
 export const exportOrdersCsv = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) => OrdersFilterSchema.parse(i))
+  .validator((i: unknown) => OrdersFilterSchema.parse(i))
   .handler(async ({ data: f }) => {
     await requireAdmin();
     const rows: any[] = [];
@@ -1224,7 +1224,7 @@ async function loadCustomerUniverse() {
 }
 
 export const listCustomers = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) => CustomersSchema.parse(i))
+  .validator((i: unknown) => CustomersSchema.parse(i))
   .handler(async ({ data: f }) => {
     await requireAdmin();
     const { orders, sources } = await loadCustomerUniverse();
@@ -1241,7 +1241,7 @@ export const listCustomers = createServerFn({ method: "POST" })
   });
 
 export const exportCustomersCsv = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) => CustomersSchema.parse(i))
+  .validator((i: unknown) => CustomersSchema.parse(i))
   .handler(async ({ data: f }) => {
     await requireAdmin();
     const { orders, sources } = await loadCustomerUniverse();
@@ -1307,7 +1307,7 @@ export const exportCustomersCsv = createServerFn({ method: "POST" })
  * write a note on.
  */
 export const getCustomerDetail = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) => z.object({ email: z.string().email() }).parse(i))
+  .validator((i: unknown) => z.object({ email: z.string().email() }).parse(i))
   .handler(async ({ data }) => {
     await requireAdmin();
     const email = data.email.trim().toLowerCase();
@@ -1411,7 +1411,7 @@ export const getCustomerDetail = createServerFn({ method: "POST" })
   });
 
 export const addCustomerNote = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) =>
+  .validator((i: unknown) =>
     z
       .object({
         email: z.string().email(),
@@ -1439,7 +1439,7 @@ export const addCustomerNote = createServerFn({ method: "POST" })
   });
 
 export const deleteCustomerNote = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) => z.object({ id: z.string().uuid() }).parse(i))
+  .validator((i: unknown) => z.object({ id: z.string().uuid() }).parse(i))
   .handler(async ({ data }) => {
     await requireAdmin();
     const { error } = await supabaseAdmin.from("crm_customer_notes").delete().eq("id", data.id);
@@ -1450,7 +1450,7 @@ export const deleteCustomerNote = createServerFn({ method: "POST" })
 /** Notes-only fetch for the order-details dialog — avoids getCustomerDetail
  * dragging 200 orders + order_items on every dialog open. */
 export const listCustomerNotes = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) => z.object({ email: z.string().email() }).parse(i))
+  .validator((i: unknown) => z.object({ email: z.string().email() }).parse(i))
   .handler(async ({ data }) => {
     await requireAdmin();
     // Notes are stored lowercased and matched with .eq — normalize or we miss them.
@@ -1470,7 +1470,7 @@ export const listCustomerNotes = createServerFn({ method: "POST" })
 // ---- Abandoned carts -------------------------------------------------------
 
 export const listAbandonedCarts = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) =>
+  .validator((i: unknown) =>
     z
       .object({
         page: z.number().int().min(0).default(0),
@@ -1544,7 +1544,7 @@ type ShipInput = {
 };
 
 export const markOrderShipped = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) =>
+  .validator((i: unknown) =>
     z
       .object({
         order_id: z.string().uuid(),
@@ -1682,7 +1682,7 @@ export async function applyMarkShipped(data: ShipInput, actor?: Actor) {
  * one place that decides an order has left the building.
  */
 export const markOrderPreparing = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) => z.object({ order_id: z.string().uuid() }).parse(i))
+  .validator((i: unknown) => z.object({ order_id: z.string().uuid() }).parse(i))
   .handler(async ({ data }) => {
     const userId = await requireAdmin();
     return applyMarkPreparing(data, { userId });
@@ -1722,7 +1722,7 @@ export async function applyMarkPreparing(data: { order_id: string }, actor?: Act
  * the review-request clock.
  */
 export const markOrderReadyForPickup = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) => z.object({ order_id: z.string().uuid() }).parse(i))
+  .validator((i: unknown) => z.object({ order_id: z.string().uuid() }).parse(i))
   .handler(async ({ data }) => {
     const userId = await requireAdmin();
     return applyReadyForPickup(data, { userId });
@@ -1772,7 +1772,7 @@ export async function applyReadyForPickup(data: { order_id: string }, actor?: Ac
  * with the reason.
  */
 export const sendOrderPaymentReminder = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) => z.object({ id: z.string().uuid() }).parse(i))
+  .validator((i: unknown) => z.object({ id: z.string().uuid() }).parse(i))
   .handler(async ({ data }) => {
     const userId = await requireAdmin();
     const r = await sendPaymentReminderNow(data.id);
@@ -1787,7 +1787,7 @@ export const sendOrderPaymentReminder = createServerFn({ method: "POST" })
  * price cannot print one by mistake.
  */
 export const getPackingSlip = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) => z.object({ id: z.string().uuid() }).parse(i))
+  .validator((i: unknown) => z.object({ id: z.string().uuid() }).parse(i))
   .handler(async ({ data }) => {
     await requireAdmin();
     const { data: order, error } = await supabaseAdmin
@@ -1829,9 +1829,7 @@ export const getPackingSlip = createServerFn({ method: "POST" })
  * `paid` picks which of the two alerts: "paid" only for an order actually paid.
  */
 export const resendOrderTelegramAlert = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) =>
-    z.object({ order_id: z.string().uuid(), paid: z.boolean() }).parse(i),
-  )
+  .validator((i: unknown) => z.object({ order_id: z.string().uuid(), paid: z.boolean() }).parse(i))
   .handler(async ({ data }) => {
     await requireAdmin();
     const { data: order, error } = await supabaseAdmin
@@ -1851,7 +1849,7 @@ export const resendOrderTelegramAlert = createServerFn({ method: "POST" })
   });
 
 export const resendOrderConfirmation = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) => z.object({ order_id: z.string().uuid() }).parse(i))
+  .validator((i: unknown) => z.object({ order_id: z.string().uuid() }).parse(i))
   .handler(async ({ data }) => {
     await requireAdmin();
     const { data: order, error } = await supabaseAdmin
@@ -1977,7 +1975,7 @@ export async function restoreOrderStock(orderId: string): Promise<void> {
  * reserved stock server-side when an order first enters a terminal state.
  */
 export const updateOrderStatus = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) =>
+  .validator((i: unknown) =>
     z
       .object({
         order_id: z.string().uuid(),
@@ -2045,7 +2043,7 @@ const ORDER_EVENT_HE: Record<string, string> = {
 
 /** An order's history, oldest first, with a readable name for each actor. */
 export const listOrderEvents = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) => z.object({ order_id: z.string().uuid() }).parse(i))
+  .validator((i: unknown) => z.object({ order_id: z.string().uuid() }).parse(i))
   .handler(async ({ data }) => {
     await requireAdmin();
     const { data: rows, error } = await supabaseAdmin
@@ -2089,7 +2087,7 @@ export const listOrderEvents = createServerFn({ method: "POST" })
  * double charge.
  */
 export const markOrderPaidOffline = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) =>
+  .validator((i: unknown) =>
     z
       .object({
         order_id: z.string().uuid(),

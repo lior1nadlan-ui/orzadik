@@ -165,7 +165,7 @@ async function applyPrices(
 }
 
 export const bulkUpdateProducts = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) => Schema.parse(i))
+  .validator((i: unknown) => Schema.parse(i))
   .handler(async ({ data }) => {
     const adminId = await requireAdmin();
     const { action } = data;
@@ -275,7 +275,7 @@ export type AdminVariantRow = {
 };
 
 export const listProductVariants = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) => z.object({ productId: z.string().uuid() }).parse(i))
+  .validator((i: unknown) => z.object({ productId: z.string().uuid() }).parse(i))
   .handler(async ({ data }): Promise<AdminVariantRow[]> => {
     await requireAdmin();
     const { data: rows, error } = await supabaseAdmin
@@ -321,7 +321,7 @@ const VariantSaveSchema = z.object({
 });
 
 export const saveProductVariants = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) => VariantSaveSchema.parse(i))
+  .validator((i: unknown) => VariantSaveSchema.parse(i))
   .handler(async ({ data }) => {
     const adminId = await requireAdmin();
 
@@ -391,7 +391,7 @@ export const listCategoriesForBulk = createServerFn({ method: "POST" }).handler(
 
 /** The category ids this product currently belongs to — seeds the picker when editing. */
 export const getProductCategoryIds = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) => z.object({ productId: z.string().uuid() }).parse(i))
+  .validator((i: unknown) => z.object({ productId: z.string().uuid() }).parse(i))
   .handler(async ({ data }): Promise<string[]> => {
     await requireAdmin();
     const { data: rows, error } = await supabaseAdmin
@@ -419,7 +419,7 @@ const SetCategoriesSchema = z.object({
  * the caller surfaces that as a warning and the owner can simply re-save.
  */
 export const setProductCategories = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) => SetCategoriesSchema.parse(i))
+  .validator((i: unknown) => SetCategoriesSchema.parse(i))
   .handler(async ({ data }) => {
     const adminId = await requireAdmin();
     const unique = [...new Set(data.categoryIds)];
@@ -458,7 +458,7 @@ export const setProductCategories = createServerFn({ method: "POST" })
 // ---------------------------------------------------------------------------
 
 export const setProductPrice = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) =>
+  .validator((i: unknown) =>
     z
       .object({ productId: z.string().uuid(), price: z.number().positive().max(1_000_000) })
       .parse(i),
@@ -470,7 +470,7 @@ export const setProductPrice = createServerFn({ method: "POST" })
   });
 
 export const undoPriceBatch = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) => z.object({ batchId: z.string().uuid() }).parse(i))
+  .validator((i: unknown) => z.object({ batchId: z.string().uuid() }).parse(i))
   .handler(async ({ data }) => {
     const adminId = await requireAdmin();
     console.log(`[undoPriceBatch] admin=${adminId} batch=${data.batchId}`);
@@ -531,7 +531,7 @@ export type ProductPriceChange = {
 
 /** The last few price changes of one product, for its edit dialog. */
 export const productPriceHistory = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) => z.object({ productId: z.string().uuid() }).parse(i))
+  .validator((i: unknown) => z.object({ productId: z.string().uuid() }).parse(i))
   .handler(async ({ data }): Promise<ProductPriceChange[]> => {
     await requireAdmin();
     const { data: rows, error } = await supabaseAdmin
@@ -571,7 +571,7 @@ const ImageUrl = z
   .refine((u) => /^https?:\/\//.test(u) || u.startsWith("/"), "invalid image url");
 
 export const listProductImages = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) => z.object({ productId: z.string().uuid() }).parse(i))
+  .validator((i: unknown) => z.object({ productId: z.string().uuid() }).parse(i))
   .handler(async ({ data }): Promise<Array<{ url: string; sort_order: number | null }>> => {
     await requireAdmin();
     const { data: rows, error } = await supabaseAdmin
@@ -592,7 +592,7 @@ export const listProductImages = createServerFn({ method: "POST" })
  * failed insert is reported and the owner can save again.
  */
 export const saveProductGallery = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) =>
+  .validator((i: unknown) =>
     z
       .object({
         productId: z.string().uuid(),
@@ -645,7 +645,7 @@ const randomUnit = () => crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32
  * failed, so a partial batch is never silent.
  */
 export const createProductsQuick = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) =>
+  .validator((i: unknown) =>
     z
       .object({
         categoryId: z.string().uuid(),
@@ -742,7 +742,7 @@ const UploadImageSchema = z.object({
 });
 
 export const uploadProductImage = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) => UploadImageSchema.parse(i))
+  .validator((i: unknown) => UploadImageSchema.parse(i))
   .handler(async ({ data }): Promise<{ url: string; path: string }> => {
     const adminId = await requireAdmin();
 

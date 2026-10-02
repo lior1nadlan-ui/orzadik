@@ -55,7 +55,7 @@ const Schema = z.object({
  * non-converted row for the same email if it's < 6h old.
  */
 export const saveAbandonedCart = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) => Schema.parse(i))
+  .validator((i: unknown) => Schema.parse(i))
   .handler(async ({ data }) => {
     // Per-IP rate limit — this is an unauthenticated, state-changing insert;
     // without it an attacker could flood arbitrary-email cart rows.

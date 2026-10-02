@@ -56,7 +56,7 @@ const CheckoutSchema = z.object({
 });
 
 export const placeOrder = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => CheckoutSchema.parse(input))
+  .validator((input: unknown) => CheckoutSchema.parse(input))
   .handler(async ({ data }) => {
     // Normalize the email so casing/rotation can't dodge the per-email cap.
     const normalizedEmail = data.customer_email.trim().toLowerCase();
