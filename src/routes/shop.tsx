@@ -166,10 +166,9 @@ export function sanitizeTerm(raw: string): string {
  * Applied to the RPC path AND the ILIKE fallback, so a search cannot mean two
  * different things depending on whether the search function is available.
  *
- * ⚠️ The header's search dropdown (SiteHeader.tsx) calls the same RPC with its
- * own raw `debounced` term and so does NOT get this treatment — its preview
- * will still under-report for these spellings until it routes through here.
- * That file was outside this change's scope; the export exists for it.
+ * The header's search dropdown (SiteHeader.tsx) runs its term through this
+ * same function (and the owner's redirects) before calling the RPC, so the
+ * preview and the results page always agree.
  */
 const HE_SPELLING_SYNONYMS: Record<string, string> = {
   // כתיב חסר → כתיב מלא, as the catalogue spells it.
