@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { ProductCard, ProductCardData } from "@/components/ProductCard";
 import { useEffect, useRef, useState } from "react";
 import { trackSearch } from "@/lib/analytics";
+import { logSearch } from "@/lib/search-log.functions";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -791,6 +792,9 @@ function ShopPage() {
     if (lastTrackedSearchRef.current === key) return;
     lastTrackedSearchRef.current = key;
     trackSearch(activeQ, total);
+    // Also keep a first-party copy for the owner's dashboard (/admin). Fire and
+    // forget: a failed log must never surface on the shop.
+    void logSearch({ data: { term: activeQ, results_count: total } }).catch(() => {});
   }, [activeQ, total, isLoading, isFetching]);
 
   // The denominator can never sit below the page being displayed. `total` is 0

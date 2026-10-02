@@ -1230,6 +1230,27 @@ export type Database = {
           },
         ]
       }
+      site_searches: {
+        Row: {
+          created_at: string
+          id: number
+          results_count: number
+          term: string
+        }
+        Insert: {
+          created_at?: string
+          id?: never
+          results_count: number
+          term: string
+        }
+        Update: {
+          created_at?: string
+          id?: never
+          results_count?: number
+          term?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
