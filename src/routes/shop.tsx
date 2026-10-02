@@ -5,6 +5,7 @@ import { ProductCard, ProductCardData } from "@/components/ProductCard";
 import { useEffect, useRef, useState } from "react";
 import { trackSearch } from "@/lib/analytics";
 import { logSearch } from "@/lib/search-log.functions";
+import { resolveSearchQuery } from "@/lib/search-redirects";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -165,10 +166,9 @@ export function sanitizeTerm(raw: string): string {
  * Applied to the RPC path AND the ILIKE fallback, so a search cannot mean two
  * different things depending on whether the search function is available.
  *
- * ⚠️ The header's search dropdown (SiteHeader.tsx) calls the same RPC with its
- * own raw `debounced` term and so does NOT get this treatment — its preview
- * will still under-report for these spellings until it routes through here.
- * That file was outside this change's scope; the export exists for it.
+ * The header's search dropdown (SiteHeader.tsx) runs its term through this
+ * same function (and the owner's redirects) before calling the RPC, so the
+ * preview and the results page always agree.
  */
 const HE_SPELLING_SYNONYMS: Record<string, string> = {
   // כתיב חסר → כתיב מלא, as the catalogue spells it.
@@ -215,9 +215,11 @@ async function fetchShopPage(opts: {
   offset: number;
   rung?: { lo: number; hi: number } | null;
 }): Promise<ShopPageData> {
-  const { rawQ, sort, offset, rung = null } = opts;
-  // Spelling normalisation runs FIRST, so both search paths below (the RPC and
-  // the ILIKE fallback) look for the same words — see normalizeSearchTerm.
+  const { sort, offset, rung = null } = opts;
+  // The owner's redirects (set from the /admin search card) come first, then
+  // spelling normalisation, so both search paths below (the RPC and the ILIKE
+  // fallback) look for the same words — see normalizeSearchTerm.
+  const rawQ = await resolveSearchQuery(opts.rawQ);
   const normalizedQ = normalizeSearchTerm(rawQ);
   const term = sanitizeTerm(normalizedQ);
 
@@ -391,7 +393,7 @@ async function fetchShopPage(opts: {
  * replaces were.
  */
 async function fetchShopLadder(rawQ: string): Promise<PriceRung[]> {
-  const normalizedQ = normalizeSearchTerm(rawQ);
+  const normalizedQ = normalizeSearchTerm(await resolveSearchQuery(rawQ));
   const { data, error } = await supabase
     .rpc("list_products_collapsed", {
       p_term: normalizedQ.slice(0, 100),

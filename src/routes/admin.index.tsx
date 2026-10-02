@@ -17,8 +17,7 @@ import { Button } from "@/components/ui/button";
 import { ActionCockpit } from "@/components/admin/ActionCockpit";
 import { pct, type Funnel } from "@/lib/funnel";
 import { getSystemHealth } from "@/lib/system-health.functions";
-import { getSearchInsights } from "@/lib/search-log.functions";
-import type { TermStat } from "@/lib/search-terms";
+import { SearchInsightsCard } from "@/components/admin/SearchInsightsCard";
 import { listPromotions } from "@/lib/admin-promotions.functions";
 import { STATUS_LABEL, scopeSummary } from "@/lib/admin-promotions";
 import { formatPromoEnd } from "@/lib/promotions";
@@ -685,81 +684,6 @@ function FunnelCard({ f }: { f: Funnel }) {
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-function TermList({ items, showResults }: { items: TermStat[]; showResults: boolean }) {
-  return (
-    <ul className="mt-2 divide-y">
-      {items.map((t) => (
-        <li key={t.term} className="flex items-center gap-3 py-1.5 text-sm">
-          <a
-            href={`/shop?q=${encodeURIComponent(t.term)}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="min-w-0 truncate underline-offset-4 hover:underline"
-          >
-            {t.term}
-          </a>
-          <span className="ms-auto shrink-0 whitespace-nowrap text-xs text-muted-foreground">
-            {t.count === 1 ? "פעם אחת" : `${t.count} פעמים`}
-            {showResults ? ` · ${t.lastResults} תוצאות` : ""}
-          </span>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-/**
- * What shoppers typed into the site search over the last 30 days. The
- * zero-result terms come first: each is a product people asked for that the
- * shop does not have, or has under a name they do not use (fix: add the
- * product, or add their word to its name/description). Each term opens the
- * live /shop results in a new tab, so the owner sees exactly what they saw.
- */
-function SearchInsightsCard() {
-  const load = useServerFn(getSearchInsights);
-  const { data } = useQuery({
-    queryKey: ["admin-search-insights"],
-    queryFn: () => load({ data: { days: 30 } }),
-    staleTime: 5 * 60_000,
-  });
-  if (!data || data.total === 0) return null;
-  const missed = data.missed.slice(0, 8);
-  const top = data.top.filter((t) => t.lastResults > 0).slice(0, 8);
-
-  return (
-    <div className="rounded-lg border bg-card p-5">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <div className="text-sm font-semibold">מה חיפשו באתר · {data.days} ימים אחרונים</div>
-        <div className="text-xs text-muted-foreground">{data.total} חיפושים</div>
-      </div>
-      <div className="mt-3 grid gap-5 md:grid-cols-2">
-        <div>
-          <div className="text-xs font-semibold text-rose-700">חיפשו ולא מצאו</div>
-          {missed.length === 0 ? (
-            <p className="mt-2 text-sm text-muted-foreground">כל חיפוש החזיר תוצאות. מצוין.</p>
-          ) : (
-            <>
-              <TermList items={missed} showResults={false} />
-              <p className="mt-2 text-xs text-muted-foreground">
-                כל שורה כאן היא לקוח שרצה משהו ויצא בידיים ריקות. אם המוצר קיים — כדאי להוסיף את
-                המילה הזו לשם או לתיאור שלו. אם לא — אולי שווה להכניס אותו למלאי.
-              </p>
-            </>
-          )}
-        </div>
-        <div>
-          <div className="text-xs font-semibold text-muted-foreground">החיפושים הנפוצים</div>
-          {top.length === 0 ? (
-            <p className="mt-2 text-sm text-muted-foreground">עדיין אין מספיק חיפושים.</p>
-          ) : (
-            <TermList items={top} showResults />
-          )}
-        </div>
-      </div>
     </div>
   );
 }

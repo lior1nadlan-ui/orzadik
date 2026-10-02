@@ -9,7 +9,8 @@ import { useAuth } from "@/lib/auth";
 import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { sanitizeTerm } from "@/routes/shop";
+import { normalizeSearchTerm, sanitizeTerm } from "@/routes/shop";
+import { resolveSearchQuery } from "@/lib/search-redirects";
 import { CATEGORY_COUNT_EMBED, listableCategories } from "@/routes/categories";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { CartDrawer } from "@/components/cart/CartDrawer";
@@ -437,8 +438,13 @@ export function SiteHeader({ hideOnMobile = false }: { hideOnMobile?: boolean } 
       // "(43)" total that opened a single tile. p_category_id is NULL — search is
       // catalog-wide, exactly like /shop. Falls back to the old ILIKE lookup if
       // the function is unavailable.
+      //
+      // The term goes through the same two steps as /shop (the owner's
+      // redirects, then the spelling fixes), or the preview would say "nothing
+      // found" for מצוה / a redirected phrase while the results page lists them.
+      const effective = normalizeSearchTerm(await resolveSearchQuery(debounced));
       const { data: rpcRows, error: rpcErr } = await supabase.rpc("list_products_collapsed", {
-        p_term: debounced.trim().slice(0, 100),
+        p_term: effective.slice(0, 100),
         p_category_id: null as unknown as string | undefined,
         p_limit: 6,
         p_offset: 0,
@@ -453,7 +459,7 @@ export function SiteHeader({ hideOnMobile = false }: { hideOnMobile?: boolean } 
         rpcErr,
       );
 
-      const like = `%${term}%`;
+      const like = `%${sanitizeTerm(effective)}%`;
       const { data, error, count } = await supabase
         .from("products")
         .select("id, slug, name, price, sale_price, thumbnail_url", { count: "exact" })
