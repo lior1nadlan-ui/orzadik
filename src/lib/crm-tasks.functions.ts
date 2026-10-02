@@ -25,7 +25,7 @@ const actionKeySchema = z
 // ---- Follow-ups --------------------------------------------------------------
 
 export const listCustomerFollowUps = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) => z.object({ email: emailSchema }).parse(i))
+  .validator((i: unknown) => z.object({ email: emailSchema }).parse(i))
   .handler(async ({ data }) => {
     await requireAdmin();
     const { data: rows, error } = await supabaseAdmin
@@ -44,7 +44,7 @@ export const listCustomerFollowUps = createServerFn({ method: "POST" })
   });
 
 export const addFollowUp = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) =>
+  .validator((i: unknown) =>
     z
       .object({
         email: emailSchema,
@@ -80,7 +80,7 @@ export const addFollowUp = createServerFn({ method: "POST" })
 /** Mark done / undo, or push it three days on — the two things the queue row
  *  and the customer card let the owner do with a reminder. */
 export const updateFollowUp = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) =>
+  .validator((i: unknown) =>
     z
       .object({
         id: z.string().uuid(),
@@ -106,7 +106,7 @@ export const updateFollowUp = createServerFn({ method: "POST" })
   });
 
 export const deleteFollowUp = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) => z.object({ id: z.string().uuid() }).parse(i))
+  .validator((i: unknown) => z.object({ id: z.string().uuid() }).parse(i))
   .handler(async ({ data }) => {
     await requireAdmin();
     const { error } = await supabaseAdmin.from("crm_followups").delete().eq("id", data.id);
@@ -117,7 +117,7 @@ export const deleteFollowUp = createServerFn({ method: "POST" })
 // ---- Queue decisions ---------------------------------------------------------
 
 export const setActionDecision = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) =>
+  .validator((i: unknown) =>
     z
       .object({
         key: actionKeySchema,
@@ -145,7 +145,7 @@ export const setActionDecision = createServerFn({ method: "POST" })
 
 /** "Restore" — the item is open again, as if no decision had been made. */
 export const clearActionDecision = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) => z.object({ key: actionKeySchema }).parse(i))
+  .validator((i: unknown) => z.object({ key: actionKeySchema }).parse(i))
   .handler(async ({ data }) => {
     await requireAdmin();
     const { error } = await supabaseAdmin

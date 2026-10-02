@@ -154,7 +154,7 @@ function buildDocumentProducts(order: any): DocProduct[] {
  * client-supplied totals are never trusted.
  */
 export const createCardcomPayment = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => InputSchema.parse(input))
+  .validator((input: unknown) => InputSchema.parse(input))
   .handler(async ({ data }) => {
     const terminal = process.env.CARDCOM_TERMINAL_NUMBER;
     const apiName = process.env.CARDCOM_API_NAME;
@@ -427,7 +427,7 @@ const RefundSchema = z.object({ order_id: z.string().uuid() });
  */
 export const refundCardcomOrder = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => RefundSchema.parse(input))
+  .validator((input: unknown) => RefundSchema.parse(input))
   .handler(async ({ data, context }) => {
     const { data: isAdmin } = await context.supabase.rpc("has_role", {
       _user_id: context.userId,

@@ -111,7 +111,7 @@ export const listPromotions = createServerFn({ method: "POST" }).handler(async (
 });
 
 export const previewPromotion = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         scope: ScopeSchema,
@@ -132,7 +132,7 @@ export const previewPromotion = createServerFn({ method: "POST" })
   });
 
 export const savePromotion = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => InputSchema.parse(input))
+  .validator((input: unknown) => InputSchema.parse(input))
   .handler(async ({ data }) => {
     const adminId = await requireAdmin();
     const isNew = !data.id;
@@ -179,7 +179,7 @@ export const savePromotion = createServerFn({ method: "POST" })
  * Prices return to regular on the site within the minute the storefront caches.
  */
 export const endPromotion = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data }) => {
     const adminId = await requireAdmin();
     const { data: p, error } = await supabaseAdmin
@@ -204,9 +204,7 @@ export const endPromotion = createServerFn({ method: "POST" })
 
 /** Product search for the "specific products" scope. */
 export const searchPromotionProducts = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) =>
-    z.object({ q: z.string().trim().min(2).max(80) }).parse(input),
-  )
+  .validator((input: unknown) => z.object({ q: z.string().trim().min(2).max(80) }).parse(input))
   .handler(async ({ data }) => {
     await requireAdmin();
     const term = data.q.replace(/[%_,()]/g, " ").trim();
@@ -223,7 +221,7 @@ export const searchPromotionProducts = createServerFn({ method: "POST" })
 
 /** Names for the products an existing promotion already holds. */
 export const productsByIds = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ ids: z.array(z.string().uuid()).max(MAX_PRODUCTS + 1) }).parse(input),
   )
   .handler(async ({ data }) => {

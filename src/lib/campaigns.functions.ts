@@ -259,7 +259,7 @@ export const listCampaigns = createServerFn({ method: "POST" }).handler(async ()
 });
 
 export const getCampaign = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) => z.object({ id: z.string().uuid() }).parse(i))
+  .validator((i: unknown) => z.object({ id: z.string().uuid() }).parse(i))
   .handler(async ({ data }) => {
     await requireAdmin();
     const { data: row, error } = await supabaseAdmin
@@ -279,7 +279,7 @@ const SaveSchema = z.object({
 });
 
 export const saveCampaign = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) => SaveSchema.parse(i))
+  .validator((i: unknown) => SaveSchema.parse(i))
   .handler(async ({ data }) => {
     const adminId = await requireAdmin();
 
@@ -342,7 +342,7 @@ export const saveCampaign = createServerFn({ method: "POST" })
   });
 
 export const previewCampaign = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) => z.object({ id: z.string().uuid() }).parse(i))
+  .validator((i: unknown) => z.object({ id: z.string().uuid() }).parse(i))
   .handler(async ({ data }) => {
     await requireAdmin();
     const { data: campaign, error } = await supabaseAdmin
@@ -363,7 +363,7 @@ export const previewCampaign = createServerFn({ method: "POST" })
 
 /** Product picker for the composer — mirrors the admin-products search. */
 export const searchCampaignProducts = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) => z.object({ q: z.string().trim().max(120) }).parse(i))
+  .validator((i: unknown) => z.object({ q: z.string().trim().max(120) }).parse(i))
   .handler(async ({ data }) => {
     await requireAdmin();
     const term = data.q
@@ -526,7 +526,7 @@ async function loadSuppressions(): Promise<Set<string>> {
  * instead of discovering the list size from the counter afterwards.
  */
 export const previewCampaignAudience = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) => z.object({ segment: SegmentSchema }).parse(i ?? {}))
+  .validator((i: unknown) => z.object({ segment: SegmentSchema }).parse(i ?? {}))
   .handler(async ({ data }): Promise<{ total: number; sample: string[] }> => {
     await requireAdmin();
     const audience = await buildSegmentAudience(data.segment);
@@ -565,7 +565,7 @@ const TestSendSchema = z.object({
  * even if that address sits on the suppression list.
  */
 export const sendCampaignTestEmail = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) => TestSendSchema.parse(i))
+  .validator((i: unknown) => TestSendSchema.parse(i))
   .handler(async ({ data }) => {
     await requireAdmin();
     if (!isEmailConfigured()) throw new Error('שליחת דוא"ל אינה מוגדרת בשרת.');
@@ -616,9 +616,7 @@ export const sendCampaignTestEmail = createServerFn({ method: "POST" })
   });
 
 export const startCampaign = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) =>
-    z.object({ id: z.string().uuid(), segment: SegmentSchema }).parse(i),
-  )
+  .validator((i: unknown) => z.object({ id: z.string().uuid(), segment: SegmentSchema }).parse(i))
   .handler(async ({ data }) => {
     await requireAdmin();
     if (!isEmailConfigured()) throw new Error('שליחת דוא"ל אינה מוגדרת בשרת.');
@@ -668,7 +666,7 @@ export const startCampaign = createServerFn({ method: "POST" })
   });
 
 export const cancelCampaign = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) => z.object({ id: z.string().uuid() }).parse(i))
+  .validator((i: unknown) => z.object({ id: z.string().uuid() }).parse(i))
   .handler(async ({ data }) => {
     await requireAdmin();
     const { error } = await supabaseAdmin

@@ -43,7 +43,7 @@ const SubmitSchema = z.object({
 });
 
 export const submitReview = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) => SubmitSchema.parse(i))
+  .validator((i: unknown) => SubmitSchema.parse(i))
   .handler(async ({ data }) => {
     // Throttle by IP (reuse the order IP limiter table): max 15/hour.
     const ip = getClientIp(getRequest());
@@ -90,7 +90,7 @@ export const submitReview = createServerFn({ method: "POST" })
 const ProductIdSchema = z.object({ product_id: z.string().uuid() });
 
 export const getProductReviews = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) => ProductIdSchema.parse(i))
+  .validator((i: unknown) => ProductIdSchema.parse(i))
   .handler(async ({ data }): Promise<{ summary: ReviewSummary; reviews: PublicReview[] }> => {
     const { data: rows, error } = await supabaseAdmin
       .from("reviews")
@@ -150,7 +150,7 @@ const ReviewOrderSchema = z.object({
 // no products) resolves to null so the route shows one calm message with no
 // detail leak, never confirming whether a given order exists.
 export const getOrderForReview = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) => ReviewOrderSchema.parse(i))
+  .validator((i: unknown) => ReviewOrderSchema.parse(i))
   .handler(
     async ({ data }): Promise<{ orderId: string; products: ReviewOrderProduct[] } | null> => {
       const ok = await verifyReviewToken(data.order, data.token);
@@ -194,7 +194,7 @@ const SubmitVerifiedSchema = z.object({
 // and is_approved=false — the owner still moderates every review before it
 // shows. Rate-limited by IP (shared order limiter).
 export const submitVerifiedReview = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) => SubmitVerifiedSchema.parse(i))
+  .validator((i: unknown) => SubmitVerifiedSchema.parse(i))
   .handler(async ({ data }) => {
     const ip = getClientIp(getRequest());
     const { limited } = await checkOrderRateLimitByIp(ip, 15, 60 * 60, "review");
@@ -282,7 +282,7 @@ export const listPendingReviews = createServerFn({ method: "POST" }).handler(asy
 
 const ModerateSchema = z.object({ id: z.string().uuid(), approved: z.boolean() });
 export const setReviewApproval = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) => ModerateSchema.parse(i))
+  .validator((i: unknown) => ModerateSchema.parse(i))
   .handler(async ({ data }) => {
     await requireAdmin();
     const { error } = await supabaseAdmin
@@ -295,7 +295,7 @@ export const setReviewApproval = createServerFn({ method: "POST" })
 
 const DeleteSchema = z.object({ id: z.string().uuid() });
 export const deleteReview = createServerFn({ method: "POST" })
-  .inputValidator((i: unknown) => DeleteSchema.parse(i))
+  .validator((i: unknown) => DeleteSchema.parse(i))
   .handler(async ({ data }) => {
     await requireAdmin();
     const { error } = await supabaseAdmin.from("reviews").delete().eq("id", data.id);

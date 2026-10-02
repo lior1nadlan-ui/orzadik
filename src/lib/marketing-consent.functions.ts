@@ -67,7 +67,7 @@ async function resolveCallerEmail(
  */
 export const setMarketingConsent = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => Schema.parse(input))
+  .validator((input: unknown) => Schema.parse(input))
   .handler(async ({ data, context }) => {
     const userId = context.userId as string;
     const claims = (context.claims ?? {}) as Record<string, unknown>;
