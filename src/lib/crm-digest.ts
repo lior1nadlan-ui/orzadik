@@ -69,6 +69,8 @@ export type DigestFollowUp = {
   daysOverdue: number;
 };
 
+export type DigestMissedSearch = { term: string; count: number };
+
 export type Digest = {
   /** The owner's own reminders come first: they are the only items in the
    *  briefing somebody deliberately asked to be told about. */
@@ -92,6 +94,9 @@ export type Digest = {
   last24h: { paidCount: number; revenue: number };
   last7d: { paidCount: number; revenue: number };
   pendingReviews: number;
+  /** Site searches from the last day that found nothing (see site_searches):
+   *  a product someone asked for that the shop lacks, or names differently. */
+  missedSearches: DigestMissedSearch[];
   /** Anything in the briefing the owner has to DO. When false the scheduled
    *  run stays silent — a daily "nothing to report" teaches people to ignore
    *  the channel. */
@@ -204,10 +209,12 @@ export function buildDigest(
      *  in the admin, so the briefing does not bring them back either. */
     hidden?: Set<string>;
     followUps?: DigestFollowUp[];
+    missedSearches?: DigestMissedSearch[];
   } = {},
 ): Digest {
   const hidden = extras.hidden ?? new Set<string>();
   const followUps = extras.followUps ?? [];
+  const missedSearches = extras.missedSearches ?? [];
   // Paid, not shipped, not closed — the same predicate as the dashboard's
   // "ready to ship", oldest first so the longest wait leads.
   const toShip = orders
@@ -278,12 +285,14 @@ export function buildDigest(
     last24h: paidWithin(DAY),
     last7d: paidWithin(7 * DAY),
     pendingReviews,
+    missedSearches,
     actionable:
       followUps.length > 0 ||
       toShip.length > 0 ||
       failedPayments.length > 0 ||
       openCarts.count > 0 ||
-      pendingReviews > 0,
+      pendingReviews > 0 ||
+      missedSearches.length > 0,
   };
 }
 
@@ -370,6 +379,14 @@ export function renderDigestTelegram(d: Digest, now: number, origin: string): st
 
   if (d.pendingReviews > 0) {
     m += `\n⭐ <b>${d.pendingReviews === 1 ? "חוות דעת אחת ממתינה" : `${d.pendingReviews} חוות דעת ממתינות`} לאישור</b>\n`;
+  }
+
+  if (d.missedSearches.length > 0) {
+    m += `\n🔍 <b>חיפשו באתר ולא מצאו</b>\n`;
+    for (const s of d.missedSearches.slice(0, LIST_MAX)) {
+      m += `• ${tg(s.term)}${s.count > 1 ? ` · ${s.count} פעמים` : ""}\n`;
+    }
+    m += `קיים אצלכם? הוסיפו את המילה לשם או לתיאור המוצר.\n`;
   }
 
   m += `\n💰 24 שעות: ${d.last24h.paidCount} הזמנות · ${shekels(d.last24h.revenue)}`;
@@ -462,6 +479,22 @@ export function renderDigestEmailInner(d: Digest, now: number, origin: string): 
     html += `<p style="margin:22px 0 0;font-size:15px;">⭐ ${d.pendingReviews} חוות דעת ממתינות לאישור</p>`;
   }
 
+  if (d.missedSearches.length > 0) {
+    const rows = d.missedSearches
+      .slice(0, LIST_MAX)
+      .map(
+        (s) =>
+          `<tr><td style="${cell}">${h(s.term)}</td>` +
+          `<td style="${cell}text-align:left;white-space:nowrap;">${s.count > 1 ? `${s.count} פעמים` : ""}</td></tr>`,
+      )
+      .join("");
+    html += section(
+      "🔍 חיפשו באתר ולא מצאו",
+      rows,
+      "קיים אצלכם? הוסיפו את המילה לשם או לתיאור המוצר. אם לא — אולי שווה להכניס למלאי.",
+    );
+  }
+
   html +=
     `<p class="oz-muted" style="margin:22px 0 0;font-size:13px;color:#6B6258;">` +
     `24 שעות: ${d.last24h.paidCount} הזמנות · ${shekels(d.last24h.revenue)}<br>` +
@@ -483,5 +516,7 @@ export function digestSubject(d: Digest): string {
   if (d.openCarts.count) parts.push(count(d.openCarts.count, "עגלה פתוחה אחת", "עגלות פתוחות"));
   if (d.pendingReviews)
     parts.push(count(d.pendingReviews, "חוות דעת אחת לאישור", "חוות דעת לאישור"));
+  if (d.missedSearches.length)
+    parts.push(count(d.missedSearches.length, "חיפוש אחד ללא תוצאות", "חיפושים ללא תוצאות"));
   return parts.length ? `סיכום בוקר: ${parts.join(" · ")}` : "סיכום בוקר: אין משימות פתוחות";
 }

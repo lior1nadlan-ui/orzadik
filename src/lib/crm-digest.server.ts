@@ -27,6 +27,7 @@ import { daysOverdue, endOfIsraelDay, hiddenActionKeys } from "@/lib/crm-tasks";
 import { isTelegramConfigured, sendTelegramText } from "@/lib/telegram.server";
 import { emailShell, isEmailConfigured, sendEmail } from "@/lib/email.server";
 import { getStaffRecipients } from "@/lib/staff-recipients.server";
+import { summarizeSearches } from "@/lib/search-terms";
 
 const ORIGIN = process.env.APP_URL || "https://orzadik.com";
 const DAY = 24 * 60 * 60 * 1000;
@@ -45,7 +46,7 @@ export async function loadDigest(now: number = Date.now()): Promise<Digest> {
   //   • every paid order not yet shipped, however old — the oldest of those is
   //     the one the briefing exists to surface.
   const recentFloor = new Date(now - (FAILED_PAYMENT_WINDOW_DAYS + 1) * DAY).toISOString();
-  const [recent, unshipped, carts, reviews, states, followUps] = await Promise.all([
+  const [recent, unshipped, carts, reviews, states, followUps, searches] = await Promise.all([
     supabaseAdmin.from("orders").select(ORDER_COLUMNS).gte("created_at", recentFloor).limit(1000),
     supabaseAdmin
       .from("orders")
@@ -77,6 +78,11 @@ export async function loadDigest(now: number = Date.now()): Promise<Digest> {
       .lt("due_at", new Date(endOfIsraelDay(now)).toISOString())
       .order("due_at", { ascending: true })
       .limit(100),
+    supabaseAdmin
+      .from("site_searches")
+      .select("term, results_count, created_at")
+      .gte("created_at", new Date(now - DAY).toISOString())
+      .limit(2000),
   ]);
 
   // Orders are the point of the briefing: fail loudly rather than report an
@@ -88,6 +94,7 @@ export async function loadDigest(now: number = Date.now()): Promise<Digest> {
   if (reviews.error) console.error("[digest] reviews:", reviews.error);
   if (states.error) console.error("[digest] action state:", states.error);
   if (followUps.error) console.error("[digest] follow-ups:", followUps.error);
+  if (searches.error) console.error("[digest] searches:", searches.error);
 
   const byId = new Map<string, DigestOrder>();
   for (const o of [...(recent.data ?? []), ...(unshipped.data ?? [])] as DigestOrder[]) {
@@ -111,7 +118,14 @@ export async function loadDigest(now: number = Date.now()): Promise<Digest> {
     (carts.data ?? []) as DigestCart[],
     reviews.count ?? 0,
     now,
-    { hidden: hiddenActionKeys(states.data ?? [], now), followUps: dueFollowUps },
+    {
+      hidden: hiddenActionKeys(states.data ?? [], now),
+      followUps: dueFollowUps,
+      missedSearches: summarizeSearches(searches.data ?? []).missed.map((t) => ({
+        term: t.term,
+        count: t.count,
+      })),
+    },
   );
 }
 

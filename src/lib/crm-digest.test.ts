@@ -256,6 +256,27 @@ describe("rendering", () => {
   });
 });
 
+describe("searches that found nothing", () => {
+  const d = buildDigest([], [], 0, NOW, {
+    missedSearches: [
+      { term: "שופר תימני", count: 3 },
+      { term: "<b>", count: 1 },
+    ],
+  });
+
+  it("are enough to send, and lead the subject when alone", () => {
+    expect(d.actionable).toBe(true);
+    expect(digestSubject(d)).toBe("סיכום בוקר: 2 חיפושים ללא תוצאות");
+  });
+
+  it("show in both channels, escaped", () => {
+    const m = renderDigestTelegram(d, NOW, "https://orzadik.com");
+    expect(m).toContain("שופר תימני · 3 פעמים");
+    expect(m).toContain("&lt;b&gt;");
+    expect(renderDigestEmailInner(d, NOW, "https://orzadik.com")).toContain("שופר תימני");
+  });
+});
+
 describe("the owner's own decisions and reminders", () => {
   it("leaves out what the owner snoozed or dismissed in the admin", () => {
     const ship = order();
