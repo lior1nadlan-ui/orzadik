@@ -46,44 +46,46 @@ export async function loadDigest(now: number = Date.now()): Promise<Digest> {
   //   • every paid order not yet shipped, however old — the oldest of those is
   //     the one the briefing exists to surface.
   const recentFloor = new Date(now - (FAILED_PAYMENT_WINDOW_DAYS + 1) * DAY).toISOString();
-  const [recent, unshipped, carts, reviews, states, followUps, searches] = await Promise.all([
-    supabaseAdmin.from("orders").select(ORDER_COLUMNS).gte("created_at", recentFloor).limit(1000),
-    supabaseAdmin
-      .from("orders")
-      .select(ORDER_COLUMNS)
-      .eq("payment_status", "paid")
-      .is("shipped_at", null)
-      .in("status", ["pending", "processing"])
-      .limit(500),
-    supabaseAdmin
-      .from("abandoned_carts")
-      .select("id, email, name, subtotal, created_at, converted_order_id, unsubscribed")
-      .is("converted_order_id", null)
-      .eq("unsubscribed", false)
-      .gte("created_at", new Date(now - CART_WINDOW_DAYS * DAY).toISOString())
-      .limit(500),
-    supabaseAdmin
-      .from("reviews")
-      .select("id", { count: "exact", head: true })
-      .eq("is_approved", false)
-      .gte("created_at", new Date(now - REVIEW_WINDOW_DAYS * DAY).toISOString()),
-    supabaseAdmin
-      .from("crm_action_state")
-      .select("action_key, snoozed_until, dismissed_at")
-      .limit(2000),
-    supabaseAdmin
-      .from("crm_followups")
-      .select("customer_email, title, due_at")
-      .is("done_at", null)
-      .lt("due_at", new Date(endOfIsraelDay(now)).toISOString())
-      .order("due_at", { ascending: true })
-      .limit(100),
-    supabaseAdmin
-      .from("site_searches")
-      .select("term, results_count, created_at")
-      .gte("created_at", new Date(now - DAY).toISOString())
-      .limit(2000),
-  ]);
+  const [recent, unshipped, carts, reviews, states, followUps, searches, redirects] =
+    await Promise.all([
+      supabaseAdmin.from("orders").select(ORDER_COLUMNS).gte("created_at", recentFloor).limit(1000),
+      supabaseAdmin
+        .from("orders")
+        .select(ORDER_COLUMNS)
+        .eq("payment_status", "paid")
+        .is("shipped_at", null)
+        .in("status", ["pending", "processing"])
+        .limit(500),
+      supabaseAdmin
+        .from("abandoned_carts")
+        .select("id, email, name, subtotal, created_at, converted_order_id, unsubscribed")
+        .is("converted_order_id", null)
+        .eq("unsubscribed", false)
+        .gte("created_at", new Date(now - CART_WINDOW_DAYS * DAY).toISOString())
+        .limit(500),
+      supabaseAdmin
+        .from("reviews")
+        .select("id", { count: "exact", head: true })
+        .eq("is_approved", false)
+        .gte("created_at", new Date(now - REVIEW_WINDOW_DAYS * DAY).toISOString()),
+      supabaseAdmin
+        .from("crm_action_state")
+        .select("action_key, snoozed_until, dismissed_at")
+        .limit(2000),
+      supabaseAdmin
+        .from("crm_followups")
+        .select("customer_email, title, due_at")
+        .is("done_at", null)
+        .lt("due_at", new Date(endOfIsraelDay(now)).toISOString())
+        .order("due_at", { ascending: true })
+        .limit(100),
+      supabaseAdmin
+        .from("site_searches")
+        .select("term, results_count, created_at")
+        .gte("created_at", new Date(now - DAY).toISOString())
+        .limit(2000),
+      supabaseAdmin.from("search_redirects").select("term").limit(1000),
+    ]);
 
   // Orders are the point of the briefing: fail loudly rather than report an
   // empty queue that is really a failed query. Carts and reviews are context —
@@ -95,6 +97,8 @@ export async function loadDigest(now: number = Date.now()): Promise<Digest> {
   if (states.error) console.error("[digest] action state:", states.error);
   if (followUps.error) console.error("[digest] follow-ups:", followUps.error);
   if (searches.error) console.error("[digest] searches:", searches.error);
+
+  const redirected = new Set((redirects.data ?? []).map((r) => r.term));
 
   const byId = new Map<string, DigestOrder>();
   for (const o of [...(recent.data ?? []), ...(unshipped.data ?? [])] as DigestOrder[]) {
@@ -121,10 +125,11 @@ export async function loadDigest(now: number = Date.now()): Promise<Digest> {
     {
       hidden: hiddenActionKeys(states.data ?? [], now),
       followUps: dueFollowUps,
-      missedSearches: summarizeSearches(searches.data ?? []).missed.map((t) => ({
-        term: t.term,
-        count: t.count,
-      })),
+      // A term the owner has already redirected is handled, even though its
+      // last logged search (before the redirect) found nothing.
+      missedSearches: summarizeSearches(searches.data ?? [])
+        .missed.filter((t) => !redirected.has(t.term))
+        .map((t) => ({ term: t.term, count: t.count })),
     },
   );
 }

@@ -1230,6 +1230,24 @@ export type Database = {
           },
         ]
       }
+      search_redirects: {
+        Row: {
+          created_at: string
+          target: string
+          term: string
+        }
+        Insert: {
+          created_at?: string
+          target: string
+          term: string
+        }
+        Update: {
+          created_at?: string
+          target?: string
+          term?: string
+        }
+        Relationships: []
+      }
       site_searches: {
         Row: {
           created_at: string
