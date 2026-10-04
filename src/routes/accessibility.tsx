@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { SITE_MUSIC } from "@/lib/site-music";
 import { BUSINESS, LEGAL_LAST_UPDATED } from "@/lib/business";
 import { LinedEyebrow } from "@/components/LinedEyebrow";
 
@@ -161,6 +162,12 @@ function AccessibilityPage() {
             2.2.2).
           </li>
           <li>אין הפעלה אוטומטית של אודיו או וידאו עם סאונד.</li>
+          {SITE_MUSIC ? (
+            <li>
+              מוזיקת הרקע באתר מתנגנת רק לאחר לחיצה על כפתור המוזיקה (בפינת המסך, ליד כפתור
+              הנגישות), ואפשר להשתיק אותה בכל רגע באותו כפתור.
+            </li>
+          ) : null}
           <li>אנימציות לא חיוניות מצומצמות ומכבדות את הגדרת prefers-reduced-motion.</li>
           <li>אין תוכן מהבהב מעל 3 פעמים בשנייה (למניעת התקפי אפילפסיה).</li>
           <li>הזמן לביצוע פעולות הוא מספק, וניתן להאריך בעת הצורך.</li>

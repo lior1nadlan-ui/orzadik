@@ -21,6 +21,7 @@ import { CookieConsent } from "@/components/CookieConsent";
 import { GoogleAnalytics } from "@/components/GoogleAnalytics";
 import { MetaPixel } from "@/components/MetaPixel";
 import { WhatsAppButton } from "@/components/WhatsAppButton";
+import { SiteMusicPlayer } from "@/components/SiteMusicPlayer";
 import { AccessibilityWidget, applySavedA11ySettings } from "@/components/AccessibilityWidget";
 
 // Origin of the Supabase project, for the preconnect/dns-prefetch hints below.
@@ -646,6 +647,7 @@ function RootComponent() {
             <MetaPixel />
             {/* Deferred to browser-idle after first paint (see the effect above). */}
             {idle && !isAdminPath && <WhatsAppButton />}
+            {idle && !isAdminPath && <SiteMusicPlayer />}
             {idle && <AccessibilityWidget />}
           </CartProvider>
         </AuthProvider>
