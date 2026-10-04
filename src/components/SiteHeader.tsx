@@ -1,4 +1,5 @@
 import { Link, useNavigate } from "@tanstack/react-router";
+import { SITE_MUSIC, musicCredit } from "@/lib/site-music";
 import { ShoppingBag, User as UserIcon, Search, Menu, X, Heart, ChevronDown } from "lucide-react";
 import { OCCASION_COLLECTIONS } from "@/lib/collections";
 import { useCart, formatILS } from "@/lib/cart";
@@ -1472,8 +1473,12 @@ export function SiteFooter({ hideOnMobile = false }: { hideOnMobile?: boolean } 
 
       {/* Bottom strip */}
       <div className="border-t border-gold/30">
-        <div className="container mx-auto px-4 py-6 text-center text-xs tracking-wide text-muted-foreground">
+        {/* pb-24: the floating buttons (accessibility, music, WhatsApp) sit over
+            the last 5rem of the viewport; without the room they covered this
+            line, and with it the music credit. */}
+        <div className="container mx-auto px-4 pt-6 pb-24 text-center text-xs tracking-wide text-muted-foreground">
           © {new Date().getFullYear()} אור זרוע לצדיק. כל הזכויות שמורות.
+          {SITE_MUSIC ? <p className="mt-2">🎵 {musicCredit(SITE_MUSIC)}</p> : null}
         </div>
       </div>
     </footer>
