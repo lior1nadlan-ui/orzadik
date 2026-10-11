@@ -2155,3 +2155,88 @@ export const markOrderPaidOffline = createServerFn({ method: "POST" })
     await logOrderEvent(order.id, "paid_offline", { userId }, METHOD_HE[data.method]);
     return { ok: true as const };
   });
+
+// ---------------------------------------------------------------------------
+// "סימון מרובה — כבר נמסרו": paid orders still waiting for shipping, marked
+// delivered together. Each goes through applyMarkShipped({delivered}) — the
+// same path as the single-order button: no "on its way" email, status
+// completed, an order event, and the review request keyed to the ship date.
+// ---------------------------------------------------------------------------
+
+export type UnshippedOrder = {
+  id: string;
+  orderNumber: string;
+  customerName: string;
+  total: number;
+  paidAt: string | null;
+  createdAt: string;
+  pickup: boolean;
+};
+
+export const listUnshippedPaidOrders = createServerFn({ method: "POST" }).handler(
+  async (): Promise<UnshippedOrder[]> => {
+    await requireAdmin();
+    const { data, error } = await supabaseAdmin
+      .from("orders")
+      .select("id, order_number, customer_name, total, paid_at, created_at, fulfillment, status")
+      .eq("payment_status", "paid")
+      .is("shipped_at", null)
+      .not("status", "in", `(${[...TERMINAL_STATUSES, "completed", "shipped"].join(",")})`)
+      .order("paid_at", { ascending: true })
+      .limit(200);
+    if (error) {
+      console.error("[listUnshippedPaidOrders]:", error);
+      throw new Error("שגיאה בטעינת ההזמנות.");
+    }
+    return (data ?? []).map((o: any) => ({
+      id: o.id,
+      orderNumber: o.order_number,
+      customerName: o.customer_name ?? "",
+      total: Number(o.total),
+      paidAt: o.paid_at,
+      createdAt: o.created_at,
+      pickup: o.fulfillment === "pickup",
+    }));
+  },
+);
+
+export const markOrdersDelivered = createServerFn({ method: "POST" })
+  .validator((i: unknown) =>
+    z
+      .object({
+        orders: z
+          .array(
+            z.object({
+              order_id: z.string().uuid(),
+              shipped_on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+              pickup: z.boolean().optional(),
+            }),
+          )
+          .min(1)
+          .max(100),
+      })
+      .parse(i),
+  )
+  .handler(async ({ data }) => {
+    const userId = await requireAdmin();
+    console.log(`[markOrdersDelivered] admin=${userId} count=${data.orders.length}`);
+    let done = 0;
+    const failed: { order_id: string; error: string }[] = [];
+    for (const o of data.orders) {
+      try {
+        await applyMarkShipped(
+          {
+            order_id: o.order_id,
+            delivered: true,
+            shipped_on: o.shipped_on,
+            ...(o.pickup ? { carrier: "איסוף עצמי" } : {}),
+          },
+          { userId },
+        );
+        done++;
+      } catch (e: any) {
+        failed.push({ order_id: o.order_id, error: e?.message ?? "שגיאה" });
+      }
+    }
+    return { done, failed };
+  });

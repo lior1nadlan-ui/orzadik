@@ -19,6 +19,8 @@ import {
   listOrderEvents,
   countOrdersToHandle,
   resendOrderTelegramAlert,
+  listUnshippedPaidOrders,
+  markOrdersDelivered,
 } from "@/lib/admin-crm.functions";
 import { missingTelegramAlert } from "@/lib/telegram-latch";
 import { cn } from "@/lib/utils";
@@ -34,10 +36,21 @@ import { toast } from "sonner";
 import { AdminSheet, AdminSheetContent } from "@/components/admin/AdminSheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Copy, Download, Phone, Mail, MessageCircle, Printer, User, RefreshCw } from "lucide-react";
+import {
+  Copy,
+  Download,
+  Phone,
+  Mail,
+  MessageCircle,
+  Printer,
+  User,
+  RefreshCw,
+  PackageCheck,
+} from "lucide-react";
 import { orderItemImageUrl } from "@/lib/order-item-photo";
 import { OrderShippingPanel, type ShipRequest } from "@/components/admin/OrderShippingPanel";
 import { PhoneOrderDialog } from "@/components/admin/PhoneOrderDialog";
+import { BulkDeliveredDialog } from "@/components/admin/BulkDeliveredDialog";
 
 export const Route = createFileRoute("/admin/orders")({
   // Deep-linkable filters: the dashboard KPIs/chips and the customer card link
@@ -318,6 +331,9 @@ function AdminOrders() {
   const payReminderFn = useServerFn(sendOrderPaymentReminder);
   const [sendingPayLink, setSendingPayLink] = useState(false);
   const [phoneOrderOpen, setPhoneOrderOpen] = useState(false);
+  const [bulkDeliveredOpen, setBulkDeliveredOpen] = useState(false);
+  const loadUnshipped = useServerFn(listUnshippedPaidOrders);
+  const markDelivered = useServerFn(markOrdersDelivered);
   const paidOfflineFn = useServerFn(markOrderPaidOffline);
   const [offlineMethod, setOfflineMethod] = useState<OfflineMethod>("cash");
   const [markingPaid, setMarkingPaid] = useState(false);
@@ -639,6 +655,16 @@ function AdminOrders() {
           </span>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setBulkDeliveredOpen(true)}
+            aria-label="סימון מרובה כנמסרו"
+            className="shrink-0 max-sm:min-h-11 max-sm:w-11 max-sm:px-0"
+          >
+            <PackageCheck className="h-4 w-4" />
+            <span className="hidden sm:inline">כבר נמסרו</span>
+          </Button>
           <Button size="sm" onClick={() => setPhoneOrderOpen(true)} className="max-sm:min-h-11">
             <Phone className="h-4 w-4" /> הזמנה טלפונית
           </Button>
@@ -665,6 +691,18 @@ function AdminOrders() {
           </Button>
         </div>
       </div>
+
+      <BulkDeliveredDialog
+        open={bulkDeliveredOpen}
+        onOpenChange={setBulkDeliveredOpen}
+        load={loadUnshipped}
+        submit={async (orders) => {
+          const r = await markDelivered({ data: { orders } });
+          if (r.done) toast.success(`${r.done} הזמנות סומנו כנמסרו`);
+          refetch();
+          return r;
+        }}
+      />
 
       <PhoneOrderDialog
         open={phoneOrderOpen}
