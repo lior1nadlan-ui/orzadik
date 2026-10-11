@@ -47,6 +47,9 @@ const Schema = z.object({
     .min(1)
     .max(100),
   subtotal: z.number().min(0),
+  // The checkout's optional marketing box, saved with the cart so a shopper
+  // who ticked it and left before paying can still get the reminder.
+  marketingConsent: z.boolean().optional(),
 });
 
 /**
@@ -78,6 +81,16 @@ export const saveAbandonedCart = createServerFn({ method: "POST" })
     const email = authed?.email ? authed.email.toLowerCase() : data.email.toLowerCase();
 
     // Find recent open cart for this email
+    // The box's current state is the truth: ticked records consent (with the
+    // time), unticked again withdraws it. Older clients send nothing — no change.
+    const consent =
+      data.marketingConsent === undefined
+        ? {}
+        : {
+            marketing_consent: data.marketingConsent,
+            marketing_consent_at: data.marketingConsent ? new Date().toISOString() : null,
+          };
+
     const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
     const { data: existing } = await supabaseAdmin
       .from("abandoned_carts")
@@ -100,6 +113,7 @@ export const saveAbandonedCart = createServerFn({ method: "POST" })
           items: data.items,
           subtotal: data.subtotal,
           user_id: authedUserId,
+          ...consent,
         })
         .eq("id", existing.id);
       return { id: existing.id };
@@ -114,6 +128,7 @@ export const saveAbandonedCart = createServerFn({ method: "POST" })
         user_id: authedUserId,
         items: data.items,
         subtotal: data.subtotal,
+        ...consent,
       })
       .select("id")
       .single();
@@ -201,7 +216,7 @@ export async function runAbandonedCartReminders(): Promise<AbandonedCartRunResul
 
   const { data: firstCarts, error: firstErr } = await supabaseAdmin
     .from("abandoned_carts")
-    .select("id, email, name, items, subtotal")
+    .select("id, email, name, items, subtotal, marketing_consent")
     .is("converted_order_id", null)
     .is("reminder_1_sent_at", null)
     .eq("unsubscribed", false)
@@ -229,7 +244,7 @@ export async function runAbandonedCartReminders(): Promise<AbandonedCartRunResul
   ).toISOString();
   const { data: secondCarts, error: secondErr } = await supabaseAdmin
     .from("abandoned_carts")
-    .select("id, email, name, items, subtotal")
+    .select("id, email, name, items, subtotal, marketing_consent")
     .is("converted_order_id", null)
     .not("reminder_1_sent_at", "is", null)
     .is("reminder_2_sent_at", null)
@@ -295,7 +310,15 @@ export async function runAbandonedCartReminders(): Promise<AbandonedCartRunResul
     const revokedSet = new Set((revoked.data ?? []).map((r) => lower(r.email)));
     // profiles.marketing_consent = false is an explicit refusal and beats a
     // stale newsletter row for the same address, exactly as buildAudience does.
-    for (const r of [...(profileConsent.data ?? []), ...(newsletterActive.data ?? [])]) {
+    // Consent given on the checkout form itself, stored with the cart.
+    const cartConsent = [...first, ...second]
+      .filter((c: any) => c.marketing_consent === true)
+      .map((c) => ({ email: c.email }));
+    for (const r of [
+      ...(profileConsent.data ?? []),
+      ...(newsletterActive.data ?? []),
+      ...cartConsent,
+    ]) {
       const e = lower(r.email);
       if (e && !suppressedSet.has(e) && !revokedSet.has(e)) consented.add(e);
     }
