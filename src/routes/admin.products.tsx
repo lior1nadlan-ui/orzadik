@@ -19,6 +19,8 @@ import {
   createProductsQuick,
   previewPriceList,
   applyPriceList,
+  exportProductsCsv,
+  priceChangesReport,
   type AdminVariantRow,
 } from "@/lib/admin-products.functions";
 import { autoSlug, galleryFromProduct, slugSuffix, splitGallery } from "@/lib/admin-catalog";
@@ -36,6 +38,8 @@ import { CategoryPicker } from "@/components/admin/CategoryPicker";
 import { GalleryEditor } from "@/components/admin/GalleryEditor";
 import { QuickAddDialog } from "@/components/admin/QuickAddDialog";
 import { PriceListDialog } from "@/components/admin/PriceListDialog";
+import { PriceReportDialog } from "@/components/admin/PriceReportDialog";
+import { downloadCsv } from "@/lib/csv";
 import { usePhotoUpload } from "@/components/admin/usePhotoUpload";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -64,6 +68,8 @@ import {
   ImagePlus,
   ArrowLeftRight,
   ListChecks,
+  FileDown,
+  FileText,
 } from "lucide-react";
 
 /** Catalog-health filters — the same two predicates the dashboard tile counts. */
@@ -133,6 +139,8 @@ function AdminProducts() {
   const [duplicateFrom, setDuplicateFrom] = useState<Product | null>(null);
   const [quickOpen, setQuickOpen] = useState(false);
   const [priceListOpen, setPriceListOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [open, setOpen] = useState(false);
   // Set by ProductDialog whenever the form differs from what it opened with, so
   // a stray Escape / backdrop click can't discard a half-written product.
@@ -170,6 +178,21 @@ function AdminProducts() {
   const savePrice = useServerFn(setProductPrice);
   const previewList = useServerFn(previewPriceList);
   const applyList = useServerFn(applyPriceList);
+  const exportProducts = useServerFn(exportProductsCsv);
+  const loadReport = useServerFn(priceChangesReport);
+
+  const doExport = async () => {
+    setExporting(true);
+    try {
+      const { csv, count } = await exportProducts();
+      downloadCsv(csv, `products-${new Date().toISOString().slice(0, 10)}.csv`);
+      toast.success(`יוצאו ${count} מוצרים`);
+    } catch (e: any) {
+      toast.error(e?.message ?? "הייצוא נכשל");
+    } finally {
+      setExporting(false);
+    }
+  };
   const runUndo = useServerFn(undoPriceBatch);
   const loadBatches = useServerFn(listPriceBatches);
   const saveGalleryFn = useServerFn(saveProductGallery);
@@ -476,6 +499,17 @@ function AdminProducts() {
             >
               <History className="h-4 w-4" />
               <span className="max-sm:sr-only">היסטוריית מחירים</span>
+            </Button>
+            <Button variant="outline" className="gap-2" onClick={() => setReportOpen(true)}>
+              <FileText className="h-4 w-4" /> דוח מחירים
+            </Button>
+            <Button
+              variant="outline"
+              className="gap-2"
+              onClick={() => void doExport()}
+              disabled={exporting}
+            >
+              <FileDown className="h-4 w-4" /> {exporting ? "מייצא…" : "ייצוא לאקסל"}
             </Button>
             <Button variant="outline" className="gap-2" onClick={() => setPriceListOpen(true)}>
               <ListChecks className="h-4 w-4" /> מחירים לפי מק״ט
@@ -942,6 +976,12 @@ function AdminProducts() {
         loading={batchesLoading && batches.length === 0}
         busyBatch={busyBatch}
         onUndo={(id) => void undo(id)}
+      />
+
+      <PriceReportDialog
+        open={reportOpen}
+        onOpenChange={setReportOpen}
+        load={(range) => loadReport({ data: range })}
       />
 
       <PriceListDialog
