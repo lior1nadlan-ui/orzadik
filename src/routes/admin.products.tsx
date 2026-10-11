@@ -1,3 +1,4 @@
+import { productUpdatePatch } from "@/lib/product-update";
 import { createFileRoute } from "@tanstack/react-router";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -356,18 +357,13 @@ function AdminProducts() {
     // Product CRUD stays on the anon client (RLS admin-gated), exactly as before.
     let productId = editing?.id;
     if (editing) {
-      // name_norm and search_blob are GENERATED ALWAYS columns: the row was
-      // loaded with select("*"), so sending them back fails every save with
-      // 'column "name_norm" can only be updated to DEFAULT'.
-      const {
-        name_norm: _nameNorm,
-        search_blob: _searchBlob,
-        ...writable
-      } = form as Partial<Product> & { name_norm?: unknown; search_blob?: unknown };
-      const { error } = await supabase
-        .from("products")
-        .update({ ...writable, name, slug })
-        .eq("id", editing.id);
+      // Only the fields actually changed, and only real form columns — never
+      // the generated name_norm/search_blob that came with select("*"). See
+      // productUpdatePatch.
+      const patch = productUpdatePatch(editing, { ...form, name, slug }) as Partial<Product>;
+      const { error } = Object.keys(patch).length
+        ? await supabase.from("products").update(patch).eq("id", editing.id)
+        : { error: null };
       if (error) return saveError(error);
     } else {
       const { data: inserted, error } = await supabase
