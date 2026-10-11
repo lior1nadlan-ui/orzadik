@@ -356,9 +356,17 @@ function AdminProducts() {
     // Product CRUD stays on the anon client (RLS admin-gated), exactly as before.
     let productId = editing?.id;
     if (editing) {
+      // name_norm and search_blob are GENERATED ALWAYS columns: the row was
+      // loaded with select("*"), so sending them back fails every save with
+      // 'column "name_norm" can only be updated to DEFAULT'.
+      const {
+        name_norm: _nameNorm,
+        search_blob: _searchBlob,
+        ...writable
+      } = form as Partial<Product> & { name_norm?: unknown; search_blob?: unknown };
       const { error } = await supabase
         .from("products")
-        .update({ ...form, name, slug })
+        .update({ ...writable, name, slug })
         .eq("id", editing.id);
       if (error) return saveError(error);
     } else {
