@@ -8,6 +8,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { alertOwnerLowStock } from "@/lib/owner-alerts.server";
 import { requireAdmin } from "@/lib/admin-authz.server";
 import { sendOrderTelegramAlert } from "@/lib/telegram.server";
 import { logOrderEvent, type Actor } from "@/lib/order-events.server";
@@ -2134,7 +2135,10 @@ export const markOrderPaidOffline = createServerFn({ method: "POST" })
       throw new Error("שגיאה בעדכון ההזמנה.");
     }
     try {
-      await supabaseAdmin.rpc("decrement_order_stock", { p_order_id: order.id });
+      const { data: touched } = await supabaseAdmin.rpc("decrement_order_stock", {
+        p_order_id: order.id,
+      });
+      if (touched) await alertOwnerLowStock(order.id);
     } catch (e) {
       console.error("[markOrderPaidOffline] stock decrement:", e);
     }

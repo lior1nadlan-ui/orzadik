@@ -27,8 +27,8 @@ export function PriceListDialog({
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  preview: (rows: { sku: string; price: number }[]) => Promise<Preview>;
-  apply: (items: { id: string; price: number }[]) => Promise<void>;
+  preview: (rows: { sku: string; price: number; salePrice?: number | null }[]) => Promise<Preview>;
+  apply: (items: { id: string; price: number; salePrice?: number | null }[]) => Promise<void>;
 }) {
   const [text, setText] = useState("");
   const [parsed, setParsed] = useState<PriceListParse | null>(null);
@@ -51,7 +51,7 @@ export function PriceListDialog({
     if (p.rows.length === 0) return;
     setBusy(true);
     try {
-      setResult(await preview(p.rows.map(({ sku, price }) => ({ sku, price }))));
+      setResult(await preview(p.rows.map(({ line: _line, ...row }) => row)));
     } catch (e: any) {
       setError(e?.message ?? "שגיאה בבדיקת הרשימה");
     } finally {
@@ -63,7 +63,13 @@ export function PriceListDialog({
     if (!result?.changes.length) return;
     setBusy(true);
     try {
-      await apply(result.changes.map((c) => ({ id: c.id, price: c.newPrice })));
+      await apply(
+        result.changes.map((c) =>
+          c.newSalePrice === undefined
+            ? { id: c.id, price: c.newPrice }
+            : { id: c.id, price: c.newPrice, salePrice: c.newSalePrice },
+        ),
+      );
       reset();
       onOpenChange(false);
     } catch (e: any) {
@@ -85,8 +91,9 @@ export function PriceListDialog({
         <DialogHeader>
           <DialogTitle>עדכון מחירים לפי מק״ט</DialogTitle>
           <DialogDescription>
-            הדביקו שורה לכל מוצר: מק״ט ומחיר קטלוגי (אפשר להעתיק שתי עמודות מאקסל). לפני העדכון תוצג
-            רשימה לבדיקה, וכל העדכון יירשם בהיסטוריית המחירים עם אפשרות ביטול.
+            הדביקו שורה לכל מוצר: מק״ט ומחיר קטלוגי, ואפשר גם עמודה שלישית של מחיר קודם (מחוק) — 0
+            מוחק אותו. אפשר להעתיק עמודות מאקסל, וגם להדביק בחזרה גיליון שהורד ב״ייצוא לאקסל״. לפני
+            העדכון תוצג רשימה לבדיקה, וכל העדכון יירשם בהיסטוריית המחירים עם אפשרות ביטול.
           </DialogDescription>
         </DialogHeader>
 
@@ -94,7 +101,7 @@ export function PriceListDialog({
           <Textarea
             dir="ltr"
             rows={10}
-            placeholder={"UK82172\t69\nUK11631\t43"}
+            placeholder={"UK82172\t69\nUK11631\t43\t61"}
             value={text}
             onChange={(e) => {
               setText(e.target.value);
@@ -136,6 +143,7 @@ export function PriceListDialog({
                       <th className="p-2">מק״ט</th>
                       <th className="p-2">לפני</th>
                       <th className="p-2">אחרי</th>
+                      <th className="p-2">מחיר קודם (מחוק)</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -156,6 +164,18 @@ export function PriceListDialog({
                           <td className="p-2">{money(c.oldPrice)}</td>
                           <td className={big ? "p-2 font-semibold text-destructive" : "p-2"}>
                             {money(c.newPrice)}
+                          </td>
+                          <td className="p-2">
+                            {c.newSalePrice === undefined ? (
+                              <span className="text-muted-foreground">
+                                {c.oldSalePrice === null ? "—" : money(c.oldSalePrice)}
+                              </span>
+                            ) : (
+                              <>
+                                {c.oldSalePrice === null ? "—" : money(c.oldSalePrice)} ←{" "}
+                                {c.newSalePrice === null ? "הוסר" : money(c.newSalePrice)}
+                              </>
+                            )}
                           </td>
                         </tr>
                       );

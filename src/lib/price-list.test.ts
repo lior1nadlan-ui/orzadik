@@ -40,3 +40,32 @@ describe("parsePriceList", () => {
     expect(r.rows.map((x) => x.sku)).toEqual(["UK2"]);
   });
 });
+
+describe("parsePriceList — former (struck) price", () => {
+  it("reads an optional third column", () => {
+    expect(parsePriceList("UK1\t69\t99").rows).toEqual([
+      { line: 1, sku: "UK1", price: 69, salePrice: 99 },
+    ]);
+  });
+  it("0 removes the former price", () => {
+    expect(parsePriceList("UK1\t69\t0").rows[0].salePrice).toBeNull();
+  });
+  it("an empty third cell leaves it as is", () => {
+    expect(parsePriceList("UK1\t69\t").rows[0]).not.toHaveProperty("salePrice");
+  });
+  it("refuses a former price not above the price", () => {
+    expect(parsePriceList("UK1\t69\t50").errors).toHaveLength(1);
+  });
+  it("pastes a whole exported sheet back (extra columns ignored)", () => {
+    const sheet =
+      "מק״ט\tמחיר קטלוגי\tמחיר קודם (מחוק)\tשם\tמלאי\tפעיל\tקישור\n" +
+      "UK1\t69\t\tכיפה 3\tבמלאי\tכן\thttps://orzadik.com/product/a\n" +
+      "UK2\t40\t60\tטלית\tאזל\tלא\thttps://orzadik.com/product/b";
+    const r = parsePriceList(sheet);
+    expect(r.errors).toEqual([]);
+    expect(r.rows).toEqual([
+      { line: 2, sku: "UK1", price: 69 },
+      { line: 3, sku: "UK2", price: 40, salePrice: 60 },
+    ]);
+  });
+});

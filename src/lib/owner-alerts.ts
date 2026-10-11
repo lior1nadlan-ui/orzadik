@@ -59,3 +59,22 @@ export function buildReviewAlert(
   t += `\nלאישור או הסתרה: ${origin}/admin/reviews`;
   return t;
 }
+
+/** Low stock after a paid order: products that track stock and are at or
+ *  below LOW_STOCK units. Same threshold as the dashboard's "מלאי נמוך". */
+export const LOW_STOCK = 3;
+
+export function buildLowStockAlert(
+  items: { name: string; sku: string | null; qty: number }[],
+  origin: string,
+): string | null {
+  if (items.length === 0) return null;
+  const sorted = [...items].sort((a, b) => a.qty - b.qty);
+  let t = `📦 <b>מלאי נמוך אחרי הזמנה</b>\n\n`;
+  for (const it of sorted) {
+    const status = it.qty <= 0 ? "<b>אזל</b>" : `נשארו ${it.qty}`;
+    t += `• ${tg(clip(it.name, 120))}${it.sku ? ` (${tg(it.sku)})` : ""} — ${status}\n`;
+  }
+  t += `\n<a href="${origin}/admin/products?health=out-of-stock">לרשימת המוצרים שאזלו</a>`;
+  return t;
+}

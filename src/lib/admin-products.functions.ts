@@ -795,10 +795,17 @@ export const uploadProductImage = createServerFn({ method: "POST" })
 // as one logged batch, undoable from "היסטוריית מחירים".
 // ---------------------------------------------------------------------------
 
+const Money = z.number().positive().max(1_000_000);
+
 const PriceListSchema = z.object({
   rows: z
     .array(
-      z.object({ sku: z.string().min(1).max(100), price: z.number().positive().max(1_000_000) }),
+      z.object({
+        sku: z.string().min(1).max(100),
+        price: Money,
+        // undefined = leave the former price; null = remove it.
+        salePrice: Money.nullable().optional(),
+      }),
     )
     .min(1)
     .max(2000),
@@ -810,6 +817,9 @@ export type PriceListMatch = {
   name: string;
   oldPrice: number;
   newPrice: number;
+  oldSalePrice: number | null;
+  /** undefined when the list did not touch the former price. */
+  newSalePrice?: number | null;
   isActive: boolean;
 };
 
@@ -817,30 +827,37 @@ export const previewPriceList = createServerFn({ method: "POST" })
   .validator((i: unknown) => PriceListSchema.parse(i))
   .handler(async ({ data }) => {
     await requireAdmin();
-    const wanted = new Map(data.rows.map((r) => [r.sku.trim().toUpperCase(), r.price]));
+    const wanted = new Map(data.rows.map((r) => [r.sku.trim().toUpperCase(), r]));
     const skus = [...wanted.keys()];
     const found: PriceListMatch[] = [];
     for (let i = 0; i < skus.length; i += MAX_IDS) {
       const { data: rows, error } = await supabaseAdmin
         .from("products")
-        .select("id, sku, name, price, is_active")
+        .select("id, sku, name, price, sale_price, is_active")
         .in("sku", skus.slice(i, i + MAX_IDS));
       if (error) throw new Error("שגיאה בחיפוש המק״טים.");
       for (const r of rows ?? []) {
-        found.push({
+        const w = wanted.get(r.sku as string)!;
+        const match: PriceListMatch = {
           id: r.id,
           sku: r.sku as string,
           name: r.name,
           oldPrice: Number(r.price),
-          newPrice: wanted.get(r.sku as string)!,
+          newPrice: w.price,
+          oldSalePrice: r.sale_price === null ? null : Number(r.sale_price),
           isActive: r.is_active,
-        });
+        };
+        if (w.salePrice !== undefined) match.newSalePrice = w.salePrice;
+        found.push(match);
       }
     }
+    const changed = (f: PriceListMatch) =>
+      f.oldPrice !== f.newPrice ||
+      (f.newSalePrice !== undefined && f.newSalePrice !== f.oldSalePrice);
     const foundSkus = new Set(found.map((f) => f.sku));
     return {
-      changes: found.filter((f) => f.oldPrice !== f.newPrice),
-      unchanged: found.filter((f) => f.oldPrice === f.newPrice).length,
+      changes: found.filter(changed),
+      unchanged: found.filter((f) => !changed(f)).length,
       notFound: skus.filter((s) => !foundSkus.has(s)),
     };
   });
@@ -850,7 +867,13 @@ export const applyPriceList = createServerFn({ method: "POST" })
     z
       .object({
         items: z
-          .array(z.object({ id: z.string().uuid(), price: z.number().positive().max(1_000_000) }))
+          .array(
+            z.object({
+              id: z.string().uuid(),
+              price: Money,
+              salePrice: Money.nullable().optional(),
+            }),
+          )
           .min(1)
           .max(2000),
       })
@@ -859,9 +882,14 @@ export const applyPriceList = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const adminId = await requireAdmin();
     console.log(`[applyPriceList] admin=${adminId} count=${data.items.length}`);
+    const items = data.items.map((it) =>
+      it.salePrice === undefined
+        ? { id: it.id, price: it.price }
+        : { id: it.id, price: it.price, sale_price: it.salePrice },
+    );
     const { data: rows, error } = await supabaseAdmin.rpc("admin_set_product_price_list", {
       p_actor: adminId,
-      p_items: data.items,
+      p_items: items,
     });
     const row = Array.isArray(rows) ? rows[0] : null;
     if (error || !row) {
@@ -981,3 +1009,84 @@ function israelMidnightUtc(ymd: string): string {
   const offsetHours = hour - 12; // 2 or 3
   return new Date(Date.parse(`${ymd}T00:00:00Z`) - offsetHours * 3600_000).toISOString();
 }
+
+// ---------------------------------------------------------------------------
+// "דוח מכירות לפי מוצר" — paid orders between two Israel-time dates, grouped
+// by product. Refunded orders are left out (the money went back).
+// ---------------------------------------------------------------------------
+
+export type SalesReportRow = {
+  productId: string | null;
+  name: string;
+  sku: string | null;
+  qty: number;
+  revenue: number;
+  orders: number;
+};
+
+export const salesByProductReport = createServerFn({ method: "POST" })
+  .validator((i: unknown) =>
+    z
+      .object({
+        from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      })
+      .parse(i),
+  )
+  .handler(
+    async ({
+      data,
+    }): Promise<{ rows: SalesReportRow[]; orders: number; revenue: number; units: number }> => {
+      await requireAdmin();
+      const start = israelMidnightUtc(data.from);
+      const end = israelMidnightUtc(nextDay(data.to));
+      const lines: any[] = [];
+      for (let from = 0; ; from += DB_PAGE) {
+        const { data: page, error } = await supabaseAdmin
+          .from("order_items")
+          .select(
+            "order_id, product_id, product_name, quantity, line_total, products(sku), orders!inner(payment_status, paid_at)",
+          )
+          .eq("orders.payment_status", "paid")
+          .gte("orders.paid_at", start)
+          .lt("orders.paid_at", end)
+          .range(from, from + DB_PAGE - 1);
+        if (error) {
+          console.error("[salesByProductReport] failed:", error);
+          throw new Error("שגיאה בטעינת דוח המכירות.");
+        }
+        lines.push(...(page ?? []));
+        if ((page ?? []).length < DB_PAGE) break;
+      }
+      const byProduct = new Map<string, SalesReportRow & { orderIds: Set<string> }>();
+      for (const l of lines) {
+        const key = l.product_id ?? `name:${l.product_name}`;
+        const cur = byProduct.get(key) ?? {
+          productId: l.product_id ?? null,
+          name: l.product_name,
+          sku: l.products?.sku ?? null,
+          qty: 0,
+          revenue: 0,
+          orders: 0,
+          orderIds: new Set<string>(),
+        };
+        cur.qty += Number(l.quantity) || 0;
+        cur.revenue += Number(l.line_total) || 0;
+        cur.orderIds.add(l.order_id);
+        byProduct.set(key, cur);
+      }
+      const rows = [...byProduct.values()]
+        .map(({ orderIds, ...r }) => ({
+          ...r,
+          orders: orderIds.size,
+          revenue: Math.round(r.revenue * 100) / 100,
+        }))
+        .sort((a, b) => b.revenue - a.revenue);
+      return {
+        rows,
+        orders: new Set(lines.map((l) => l.order_id)).size,
+        revenue: Math.round(rows.reduce((s, r) => s + r.revenue, 0) * 100) / 100,
+        units: rows.reduce((s, r) => s + r.qty, 0),
+      };
+    },
+  );
