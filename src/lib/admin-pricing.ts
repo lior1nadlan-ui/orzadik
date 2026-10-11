@@ -171,6 +171,10 @@ export function describePriceBatch(b: PriceBatchSummary): string {
       const sign = pct > 0 ? "+" : "";
       return `שינוי של ${sign}${pct}% ל-${what}`;
     }
+    case "price_list":
+      return n === 1
+        ? `מחיר ${what} לפי מק״ט: ₪${Math.round(b.oldTotal)} ← ₪${Math.round(b.newTotal)}`
+        : `עדכון מחירים לפי מק״ט (${what})`;
     case "undo":
       return `ביטול שינוי מחיר (${what})`;
     default:

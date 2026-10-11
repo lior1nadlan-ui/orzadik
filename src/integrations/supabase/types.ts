@@ -1358,6 +1358,10 @@ export type Database = {
           undone: number
         }[]
       }
+      admin_set_product_price_list: {
+        Args: { p_actor: string; p_items: Json }
+        Returns: { batch_id: string; skipped: number; updated: number }[]
+      }
       admin_set_product_prices: {
         Args: {
           p_actor: string

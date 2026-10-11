@@ -16,6 +16,7 @@ import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { requireAdmin } from "@/lib/admin-authz.server";
 import { autoSlug, slugSuffix } from "@/lib/admin-catalog";
+import { toCsv } from "@/lib/csv";
 
 /** Hard cap per call — keeps one mis-click from rewriting the whole catalog. */
 const MAX_IDS = 200;
@@ -787,3 +788,196 @@ export const uploadProductImage = createServerFn({ method: "POST" })
     console.log(`[uploadProductImage] admin=${adminId} path=${path} bytes=${bytes.length}`);
     return { url: pub.publicUrl, path };
   });
+
+// ---------------------------------------------------------------------------
+// "עדכון מחירים לפי מק״ט" — a pasted SKU/price list (src/lib/price-list.ts).
+// Preview looks every SKU up and shows old → new; apply writes the whole list
+// as one logged batch, undoable from "היסטוריית מחירים".
+// ---------------------------------------------------------------------------
+
+const PriceListSchema = z.object({
+  rows: z
+    .array(
+      z.object({ sku: z.string().min(1).max(100), price: z.number().positive().max(1_000_000) }),
+    )
+    .min(1)
+    .max(2000),
+});
+
+export type PriceListMatch = {
+  id: string;
+  sku: string;
+  name: string;
+  oldPrice: number;
+  newPrice: number;
+  isActive: boolean;
+};
+
+export const previewPriceList = createServerFn({ method: "POST" })
+  .validator((i: unknown) => PriceListSchema.parse(i))
+  .handler(async ({ data }) => {
+    await requireAdmin();
+    const wanted = new Map(data.rows.map((r) => [r.sku.trim().toUpperCase(), r.price]));
+    const skus = [...wanted.keys()];
+    const found: PriceListMatch[] = [];
+    for (let i = 0; i < skus.length; i += MAX_IDS) {
+      const { data: rows, error } = await supabaseAdmin
+        .from("products")
+        .select("id, sku, name, price, is_active")
+        .in("sku", skus.slice(i, i + MAX_IDS));
+      if (error) throw new Error("שגיאה בחיפוש המק״טים.");
+      for (const r of rows ?? []) {
+        found.push({
+          id: r.id,
+          sku: r.sku as string,
+          name: r.name,
+          oldPrice: Number(r.price),
+          newPrice: wanted.get(r.sku as string)!,
+          isActive: r.is_active,
+        });
+      }
+    }
+    const foundSkus = new Set(found.map((f) => f.sku));
+    return {
+      changes: found.filter((f) => f.oldPrice !== f.newPrice),
+      unchanged: found.filter((f) => f.oldPrice === f.newPrice).length,
+      notFound: skus.filter((s) => !foundSkus.has(s)),
+    };
+  });
+
+export const applyPriceList = createServerFn({ method: "POST" })
+  .validator((i: unknown) =>
+    z
+      .object({
+        items: z
+          .array(z.object({ id: z.string().uuid(), price: z.number().positive().max(1_000_000) }))
+          .min(1)
+          .max(2000),
+      })
+      .parse(i),
+  )
+  .handler(async ({ data }) => {
+    const adminId = await requireAdmin();
+    console.log(`[applyPriceList] admin=${adminId} count=${data.items.length}`);
+    const { data: rows, error } = await supabaseAdmin.rpc("admin_set_product_price_list", {
+      p_actor: adminId,
+      p_items: data.items,
+    });
+    const row = Array.isArray(rows) ? rows[0] : null;
+    if (error || !row) {
+      console.error("[applyPriceList] failed:", error);
+      throw new Error("שגיאה בעדכון המחירים.");
+    }
+    return { batchId: row.batch_id, updated: row.updated, skipped: row.skipped };
+  });
+
+// ---------------------------------------------------------------------------
+// Excel export of the catalog, and the price-change report by date.
+// The export's first two columns are SKU and price, so an edited sheet can be
+// pasted straight back into "מחירים לפי מק״ט".
+// ---------------------------------------------------------------------------
+
+export const exportProductsCsv = createServerFn({ method: "POST" }).handler(async () => {
+  await requireAdmin();
+  const rows: any[] = [];
+  for (let from = 0; ; from += DB_PAGE) {
+    const { data, error } = await supabaseAdmin
+      .from("products")
+      .select("sku, price, sale_price, name, stock_status, is_active, slug")
+      .order("name", { ascending: true })
+      .range(from, from + DB_PAGE - 1);
+    if (error) throw new Error("שגיאה בייצוא המוצרים.");
+    rows.push(...(data ?? []));
+    if ((data ?? []).length < DB_PAGE) break;
+  }
+  const csv = toCsv(
+    ["מק״ט", "מחיר קטלוגי", "מחיר קודם (מחוק)", "שם", "מלאי", "פעיל", "קישור"],
+    rows.map((p) => [
+      p.sku,
+      Number(p.price),
+      p.sale_price === null ? null : Number(p.sale_price),
+      p.name,
+      p.stock_status === "outofstock" ? "אזל" : "במלאי",
+      p.is_active ? "כן" : "לא",
+      `https://orzadik.com/product/${p.slug}`,
+    ]),
+  );
+  return { csv, count: rows.length };
+});
+
+export type PriceReportRow = {
+  changedAt: string;
+  productId: string;
+  sku: string | null;
+  name: string;
+  source: string;
+  oldPrice: number | null;
+  newPrice: number | null;
+  undone: boolean;
+};
+
+/** Every logged price change between two Israel-time dates (inclusive). */
+export const priceChangesReport = createServerFn({ method: "POST" })
+  .validator((i: unknown) =>
+    z
+      .object({
+        from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      })
+      .parse(i),
+  )
+  .handler(async ({ data }): Promise<{ rows: PriceReportRow[]; truncated: boolean }> => {
+    await requireAdmin();
+    const start = israelMidnightUtc(data.from);
+    const end = israelMidnightUtc(nextDay(data.to));
+    const LIMIT = 5000;
+    const rows: PriceReportRow[] = [];
+    for (let from = 0; from < LIMIT; from += DB_PAGE) {
+      const { data: page, error } = await supabaseAdmin
+        .from("product_price_changes")
+        .select(
+          "changed_at, product_id, source, old_price, new_price, undone_by_batch, products(sku, name)",
+        )
+        .gte("changed_at", start)
+        .lt("changed_at", end)
+        .order("changed_at", { ascending: true })
+        .range(from, from + DB_PAGE - 1);
+      if (error) throw new Error("שגיאה בטעינת הדוח.");
+      const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
+      for (const r of page ?? []) {
+        const p = (r as any).products ?? {};
+        rows.push({
+          changedAt: r.changed_at,
+          productId: r.product_id,
+          sku: p.sku ?? null,
+          name: p.name ?? "",
+          source: r.source,
+          oldPrice: num(r.old_price),
+          newPrice: num(r.new_price),
+          undone: r.undone_by_batch !== null,
+        });
+      }
+      if ((page ?? []).length < DB_PAGE) return { rows, truncated: false };
+    }
+    return { rows, truncated: true };
+  });
+
+function nextDay(ymd: string): string {
+  const d = new Date(`${ymd}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+/** UTC instant of 00:00 in Israel on that date (handles summer/winter time). */
+function israelMidnightUtc(ymd: string): string {
+  const noonUtc = new Date(`${ymd}T12:00:00Z`);
+  const hour = Number(
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Asia/Jerusalem",
+      hour: "2-digit",
+      hourCycle: "h23",
+    }).format(noonUtc),
+  );
+  const offsetHours = hour - 12; // 2 or 3
+  return new Date(Date.parse(`${ymd}T00:00:00Z`) - offsetHours * 3600_000).toISOString();
+}
