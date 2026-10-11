@@ -46,6 +46,12 @@ import { PriceAuditDialog } from "@/components/admin/PriceAuditDialog";
 import { downloadCsv } from "@/lib/csv";
 import { usePhotoUpload } from "@/components/admin/usePhotoUpload";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -76,6 +82,8 @@ import {
   FileText,
   BarChart3,
   AlertTriangle,
+  Tag,
+  ChevronDown,
 } from "lucide-react";
 
 /** Catalog-health filters — the same two predicates the dashboard tile counts. */
@@ -501,35 +509,45 @@ function AdminProducts() {
           }}
         >
           <div className="flex flex-wrap items-center justify-end gap-2">
-            <Button
-              variant="outline"
-              className="gap-2 max-sm:w-11 max-sm:px-0"
-              aria-label="היסטוריית מחירים"
-              onClick={() => setHistoryOpen(true)}
-            >
-              <History className="h-4 w-4" />
-              <span className="max-sm:sr-only">היסטוריית מחירים</span>
-            </Button>
-            <Button variant="outline" className="gap-2" onClick={() => setAuditOpen(true)}>
-              <AlertTriangle className="h-4 w-4" /> מחירים חשודים
-            </Button>
-            <Button variant="outline" className="gap-2" onClick={() => setSalesOpen(true)}>
-              <BarChart3 className="h-4 w-4" /> דוח מכירות
-            </Button>
-            <Button variant="outline" className="gap-2" onClick={() => setReportOpen(true)}>
-              <FileText className="h-4 w-4" /> דוח מחירים
-            </Button>
-            <Button
-              variant="outline"
-              className="gap-2"
-              onClick={() => void doExport()}
-              disabled={exporting}
-            >
-              <FileDown className="h-4 w-4" /> {exporting ? "מייצא…" : "ייצוא לאקסל"}
-            </Button>
-            <Button variant="outline" className="gap-2" onClick={() => setPriceListOpen(true)}>
-              <ListChecks className="h-4 w-4" /> מחירים לפי מק״ט
-            </Button>
+            {/* Price tools and reports sit in two menus: as eight buttons they
+                wrapped into three rows on a phone. modal={false} so the dialog
+                an item opens gets focus instead of the closing menu. */}
+            <DropdownMenu modal={false} dir="rtl">
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="gap-2">
+                  <Tag className="h-4 w-4" /> מחירים <ChevronDown className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={() => setPriceListOpen(true)}>
+                  <ListChecks className="h-4 w-4" /> עדכון לפי מק״ט
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setAuditOpen(true)}>
+                  <AlertTriangle className="h-4 w-4" /> מחירים חשודים
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setHistoryOpen(true)}>
+                  <History className="h-4 w-4" /> היסטוריית מחירים (ביטול)
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setReportOpen(true)}>
+                  <FileText className="h-4 w-4" /> דוח שינויי מחיר
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <DropdownMenu modal={false} dir="rtl">
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="gap-2">
+                  <BarChart3 className="h-4 w-4" /> דוחות <ChevronDown className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={() => setSalesOpen(true)}>
+                  <BarChart3 className="h-4 w-4" /> דוח מכירות לפי מוצר
+                </DropdownMenuItem>
+                <DropdownMenuItem disabled={exporting} onSelect={() => void doExport()}>
+                  <FileDown className="h-4 w-4" /> {exporting ? "מייצא…" : "ייצוא מוצרים לאקסל"}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button variant="outline" className="gap-2" onClick={() => setQuickOpen(true)}>
               <ImagePlus className="h-4 w-4" /> הוספה מהירה
               <span className="max-sm:hidden"> מתמונות</span>
