@@ -19,6 +19,7 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { notifyShippingCompany } from "@/lib/shipping.server";
 import { sendOrderConfirmationEmails } from "@/lib/order-emails.server";
+import { alertOwnerLowStock } from "@/lib/owner-alerts.server";
 
 const CARDCOM_BASE = "https://secure.cardcom.solutions/api/v11";
 
@@ -350,7 +351,10 @@ export async function settleCardcomOrder(
       p_order_id: updated.id,
     });
     if (stockErr) console.error(`${tag} stock decrement failed:`, stockErr);
-    else if (touched) console.log(`${tag} stock decremented for ${touched} product(s)`);
+    else if (touched) {
+      console.log(`${tag} stock decremented for ${touched} product(s)`);
+      await alertOwnerLowStock(updated.id);
+    }
   } catch (e) {
     console.error(`${tag} stock decrement threw:`, e);
   }

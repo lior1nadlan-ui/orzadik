@@ -12,7 +12,11 @@ import { parsePriceInput } from "@/lib/admin-pricing";
 
 export const MAX_PRICE_LIST_ROWS = 2000;
 
-export type PriceListRow = { line: number; sku: string; price: number };
+/**
+ * salePrice is the former ("struck") price: undefined = leave as is,
+ * null = remove it (written as 0 in the list), a number = set it.
+ */
+export type PriceListRow = { line: number; sku: string; price: number; salePrice?: number | null };
 export type PriceListError = { line: number; text: string; error: string };
 
 export type PriceListParse = {
@@ -27,57 +31,86 @@ const normSku = (s: string) => s.trim().toUpperCase();
 /** Does this token look like a price ("120", "120.50", "1,200", "₪120")? */
 const looksLikePrice = (t: string) => parsePriceInput(t).ok && /\d/.test(t) && !/[A-Za-z]/.test(t);
 
+/** Split a line into cells. Tabs (Excel) keep empty cells, so the columns of
+ *  a pasted "ייצוא לאקסל" sheet stay in place; anything after the third
+ *  column (name, stock, link) is ignored. */
+function cells(line: string): string[] {
+  if (line.includes("\t")) return line.split("\t").map((c) => c.trim());
+  if (line.includes(";")) return line.split(";").map((c) => c.trim());
+  const byComma = line
+    .split(/,(?!\d{3}(?:\D|$))/)
+    .map((c) => c.trim())
+    .filter(Boolean);
+  if (byComma.length >= 2) return byComma;
+  return line.split(/\s+/).filter(Boolean);
+}
+
 export function parsePriceList(text: string): PriceListParse {
   const rows: PriceListRow[] = [];
   const errors: PriceListError[] = [];
-  const seen = new Map<string, number>();
+  const seen = new Map<string, string>();
   const conflicts = new Set<string>();
 
   (text ?? "").split(/\r?\n/).forEach((raw, i) => {
     const line = i + 1;
     const trimmed = raw.trim();
     if (!trimmed) return;
-    // Tab / ; split first (Excel); a comma only when it is not a thousands
-    // separator; otherwise whitespace.
-    let parts = trimmed
-      .split(/\t|;/)
-      .map((p) => p.trim())
-      .filter(Boolean);
-    if (parts.length < 2)
-      parts = trimmed
-        .split(/,(?!\d{3}(\D|$))/)
-        .map((p) => (p ?? "").trim())
-        .filter(Boolean);
-    if (parts.length < 2) parts = trimmed.split(/\s+/).filter(Boolean);
-    if (parts.length !== 2) {
+    const parts = cells(trimmed);
+    const filled = parts.filter(Boolean);
+    if (filled.length < 2) {
       errors.push({ line, text: trimmed, error: "צריך מק״ט ומחיר בשורה" });
       return;
     }
-    const [a, b] = parts;
-    const priceFirst = looksLikePrice(a) && !looksLikePrice(b);
-    const skuRaw = priceFirst ? b : a;
-    const priceRaw = priceFirst ? a : b;
+    // "59 UK3": price first is accepted only on a plain two-value line.
+    const priceFirst = parts.length === 2 && looksLikePrice(parts[0]) && !looksLikePrice(parts[1]);
+    const skuRaw = priceFirst ? parts[1] : parts[0];
+    const priceRaw = priceFirst ? parts[0] : parts[1];
+    const saleRaw = priceFirst ? "" : (parts[2] ?? "");
     // A header row ("מק״ט, מחיר") is skipped silently.
     if (line === 1 && !/\d/.test(priceRaw)) return;
+    if (!skuRaw) {
+      errors.push({ line, text: trimmed, error: "חסר מק״ט" });
+      return;
+    }
     const price = parsePriceInput(priceRaw);
     if (!price.ok) {
       errors.push({ line, text: trimmed, error: price.error });
       return;
     }
+    let salePrice: number | null | undefined;
+    if (saleRaw) {
+      if (/^0+([.,]0+)?$/.test(saleRaw)) salePrice = null;
+      else {
+        const sp = parsePriceInput(saleRaw);
+        if (!sp.ok) {
+          errors.push({ line, text: trimmed, error: `מחיר קודם: ${sp.error}` });
+          return;
+        }
+        if (sp.value <= price.value) {
+          errors.push({ line, text: trimmed, error: "המחיר הקודם חייב להיות גבוה מהמחיר" });
+          return;
+        }
+        salePrice = sp.value;
+      }
+    }
     const sku = normSku(skuRaw);
+    const key = `${price.value}|${salePrice === undefined ? "" : String(salePrice)}`;
     const prev = seen.get(sku);
     if (prev !== undefined) {
-      if (prev !== price.value) conflicts.add(sku);
+      if (prev !== key) conflicts.add(sku);
       return;
     }
-    seen.set(sku, price.value);
-    rows.push({ line, sku, price: price.value });
+    seen.set(sku, key);
+    rows.push(
+      salePrice === undefined
+        ? { line, sku, price: price.value }
+        : { line, sku, price: price.value, salePrice },
+    );
   });
 
-  const conflictList = [...conflicts];
   return {
     rows: rows.filter((r) => !conflicts.has(r.sku)),
     errors,
-    conflicts: conflictList,
+    conflicts: [...conflicts],
   };
 }

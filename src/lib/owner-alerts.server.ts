@@ -7,7 +7,12 @@
 
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { sendTelegramText } from "@/lib/telegram.server";
-import { buildContactAlert, buildReviewAlert } from "@/lib/owner-alerts";
+import {
+  LOW_STOCK,
+  buildContactAlert,
+  buildLowStockAlert,
+  buildReviewAlert,
+} from "@/lib/owner-alerts";
 
 const ORIGIN = process.env.APP_URL || "https://orzadik.com";
 
@@ -42,5 +47,36 @@ export async function alertOwnerReview(r: {
     await sendTelegramText(buildReviewAlert({ ...r, productName: product?.name ?? null }, ORIGIN));
   } catch (e) {
     console.error("[owner-alert] review:", e);
+  }
+}
+
+/**
+ * After a paid order's stock decrement: tell the owner which of its products
+ * (stock-tracked only) are now at or below LOW_STOCK. Runs once per order,
+ * because decrement_order_stock is latched and the callers only alert when it
+ * touched rows.
+ */
+export async function alertOwnerLowStock(orderId: string): Promise<void> {
+  try {
+    const { data: lines } = await supabaseAdmin
+      .from("order_items")
+      .select("product_id")
+      .eq("order_id", orderId)
+      .not("product_id", "is", null);
+    const ids = [...new Set((lines ?? []).map((l) => l.product_id as string))];
+    if (ids.length === 0) return;
+    const { data: products } = await supabaseAdmin
+      .from("products")
+      .select("name, sku, stock_qty")
+      .in("id", ids)
+      .eq("track_stock", true)
+      .lte("stock_qty", LOW_STOCK);
+    const text = buildLowStockAlert(
+      (products ?? []).map((p) => ({ name: p.name, sku: p.sku, qty: Number(p.stock_qty ?? 0) })),
+      ORIGIN,
+    );
+    if (text) await sendTelegramText(text);
+  } catch (e) {
+    console.error("[owner-alert] low stock:", e);
   }
 }

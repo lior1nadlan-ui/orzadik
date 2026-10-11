@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildContactAlert, buildReviewAlert } from "./owner-alerts";
+import { buildContactAlert, buildLowStockAlert, buildReviewAlert } from "./owner-alerts";
 import { buildFunnel, pct } from "./funnel";
 
 describe("owner alerts", () => {
@@ -95,5 +95,23 @@ describe("sales funnel", () => {
   it("formats rates without dividing by zero", () => {
     expect(pct(3, 6)).toBe("50%");
     expect(pct(0, 0)).toBe("—");
+  });
+});
+
+describe("buildLowStockAlert", () => {
+  it("returns null with nothing to report", () => {
+    expect(buildLowStockAlert([], "https://orzadik.com")).toBeNull();
+  });
+  it("lists sold-out first and escapes names", () => {
+    const t = buildLowStockAlert(
+      [
+        { name: "כיפה <3>", sku: "UK1", qty: 2 },
+        { name: "טלית & תיק", sku: null, qty: 0 },
+      ],
+      "https://orzadik.com",
+    )!;
+    expect(t.indexOf("טלית &amp; תיק")).toBeLessThan(t.indexOf("כיפה &lt;3&gt;"));
+    expect(t).toContain("<b>אזל</b>");
+    expect(t).toContain("נשארו 2");
   });
 });
