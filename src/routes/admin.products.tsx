@@ -22,6 +22,7 @@ import {
   exportProductsCsv,
   priceChangesReport,
   salesByProductReport,
+  priceAudit,
   type AdminVariantRow,
 } from "@/lib/admin-products.functions";
 import { autoSlug, galleryFromProduct, slugSuffix, splitGallery } from "@/lib/admin-catalog";
@@ -41,6 +42,7 @@ import { QuickAddDialog } from "@/components/admin/QuickAddDialog";
 import { PriceListDialog } from "@/components/admin/PriceListDialog";
 import { PriceReportDialog } from "@/components/admin/PriceReportDialog";
 import { SalesReportDialog } from "@/components/admin/SalesReportDialog";
+import { PriceAuditDialog } from "@/components/admin/PriceAuditDialog";
 import { downloadCsv } from "@/lib/csv";
 import { usePhotoUpload } from "@/components/admin/usePhotoUpload";
 import { Button } from "@/components/ui/button";
@@ -73,6 +75,7 @@ import {
   FileDown,
   FileText,
   BarChart3,
+  AlertTriangle,
 } from "lucide-react";
 
 /** Catalog-health filters — the same two predicates the dashboard tile counts. */
@@ -144,6 +147,7 @@ function AdminProducts() {
   const [priceListOpen, setPriceListOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [salesOpen, setSalesOpen] = useState(false);
+  const [auditOpen, setAuditOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [open, setOpen] = useState(false);
   // Set by ProductDialog whenever the form differs from what it opened with, so
@@ -185,6 +189,7 @@ function AdminProducts() {
   const exportProducts = useServerFn(exportProductsCsv);
   const loadReport = useServerFn(priceChangesReport);
   const loadSales = useServerFn(salesByProductReport);
+  const runAudit = useServerFn(priceAudit);
 
   const doExport = async () => {
     setExporting(true);
@@ -504,6 +509,9 @@ function AdminProducts() {
             >
               <History className="h-4 w-4" />
               <span className="max-sm:sr-only">היסטוריית מחירים</span>
+            </Button>
+            <Button variant="outline" className="gap-2" onClick={() => setAuditOpen(true)}>
+              <AlertTriangle className="h-4 w-4" /> מחירים חשודים
             </Button>
             <Button variant="outline" className="gap-2" onClick={() => setSalesOpen(true)}>
               <BarChart3 className="h-4 w-4" /> דוח מכירות
@@ -984,6 +992,17 @@ function AdminProducts() {
         loading={batchesLoading && batches.length === 0}
         busyBatch={busyBatch}
         onUndo={(id) => void undo(id)}
+      />
+
+      <PriceAuditDialog
+        open={auditOpen}
+        onOpenChange={setAuditOpen}
+        load={() => runAudit()}
+        onPick={(issue) => {
+          setAuditOpen(false);
+          patchSearch({ health: undefined, cat: undefined });
+          setSearch(issue.sku ?? issue.name);
+        }}
       />
 
       <SalesReportDialog

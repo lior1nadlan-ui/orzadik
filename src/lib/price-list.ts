@@ -9,6 +9,7 @@
 // data out, so it runs in the browser and in Vitest alike.
 
 import { parsePriceInput } from "@/lib/admin-pricing";
+import { getEffectivePrice } from "@/lib/pricing";
 
 export const MAX_PRICE_LIST_ROWS = 2000;
 
@@ -86,8 +87,16 @@ export function parsePriceList(text: string): PriceListParse {
           errors.push({ line, text: trimmed, error: `מחיר קודם: ${sp.error}` });
           return;
         }
-        if (sp.value <= price.value) {
-          errors.push({ line, text: trimmed, error: "המחיר הקודם חייב להיות גבוה מהמחיר" });
+        // The site shows the former price struck through only when it is above
+        // what the customer pays (price minus SITE_DISCOUNT) — see
+        // getDisplayOriginal. Anything lower would be stored and never shown.
+        const pays = getEffectivePrice(price.value);
+        if (Math.round(sp.value) <= pays) {
+          errors.push({
+            line,
+            text: trimmed,
+            error: `המחיר הקודם חייב להיות גבוה מהמחיר ללקוח (₪${pays}), אחרת לא יוצג`,
+          });
           return;
         }
         salePrice = sp.value;
