@@ -27,6 +27,8 @@ export type Database = {
           reminder_1_sent_at: string | null
           reminder_2_sent_at: string | null
           subtotal: number
+          marketing_consent: boolean
+          marketing_consent_at: string | null
           unsubscribed: boolean
           updated_at: string
           user_id: string | null
@@ -43,6 +45,8 @@ export type Database = {
           reminder_1_sent_at?: string | null
           reminder_2_sent_at?: string | null
           subtotal?: number
+          marketing_consent?: boolean
+          marketing_consent_at?: string | null
           unsubscribed?: boolean
           updated_at?: string
           user_id?: string | null
@@ -59,6 +63,8 @@ export type Database = {
           reminder_1_sent_at?: string | null
           reminder_2_sent_at?: string | null
           subtotal?: number
+          marketing_consent?: boolean
+          marketing_consent_at?: string | null
           unsubscribed?: boolean
           updated_at?: string
           user_id?: string | null

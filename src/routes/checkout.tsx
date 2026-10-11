@@ -225,7 +225,9 @@ function CheckoutPage() {
     // The phone joins the key once it looks complete, so a phone typed after
     // the email still reaches the saved cart (one extra save, not one per key).
     const phoneDigits = form.phone.replace(/\D/g, "");
-    const key = `${email}|${items.length}|${subtotal}|${phoneDigits.length >= 9 ? phoneDigits : ""}`;
+    // The marketing box joins it too: ticking it after the email re-saves the
+    // cart, so the reminder can rely on that consent.
+    const key = `${email}|${items.length}|${subtotal}|${phoneDigits.length >= 9 ? phoneDigits : ""}|${marketingConsent ? 1 : 0}`;
     if (lastSavedRef.current === key) return;
     const t = setTimeout(() => {
       lastSavedRef.current = key;
@@ -235,7 +237,7 @@ function CheckoutPage() {
           name: form.name || null,
           phone: form.phone.replace(/\D/g, "").length >= 9 ? form.phone : null,
           subtotal,
-
+          marketingConsent,
           items: items.map((i) => ({
             product_id: i.productId,
             name: i.name,
@@ -248,7 +250,7 @@ function CheckoutPage() {
       }).catch(() => {});
     }, 2000);
     return () => clearTimeout(t);
-  }, [form.email, form.name, form.phone, items, subtotal, user?.id, saveCart]);
+  }, [form.email, form.name, form.phone, items, subtotal, marketingConsent, user?.id, saveCart]);
 
   // Empty checkout: the same surface /cart already gives this state, not a
   // thinner one. It was a bare sentence and a link — no heading at all, so this
