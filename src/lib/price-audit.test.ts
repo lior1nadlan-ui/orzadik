@@ -32,6 +32,10 @@ describe("auditPrices", () => {
     expect(kinds.map((i) => i.productId)).toEqual(["a"]);
   });
 
+  it("skips a pack the owner confirmed is sold per unit", () => {
+    expect(auditPrices([p({ name: "סטנד 100 טבעות (המחיר ליחידה אחת)", price: 22 })])).toEqual([]);
+  });
+
   it("flags a former price the site never shows (not above the customer price)", () => {
     // price 100 -> customer pays 70
     expect(auditPrices([p({ price: 100, salePrice: 70 })]).map((x) => x.kind)).toEqual([

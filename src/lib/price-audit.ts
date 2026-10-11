@@ -92,7 +92,9 @@ export function auditPrices(
 
   for (const p of products) {
     const units = packUnits(p.name);
-    if (units && p.price > 0 && p.price <= PACK_MAX_PRICE) {
+    // "(המחיר ליחידה אחת)" in the name means the owner confirmed a single unit
+    // is sold (2026-10-11, 33 products) — the name already says so.
+    if (units && p.price > 0 && p.price <= PACK_MAX_PRICE && !/ליחידה אחת/.test(p.name)) {
       add(p, "pack_unit_price", `בשם ${units} יחידות, המחיר ₪${p.price}`);
     }
     if (p.salePrice !== null && p.salePrice > 0 && p.price > 0) {
