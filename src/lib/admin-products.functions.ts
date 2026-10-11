@@ -787,3 +787,85 @@ export const uploadProductImage = createServerFn({ method: "POST" })
     console.log(`[uploadProductImage] admin=${adminId} path=${path} bytes=${bytes.length}`);
     return { url: pub.publicUrl, path };
   });
+
+// ---------------------------------------------------------------------------
+// "עדכון מחירים לפי מק״ט" — a pasted SKU/price list (src/lib/price-list.ts).
+// Preview looks every SKU up and shows old → new; apply writes the whole list
+// as one logged batch, undoable from "היסטוריית מחירים".
+// ---------------------------------------------------------------------------
+
+const PriceListSchema = z.object({
+  rows: z
+    .array(
+      z.object({ sku: z.string().min(1).max(100), price: z.number().positive().max(1_000_000) }),
+    )
+    .min(1)
+    .max(2000),
+});
+
+export type PriceListMatch = {
+  id: string;
+  sku: string;
+  name: string;
+  oldPrice: number;
+  newPrice: number;
+  isActive: boolean;
+};
+
+export const previewPriceList = createServerFn({ method: "POST" })
+  .validator((i: unknown) => PriceListSchema.parse(i))
+  .handler(async ({ data }) => {
+    await requireAdmin();
+    const wanted = new Map(data.rows.map((r) => [r.sku.trim().toUpperCase(), r.price]));
+    const skus = [...wanted.keys()];
+    const found: PriceListMatch[] = [];
+    for (let i = 0; i < skus.length; i += MAX_IDS) {
+      const { data: rows, error } = await supabaseAdmin
+        .from("products")
+        .select("id, sku, name, price, is_active")
+        .in("sku", skus.slice(i, i + MAX_IDS));
+      if (error) throw new Error("שגיאה בחיפוש המק״טים.");
+      for (const r of rows ?? []) {
+        found.push({
+          id: r.id,
+          sku: r.sku as string,
+          name: r.name,
+          oldPrice: Number(r.price),
+          newPrice: wanted.get(r.sku as string)!,
+          isActive: r.is_active,
+        });
+      }
+    }
+    const foundSkus = new Set(found.map((f) => f.sku));
+    return {
+      changes: found.filter((f) => f.oldPrice !== f.newPrice),
+      unchanged: found.filter((f) => f.oldPrice === f.newPrice).length,
+      notFound: skus.filter((s) => !foundSkus.has(s)),
+    };
+  });
+
+export const applyPriceList = createServerFn({ method: "POST" })
+  .validator((i: unknown) =>
+    z
+      .object({
+        items: z
+          .array(z.object({ id: z.string().uuid(), price: z.number().positive().max(1_000_000) }))
+          .min(1)
+          .max(2000),
+      })
+      .parse(i),
+  )
+  .handler(async ({ data }) => {
+    const adminId = await requireAdmin();
+    console.log(`[applyPriceList] admin=${adminId} count=${data.items.length}`);
+    const { data: rows, error } = await supabaseAdmin.rpc("admin_set_product_price_list", {
+      p_actor: adminId,
+      p_items: data.items,
+    });
+    const row = Array.isArray(rows) ? rows[0] : null;
+    if (error || !row) {
+      console.error("[applyPriceList] failed:", error);
+      throw new Error("שגיאה בעדכון המחירים.");
+    }
+    return { batchId: row.batch_id, updated: row.updated, skipped: row.skipped };
+  });

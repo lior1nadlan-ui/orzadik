@@ -17,6 +17,8 @@ import {
   listProductImages,
   saveProductGallery,
   createProductsQuick,
+  previewPriceList,
+  applyPriceList,
   type AdminVariantRow,
 } from "@/lib/admin-products.functions";
 import { autoSlug, galleryFromProduct, slugSuffix, splitGallery } from "@/lib/admin-catalog";
@@ -33,6 +35,7 @@ import { PriceHistoryDialog } from "@/components/admin/PriceHistoryDialog";
 import { CategoryPicker } from "@/components/admin/CategoryPicker";
 import { GalleryEditor } from "@/components/admin/GalleryEditor";
 import { QuickAddDialog } from "@/components/admin/QuickAddDialog";
+import { PriceListDialog } from "@/components/admin/PriceListDialog";
 import { usePhotoUpload } from "@/components/admin/usePhotoUpload";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -60,6 +63,7 @@ import {
   Copy,
   ImagePlus,
   ArrowLeftRight,
+  ListChecks,
 } from "lucide-react";
 
 /** Catalog-health filters — the same two predicates the dashboard tile counts. */
@@ -128,6 +132,7 @@ function AdminProducts() {
   // "שכפל": the product a new one is copied from.
   const [duplicateFrom, setDuplicateFrom] = useState<Product | null>(null);
   const [quickOpen, setQuickOpen] = useState(false);
+  const [priceListOpen, setPriceListOpen] = useState(false);
   const [open, setOpen] = useState(false);
   // Set by ProductDialog whenever the form differs from what it opened with, so
   // a stray Escape / backdrop click can't discard a half-written product.
@@ -163,6 +168,8 @@ function AdminProducts() {
   const loadCategories = useServerFn(listCategoriesForBulk);
   const saveCategories = useServerFn(setProductCategories);
   const savePrice = useServerFn(setProductPrice);
+  const previewList = useServerFn(previewPriceList);
+  const applyList = useServerFn(applyPriceList);
   const runUndo = useServerFn(undoPriceBatch);
   const loadBatches = useServerFn(listPriceBatches);
   const saveGalleryFn = useServerFn(saveProductGallery);
@@ -469,6 +476,9 @@ function AdminProducts() {
             >
               <History className="h-4 w-4" />
               <span className="max-sm:sr-only">היסטוריית מחירים</span>
+            </Button>
+            <Button variant="outline" className="gap-2" onClick={() => setPriceListOpen(true)}>
+              <ListChecks className="h-4 w-4" /> מחירים לפי מק״ט
             </Button>
             <Button variant="outline" className="gap-2" onClick={() => setQuickOpen(true)}>
               <ImagePlus className="h-4 w-4" /> הוספה מהירה
@@ -932,6 +942,21 @@ function AdminProducts() {
         loading={batchesLoading && batches.length === 0}
         busyBatch={busyBatch}
         onUndo={(id) => void undo(id)}
+      />
+
+      <PriceListDialog
+        open={priceListOpen}
+        onOpenChange={setPriceListOpen}
+        preview={(rows) => previewList({ data: { rows } })}
+        apply={async (items) => {
+          const r = await applyList({ data: { items } });
+          toast.success(`עודכנו ${r.updated} מחירים`, {
+            action: { label: "בטל", onClick: () => void undo(r.batchId) },
+            duration: 15_000,
+          });
+          qc.invalidateQueries({ queryKey: ["admin-products"] });
+          qc.invalidateQueries({ queryKey: ["admin-price-batches"] });
+        }}
       />
 
       <QuickAddDialog
@@ -1547,6 +1572,7 @@ const SOURCE_HE: Record<string, string> = {
   inline: "טבלה",
   bulk_set: "מחיר אחיד",
   bulk_pct: "שינוי באחוזים",
+  price_list: "לפי מק״ט",
   undo: "ביטול",
 };
 
