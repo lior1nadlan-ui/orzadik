@@ -336,10 +336,13 @@ function AdminProducts() {
   const saveInlinePrice = async (p: Product, next: number) => {
     try {
       const res = await savePrice({ data: { productId: p.id, price: next } });
-      toast.success(`המחיר עודכן: ₪${Number(p.price)} ← ₪${next}`, {
-        action: { label: "בטל", onClick: () => void undo(res.batchId) },
-        duration: 10_000,
-      });
+      toast.success(
+        `המחיר ללקוח עודכן: ₪${getEffectivePrice(Number(p.price))} ← ₪${getEffectivePrice(next)}`,
+        {
+          action: { label: "בטל", onClick: () => void undo(res.batchId) },
+          duration: 10_000,
+        },
+      );
       qc.invalidateQueries({ queryKey: ["admin-products"] });
       qc.invalidateQueries({ queryKey: ["admin-price-batches"] });
     } catch (e: any) {
@@ -843,7 +846,7 @@ function AdminProducts() {
               </th>
               <th className="p-3 font-medium">תמונה</th>
               <th className="p-3 font-medium">שם</th>
-              <th className="p-3 font-medium">מחיר קטלוג</th>
+              <th className="p-3 font-medium">מחיר ללקוח</th>
               <th className="p-3 font-medium">מלאי</th>
               <th className="p-3 font-medium">פעיל</th>
               <th className="p-3"></th>
@@ -1853,18 +1856,24 @@ function VariantsPanel({
               </div>
               <div>
                 <Label htmlFor={`v-price-${r.id}`} className="text-[11px] text-muted-foreground">
-                  מחיר הגודל (₪)
+                  מחיר הגודל ללקוח (₪)
                 </Label>
+                {/* Typed as the customer price (like every admin price box),
+                    stored as catalog. Committed on blur so "24.5" is not
+                    re-rounded under the cursor. */}
                 <Input
                   id={`v-price-${r.id}`}
+                  key={`v-price-${r.id}-${r.price ?? ""}`}
                   type="number"
                   step="0.01"
                   min={0}
                   placeholder="לפי מחיר המוצר"
-                  value={r.price ?? ""}
-                  onChange={(e) =>
-                    update(r.id, { price: e.target.value === "" ? null : Number(e.target.value) })
-                  }
+                  defaultValue={r.price === null ? "" : getEffectivePrice(Number(r.price))}
+                  onBlur={(e) => {
+                    const v = e.target.value;
+                    const next = v === "" ? null : catalogFromCustomerPrice(Number(v));
+                    if (next !== r.price) update(r.id, { price: next });
+                  }}
                 />
               </div>
               <div>

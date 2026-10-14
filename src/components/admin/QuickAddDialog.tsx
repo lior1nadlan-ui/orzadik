@@ -1,7 +1,7 @@
 // "הוספה מהירה מתמונות" — add a shelf of new products in one go.
 //
 // Pick the category, drop the photos, and each photo becomes a row: a name
-// (guessed from the file name when it is a real name) and a catalog price,
+// (guessed from the file name when it is a real name) and the customer price,
 // with what the customer will pay shown underneath. One click creates them
 // all in that category — no English URL to invent, no dialog per product.
 // Descriptions and extra photos can be added later from the regular editor.
@@ -10,6 +10,7 @@ import { useMemo, useRef, useState, type DragEvent } from "react";
 import { ImagePlus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { catalogFromCustomerPrice } from "@/lib/pricing";
 import {
   Dialog,
   DialogContent,
@@ -124,7 +125,10 @@ export function QuickAddDialog({
         active,
         items: rows.map((r) => ({
           name: r.name.trim(),
-          price: (parsePriceInput(r.price) as { ok: true; value: number }).value,
+          // Typed as the customer price; stored as catalog.
+          price: catalogFromCustomerPrice(
+            (parsePriceInput(r.price) as { ok: true; value: number }).value,
+          ),
           imageUrl: r.status === "ready" ? r.url : null,
         })),
       });
@@ -255,7 +259,7 @@ export function QuickAddDialog({
                     </div>
                     <div>
                       <Label htmlFor={`qp-${r.key}`} className="text-[11px] text-muted-foreground">
-                        מחיר קטלוג (₪)
+                        מחיר ללקוח (₪)
                       </Label>
                       <Input
                         id={`qp-${r.key}`}
@@ -265,7 +269,7 @@ export function QuickAddDialog({
                         onChange={(e) => patch(r.key, { price: e.target.value })}
                       />
                       <p className="mt-0.5 text-[11px] text-muted-foreground">
-                        {parsed.ok ? `ללקוח ₪${priceBreakdown(parsed.value, null).customer}` : " "}
+                        {parsed.ok ? `קטלוג ₪${catalogFromCustomerPrice(parsed.value)}` : " "}
                       </p>
                     </div>
                     <p
