@@ -21,6 +21,16 @@ export function getEffectivePrice(price: number): number {
 }
 
 /**
+ * The catalog price to store so the customer pays `customerPrice` — the inverse
+ * of getEffectivePrice. The admin types what the customer should pay (that is
+ * the number the owner thinks in); on 11.10.2026 he typed customer prices into
+ * the catalog field and 187 products went live 30% too cheap.
+ */
+export function catalogFromCustomerPrice(customerPrice: number): number {
+  return Math.round((customerPrice / (1 - SITE_DISCOUNT)) * 100) / 100;
+}
+
+/**
  * Struck-through "original" price shown next to the sale price.
  *
  * Consumer Protection Law §2 (no misleading): a "before" price must be a real

@@ -33,7 +33,7 @@ import {
   slugProblem,
   type CategoryNode,
 } from "@/lib/admin-pricing";
-import { SITE_DISCOUNT } from "@/lib/pricing";
+import { SITE_DISCOUNT, catalogFromCustomerPrice, getEffectivePrice } from "@/lib/pricing";
 import { PriceCell } from "@/components/admin/PriceCell";
 import { PriceHistoryDialog } from "@/components/admin/PriceHistoryDialog";
 import { CategoryPicker } from "@/components/admin/CategoryPicker";
@@ -1107,7 +1107,8 @@ function BulkDialog({
       case "price_pct":
         return { kind, pct };
       case "price_set":
-        return { kind, price };
+        // Typed as the customer price; stored as catalog.
+        return { kind, price: catalogFromCustomerPrice(price) };
       case "restock":
         return { kind, qty };
       case "active":
@@ -1218,7 +1219,7 @@ function BulkDialog({
 
           {kind === "price_set" && (
             <div>
-              <Label htmlFor="bulk-price">מחיר קטלוג אחיד (₪)</Label>
+              <Label htmlFor="bulk-price">מחיר אחיד ללקוח (₪)</Label>
               <Input
                 id="bulk-price"
                 type="number"
@@ -1228,7 +1229,7 @@ function BulkDialog({
               />
               {price > 0 && (
                 <p className="mt-1 text-[11px] text-muted-foreground">
-                  הלקוח ישלם ₪{priceBreakdown(price, null).customer}
+                  הלקוח ישלם ₪{price} · מחיר קטלוג ₪{catalogFromCustomerPrice(price)}
                 </p>
               )}
             </div>
@@ -1341,6 +1342,12 @@ function ProductDialog({
   const [slugTouched, setSlugTouched] = useState(!!product);
   const suffixRef = useRef(slugSuffix());
   const prices = priceBreakdown(Number(form.price ?? 0), form.sale_price ?? null);
+  // The owner types what the customer pays; the catalog price (stored, the site
+  // takes SITE_DISCOUNT off it) follows. Own state so "24.5" is not re-rounded
+  // under the cursor while typing.
+  const [customerDraft, setCustomerDraft] = useState(() =>
+    Number(form.price ?? 0) > 0 ? String(getEffectivePrice(Number(form.price))) : "",
+  );
 
   // Categories and photos come from the product being edited, or, for a
   // duplicate, from the product being copied.
@@ -1456,18 +1463,22 @@ function ProductDialog({
             </p>
           </div>
           <div>
-            <Label>מחיר קטלוג (₪)</Label>
+            <Label>מחיר ללקוח (₪)</Label>
             <Input
               type="number"
               step="0.01"
               min={0}
-              value={form.price ?? 0}
-              onChange={(e) => setForm({ ...form, price: Number(e.target.value) })}
+              value={customerDraft}
+              onChange={(e) => {
+                setCustomerDraft(e.target.value);
+                const v = Number(e.target.value);
+                setForm({ ...form, price: v > 0 ? catalogFromCustomerPrice(v) : 0 });
+              }}
             />
             {Number(form.price ?? 0) > 0 ? (
               <p className="mt-1 text-[11px] text-muted-foreground">
-                הלקוח משלם ₪{prices.customer} (אחרי {Math.round(SITE_DISCOUNT * 100)}% הנחת אתר) ·
-                חבר מועדון ₪{prices.member}
+                באתר: ₪{prices.customer} · חבר מועדון ₪{prices.member} · מחיר קטלוג ₪
+                {Number(form.price)} (לפני {Math.round(SITE_DISCOUNT * 100)}% הנחת אתר)
               </p>
             ) : (
               <p className="mt-1 text-[11px] font-medium text-destructive">
@@ -1664,6 +1675,7 @@ const SOURCE_HE: Record<string, string> = {
   bulk_set: "מחיר אחיד",
   bulk_pct: "שינוי באחוזים",
   price_list: "לפי מק״ט",
+  customer_price_fix: "תיקון למחיר ללקוח",
   undo: "ביטול",
 };
 

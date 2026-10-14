@@ -17,6 +17,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { requireAdmin } from "@/lib/admin-authz.server";
 import { autoSlug, slugSuffix } from "@/lib/admin-catalog";
 import { toCsv } from "@/lib/csv";
+import { getEffectivePrice } from "@/lib/pricing";
 import { auditPrices, type AuditProduct } from "@/lib/price-audit";
 
 /** Hard cap per call — keeps one mis-click from rewriting the whole catalog. */
@@ -920,15 +921,18 @@ export const exportProductsCsv = createServerFn({ method: "POST" }).handler(asyn
     if ((data ?? []).length < DB_PAGE) break;
   }
   const csv = toCsv(
-    ["מק״ט", "מחיר קטלוגי", "מחיר קודם (מחוק)", "שם", "מלאי", "פעיל", "קישור"],
+    // Column 2 is what the customer pays, so an edited sheet pastes straight
+    // back into "מחירים לפי מק״ט" (which takes customer prices).
+    ["מק״ט", "מחיר ללקוח", "מחיר קודם (מחוק)", "שם", "מלאי", "פעיל", "קישור", "מחיר קטלוג"],
     rows.map((p) => [
       p.sku,
-      Number(p.price),
+      getEffectivePrice(Number(p.price)),
       p.sale_price === null ? null : Number(p.sale_price),
       p.name,
       p.stock_status === "outofstock" ? "אזל" : "במלאי",
       p.is_active ? "כן" : "לא",
       `https://orzadik.com/product/${p.slug}`,
+      Number(p.price),
     ]),
   );
   return { csv, count: rows.length };

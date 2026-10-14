@@ -1,0 +1,30 @@
+-- RECORD ONLY — already applied to whtjslgrrfzehivrknuv on 2026-10-14 via MCP,
+-- as one logged price batch (source 'customer_price_fix',
+-- batch b971e479-9e7e-403a-b58e-fa6267c08024); undo it from
+-- "היסטוריית מחירים" or admin_undo_price_batch.
+--
+-- WHY. The admin price box took the CATALOG price, and the site takes 30%
+-- (SITE_DISCOUNT) off it. The owner typed the price he wanted customers to pay,
+-- so from 11.10 187 products went live 30% too cheap (e.g. a tallit bag he set
+-- to 249, previously 357.14 = 250 to the customer, sold at 174). Each product's
+-- last owner change since 11.10 (not undone, still current) was re-based so
+-- the customer pays exactly what he typed: price = round(typed / 0.7, 2).
+-- Verified: 187 rows, round(new*0.7) = typed for all 187.
+--
+-- The admin now takes the customer price everywhere (catalogFromCustomerPrice
+-- in src/lib/pricing.ts), so this cannot recur.
+--
+-- begin;
+-- select set_config('app.price_batch', gen_random_uuid()::text, true),
+--        set_config('app.price_source', 'customer_price_fix', true);
+-- with last as (
+--   select distinct on (c.product_id) c.product_id, c.new_price, c.source, c.undone_by_batch
+--     from product_price_changes c
+--    where c.changed_at >= '2026-10-10T21:00:00Z'
+--    order by c.product_id, c.changed_at desc, c.id desc)
+-- update products p set price = round(l.new_price / 0.7, 2)
+--   from last l
+--  where p.id = l.product_id and l.source <> 'undo' and l.undone_by_batch is null
+--    and p.price = l.new_price;
+-- commit;
+select 1;

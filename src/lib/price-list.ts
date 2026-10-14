@@ -4,12 +4,12 @@
 // a time. Supplier lists and Excel sheets already pair a SKU with a price; this
 // lets him paste them and update every row in one undoable batch.
 //
-// One product per line: a SKU and a price, separated by a tab (pasted from
+// One product per line: a SKU and the price THE CUSTOMER PAYS (the caller
+// converts it to the stored catalog price), separated by a tab (pasted from
 // Excel), comma, semicolon or spaces, in either order. Plain data in, plain
 // data out, so it runs in the browser and in Vitest alike.
 
 import { parsePriceInput } from "@/lib/admin-pricing";
-import { getEffectivePrice } from "@/lib/pricing";
 
 export const MAX_PRICE_LIST_ROWS = 2000;
 
@@ -90,7 +90,8 @@ export function parsePriceList(text: string): PriceListParse {
         // The site shows the former price struck through only when it is above
         // what the customer pays (price minus SITE_DISCOUNT) — see
         // getDisplayOriginal. Anything lower would be stored and never shown.
-        const pays = getEffectivePrice(price.value);
+        // The list's price column is what the customer pays (11.10.2026).
+        const pays = Math.round(price.value);
         if (Math.round(sp.value) <= pays) {
           errors.push({
             line,

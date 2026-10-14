@@ -15,6 +15,7 @@ const SOURCE_HE: Record<string, string> = {
   bulk_set: "מחיר אחיד",
   bulk_pct: "שינוי באחוזים",
   price_list: "לפי מק״ט",
+  customer_price_fix: "תיקון למחיר ללקוח",
   undo: "ביטול",
 };
 

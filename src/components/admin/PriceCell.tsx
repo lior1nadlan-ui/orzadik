@@ -1,12 +1,13 @@
 // The price column of the admin products table, editable in place.
 //
-// Type a new catalog price and press Enter (or click away) — no dialog. Under
-// the box the cell always says what that price means on the site: what every
-// customer pays after the site-wide discount, and the struck-through former
-// price when one is shown. Escape puts the old value back.
+// Type the price the CUSTOMER pays and press Enter (or click away) — no
+// dialog. The catalog price (stored; the site takes SITE_DISCOUNT off it) is
+// computed and shown under the box, with the struck-through former price when
+// one is shown. Escape puts the old value back.
 
 import { useEffect, useRef, useState } from "react";
 import { parsePriceInput, priceBreakdown } from "@/lib/admin-pricing";
+import { catalogFromCustomerPrice, getEffectivePrice } from "@/lib/pricing";
 
 export function PriceCell({
   price,
@@ -18,10 +19,11 @@ export function PriceCell({
   salePrice: number | null;
   /** Product name, for the input's accessible label. */
   label: string;
-  /** Persist the new catalog price. Rejects to keep the box open for a retry. */
+  /** Persist the new CATALOG price. Rejects to keep the box open for a retry. */
   onSave: (next: number) => Promise<void>;
 }) {
-  const [draft, setDraft] = useState(String(price));
+  const customer = getEffectivePrice(Number(price));
+  const [draft, setDraft] = useState(String(customer));
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const skipBlur = useRef(false);
@@ -31,13 +33,14 @@ export function PriceCell({
 
   // A save elsewhere (bulk action, undo, refetch) replaces the shown value.
   useEffect(() => {
-    setDraft(String(price));
+    setDraft(String(getEffectivePrice(Number(price))));
     setError(null);
     lastSaved.current = null;
   }, [price]);
 
   const parsed = parsePriceInput(draft);
-  const shown = priceBreakdown(parsed.ok ? parsed.value : price, salePrice);
+  const nextCatalog = parsed.ok ? catalogFromCustomerPrice(parsed.value) : Number(price);
+  const shown = priceBreakdown(nextCatalog, salePrice);
 
   const commit = async () => {
     if (saving) return;
@@ -45,16 +48,16 @@ export function PriceCell({
       setError(parsed.error);
       return;
     }
-    if (parsed.value === Number(price)) {
+    if (parsed.value === customer) {
       setError(null);
-      setDraft(String(price));
+      setDraft(String(customer));
       return;
     }
-    if (parsed.value === lastSaved.current) return;
+    if (nextCatalog === lastSaved.current) return;
     setSaving(true);
     try {
-      await onSave(parsed.value);
-      lastSaved.current = parsed.value;
+      await onSave(nextCatalog);
+      lastSaved.current = nextCatalog;
       setError(null);
     } catch {
       // The caller already told the owner why; keep the typed value to retry.
@@ -72,9 +75,9 @@ export function PriceCell({
         <input
           dir="ltr"
           inputMode="decimal"
-          aria-label={`מחיר קטלוג: ${label}`}
+          aria-label={`מחיר ללקוח: ${label}`}
           aria-invalid={!!error}
-          title={error ?? "מחיר קטלוג — Enter לשמירה, Esc לביטול"}
+          title={error ?? "המחיר שהלקוח משלם — Enter לשמירה, Esc לביטול"}
           value={draft}
           disabled={saving}
           onFocus={(e) => e.currentTarget.select()}
@@ -89,7 +92,7 @@ export function PriceCell({
               void commit().finally(() => (skipBlur.current = false));
             } else if (e.key === "Escape") {
               skipBlur.current = true;
-              setDraft(String(price));
+              setDraft(String(customer));
               setError(null);
               e.currentTarget.blur();
               skipBlur.current = false;
@@ -107,7 +110,7 @@ export function PriceCell({
         <p className="mt-1 text-[11px] text-destructive">{error}</p>
       ) : (
         <p className="mt-1 whitespace-nowrap text-[11px] text-muted-foreground">
-          ללקוח ₪{shown.customer}
+          קטלוג ₪{nextCatalog}
           {shown.struck !== null && (
             <span className="ms-1 line-through opacity-70">₪{shown.struck}</span>
           )}
