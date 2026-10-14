@@ -6,7 +6,7 @@
 // one is shown. Escape puts the old value back.
 
 import { useEffect, useRef, useState } from "react";
-import { parsePriceInput, priceBreakdown } from "@/lib/admin-pricing";
+import { isSharpPriceChange, parsePriceInput, priceBreakdown } from "@/lib/admin-pricing";
 import { catalogFromCustomerPrice, getEffectivePrice } from "@/lib/pricing";
 
 export function PriceCell({
@@ -34,6 +34,8 @@ export function PriceCell({
     const t = setTimeout(() => setJustSaved(false), 2500);
     return () => clearTimeout(t);
   }, [justSaved]);
+  // A sharp change (likely an extra/missing digit) waits for a second Enter.
+  const [confirmFor, setConfirmFor] = useState<number | null>(null);
   const skipBlur = useRef(false);
   // The value just saved, until the refetched price arrives — so the blur that
   // follows an Enter does not save the same price a second time.
@@ -43,6 +45,7 @@ export function PriceCell({
   useEffect(() => {
     setDraft(String(getEffectivePrice(Number(price))));
     setError(null);
+    setConfirmFor(null);
     lastSaved.current = null;
   }, [price]);
 
@@ -64,6 +67,11 @@ export function PriceCell({
       return;
     }
     if (nextCatalog === lastSaved.current) return;
+    if (isSharpPriceChange(customer, parsed.value) && confirmFor !== parsed.value) {
+      setConfirmFor(parsed.value);
+      return;
+    }
+    setConfirmFor(null);
     setSaving(true);
     try {
       await onSave(nextCatalog);
@@ -96,6 +104,7 @@ export function PriceCell({
           onChange={(e) => {
             setDraft(e.target.value);
             setError(null);
+            setConfirmFor(null);
           }}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
@@ -106,6 +115,7 @@ export function PriceCell({
               skipBlur.current = true;
               setDraft(String(customer));
               setError(null);
+              setConfirmFor(null);
               e.currentTarget.blur();
               skipBlur.current = false;
             }
@@ -116,13 +126,17 @@ export function PriceCell({
           // 16px text on phones: iOS zooms the page into any smaller input.
           className={`h-11 w-28 rounded-md border bg-background ps-6 pe-2 text-base tabular-nums transition-opacity sm:h-9 sm:w-24 sm:text-sm ${
             justSaved ? "border-green-600 ring-1 ring-green-600" : ""
-          } ${
+          } ${confirmFor !== null ? "border-amber-500 ring-1 ring-amber-500" : ""} ${
             error ? "border-destructive ring-1 ring-destructive" : ""
           } ${saving ? "opacity-50" : ""}`}
         />
       </div>
       {error ? (
         <p className="mt-1 text-[11px] text-destructive">{error}</p>
+      ) : confirmFor !== null ? (
+        <p className="mt-1 text-[11px] font-medium text-amber-700" role="alert">
+          ₪{customer} → ₪{confirmFor}? שוב Enter / לחיצה לאישור
+        </p>
       ) : justSaved ? (
         <p className="mt-1 text-[11px] font-medium text-green-700" role="status">
           נשמר ✓

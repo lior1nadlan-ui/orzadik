@@ -182,3 +182,13 @@ export function describePriceBatch(b: PriceBatchSummary): string {
       return `שינוי מחיר (${what})`;
   }
 }
+
+/**
+ * A price change big enough to be a likely typo (an extra or missing digit:
+ * 150 → 1500, 150 → 15). The inline price box asks for a second Enter before
+ * saving one. Prices are the customer's (₪ shown on the site).
+ */
+export function isSharpPriceChange(from: number, to: number): boolean {
+  if (!(from > 0) || !(to > 0)) return false;
+  return to >= from * 3 || to * 3 <= from;
+}
