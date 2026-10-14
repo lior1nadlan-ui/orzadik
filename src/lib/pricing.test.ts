@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   SITE_DISCOUNT,
+  catalogFromCustomerPrice,
   MEMBER_DISCOUNT,
   SHIPPING_FLAT,
   getEffectivePrice,
@@ -208,5 +209,22 @@ describe("getShipping with fulfillment", () => {
   it("charges nothing on an empty basket either way", () => {
     expect(getShipping(0, "delivery")).toBe(0);
     expect(getShipping(0, "pickup")).toBe(0);
+  });
+});
+
+describe("catalogFromCustomerPrice", () => {
+  it("round-trips: the customer pays exactly what the owner typed", () => {
+    for (let c = 1; c <= 3000; c++) {
+      expect(getEffectivePrice(catalogFromCustomerPrice(c))).toBe(c);
+    }
+  });
+});
+
+describe("catalogFromCustomerPrice — stability", () => {
+  it("keeps the current catalog price when the customer price is unchanged", () => {
+    expect(catalogFromCustomerPrice(43, 61)).toBe(61);
+  });
+  it("rounds a typed decimal to the whole shekel the site charges", () => {
+    expect(getEffectivePrice(catalogFromCustomerPrice(24.5))).toBe(25);
   });
 });

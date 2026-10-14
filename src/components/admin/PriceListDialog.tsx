@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { parsePriceList, type PriceListParse } from "@/lib/price-list";
+import { catalogFromCustomerPrice, getEffectivePrice } from "@/lib/pricing";
 import type { PriceListMatch } from "@/lib/admin-products.functions";
 
 type Preview = { changes: PriceListMatch[]; unchanged: number; notFound: string[] };
@@ -51,7 +52,15 @@ export function PriceListDialog({
     if (p.rows.length === 0) return;
     setBusy(true);
     try {
-      setResult(await preview(p.rows.map(({ line: _line, ...row }) => row)));
+      setResult(
+        await preview(
+          // Typed as the customer price; the server stores the catalog price.
+          p.rows.map(({ line: _line, ...row }) => ({
+            ...row,
+            price: catalogFromCustomerPrice(row.price),
+          })),
+        ),
+      );
     } catch (e: any) {
       setError(e?.message ?? "שגיאה בבדיקת הרשימה");
     } finally {
@@ -91,9 +100,9 @@ export function PriceListDialog({
         <DialogHeader>
           <DialogTitle>עדכון מחירים לפי מק״ט</DialogTitle>
           <DialogDescription>
-            הדביקו שורה לכל מוצר: מק״ט ומחיר קטלוגי, ואפשר גם עמודה שלישית של מחיר קודם (מחוק) — 0
-            מוחק אותו. אפשר להעתיק עמודות מאקסל, וגם להדביק בחזרה גיליון שהורד ב״ייצוא לאקסל״. לפני
-            העדכון תוצג רשימה לבדיקה, וכל העדכון יירשם בהיסטוריית המחירים עם אפשרות ביטול.
+            הדביקו שורה לכל מוצר: מק״ט והמחיר שהלקוח משלם, ואפשר גם עמודה שלישית של מחיר קודם (מחוק)
+            — 0 מוחק אותו. אפשר להעתיק עמודות מאקסל, וגם להדביק בחזרה גיליון שהורד ב״ייצוא לאקסל״.
+            לפני העדכון תוצג רשימה לבדיקה, וכל העדכון יירשם בהיסטוריית המחירים עם אפשרות ביטול.
           </DialogDescription>
         </DialogHeader>
 
@@ -141,8 +150,8 @@ export function PriceListDialog({
                     <tr>
                       <th className="p-2">מוצר</th>
                       <th className="p-2">מק״ט</th>
-                      <th className="p-2">לפני</th>
-                      <th className="p-2">אחרי</th>
+                      <th className="p-2">ללקוח לפני</th>
+                      <th className="p-2">ללקוח אחרי</th>
                       <th className="p-2">מחיר קודם (מחוק)</th>
                     </tr>
                   </thead>
@@ -161,9 +170,9 @@ export function PriceListDialog({
                           <td className="p-2" dir="ltr">
                             {c.sku}
                           </td>
-                          <td className="p-2">{money(c.oldPrice)}</td>
+                          <td className="p-2">{money(getEffectivePrice(c.oldPrice))}</td>
                           <td className={big ? "p-2 font-semibold text-destructive" : "p-2"}>
-                            {money(c.newPrice)}
+                            {money(getEffectivePrice(c.newPrice))}
                           </td>
                           <td className="p-2">
                             {c.newSalePrice === undefined ? (

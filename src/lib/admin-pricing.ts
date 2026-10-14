@@ -162,9 +162,10 @@ export function describePriceBatch(b: PriceBatchSummary): string {
     case "inline":
     case "bulk_set": {
       const avg = n > 0 ? Math.round(b.newTotal / n) : 0;
+      // Shown in customer prices, the number the owner types (11.10.2026).
       return n === 1
-        ? `מחיר ${what}: ₪${Math.round(b.oldTotal)} ← ₪${Math.round(b.newTotal)}`
-        : `מחיר אחיד ₪${avg} ל-${what}`;
+        ? `מחיר ${what} ללקוח: ₪${getEffectivePrice(b.oldTotal)} ← ₪${getEffectivePrice(b.newTotal)}`
+        : `מחיר אחיד ₪${getEffectivePrice(avg)} ללקוח ל-${what}`;
     }
     case "bulk_pct": {
       const pct = b.oldTotal > 0 ? Math.round((b.newTotal / b.oldTotal - 1) * 100) : 0;
@@ -173,7 +174,7 @@ export function describePriceBatch(b: PriceBatchSummary): string {
     }
     case "price_list":
       return n === 1
-        ? `מחיר ${what} לפי מק״ט: ₪${Math.round(b.oldTotal)} ← ₪${Math.round(b.newTotal)}`
+        ? `מחיר ${what} לפי מק״ט, ללקוח: ₪${getEffectivePrice(b.oldTotal)} ← ₪${getEffectivePrice(b.newTotal)}`
         : `עדכון מחירים לפי מק״ט (${what})`;
     case "undo":
       return `ביטול שינוי מחיר (${what})`;

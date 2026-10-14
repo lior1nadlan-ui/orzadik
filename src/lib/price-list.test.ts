@@ -53,12 +53,11 @@ describe("parsePriceList — former (struck) price", () => {
   it("an empty third cell leaves it as is", () => {
     expect(parsePriceList("UK1\t69\t").rows[0]).not.toHaveProperty("salePrice");
   });
-  it("accepts a former price below the catalog price but above what the customer pays", () => {
-    // catalog 61 -> customer pays 43; the catalog's real "before" prices sit here
-    expect(parsePriceList("UK1\t61\t55").rows[0].salePrice).toBe(55);
+  it("accepts a former price above the customer price", () => {
+    expect(parsePriceList("UK1\t43\t61").rows[0].salePrice).toBe(61);
   });
   it("refuses a former price the site would never show", () => {
-    expect(parsePriceList("UK1\t100\t70").errors).toHaveLength(1);
+    expect(parsePriceList("UK1\t70\t70").errors).toHaveLength(1);
   });
   it("pastes a whole exported sheet back (extra columns ignored)", () => {
     const sheet =

@@ -111,7 +111,7 @@ describe("describePriceBatch", () => {
         newTotal: 120,
         sample: "פמוטי קריסטל",
       }),
-    ).toBe('מחיר "פמוטי קריסטל": ₪100 ← ₪120');
+    ).toBe('מחיר "פמוטי קריסטל" ללקוח: ₪70 ← ₪84');
   });
 
   it("describes a percentage change from the totals", () => {
@@ -135,7 +135,7 @@ describe("describePriceBatch", () => {
         oldTotal: 400,
         newTotal: 480,
       }),
-    ).toBe("מחיר אחיד ₪120 ל-4 מוצרים");
+    ).toBe("מחיר אחיד ₪84 ללקוח ל-4 מוצרים");
     expect(
       describePriceBatch({ source: "undo", products: 4, undone: 0, oldTotal: 480, newTotal: 400 }),
     ).toBe("ביטול שינוי מחיר (4 מוצרים)");

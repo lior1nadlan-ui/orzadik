@@ -92,8 +92,10 @@ export function auditPrices(
 
   for (const p of products) {
     const units = packUnits(p.name);
-    if (units && p.price > 0 && p.price <= PACK_MAX_PRICE) {
-      add(p, "pack_unit_price", `בשם ${units} יחידות, המחיר ₪${p.price}`);
+    // "(המחיר ליחידה אחת)" in the name means the owner confirmed a single unit
+    // is sold (2026-10-11, 33 products) — the name already says so.
+    if (units && p.price > 0 && p.price <= PACK_MAX_PRICE && !/ליחידה אחת/.test(p.name)) {
+      add(p, "pack_unit_price", `בשם ${units} יחידות, הלקוח משלם ₪${getEffectivePrice(p.price)}`);
     }
     if (p.salePrice !== null && p.salePrice > 0 && p.price > 0) {
       const pays = getEffectivePrice(p.price);
@@ -108,7 +110,7 @@ export function auditPrices(
         add(
           p,
           "family_outlier",
-          `₪${p.price} מול ₪${med} אצל ${fam.length - 1} דגמים אחרים באותו שם`,
+          `ללקוח ₪${getEffectivePrice(p.price)} מול ₪${getEffectivePrice(med)} אצל ${fam.length - 1} דגמים אחרים באותו שם`,
         );
       }
     }
@@ -122,7 +124,11 @@ export function auditPrices(
     const ratio = Math.abs(c.newPrice - c.oldPrice) / c.oldPrice;
     if (ratio >= 0.5) {
       flagged.add(c.productId);
-      add(p, "sharp_change", `₪${c.oldPrice} ← ₪${c.newPrice} (${Math.round(ratio * 100)}%)`);
+      add(
+        p,
+        "sharp_change",
+        `ללקוח ₪${getEffectivePrice(c.oldPrice)} ← ₪${getEffectivePrice(c.newPrice)} (${Math.round(ratio * 100)}%)`,
+      );
     }
   }
 

@@ -33,7 +33,7 @@ import {
   slugProblem,
   type CategoryNode,
 } from "@/lib/admin-pricing";
-import { SITE_DISCOUNT } from "@/lib/pricing";
+import { SITE_DISCOUNT, catalogFromCustomerPrice, getEffectivePrice } from "@/lib/pricing";
 import { PriceCell } from "@/components/admin/PriceCell";
 import { PriceHistoryDialog } from "@/components/admin/PriceHistoryDialog";
 import { CategoryPicker } from "@/components/admin/CategoryPicker";
@@ -336,10 +336,13 @@ function AdminProducts() {
   const saveInlinePrice = async (p: Product, next: number) => {
     try {
       const res = await savePrice({ data: { productId: p.id, price: next } });
-      toast.success(`המחיר עודכן: ₪${Number(p.price)} ← ₪${next}`, {
-        action: { label: "בטל", onClick: () => void undo(res.batchId) },
-        duration: 10_000,
-      });
+      toast.success(
+        `המחיר ללקוח עודכן: ₪${getEffectivePrice(Number(p.price))} ← ₪${getEffectivePrice(next)}`,
+        {
+          action: { label: "בטל", onClick: () => void undo(res.batchId) },
+          duration: 10_000,
+        },
+      );
       qc.invalidateQueries({ queryKey: ["admin-products"] });
       qc.invalidateQueries({ queryKey: ["admin-price-batches"] });
     } catch (e: any) {
@@ -843,7 +846,7 @@ function AdminProducts() {
               </th>
               <th className="p-3 font-medium">תמונה</th>
               <th className="p-3 font-medium">שם</th>
-              <th className="p-3 font-medium">מחיר קטלוג</th>
+              <th className="p-3 font-medium">מחיר ללקוח</th>
               <th className="p-3 font-medium">מלאי</th>
               <th className="p-3 font-medium">פעיל</th>
               <th className="p-3"></th>
@@ -1107,7 +1110,8 @@ function BulkDialog({
       case "price_pct":
         return { kind, pct };
       case "price_set":
-        return { kind, price };
+        // Typed as the customer price; stored as catalog.
+        return { kind, price: catalogFromCustomerPrice(price) };
       case "restock":
         return { kind, qty };
       case "active":
@@ -1218,7 +1222,7 @@ function BulkDialog({
 
           {kind === "price_set" && (
             <div>
-              <Label htmlFor="bulk-price">מחיר קטלוג אחיד (₪)</Label>
+              <Label htmlFor="bulk-price">מחיר אחיד ללקוח (₪)</Label>
               <Input
                 id="bulk-price"
                 type="number"
@@ -1228,7 +1232,7 @@ function BulkDialog({
               />
               {price > 0 && (
                 <p className="mt-1 text-[11px] text-muted-foreground">
-                  הלקוח ישלם ₪{priceBreakdown(price, null).customer}
+                  הלקוח ישלם ₪{price} · מחיר קטלוג ₪{catalogFromCustomerPrice(price)}
                 </p>
               )}
             </div>
@@ -1261,8 +1265,8 @@ function BulkDialog({
 
           {isPriceAction && (
             <div className="rounded-md border border-amber-400/70 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/20 dark:text-amber-200">
-              פעולה זו משנה את מחיר הקטלוג של {count} מוצרים. השינוי נשמר ב"היסטוריית מחירים" ואפשר
-              לבטל אותו בלחיצה.
+              פעולה זו משנה את המחיר של {count} מוצרים. השינוי נשמר ב"היסטוריית מחירים" ואפשר לבטל
+              אותו בלחיצה.
             </div>
           )}
         </div>
@@ -1341,6 +1345,12 @@ function ProductDialog({
   const [slugTouched, setSlugTouched] = useState(!!product);
   const suffixRef = useRef(slugSuffix());
   const prices = priceBreakdown(Number(form.price ?? 0), form.sale_price ?? null);
+  // The owner types what the customer pays; the catalog price (stored, the site
+  // takes SITE_DISCOUNT off it) follows. Own state so "24.5" is not re-rounded
+  // under the cursor while typing.
+  const [customerDraft, setCustomerDraft] = useState(() =>
+    Number(form.price ?? 0) > 0 ? String(getEffectivePrice(Number(form.price))) : "",
+  );
 
   // Categories and photos come from the product being edited, or, for a
   // duplicate, from the product being copied.
@@ -1456,18 +1466,25 @@ function ProductDialog({
             </p>
           </div>
           <div>
-            <Label>מחיר קטלוג (₪)</Label>
+            <Label>מחיר ללקוח (₪)</Label>
             <Input
               type="number"
               step="0.01"
               min={0}
-              value={form.price ?? 0}
-              onChange={(e) => setForm({ ...form, price: Number(e.target.value) })}
+              value={customerDraft}
+              onChange={(e) => {
+                setCustomerDraft(e.target.value);
+                const v = Number(e.target.value);
+                setForm({
+                  ...form,
+                  price: v > 0 ? catalogFromCustomerPrice(v, product?.price ?? null) : 0,
+                });
+              }}
             />
             {Number(form.price ?? 0) > 0 ? (
               <p className="mt-1 text-[11px] text-muted-foreground">
-                הלקוח משלם ₪{prices.customer} (אחרי {Math.round(SITE_DISCOUNT * 100)}% הנחת אתר) ·
-                חבר מועדון ₪{prices.member}
+                באתר: ₪{prices.customer} · חבר מועדון ₪{prices.member} · מחיר קטלוג ₪
+                {Number(form.price)} (לפני {Math.round(SITE_DISCOUNT * 100)}% הנחת אתר)
               </p>
             ) : (
               <p className="mt-1 text-[11px] font-medium text-destructive">
@@ -1664,6 +1681,7 @@ const SOURCE_HE: Record<string, string> = {
   bulk_set: "מחיר אחיד",
   bulk_pct: "שינוי באחוזים",
   price_list: "לפי מק״ט",
+  customer_price_fix: "תיקון למחיר ללקוח",
   undo: "ביטול",
 };
 
@@ -1689,7 +1707,9 @@ function PriceLog({ productId }: { productId: string }) {
               hour: "2-digit",
               minute: "2-digit",
             })}{" "}
-            · {SOURCE_HE[r.source] ?? r.source} · {money(r.oldPrice)} ← {money(r.newPrice)}
+            · {SOURCE_HE[r.source] ?? r.source} · ללקוח{" "}
+            {money(r.oldPrice === null ? null : getEffectivePrice(r.oldPrice))} ←{" "}
+            {money(r.newPrice === null ? null : getEffectivePrice(r.newPrice))}
             {r.oldSalePrice !== r.newSalePrice &&
               ` · מחיר קודם ${money(r.oldSalePrice)} ← ${money(r.newSalePrice)}`}
           </li>
@@ -1740,7 +1760,9 @@ function VariantsPanel({
 
   // "Different from the product price" is judged against the price currently in
   // the form above, so the warning tracks what a save would leave behind.
-  const differs = (r: AdminVariantRow) => r.price !== null && Number(r.price) !== parentPrice;
+  // Judged on what the customer pays: catalog 61 and 61.43 both charge 43.
+  const differs = (r: AdminVariantRow) =>
+    r.price !== null && getEffectivePrice(Number(r.price)) !== getEffectivePrice(parentPrice);
   const differingCount = (rows ?? []).filter(differs).length;
 
   // Returns whether the rows are now persisted, so the dialog's main שמור can
@@ -1841,18 +1863,30 @@ function VariantsPanel({
               </div>
               <div>
                 <Label htmlFor={`v-price-${r.id}`} className="text-[11px] text-muted-foreground">
-                  מחיר הגודל (₪)
+                  מחיר הגודל ללקוח (₪)
                 </Label>
+                {/* Typed as the customer price (like every admin price box),
+                    stored as catalog. Committed on blur so "24.5" is not
+                    re-rounded under the cursor. */}
                 <Input
                   id={`v-price-${r.id}`}
+                  key={`v-price-${r.id}-${r.price ?? ""}`}
                   type="number"
                   step="0.01"
                   min={0}
                   placeholder="לפי מחיר המוצר"
-                  value={r.price ?? ""}
-                  onChange={(e) =>
-                    update(r.id, { price: e.target.value === "" ? null : Number(e.target.value) })
-                  }
+                  defaultValue={r.price === null ? "" : getEffectivePrice(Number(r.price))}
+                  onBlur={(e) => {
+                    const v = e.target.value;
+                    const next =
+                      v === ""
+                        ? null
+                        : catalogFromCustomerPrice(
+                            Number(v),
+                            r.price === null ? null : Number(r.price),
+                          );
+                    if (next !== r.price) update(r.id, { price: next });
+                  }}
                 />
               </div>
               <div>
