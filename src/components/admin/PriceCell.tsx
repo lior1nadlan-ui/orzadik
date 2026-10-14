@@ -26,6 +26,14 @@ export function PriceCell({
   const [draft, setDraft] = useState(String(customer));
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // A visible "saved" on the box itself — on a phone the toast can be off
+  // screen or under the keyboard.
+  const [justSaved, setJustSaved] = useState(false);
+  useEffect(() => {
+    if (!justSaved) return;
+    const t = setTimeout(() => setJustSaved(false), 2500);
+    return () => clearTimeout(t);
+  }, [justSaved]);
   const skipBlur = useRef(false);
   // The value just saved, until the refetched price arrives — so the blur that
   // follows an Enter does not save the same price a second time.
@@ -61,6 +69,7 @@ export function PriceCell({
       await onSave(nextCatalog);
       lastSaved.current = nextCatalog;
       setError(null);
+      setJustSaved(true);
     } catch {
       // The caller already told the owner why; keep the typed value to retry.
     } finally {
@@ -77,6 +86,7 @@ export function PriceCell({
         <input
           dir="ltr"
           inputMode="decimal"
+          enterKeyHint="done"
           aria-label={`מחיר ללקוח: ${label}`}
           aria-invalid={!!error}
           title={error ?? "המחיר שהלקוח משלם — Enter לשמירה, Esc לביטול"}
@@ -103,13 +113,20 @@ export function PriceCell({
           onBlur={() => {
             if (!skipBlur.current) void commit();
           }}
-          className={`h-9 w-24 rounded-md border bg-background ps-6 pe-2 text-sm tabular-nums transition-opacity ${
+          // 16px text on phones: iOS zooms the page into any smaller input.
+          className={`h-11 w-28 rounded-md border bg-background ps-6 pe-2 text-base tabular-nums transition-opacity sm:h-9 sm:w-24 sm:text-sm ${
+            justSaved ? "border-green-600 ring-1 ring-green-600" : ""
+          } ${
             error ? "border-destructive ring-1 ring-destructive" : ""
           } ${saving ? "opacity-50" : ""}`}
         />
       </div>
       {error ? (
         <p className="mt-1 text-[11px] text-destructive">{error}</p>
+      ) : justSaved ? (
+        <p className="mt-1 text-[11px] font-medium text-green-700" role="status">
+          נשמר ✓
+        </p>
       ) : (
         <p className="mt-1 whitespace-nowrap text-[11px] text-muted-foreground">
           קטלוג ₪{nextCatalog}
