@@ -1265,8 +1265,8 @@ function BulkDialog({
 
           {isPriceAction && (
             <div className="rounded-md border border-amber-400/70 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/20 dark:text-amber-200">
-              פעולה זו משנה את מחיר הקטלוג של {count} מוצרים. השינוי נשמר ב"היסטוריית מחירים" ואפשר
-              לבטל אותו בלחיצה.
+              פעולה זו משנה את המחיר של {count} מוצרים. השינוי נשמר ב"היסטוריית מחירים" ואפשר לבטל
+              אותו בלחיצה.
             </div>
           )}
         </div>
@@ -1475,7 +1475,10 @@ function ProductDialog({
               onChange={(e) => {
                 setCustomerDraft(e.target.value);
                 const v = Number(e.target.value);
-                setForm({ ...form, price: v > 0 ? catalogFromCustomerPrice(v) : 0 });
+                setForm({
+                  ...form,
+                  price: v > 0 ? catalogFromCustomerPrice(v, product?.price ?? null) : 0,
+                });
               }}
             />
             {Number(form.price ?? 0) > 0 ? (
@@ -1704,7 +1707,9 @@ function PriceLog({ productId }: { productId: string }) {
               hour: "2-digit",
               minute: "2-digit",
             })}{" "}
-            · {SOURCE_HE[r.source] ?? r.source} · {money(r.oldPrice)} ← {money(r.newPrice)}
+            · {SOURCE_HE[r.source] ?? r.source} · ללקוח{" "}
+            {money(r.oldPrice === null ? null : getEffectivePrice(r.oldPrice))} ←{" "}
+            {money(r.newPrice === null ? null : getEffectivePrice(r.newPrice))}
             {r.oldSalePrice !== r.newSalePrice &&
               ` · מחיר קודם ${money(r.oldSalePrice)} ← ${money(r.newSalePrice)}`}
           </li>
@@ -1755,7 +1760,9 @@ function VariantsPanel({
 
   // "Different from the product price" is judged against the price currently in
   // the form above, so the warning tracks what a save would leave behind.
-  const differs = (r: AdminVariantRow) => r.price !== null && Number(r.price) !== parentPrice;
+  // Judged on what the customer pays: catalog 61 and 61.43 both charge 43.
+  const differs = (r: AdminVariantRow) =>
+    r.price !== null && getEffectivePrice(Number(r.price)) !== getEffectivePrice(parentPrice);
   const differingCount = (rows ?? []).filter(differs).length;
 
   // Returns whether the rows are now persisted, so the dialog's main שמור can
@@ -1871,7 +1878,13 @@ function VariantsPanel({
                   defaultValue={r.price === null ? "" : getEffectivePrice(Number(r.price))}
                   onBlur={(e) => {
                     const v = e.target.value;
-                    const next = v === "" ? null : catalogFromCustomerPrice(Number(v));
+                    const next =
+                      v === ""
+                        ? null
+                        : catalogFromCustomerPrice(
+                            Number(v),
+                            r.price === null ? null : Number(r.price),
+                          );
                     if (next !== r.price) update(r.id, { price: next });
                   }}
                 />

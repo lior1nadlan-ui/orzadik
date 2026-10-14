@@ -28,3 +28,6 @@
 --    and p.price = l.new_price;
 -- commit;
 select 1;
+-- Post-check (14.10): the change each fixed product had before the fix was
+-- 'inline' for 186 and 'edit' for 1 — all typed by hand, none from bulk_pct or
+-- price_list, so no catalog-semantic change was re-based.

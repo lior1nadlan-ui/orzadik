@@ -849,6 +849,11 @@ export const previewPriceList = createServerFn({ method: "POST" })
           oldSalePrice: r.sale_price === null ? null : Number(r.sale_price),
           isActive: r.is_active,
         };
+        // Same price to the customer = no price change (legacy catalog prices
+        // like 61 would otherwise be rewritten to 61.43 by a re-paste).
+        if (getEffectivePrice(match.oldPrice) === getEffectivePrice(match.newPrice)) {
+          match.newPrice = match.oldPrice;
+        }
         if (w.salePrice !== undefined) match.newSalePrice = w.salePrice;
         found.push(match);
       }

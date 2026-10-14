@@ -39,7 +39,9 @@ export function PriceCell({
   }, [price]);
 
   const parsed = parsePriceInput(draft);
-  const nextCatalog = parsed.ok ? catalogFromCustomerPrice(parsed.value) : Number(price);
+  const nextCatalog = parsed.ok
+    ? catalogFromCustomerPrice(parsed.value, Number(price))
+    : Number(price);
   const shown = priceBreakdown(nextCatalog, salePrice);
 
   const commit = async () => {
@@ -48,7 +50,7 @@ export function PriceCell({
       setError(parsed.error);
       return;
     }
-    if (parsed.value === customer) {
+    if (nextCatalog === Number(price)) {
       setError(null);
       setDraft(String(customer));
       return;

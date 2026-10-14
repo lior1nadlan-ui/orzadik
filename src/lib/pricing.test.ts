@@ -219,3 +219,12 @@ describe("catalogFromCustomerPrice", () => {
     }
   });
 });
+
+describe("catalogFromCustomerPrice — stability", () => {
+  it("keeps the current catalog price when the customer price is unchanged", () => {
+    expect(catalogFromCustomerPrice(43, 61)).toBe(61);
+  });
+  it("rounds a typed decimal to the whole shekel the site charges", () => {
+    expect(getEffectivePrice(catalogFromCustomerPrice(24.5))).toBe(25);
+  });
+});

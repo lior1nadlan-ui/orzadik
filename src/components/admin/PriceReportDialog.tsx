@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { downloadCsv, toCsv } from "@/lib/csv";
+import { getEffectivePrice } from "@/lib/pricing";
 import type { PriceReportRow } from "@/lib/admin-products.functions";
 
 const SOURCE_HE: Record<string, string> = {
@@ -31,7 +32,9 @@ const whenIL = (iso: string) =>
     minute: "2-digit",
   });
 
-const money = (n: number | null) => (n === null ? "—" : `₪${n.toLocaleString("he-IL")}`);
+// What the customer paid before / after (the ledger stores catalog prices).
+const money = (n: number | null) =>
+  n === null ? "—" : `₪${getEffectivePrice(n).toLocaleString("he-IL")}`;
 
 export function PriceReportDialog({
   open,
@@ -69,13 +72,13 @@ export function PriceReportDialog({
   const download = () =>
     downloadCsv(
       toCsv(
-        ["תאריך ושעה", "מק״ט", "מוצר", "מחיר לפני", "מחיר אחרי", "מקור", "בוטל"],
+        ["תאריך ושעה", "מק״ט", "מוצר", "ללקוח לפני", "ללקוח אחרי", "מקור", "בוטל"],
         rows.map((r) => [
           whenIL(r.changedAt),
           r.sku,
           r.name,
-          r.oldPrice,
-          r.newPrice,
+          r.oldPrice === null ? null : getEffectivePrice(r.oldPrice),
+          r.newPrice === null ? null : getEffectivePrice(r.newPrice),
           SOURCE_HE[r.source] ?? r.source,
           r.undone ? "כן" : "",
         ]),
@@ -126,8 +129,8 @@ export function PriceReportDialog({
                       <th className="p-2">מתי</th>
                       <th className="p-2">מוצר</th>
                       <th className="p-2">מק״ט</th>
-                      <th className="p-2">לפני</th>
-                      <th className="p-2">אחרי</th>
+                      <th className="p-2">ללקוח לפני</th>
+                      <th className="p-2">ללקוח אחרי</th>
                       <th className="p-2">מקור</th>
                     </tr>
                   </thead>

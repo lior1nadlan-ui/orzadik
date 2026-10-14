@@ -26,8 +26,23 @@ export function getEffectivePrice(price: number): number {
  * the number the owner thinks in); on 11.10.2026 he typed customer prices into
  * the catalog field and 187 products went live 30% too cheap.
  */
-export function catalogFromCustomerPrice(customerPrice: number): number {
-  return Math.round((customerPrice / (1 - SITE_DISCOUNT)) * 100) / 100;
+export function catalogFromCustomerPrice(
+  customerPrice: number,
+  currentCatalog?: number | null,
+): number {
+  // The site charges whole shekels (getEffectivePrice rounds), so a typed
+  // "24.5" means 25 — rounding here keeps "what you type is what they pay".
+  const customer = Math.round(customerPrice);
+  // Re-entering the price the customer already pays keeps the stored catalog
+  // price: legacy prices (61 → 43) would otherwise churn to 61.43 on every save.
+  if (
+    currentCatalog != null &&
+    currentCatalog > 0 &&
+    getEffectivePrice(currentCatalog) === customer
+  ) {
+    return currentCatalog;
+  }
+  return Math.round((customer / (1 - SITE_DISCOUNT)) * 100) / 100;
 }
 
 /**
