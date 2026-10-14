@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  isSharpPriceChange,
   parsePriceInput,
   priceBreakdown,
   slugProblem,
@@ -139,5 +140,19 @@ describe("describePriceBatch", () => {
     expect(
       describePriceBatch({ source: "undo", products: 4, undone: 0, oldTotal: 480, newTotal: 400 }),
     ).toBe("ביטול שינוי מחיר (4 מוצרים)");
+  });
+});
+
+describe("isSharpPriceChange", () => {
+  it("flags a likely extra or missing digit", () => {
+    expect(isSharpPriceChange(150, 1500)).toBe(true);
+    expect(isSharpPriceChange(150, 15)).toBe(true);
+    expect(isSharpPriceChange(100, 300)).toBe(true);
+  });
+  it("lets ordinary changes through", () => {
+    expect(isSharpPriceChange(150, 180)).toBe(false);
+    expect(isSharpPriceChange(150, 99)).toBe(false);
+    expect(isSharpPriceChange(100, 299)).toBe(false);
+    expect(isSharpPriceChange(0, 50)).toBe(false);
   });
 });
