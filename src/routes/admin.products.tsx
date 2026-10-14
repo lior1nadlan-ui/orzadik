@@ -305,8 +305,10 @@ function AdminProducts() {
         .replace(/[,()%\\]/g, " ")
         .replace(/\s+/g, " ")
         .trim();
-      if (term) {
-        const like = `%${term}%`;
+      // Every word must match somewhere, in any order: "ציצית גדול" finds
+      // "גופיה ציצית ... גדול". Chained .or() filters are ANDed.
+      for (const word of term ? term.split(" ").slice(0, 6) : []) {
+        const like = `%${word}%`;
         query = query.or(`name.ilike.${like},sku.ilike.${like},slug.ilike.${like}`);
       }
       // Byte-identical predicates to the dashboard's catalog-health counters
