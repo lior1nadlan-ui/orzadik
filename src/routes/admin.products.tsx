@@ -105,7 +105,14 @@ export const Route = createFileRoute("/admin/products")({
   // makes every filtered/sorted view a shareable URL.
   validateSearch: (
     s: Record<string, unknown>,
-  ): { q?: string; health?: HealthFilter; sort?: SortKey; dir?: SortDir; cat?: string } => ({
+  ): {
+    q?: string;
+    health?: HealthFilter;
+    sort?: SortKey;
+    dir?: SortDir;
+    cat?: string;
+    page?: number;
+  } => ({
     q: typeof s.q === "string" && s.q ? s.q : undefined,
     // Category slug. Filtering by a category includes its sub-categories.
     cat: typeof s.cat === "string" && s.cat && s.cat.length <= 120 ? s.cat : undefined,
@@ -114,6 +121,15 @@ export const Route = createFileRoute("/admin/products")({
       : undefined,
     sort: s.sort === "created_at" || s.sort === "name" || s.sort === "price" ? s.sort : undefined,
     dir: s.dir === "asc" || s.dir === "desc" ? s.dir : undefined,
+    // 1-based page in the URL, so coming back from a product (or a phone
+    // reload) lands on the same page instead of page 1 — the owner lost his
+    // place after ten pages of price edits (11.10.2026).
+    page:
+      typeof s.page === "number" && Number.isInteger(s.page) && s.page > 1 && s.page < 10000
+        ? s.page
+        : typeof s.page === "string" && /^\d{1,4}$/.test(s.page) && Number(s.page) > 1
+          ? Number(s.page)
+          : undefined,
   }),
   component: AdminProducts,
 });
@@ -140,14 +156,25 @@ type BulkKind = "price_pct" | "price_set" | "category" | "active" | "stock_statu
 
 function AdminProducts() {
   const qc = useQueryClient();
-  const { q: qFromUrl, health, sort, dir, cat } = Route.useSearch();
+  const { q: qFromUrl, health, sort, dir, cat, page: pageFromUrl } = Route.useSearch();
   const navigate = Route.useNavigate();
   const sortKey: SortKey = sort ?? "created_at";
   // Newest-first stays the default; the other keys read naturally ascending.
   const sortDir: SortDir = dir ?? (sortKey === "created_at" ? "desc" : "asc");
   const [search, setSearch] = useState(qFromUrl ?? "");
   const [debounced, setDebounced] = useState(qFromUrl ?? "");
-  const [page, setPage] = useState(0);
+  const page = pageFromUrl ? pageFromUrl - 1 : 0;
+  const setPage = (next: number | ((p: number) => number)) => {
+    const n = typeof next === "function" ? next(page) : next;
+    navigate({
+      search: (prev) => ({ ...prev, page: n > 0 ? n + 1 : undefined }),
+      replace: true,
+      resetScroll: false,
+    });
+  };
+  // Filters reset the page, but not on first render — that would wipe the
+  // page the URL came back with.
+  const filtersMounted = useRef(false);
   const [editing, setEditing] = useState<Product | null>(null);
   // "שכפל": the product a new one is copied from.
   const [duplicateFrom, setDuplicateFrom] = useState<Product | null>(null);
@@ -224,7 +251,14 @@ function AdminProducts() {
     const t = setTimeout(() => setDebounced(search), 300);
     return () => clearTimeout(t);
   }, [search]);
-  useEffect(() => setPage(0), [debounced, health, sortKey, sortDir, cat]);
+  useEffect(() => {
+    if (!filtersMounted.current) {
+      filtersMounted.current = true;
+      return;
+    }
+    if (page !== 0) setPage(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset on filter change only
+  }, [debounced, health, sortKey, sortDir, cat]);
   // A selection only makes sense for rows the admin can currently see — the
   // action applies to ids, not to "the filter", so carrying it across a search
   // or page change would act on rows that scrolled out of view.
@@ -945,7 +979,10 @@ function AdminProducts() {
             size="sm"
             variant="outline"
             disabled={page === 0}
-            onClick={() => setPage((p) => p - 1)}
+            onClick={() => {
+              setPage((p) => p - 1);
+              window.scrollTo({ top: 0 });
+            }}
           >
             הקודם
           </Button>
@@ -956,7 +993,11 @@ function AdminProducts() {
             size="sm"
             variant="outline"
             disabled={page >= pages - 1}
-            onClick={() => setPage((p) => p + 1)}
+            onClick={() => {
+              setPage((p) => p + 1);
+              // On a phone the buttons are at the bottom of a long list.
+              window.scrollTo({ top: 0 });
+            }}
           >
             הבא
           </Button>
