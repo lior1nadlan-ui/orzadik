@@ -176,6 +176,10 @@ export function describePriceBatch(b: PriceBatchSummary): string {
       return n === 1
         ? `מחיר ${what} לפי מק״ט, ללקוח: ₪${getEffectivePrice(b.oldTotal)} ← ₪${getEffectivePrice(b.newTotal)}`
         : `עדכון מחירים לפי מק״ט (${what})`;
+    case "sale_start":
+      return `מבצע זמני ל-${what}`;
+    case "sale_end":
+      return `סיום מבצע — חזרה למחיר הרגיל (${what})`;
     case "undo":
       return `ביטול שינוי מחיר (${what})`;
     default:
