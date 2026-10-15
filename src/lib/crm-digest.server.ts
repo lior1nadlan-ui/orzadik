@@ -11,6 +11,7 @@
 // the admin's "send now" button, which gates on requireAdmin() first.
 
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { loadPriceIssues } from "@/lib/price-audit.server";
 import {
   buildDigest,
   digestSubject,
@@ -98,6 +99,15 @@ export async function loadDigest(now: number = Date.now()): Promise<Digest> {
   if (followUps.error) console.error("[digest] follow-ups:", followUps.error);
   if (searches.error) console.error("[digest] searches:", searches.error);
 
+  // Context, like carts: a failed check degrades to "none" with a log line.
+  const suspiciousPrices = await loadPriceIssues(now).then(
+    (issues) => new Set(issues.map((i) => i.productId)).size,
+    (e) => {
+      console.error("[digest] price audit:", e);
+      return 0;
+    },
+  );
+
   const redirected = new Set((redirects.data ?? []).map((r) => r.term));
 
   const byId = new Map<string, DigestOrder>();
@@ -125,6 +135,7 @@ export async function loadDigest(now: number = Date.now()): Promise<Digest> {
     {
       hidden: hiddenActionKeys(states.data ?? [], now),
       followUps: dueFollowUps,
+      suspiciousPrices,
       // A term the owner has already redirected is handled, even though its
       // last logged search (before the redirect) found nothing.
       missedSearches: summarizeSearches(searches.data ?? [])
