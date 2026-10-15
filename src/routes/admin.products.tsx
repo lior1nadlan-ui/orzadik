@@ -367,6 +367,20 @@ function AdminProducts() {
       return new Set((rows ?? []).map((r) => r.product_id));
     },
   });
+  // Products on this page in a running timed sale ("מבצע עד תאריך").
+  const { data: onSaleUntil } = useQuery({
+    queryKey: ["admin-products", "on-sale", pageIds],
+    enabled: pageIds.length > 0,
+    queryFn: async () => {
+      const { data: rows, error } = await supabase
+        .from("product_sales")
+        .select("product_id, ends_at")
+        .in("product_id", pageIds)
+        .is("ended_at", null);
+      if (error) throw error;
+      return new Map((rows ?? []).map((r) => [r.product_id, r.ends_at]));
+    },
+  });
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const { data: batches = [], isFetching: batchesLoading } = useQuery({
@@ -852,6 +866,7 @@ function AdminProducts() {
                 salePrice={p.sale_price === null ? null : Number(p.sale_price)}
                 label={p.name}
                 updatedToday={changedToday?.has(p.id)}
+                saleEndsAt={onSaleUntil?.get(p.id)}
                 onSave={(next) => saveInlinePrice(p, next)}
               />
               <div className="flex gap-1.5">
@@ -951,6 +966,7 @@ function AdminProducts() {
                     salePrice={p.sale_price === null ? null : Number(p.sale_price)}
                     label={p.name}
                     updatedToday={changedToday?.has(p.id)}
+                    saleEndsAt={onSaleUntil?.get(p.id)}
                     onSave={(next) => saveInlinePrice(p, next)}
                   />
                 </td>
