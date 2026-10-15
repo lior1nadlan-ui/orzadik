@@ -156,3 +156,11 @@ describe("isSharpPriceChange", () => {
     expect(isSharpPriceChange(0, 50)).toBe(false);
   });
 });
+
+describe("describePriceBatch: timed sales", () => {
+  it("names the start and the end of a sale", () => {
+    const base = { products: 3, undone: 0, oldTotal: 300, newTotal: 270 };
+    expect(describePriceBatch({ ...base, source: "sale_start" })).toBe("מבצע זמני ל-3 מוצרים");
+    expect(describePriceBatch({ ...base, source: "sale_end" })).toContain("סיום מבצע");
+  });
+});

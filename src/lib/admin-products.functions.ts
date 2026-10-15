@@ -81,6 +81,13 @@ const ActionSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("active"), value: z.boolean() }),
   z.object({ kind: z.literal("stock_status"), value: z.enum(["instock", "outofstock"]) }),
   z.object({ kind: z.literal("restock"), qty: z.number().int().min(0).max(100_000) }),
+  // Timed sale: pct off until endsAt, then the regular price comes back by
+  // itself (end_due_sales, 10-minute cron). See 20261015090000_timed_sales.sql.
+  z.object({
+    kind: z.literal("sale"),
+    pct: z.number().min(1).max(90),
+    endsAt: z.string().datetime({ offset: true }),
+  }),
 ]);
 
 const Schema = z
@@ -220,6 +227,27 @@ export const bulkUpdateProducts = createServerFn({ method: "POST" })
         const variantProducts = await countProductsWithVariants(ids);
         const res = await applyPrices(adminId, "bulk_set", ids, "set", action.price);
         return { ...res, variantProducts };
+      }
+
+      case "sale": {
+        const variantProducts = await countProductsWithVariants(ids);
+        const { data: rows, error } = await supabaseAdmin.rpc("admin_start_sale", {
+          p_actor: adminId,
+          p_ids: ids,
+          p_pct: action.pct,
+          p_ends_at: action.endsAt,
+        });
+        const row = Array.isArray(rows) ? rows[0] : null;
+        if (error || !row) {
+          console.error("[bulkUpdateProducts] sale failed:", error);
+          throw new Error("שגיאה בהפעלת המבצע. בדקו שתאריך הסיום בעתיד.");
+        }
+        return {
+          batchId: row.batch_id,
+          updated: row.updated,
+          skipped: row.skipped,
+          variantProducts,
+        };
       }
 
       case "price_pct": {

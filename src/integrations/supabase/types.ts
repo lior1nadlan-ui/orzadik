@@ -964,6 +964,59 @@ export type Database = {
           },
         ]
       }
+      product_sales: {
+        Row: {
+          batch_id: string
+          created_at: string
+          created_by: string | null
+          ended_at: string | null
+          ended_how: string | null
+          ends_at: string
+          id: number
+          pct: number
+          product_id: string
+          regular_price: number
+          regular_sale_price: number | null
+          sale_catalog_price: number
+        }
+        Insert: {
+          batch_id: string
+          created_at?: string
+          created_by?: string | null
+          ended_at?: string | null
+          ended_how?: string | null
+          ends_at: string
+          id?: never
+          pct: number
+          product_id: string
+          regular_price: number
+          regular_sale_price?: number | null
+          sale_catalog_price: number
+        }
+        Update: {
+          batch_id?: string
+          created_at?: string
+          created_by?: string | null
+          ended_at?: string | null
+          ended_how?: string | null
+          ends_at?: string
+          id?: never
+          pct?: number
+          product_id?: string
+          regular_price?: number
+          regular_sale_price?: number | null
+          sale_catalog_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_sales_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_variants: {
         Row: {
           created_at: string
@@ -1364,9 +1417,17 @@ export type Database = {
           undone: number
         }[]
       }
+      admin_start_sale: {
+        Args: { p_actor: string; p_ends_at: string; p_ids: string[]; p_pct: number }
+        Returns: { batch_id: string; skipped: number; updated: number }[]
+      }
       admin_set_product_price_list: {
         Args: { p_actor: string; p_items: Json }
         Returns: { batch_id: string; skipped: number; updated: number }[]
+      }
+      end_due_sales: {
+        Args: never
+        Returns: { kept: number; restored: number }[]
       }
       admin_set_product_prices: {
         Args: {

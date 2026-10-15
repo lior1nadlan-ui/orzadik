@@ -17,6 +17,8 @@ const SOURCE_HE: Record<string, string> = {
   bulk_pct: "שינוי באחוזים",
   price_list: "לפי מק״ט",
   customer_price_fix: "תיקון למחיר ללקוח",
+  sale_start: "תחילת מבצע",
+  sale_end: "סיום מבצע",
   undo: "ביטול",
 };
 

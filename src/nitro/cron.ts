@@ -28,6 +28,7 @@ import { runDataRetentionSweep } from "@/lib/retention.server";
 import { runDailyDigest } from "@/lib/crm-digest.server";
 import { runPaymentReminders } from "@/lib/payment-reminder.server";
 import { runLeadAlerts } from "@/lib/lead-alerts.server";
+import { runEndDueSales } from "@/lib/sales.server";
 
 type NitroAppLike = {
   hooks: { hook: (name: string, fn: (payload: any) => unknown) => void };
@@ -88,6 +89,8 @@ async function runTenMinuteJobs() {
   for (const [name, run] of [
     ["cardcom-reconcile", runCardcomReconciliation],
     ["lead-alerts", runLeadAlerts],
+    // Timed sales end within 10 minutes of their date.
+    ["end-due-sales", runEndDueSales],
   ] as const) {
     try {
       out[name] = await run();
@@ -112,7 +115,10 @@ const JOBS: Record<string, { name: string; run: () => Promise<unknown> }> = {
   // plain Worker error. Without this, a charged card can sit against an unpaid order
   // forever and nothing notices. 10 minutes is well clear of the 15-minute grace
   // window inside the job, so it never races a webhook that is merely in flight.
-  "*/10 * * * *": { name: "cardcom-reconcile + lead-alerts", run: runTenMinuteJobs },
+  "*/10 * * * *": {
+    name: "cardcom-reconcile + lead-alerts + end-due-sales",
+    run: runTenMinuteJobs,
+  },
   // The first job here that DELETES. Until it existed nothing in the system ever
   // removed a row, so payment secrets (card token + Israeli ID number) and
   // abandoned carts (email + cart contents) accumulated with no end date.

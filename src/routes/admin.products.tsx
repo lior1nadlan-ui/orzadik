@@ -152,7 +152,14 @@ type Product = {
 
 const PAGE_SIZE = 25;
 
-type BulkKind = "price_pct" | "price_set" | "category" | "active" | "stock_status" | "restock";
+type BulkKind =
+  | "price_pct"
+  | "price_set"
+  | "sale"
+  | "category"
+  | "active"
+  | "stock_status"
+  | "restock";
 
 function AdminProducts() {
   const qc = useQueryClient();
@@ -1182,13 +1189,15 @@ function BulkDialog({
   const [pct, setPct] = useState(0);
   const [price, setPrice] = useState(0);
   const [qty, setQty] = useState(0);
+  const [salePct, setSalePct] = useState(10);
+  const [saleUntil, setSaleUntil] = useState(() => israelDate(Date.now() + 7 * 86400_000));
   const [activeValue, setActiveValue] = useState(true);
   const [stockValue, setStockValue] = useState<"instock" | "outofstock">("instock");
   const [categoryId, setCategoryId] = useState("");
   const [categoryMode, setCategoryMode] = useState<"add" | "remove">("add");
   const [busy, setBusy] = useState(false);
 
-  const isPriceAction = kind === "price_pct" || kind === "price_set";
+  const isPriceAction = kind === "price_pct" || kind === "price_set" || kind === "sale";
 
   const build = () => {
     switch (kind) {
@@ -1197,6 +1206,8 @@ function BulkDialog({
       case "price_set":
         // Typed as the customer price; stored as catalog.
         return { kind, price: catalogFromCustomerPrice(price) };
+      case "sale":
+        return { kind, pct: salePct, endsAt: endOfIsraelDate(saleUntil).toISOString() };
       case "restock":
         return { kind, qty };
       case "active":
@@ -1216,6 +1227,16 @@ function BulkDialog({
     if (kind === "price_set" && !(price > 0)) {
       toast.error("המחיר חייב להיות גדול מ-0");
       return;
+    }
+    if (kind === "sale") {
+      if (!(salePct >= 1 && salePct <= 90)) {
+        toast.error("הנחה בין 1% ל-90%");
+        return;
+      }
+      if (!saleUntil || endOfIsraelDate(saleUntil).getTime() <= Date.now()) {
+        toast.error("תאריך הסיום חייב להיות היום או בעתיד");
+        return;
+      }
     }
     if (kind === "price_pct" && (!pct || pct < -90 || pct > 300)) {
       toast.error("יש להזין אחוז שינוי בין 90- ל-300 (לא 0)");
@@ -1249,6 +1270,7 @@ function BulkDialog({
               <option value="restock">עדכון כמות במלאי</option>
               <option value="price_pct">שינוי מחיר באחוזים</option>
               <option value="price_set">קביעת מחיר אחיד</option>
+              <option value="sale">מבצע עד תאריך (חוזר לבד למחיר הרגיל)</option>
               <option value="category">שיוך / הסרה מקטגוריה</option>
             </select>
           </div>
@@ -1302,6 +1324,46 @@ function BulkDialog({
                   {priceBreakdown(Math.max(1, Math.round(100 * (1 + pct / 100))), null).customer})
                 </p>
               )}
+            </div>
+          )}
+
+          {kind === "sale" && (
+            <div className="space-y-3">
+              <div>
+                <Label htmlFor="bulk-sale-pct">אחוז הנחה</Label>
+                <Input
+                  id="bulk-sale-pct"
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  max={90}
+                  value={salePct}
+                  onChange={(e) => setSalePct(Number(e.target.value))}
+                  className="text-base sm:text-sm"
+                />
+              </div>
+              <div>
+                <Label htmlFor="bulk-sale-until">המבצע נגמר בסוף היום של</Label>
+                <Input
+                  id="bulk-sale-until"
+                  type="date"
+                  min={israelDate(Date.now())}
+                  value={saleUntil}
+                  onChange={(e) => setSaleUntil(e.target.value)}
+                  className="text-base sm:text-sm"
+                />
+              </div>
+              {salePct >= 1 && salePct <= 90 && (
+                <p className="text-[11px] font-medium">
+                  לדוגמה: מוצר שהלקוח משלם עליו ₪100 יימכר ב-₪
+                  {getEffectivePrice(Math.max(1, Math.round((100 / 0.7) * (1 - salePct / 100))))},
+                  עם ₪100 מחוק לידו.
+                </p>
+              )}
+              <p className="text-[11px] text-muted-foreground">
+                בסוף התאריך המחיר חוזר לבד למחיר הרגיל (עד 10 דקות). מוצר שכבר במבצע, או שתשנו לו
+                מחיר ידנית בזמן המבצע, לא ייגע בו. אפשר לבטל מיד מ"היסטוריית מחירים".
+              </p>
             </div>
           )}
 
@@ -1767,8 +1829,24 @@ const SOURCE_HE: Record<string, string> = {
   bulk_pct: "שינוי באחוזים",
   price_list: "לפי מק״ט",
   customer_price_fix: "תיקון למחיר ללקוח",
+  sale_start: "תחילת מבצע",
+  sale_end: "סיום מבצע",
   undo: "ביטול",
 };
+
+/** Today's date in Israel as YYYY-MM-DD (for <input type="date">). */
+function israelDate(ms: number): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jerusalem" }).format(new Date(ms));
+}
+
+/** 23:59 Israel time on a YYYY-MM-DD date, as an instant. */
+function endOfIsraelDate(ymd: string): Date {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const guess = new Date(Date.UTC(y, m - 1, d, 23, 59));
+  const local = new Date(guess.toLocaleString("en-US", { timeZone: "Asia/Jerusalem" }));
+  const asUtc = new Date(guess.toLocaleString("en-US", { timeZone: "UTC" }));
+  return new Date(guess.getTime() - (local.getTime() - asUtc.getTime()));
+}
 
 /** Midnight today in Israel, as an instant. */
 function startOfIsraelDay(now = new Date()): Date {
