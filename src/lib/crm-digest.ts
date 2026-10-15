@@ -97,6 +97,9 @@ export type Digest = {
   /** Site searches from the last day that found nothing (see site_searches):
    *  a product someone asked for that the shop lacks, or names differently. */
   missedSearches: DigestMissedSearch[];
+  /** Active products the "מחירים חשודים" check flags (src/lib/price-audit.ts):
+   *  a typo'd price is live until someone notices it. */
+  suspiciousPrices: number;
   /** Anything in the briefing the owner has to DO. When false the scheduled
    *  run stays silent — a daily "nothing to report" teaches people to ignore
    *  the channel. */
@@ -210,11 +213,13 @@ export function buildDigest(
     hidden?: Set<string>;
     followUps?: DigestFollowUp[];
     missedSearches?: DigestMissedSearch[];
+    suspiciousPrices?: number;
   } = {},
 ): Digest {
   const hidden = extras.hidden ?? new Set<string>();
   const followUps = extras.followUps ?? [];
   const missedSearches = extras.missedSearches ?? [];
+  const suspiciousPrices = extras.suspiciousPrices ?? 0;
   // Paid, not shipped, not closed — the same predicate as the dashboard's
   // "ready to ship", oldest first so the longest wait leads.
   const toShip = orders
@@ -286,13 +291,15 @@ export function buildDigest(
     last7d: paidWithin(7 * DAY),
     pendingReviews,
     missedSearches,
+    suspiciousPrices,
     actionable:
       followUps.length > 0 ||
       toShip.length > 0 ||
       failedPayments.length > 0 ||
       openCarts.count > 0 ||
       pendingReviews > 0 ||
-      missedSearches.length > 0,
+      missedSearches.length > 0 ||
+      suspiciousPrices > 0,
   };
 }
 
@@ -379,6 +386,11 @@ export function renderDigestTelegram(d: Digest, now: number, origin: string): st
 
   if (d.pendingReviews > 0) {
     m += `\n⭐ <b>${d.pendingReviews === 1 ? "חוות דעת אחת ממתינה" : `${d.pendingReviews} חוות דעת ממתינות`} לאישור</b>\n`;
+  }
+
+  if (d.suspiciousPrices > 0) {
+    m += `\n⚠️ <b>${d.suspiciousPrices === 1 ? "מחיר חשוד אחד" : `${d.suspiciousPrices} מחירים חשודים`}</b>\n`;
+    m += `ניהול ← מוצרים ← דוחות ← "מחירים חשודים".\n`;
   }
 
   if (d.missedSearches.length > 0) {
@@ -479,6 +491,10 @@ export function renderDigestEmailInner(d: Digest, now: number, origin: string): 
     html += `<p style="margin:22px 0 0;font-size:15px;">⭐ ${d.pendingReviews} חוות דעת ממתינות לאישור</p>`;
   }
 
+  if (d.suspiciousPrices > 0) {
+    html += `<p style="margin:22px 0 0;font-size:15px;">⚠️ ${d.suspiciousPrices} מחירים חשודים — ניהול ← מוצרים ← דוחות ← "מחירים חשודים"</p>`;
+  }
+
   if (d.missedSearches.length > 0) {
     const rows = d.missedSearches
       .slice(0, LIST_MAX)
@@ -516,6 +532,7 @@ export function digestSubject(d: Digest): string {
   if (d.openCarts.count) parts.push(count(d.openCarts.count, "עגלה פתוחה אחת", "עגלות פתוחות"));
   if (d.pendingReviews)
     parts.push(count(d.pendingReviews, "חוות דעת אחת לאישור", "חוות דעת לאישור"));
+  if (d.suspiciousPrices) parts.push(count(d.suspiciousPrices, "מחיר חשוד אחד", "מחירים חשודים"));
   if (d.missedSearches.length)
     parts.push(count(d.missedSearches.length, "חיפוש אחד ללא תוצאות", "חיפושים ללא תוצאות"));
   return parts.length ? `סיכום בוקר: ${parts.join(" · ")}` : "סיכום בוקר: אין משימות פתוחות";

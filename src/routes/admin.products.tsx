@@ -948,11 +948,33 @@ function AdminProducts() {
                   />
                 </td>
                 <td className="p-3">
-                  <span
-                    className={p.stock_status === "instock" ? "text-green-600" : "text-destructive"}
-                  >
-                    {p.stock_status === "instock" ? "במלאי" : "אזל"}
-                  </span>
+                  {p.track_stock ? (
+                    <span
+                      className={
+                        p.stock_status === "instock" ? "text-green-600" : "text-destructive"
+                      }
+                    >
+                      {p.stock_status === "instock" ? "במלאי" : "אזל"}
+                    </span>
+                  ) : (
+                    // Same one-click toggle as the phone cards.
+                    <button
+                      type="button"
+                      disabled={stockBusy === p.id}
+                      onClick={() => toggleStock(p)}
+                      title="לחיצה מחליפה במלאי / אזל"
+                      aria-label={`${p.name}: ${p.stock_status === "instock" ? "במלאי — סימון כאזל" : "אזל — סימון כבמלאי"}`}
+                      className={cn(
+                        "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium disabled:opacity-50",
+                        p.stock_status === "instock"
+                          ? "border-green-700/30 bg-green-50 text-green-800"
+                          : "border-destructive/30 bg-red-50 text-destructive",
+                      )}
+                    >
+                      {p.stock_status === "instock" ? "במלאי" : "אזל"}
+                      <ArrowLeftRight className="h-3 w-3 opacity-60" aria-hidden="true" />
+                    </button>
+                  )}
                   {p.track_stock && (
                     <span className="block text-[11px] text-muted-foreground">
                       במעקב · {p.stock_qty ?? 0}

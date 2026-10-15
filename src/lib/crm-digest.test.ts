@@ -314,3 +314,18 @@ describe("the owner's own decisions and reminders", () => {
     expect(renderDigestEmailInner(d, NOW, "https://orzadik.com")).not.toContain("<b>x</b>");
   });
 });
+
+describe("suspicious prices", () => {
+  const d = buildDigest([], [], 0, NOW, { suspiciousPrices: 3 });
+
+  it("are enough to send, and show in both channels", () => {
+    expect(d.actionable).toBe(true);
+    expect(digestSubject(d)).toBe("סיכום בוקר: 3 מחירים חשודים");
+    expect(renderDigestTelegram(d, NOW, "https://orzadik.com")).toContain("3 מחירים חשודים");
+    expect(renderDigestEmailInner(d, NOW, "https://orzadik.com")).toContain("3 מחירים חשודים");
+  });
+
+  it("stay out when there are none", () => {
+    expect(buildDigest([], [], 0, NOW).actionable).toBe(false);
+  });
+});
