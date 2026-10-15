@@ -9,16 +9,33 @@ import { useEffect, useRef, useState } from "react";
 import { isSharpPriceChange, parsePriceInput, priceBreakdown } from "@/lib/admin-pricing";
 import { catalogFromCustomerPrice, getEffectivePrice } from "@/lib/pricing";
 
+function focusNextPrice(from: HTMLInputElement) {
+  // Only boxes actually on screen: the table and the phone cards both render.
+  const boxes = Array.from(
+    document.querySelectorAll<HTMLInputElement>("input[data-price-cell]"),
+  ).filter((el) => el.offsetParent !== null);
+  const next = boxes[boxes.indexOf(from) + 1];
+  if (next) {
+    next.focus();
+    next.scrollIntoView({ block: "center", behavior: "smooth" });
+  } else {
+    from.blur();
+  }
+}
+
 export function PriceCell({
   price,
   salePrice,
   label,
+  updatedToday,
   onSave,
 }: {
   price: number;
   salePrice: number | null;
   /** Product name, for the input's accessible label. */
   label: string;
+  /** Its price changed today — a small marker so a long run shows its progress. */
+  updatedToday?: boolean;
   /** Persist the new CATALOG price. Rejects to keep the box open for a retry. */
   onSave: (next: number) => Promise<void>;
 }) {
@@ -55,21 +72,22 @@ export function PriceCell({
     : Number(price);
   const shown = priceBreakdown(nextCatalog, salePrice);
 
-  const commit = async () => {
-    if (saving) return;
+  /** Resolves true when the box holds a saved price (or nothing changed). */
+  const commit = async (): Promise<boolean> => {
+    if (saving) return false;
     if (!parsed.ok) {
       setError(parsed.error);
-      return;
+      return false;
     }
     if (nextCatalog === Number(price)) {
       setError(null);
       setDraft(String(customer));
-      return;
+      return true;
     }
-    if (nextCatalog === lastSaved.current) return;
+    if (nextCatalog === lastSaved.current) return true;
     if (isSharpPriceChange(customer, parsed.value) && confirmFor !== parsed.value) {
       setConfirmFor(parsed.value);
-      return;
+      return false;
     }
     setConfirmFor(null);
     setSaving(true);
@@ -78,8 +96,10 @@ export function PriceCell({
       lastSaved.current = nextCatalog;
       setError(null);
       setJustSaved(true);
+      return true;
     } catch {
       // The caller already told the owner why; keep the typed value to retry.
+      return false;
     } finally {
       setSaving(false);
     }
@@ -93,6 +113,7 @@ export function PriceCell({
         </span>
         <input
           dir="ltr"
+          data-price-cell=""
           inputMode="decimal"
           enterKeyHint="done"
           aria-label={`מחיר ללקוח: ${label}`}
@@ -110,7 +131,14 @@ export function PriceCell({
             if (e.key === "Enter") {
               e.preventDefault();
               skipBlur.current = true;
-              void commit().finally(() => (skipBlur.current = false));
+              const box = e.currentTarget;
+              void commit()
+                .then((saved) => {
+                  // Saved (or nothing to save) → straight on to the next
+                  // product's price, so a run of updates needs no tapping.
+                  if (saved) focusNextPrice(box);
+                })
+                .finally(() => (skipBlur.current = false));
             } else if (e.key === "Escape") {
               skipBlur.current = true;
               setDraft(String(customer));
@@ -147,6 +175,7 @@ export function PriceCell({
           {shown.struck !== null && (
             <span className="ms-1 line-through opacity-70">₪{shown.struck}</span>
           )}
+          {updatedToday && <span className="ms-1 font-medium text-green-700">· עודכן היום</span>}
         </p>
       )}
     </div>
