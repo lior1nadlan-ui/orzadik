@@ -342,6 +342,24 @@ function AdminProducts() {
   });
   const filtered = data?.rows ?? [];
   const total = data?.total ?? 0;
+
+  // Products on this page whose price changed today (Israel time) — marked so
+  // a long run of updates shows where it stopped. Same key prefix as the list,
+  // so every save that refreshes the list refreshes this too.
+  const pageIds = filtered.map((p) => p.id);
+  const { data: changedToday } = useQuery({
+    queryKey: ["admin-products", "changed-today", pageIds],
+    enabled: pageIds.length > 0,
+    queryFn: async () => {
+      const { data: rows, error } = await supabase
+        .from("product_price_changes")
+        .select("product_id")
+        .in("product_id", pageIds)
+        .gte("changed_at", startOfIsraelDay().toISOString());
+      if (error) throw error;
+      return new Set((rows ?? []).map((r) => r.product_id));
+    },
+  });
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const { data: batches = [], isFetching: batchesLoading } = useQuery({
@@ -826,6 +844,7 @@ function AdminProducts() {
                 price={Number(p.price)}
                 salePrice={p.sale_price === null ? null : Number(p.sale_price)}
                 label={p.name}
+                updatedToday={changedToday?.has(p.id)}
                 onSave={(next) => saveInlinePrice(p, next)}
               />
               <div className="flex gap-1.5">
@@ -924,6 +943,7 @@ function AdminProducts() {
                     price={Number(p.price)}
                     salePrice={p.sale_price === null ? null : Number(p.sale_price)}
                     label={p.name}
+                    updatedToday={changedToday?.has(p.id)}
                     onSave={(next) => saveInlinePrice(p, next)}
                   />
                 </td>
@@ -1727,6 +1747,14 @@ const SOURCE_HE: Record<string, string> = {
   customer_price_fix: "תיקון למחיר ללקוח",
   undo: "ביטול",
 };
+
+/** Midnight today in Israel, as an instant. */
+function startOfIsraelDay(now = new Date()): Date {
+  const local = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Jerusalem" }));
+  const offset = now.getTime() - local.getTime();
+  local.setHours(0, 0, 0, 0);
+  return new Date(local.getTime() + offset);
+}
 
 /** The product's last few logged price changes (product_price_changes). */
 function PriceLog({ productId }: { productId: string }) {

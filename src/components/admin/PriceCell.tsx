@@ -27,12 +27,15 @@ export function PriceCell({
   price,
   salePrice,
   label,
+  updatedToday,
   onSave,
 }: {
   price: number;
   salePrice: number | null;
   /** Product name, for the input's accessible label. */
   label: string;
+  /** Its price changed today — a small marker so a long run shows its progress. */
+  updatedToday?: boolean;
   /** Persist the new CATALOG price. Rejects to keep the box open for a retry. */
   onSave: (next: number) => Promise<void>;
 }) {
@@ -172,6 +175,7 @@ export function PriceCell({
           {shown.struck !== null && (
             <span className="ms-1 line-through opacity-70">₪{shown.struck}</span>
           )}
+          {updatedToday && <span className="ms-1 font-medium text-green-700">· עודכן היום</span>}
         </p>
       )}
     </div>
