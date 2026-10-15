@@ -28,6 +28,7 @@ export function PriceCell({
   salePrice,
   label,
   updatedToday,
+  saleEndsAt,
   onSave,
 }: {
   price: number;
@@ -36,6 +37,8 @@ export function PriceCell({
   label: string;
   /** Its price changed today — a small marker so a long run shows its progress. */
   updatedToday?: boolean;
+  /** End of a running timed sale (ISO), if the product is in one. */
+  saleEndsAt?: string;
   /** Persist the new CATALOG price. Rejects to keep the box open for a retry. */
   onSave: (next: number) => Promise<void>;
 }) {
@@ -176,6 +179,16 @@ export function PriceCell({
             <span className="ms-1 line-through opacity-70">₪{shown.struck}</span>
           )}
           {updatedToday && <span className="ms-1 font-medium text-green-700">· עודכן היום</span>}
+          {saleEndsAt && (
+            <span className="ms-1 font-medium text-orange-700">
+              · מבצע עד{" "}
+              {new Date(saleEndsAt).toLocaleDateString("he-IL", {
+                timeZone: "Asia/Jerusalem",
+                day: "numeric",
+                month: "numeric",
+              })}
+            </span>
+          )}
         </p>
       )}
     </div>
