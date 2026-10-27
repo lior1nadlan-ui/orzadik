@@ -581,8 +581,10 @@ const FEATURED: { id: string; slug: string; name: string; img: string; w: number
   },
   {
     id: "c78aea58-8a38-43ee-a236-3aa2f1942225",
+    // /category/yehudaika 301s to /shop (owner, 20.10.2026), so this door
+    // opens the whole catalogue and its label says so.
     slug: "yehudaika",
-    name: "מוצרי יודאיקה",
+    name: "כל מוצרי היודאיקה",
     img: imgJudaica,
     w: 800,
     h: 800,
