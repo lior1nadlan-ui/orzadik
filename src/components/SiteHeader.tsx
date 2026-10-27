@@ -106,14 +106,26 @@ type SearchSuggestion = {
 //
 // The label for brachot-chamsot-segulot is shortened from the DB name
 // "ברכות חמסות וסגולות"; the category page carries the full name in its own h1.
-const CURATED_CATEGORIES: { slug: string; label: string; count: number }[] = [
+const CURATED_CATEGORIES: { slug: string; label: string; count: number; drawerOnly?: boolean }[] = [
   { slug: "kipot", label: "כיפות", count: 743 },
   { slug: "chagim", label: "חגים", count: 523 },
   { slug: "talit-tefilin", label: "טלית ותפילין", count: 465 },
   { slug: "plastic", label: "נרתיקי מזוזה", count: 383 },
   { slug: "shabbat", label: "שבת", count: 357 },
   { slug: "brachot-chamsot-segulot", label: "ברכות וחמסות", count: 301 },
+  // Owner request (videos 15.10 and 20.10, 2026): a door for siddurim next to
+  // kippot and tallit, and a direct way to the groom boxes, which took him
+  // several menus to find. marazim-chatanim still has 7 of 11 rows without a
+  // photo (measured 2026-10-27); the owner chose reachability over that.
+  { slug: "sidurim", label: "סידורים", count: 79 },
+  // Drawer only: one more link wraps the desktop row at 1366px (checked 27.10).
+  { slug: "marazim-chatanim", label: "מארזים לחתנים", count: 11, drawerOnly: true },
 ];
+
+// Shelves the owner asked to drop from the drawer's full category list (video
+// 15.10.2026: "עטים, סכינים, מזכרות ארץ ישראל ומנורות — לא מתאים"). Their pages
+// and products stay; only the menu entry goes, so the list reads shorter.
+const DRAWER_HIDDEN_SLUGS = new Set(["etim", "sakinim", "mazkarot-eretz-israel"]);
 
 // ---------------------------------------------------------------------------
 // Shared class idioms for the chrome.
@@ -315,7 +327,9 @@ export function SiteHeader({ hideOnMobile = false }: { hideOnMobile?: boolean } 
       // them above the fold (positions 3, 8, 9) and one labelled with the
       // English word "sale". Four of the eight were outright 404s. The shared
       // predicate replaces the hand-maintained exclusion list.
-      return listableCategories((data ?? []) as Cat[]).filter((c) => !c.parent_slug);
+      return listableCategories((data ?? []) as Cat[]).filter(
+        (c) => !c.parent_slug && !DRAWER_HIDDEN_SLUGS.has(c.slug),
+      );
     },
   });
 
@@ -951,7 +965,7 @@ export function SiteHeader({ hideOnMobile = false }: { hideOnMobile?: boolean } 
               <Link to="/shop" className={NAV_LINK_CLS}>
                 חנות
               </Link>
-              {CURATED_CATEGORIES.map((c) => (
+              {CURATED_CATEGORIES.filter((c) => !c.drawerOnly).map((c) => (
                 <Link
                   key={c.slug}
                   to="/category/$slug"

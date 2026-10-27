@@ -549,6 +549,13 @@
   from { opacity: 0; transform: translateY(8px) scale(0.985); }
   to   { opacity: 1; transform: none; }
 }
+/* Light sweep across the featured siddur tile in the hero (HeroCategoryTiles).
+   It rests off-tile for most of the cycle so it reads as a glint, not a loop.
+   RTL: the tile's start edge is on the right, so the sweep travels leftwards. */
+@keyframes orz-sheen {
+  0%, 55% { transform: translateX(0) skewX(-12deg); }
+  100%    { transform: translateX(-450%) skewX(-12deg); }
+}
 /* Reduced motion: KEEP the opacity fade, DROP the movement. */
 @keyframes orz-reveal-static {
   from { opacity: 0; }

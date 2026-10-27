@@ -9,6 +9,7 @@ import {
   heroSrc,
   heroSrcSet,
 } from "@/components/home/HeroSlides";
+import { HeroCategoryTiles } from "@/components/home/HeroCategoryTiles";
 import { supabase } from "@/integrations/supabase/client";
 import { FeaturedProductsCarousel, ProductRail } from "@/components/home/FeaturedProductsCarousel";
 import { diversifyRail, fetchHomeFeaturedProducts, rotateDaily } from "@/lib/home-rails";
@@ -259,6 +260,7 @@ async function fetchOtherCategories(): Promise<CatTile[]> {
     "aluminum", // 1 product, duplicate
     "bencher-stands", // 1 product, duplicate
     "liqueur-sets", // 1 product, duplicate
+    "etim", // עטים — owner does not want pens advertised (27.10.2026)
     // מראות — 4 products, all tefillin items (3 pairs of plastic tefillin boxes
     // and a stand of tefillin mirrors), every one also filed under בתי תפילין
     // ומראות and תיקי תפילין. The tile's artwork is an ornate WALL mirror, so it
@@ -960,32 +962,14 @@ function HomePage() {
               </span>
             </h1>
             <span aria-hidden="true" className="gold-rule mt-5 hidden w-24 lg:block" />
-            <p className="mt-3 max-w-xl text-sm leading-relaxed text-white/95 sm:text-base lg:mt-5 lg:text-lg lg:text-muted-foreground">
+            <p className="mt-3 hidden max-w-xl text-sm leading-relaxed text-white/95 sm:block sm:text-base lg:mt-5 lg:text-lg lg:text-muted-foreground">
               טליתות, מארזים לחתנים, כיסויי תפילין ונרתיקי מזוזה — נבחרים בהקפדה על כשרות והידור
             </p>
 
-            {/* ONE primary, one secondary, side by side even on a phone
-                (stacking cost 64px of photograph; both labels are short).
-                ChevronLeft because the document is RTL: forward points left. */}
-            <div className="mt-7 flex w-full flex-row justify-center gap-3 text-[0.9375rem] sm:w-auto sm:text-base lg:mt-9 lg:justify-start">
-              <Link
-                to="/shop"
-                className={`${BTN_SOLID} flex-1 whitespace-nowrap px-5 text-inherit sm:flex-none sm:px-8`}
-              >
-                לחנות
-                <ChevronLeft className="h-4 w-4 shrink-0" aria-hidden="true" />
-              </Link>
-              {/* /collection/chatan-kala, not the groom-box category: 7 of that
-                  category's 11 products have no photograph yet. On a phone it is
-                  the glass button over the photograph; on linen, the outline. */}
-              <Link
-                to="/collection/$slug"
-                params={{ slug: "chatan-kala" }}
-                className={`${BTN_GLASS} flex-1 whitespace-nowrap px-5 text-inherit sm:flex-none sm:px-8 lg:border-accent lg:bg-white/85 lg:text-accent lg:backdrop-blur-none lg:[@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary`}
-              >
-                לחתן ולכלה
-                <ChevronLeft className="h-4 w-4 shrink-0" aria-hidden="true" />
-              </Link>
+            {/* The shelves as photo squares (owner request 27.10.2026),
+                replacing the "לחנות" / "לחתן ולכלה" button pair. */}
+            <div className="mt-5 w-full max-w-md text-start lg:mt-8 lg:max-w-lg">
+              <HeroCategoryTiles />
             </div>
 
             {/* Three parallel facts, as a real list. Hairline dots between

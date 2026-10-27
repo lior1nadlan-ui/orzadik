@@ -124,6 +124,39 @@ export function seasonState(key: HolidayKey, now: number): SeasonState | null {
   return null;
 }
 
+/** Name fragments that mark a product as belonging to a holiday. The chagim
+ *  shelf has no sub-categories, so the product name is the only signal. Kept
+ *  to unambiguous words: "רימון" or "דבש" alone also name Shabbat items. */
+export const HOLIDAY_NAME_TERMS: Record<HolidayKey, string[]> = {
+  "rosh-hashana": ["ראש השנה", "לדבש", "שופר"],
+  hanukkah: ["חנוכ", "סביבון"],
+  pesach: ["פסח", "הגדה", "מצות", "מצה"],
+};
+
+/**
+ * Owner request (video 19.10): on /category/chagim the in-season holiday sat
+ * below the fold. Stable-partitions rows whose name matches a holiday that is
+ * running or within LEAD_DAYS to the front, soonest holiday first; everything
+ * else keeps its order. Out of season this returns the rows unchanged.
+ */
+export function seasonalFirst<T extends { name: string }>(rows: T[], now: number): T[] {
+  const live = (Object.keys(HOLIDAYS) as HolidayKey[])
+    .map((key) => ({ key, state: seasonState(key, now) }))
+    .filter((x): x is { key: HolidayKey; state: SeasonState } => !!x.state)
+    .sort((a, b) => a.state.daysUntil - b.state.daysUntil);
+  if (!live.length) return rows;
+  const buckets: T[][] = live.map(() => []);
+  const rest: T[] = [];
+  for (const row of rows) {
+    const i = live.findIndex(({ key }) =>
+      HOLIDAY_NAME_TERMS[key].some((t) => row.name.includes(t)),
+    );
+    if (i >= 0) buckets[i].push(row);
+    else rest.push(row);
+  }
+  return [...buckets.flat(), ...rest];
+}
+
 export type SeasonalSlot = { slug: string; label?: string };
 
 /**
