@@ -581,8 +581,10 @@ const FEATURED: { id: string; slug: string; name: string; img: string; w: number
   },
   {
     id: "c78aea58-8a38-43ee-a236-3aa2f1942225",
+    // /category/yehudaika 301s to /shop (owner, 20.10.2026), so this door
+    // opens the whole catalogue and its label says so.
     slug: "yehudaika",
-    name: "מוצרי יודאיקה",
+    name: "כל מוצרי היודאיקה",
     img: imgJudaica,
     w: 800,
     h: 800,
@@ -887,11 +889,11 @@ function HomePage() {
           strip of the next section left showing as the scroll cue. CSS-only
           on purpose: reading the real height would jump the LCP element after
           first paint. Re-measure whenever SiteHeader's rows change. */}
-      <section className="relative flex h-[calc(100svh-125px-4.5rem)] min-h-[560px] flex-col justify-end overflow-hidden bg-[#3b2a17] lg:grid lg:h-[calc(100svh-125px-5rem)] lg:min-h-[620px] lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)] lg:bg-cream 2xl:h-[calc(100svh-93px-5rem)]">
+      <section className="relative flex min-h-[560px] flex-col overflow-hidden bg-[#3b2a17] lg:grid lg:min-h-[620px] lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)] lg:items-start lg:bg-cream">
         {/* The photographs. Absolute behind the type on a phone; their own
             column, inside the arch, from lg. One instance either way, so the
             browser fetches one set of files. */}
-        <div className="absolute inset-0 lg:relative lg:inset-auto lg:order-2 lg:flex lg:h-full lg:min-h-0 lg:items-center lg:justify-center lg:py-12 lg:pe-10 xl:pe-20">
+        <div className="absolute inset-x-0 top-0 h-[80svh] lg:sticky lg:top-24 lg:order-2 lg:flex lg:h-[calc(100svh-8rem)] lg:min-h-0 lg:items-center lg:justify-center lg:py-12 lg:pe-10 xl:pe-20">
           <div className="relative h-full w-full lg:aspect-[3/4] lg:w-auto lg:max-w-full">
             {/* The offset gold line — a second arch drawn 14px outside the
                 photograph, the frame-within-a-frame of a museum mount. */}
@@ -933,7 +935,7 @@ function HomePage() {
             is not needed at all. */}
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(22,15,4,0.90)_0px,rgba(22,15,4,0.84)_380px,rgba(22,15,4,0.30)_470px,transparent_560px)] lg:hidden"
+          className="pointer-events-none absolute inset-x-0 top-0 h-[80svh] bg-[linear-gradient(to_bottom,transparent_0%,rgba(22,15,4,0.35)_25%,rgba(22,15,4,0.88)_60%,#3b2a17_100%)] lg:hidden"
         />
 
         {/* The selling block. Every claim is sourced, none invented: no free
@@ -941,7 +943,7 @@ function HomePage() {
             marked up — see GOOGLE_PLACE_URL); the address and the cancellation
             window come from BUSINESS and CONSUMER_POLICY, the same constants
             the footer and /returns render. */}
-        <div className="relative z-10 flex flex-col items-center px-5 pb-8 text-center sm:px-6 md:pb-12 lg:order-1 lg:items-start lg:justify-center lg:pb-0 lg:pe-8 lg:ps-12 lg:text-start xl:ps-20 2xl:ps-[max(5rem,calc((100vw-84rem)/2))]">
+        <div className="relative z-10 flex flex-col items-center px-5 pb-8 pt-[16svh] text-center sm:px-6 md:pb-12 lg:order-1 lg:items-start lg:justify-center lg:py-12 lg:pe-8 lg:ps-12 lg:text-start xl:ps-20 2xl:ps-[max(5rem,calc((100vw-84rem)/2))]">
           <div className="stagger flex w-full max-w-2xl flex-col items-center lg:max-w-xl lg:items-start">
             {/* Eyebrow: where the shop is, between two hairlines — the one
                 fact a dropshipper cannot claim. Gold is decorative-only on
@@ -968,8 +970,8 @@ function HomePage() {
 
             {/* The shelves as photo squares (owner request 27.10.2026),
                 replacing the "לחנות" / "לחתן ולכלה" button pair. */}
-            <div className="mt-5 w-full max-w-md text-start lg:mt-8 lg:max-w-lg">
-              <HeroCategoryTiles />
+            <div className="mt-5 w-full max-w-xl text-start lg:mt-8 lg:max-w-2xl">
+              <HeroCategoryTiles cats={[...cats, ...(otherCats ?? [])]} />
             </div>
 
             {/* Three parallel facts, as a real list. Hairline dots between
@@ -1008,42 +1010,9 @@ function HomePage() {
         </div>
       </section>
 
-      {/* 2. הקולקציות שלנו — the curated collections as the reference's large
-          framed cards (owner's screenshots, 2026-09-24).
-          MOVED UP from ninth place to directly under the hero. A stranger who
-          lands here came to see what the shop sells; the seven doors that
-          answer that sat below the groom flagship, the trust band, the store
-          card, the gift rail and the occasion rail — roughly 5,000px down a
-          phone. The reference leads with them, and so does this.
-          Two compact cards per row on a phone (one per row cost ~2,900px of
-          scrolling before anything else), two from 640px, three from 1024px. flex-wrap + justify-center rather than a
-          grid so the seventh card sits centred under the others instead of
-          stranded in the first column. The phone cap (28rem) stops a large
-          phone in landscape from rendering a 600px square. */}
-      <section>
-        <Reveal className="container mx-auto px-4 py-14 md:py-20">
-          <SectionHeader eyebrow="הקולקציות שלנו" title="מה תרצו לגלות?" />
-          <div className="mx-auto flex max-w-6xl flex-wrap justify-center gap-3 sm:gap-6">
-            {cats.map((c) => (
-              <div
-                key={c.slug}
-                className="w-[calc(50%-0.375rem)] sm:w-[calc(50%-0.75rem)] lg:w-[calc(33.333%-1rem)]"
-              >
-                <CollectionCard cat={c} />
-              </div>
-            ))}
-          </div>
-        </Reveal>
-      </section>
-
-      {/* 3. שאר הקטגוריות — every other category that has artwork, as a swipe
-          rail of photo tiles. Moved up together with the collections above: the
-          reference shows the two browse blocks back to back. A crawlable strip
-          of internal /category/$slug links plus a browse-everything path to
-          /categories. Server-rendered from the loader (otherCats resolved at
-          SSR); on the rare loader failure it renders nothing rather than an
-          empty box. */}
-      <OtherCategoriesSection cats={otherCats ?? []} reserveSpace={false} />
+      {/* 2-3. "הקולקציות שלנו" and the "שאר הקטגוריות" rail were removed on
+          27.10.2026 at the owner's request: every category is now a square in
+          the hero, and showing the same doors twice read as clutter. */}
 
       {/* 4. מארזי חתן — flagship band: the ivory ground carrying a single glass
           panel. Every descendant that once relied on a dark backing moved with

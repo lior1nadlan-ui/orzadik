@@ -33,3 +33,13 @@ export const MERGED_CATEGORY_REDIRECTS: Record<string, string> = {
   "%d7%9e%d7%95%d7%a6%d7%a8%d7%99-%d7%97%d7%aa%d7%95%d7%a0%d7%94-%d7%95%d7%91%d7%a8-%d7%9e%d7%a6%d7%95%d7%95%d7%94":
     "marazim-chatanim",
 };
+
+/**
+ * Category slugs that 301 to /shop instead of another category. Owner request
+ * (video 20.10.2026): "מוצרי יודאיקה" held 104 products while the full catalogue
+ * holds ~2,750, so a visitor who opened the tile thought that was everything.
+ * The rows stay in the DB (cross-sells still read them); only the page goes.
+ * Kept apart from MERGED_CATEGORY_REDIRECTS because the target is not a
+ * category, and category-slugs.test.ts forbids configs naming those sources.
+ */
+export const CATEGORY_TO_SHOP_REDIRECTS = new Set(["yehudaika"]);
