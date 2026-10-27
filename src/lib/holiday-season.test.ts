@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { holidayStart, seasonState, seasonalOrder, LEAD_DAYS } from "./holiday-season";
+import {
+  holidayStart,
+  seasonState,
+  seasonalOrder,
+  seasonalFirst,
+  LEAD_DAYS,
+} from "./holiday-season";
 
 // The rail as written in src/lib/collections.ts.
 const RAIL = [
@@ -62,5 +68,28 @@ describe("the rail order", () => {
   it("does the same for Pesach and the next Rosh Hashana", () => {
     expect(seasonalOrder(RAIL, at("2027-03-20"))[0].slug).toBe("matanot-pesach");
     expect(seasonalOrder(RAIL, at("2027-08-25"))[0].slug).toBe("matanot-rosh-hashana");
+  });
+});
+
+describe("seasonalFirst", () => {
+  const rows = [
+    { name: "פמוט שבת" },
+    { name: "חנוכייה כסף" },
+    { name: "סביבון עץ" },
+    { name: "קערת פסח" },
+  ];
+  it("leads with the in-season holiday and keeps the rest in order", () => {
+    // 27.10.2026: Hanukkah (4.12) is inside LEAD_DAYS, Pesach is not.
+    const now = Date.UTC(2026, 9, 27, 9);
+    expect(seasonalFirst(rows, now).map((r) => r.name)).toEqual([
+      "חנוכייה כסף",
+      "סביבון עץ",
+      "פמוט שבת",
+      "קערת פסח",
+    ]);
+  });
+  it("is a no-op out of season", () => {
+    const now = Date.UTC(2026, 6, 1, 9);
+    expect(seasonalFirst(rows, now)).toEqual(rows);
   });
 });

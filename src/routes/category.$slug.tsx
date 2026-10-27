@@ -26,6 +26,7 @@ import { GuideLinks } from "@/components/content/GuideLinks";
 // on the site, derivePriceRungs/buildFacetGroups own which controls a shelf is
 // allowed to show. See the header comments in both files for the measurements.
 import { collapseSameName, orderCatalog, type CatalogSort } from "@/lib/catalog-order";
+import { seasonalFirst } from "@/lib/holiday-season";
 import {
   buildFacetGroups,
   countSelected,
@@ -418,7 +419,12 @@ function applyShelfView(cards: Card[], slug: string, view: ShelfView): Card[] {
   // can be pinned to an explicit sort from one line of config in
   // catalog-order.ts, with no change to this route. An explicit ?sort= always
   // beats a pin — a pin is the shop's opinion, ?sort= is the shopper's.
-  return orderCatalog(list, { sort: view.sort, shelfKey: `category/${slug}` });
+  const ordered = orderCatalog(list, { sort: view.sort, shelfKey: `category/${slug}` });
+  // The holiday that is coming up leads the chagim shelf on the default sort
+  // only; an explicit ?sort= is the shopper's choice and is left alone.
+  return slug === "chagim" && view.sort === DEFAULT_VIEW.sort
+    ? seasonalFirst(ordered, Date.now())
+    : ordered;
 }
 
 /**
