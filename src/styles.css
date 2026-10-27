@@ -55,10 +55,10 @@
   --color-argaman: var(--argaman);
   --color-argaman-deep: var(--argaman-deep);
   /* NEW (additive — nothing depended on these before) */
-  --color-accent-strong: var(--accent-strong);   /* safe hover fill, 7.4:1 w/ white */
-  --color-glass-line: var(--glass-line);         /* the hairline colour, as a border-* utility */
-  --font-sans: 'Assistant', system-ui, sans-serif;
-  --font-display: 'Noto Serif Hebrew', 'Cormorant Garamond', serif;
+  --color-accent-strong: var(--accent-strong); /* safe hover fill, 7.4:1 w/ white */
+  --color-glass-line: var(--glass-line); /* the hairline colour, as a border-* utility */
+  --font-sans: "Assistant", system-ui, sans-serif;
+  --font-display: "Noto Serif Hebrew", "Cormorant Garamond", serif;
 }
 
 /* Emil Kowalski motion standard, registered in Tailwind's --ease-* namespace so
@@ -171,42 +171,42 @@
 }
 
 :root {
-  --radius: 0.75rem;                /* xl=16 lg=12 md=10 sm=8 — "generous radius" */
+  --radius: 0.75rem; /* xl=16 lg=12 md=10 sm=8 — "generous radius" */
 
   /* ---- GROUND & SURFACES -------------------------------------------------
      Warm ivory ground; pure white cards and plates lift off it. */
-  --background: #FAF7F2;            /* warm ivory page ground (was #F7F8FA cool near-white) */
-  --foreground: #1F1A15;            /* warm ink — 17.26:1 on white, 16.15:1 on ground */
-  --card: #FFFFFF;                  /* pure white lifts off the ivory */
-  --card-foreground: #1F1A15;       /* 17.26:1 on card */
-  --popover: #FFFFFF;
-  --popover-foreground: #1F1A15;    /* 17.26:1 */
-  --primary: #1F1A15;               /* near-black CTA fill */
-  --primary-foreground: #FFFFFF;    /* 17.26:1 on --primary */
-  --secondary: #F3EDE3;             /* warm linen surface */
-  --secondary-foreground: #1F1A15;  /* 14.82:1 */
-  --muted: #F2ECE2;                 /* quiet surface */
-  --muted-foreground: #6B6258;      /* 5.98:1 white · 5.59:1 ground · 5.09:1 muted — worst 5.09:1 */
+  --background: #faf7f2; /* warm ivory page ground (was #F7F8FA cool near-white) */
+  --foreground: #1f1a15; /* warm ink — 17.26:1 on white, 16.15:1 on ground */
+  --card: #ffffff; /* pure white lifts off the ivory */
+  --card-foreground: #1f1a15; /* 17.26:1 on card */
+  --popover: #ffffff;
+  --popover-foreground: #1f1a15; /* 17.26:1 */
+  --primary: #1f1a15; /* near-black CTA fill */
+  --primary-foreground: #ffffff; /* 17.26:1 on --primary */
+  --secondary: #f3ede3; /* warm linen surface */
+  --secondary-foreground: #1f1a15; /* 14.82:1 */
+  --muted: #f2ece2; /* quiet surface */
+  --muted-foreground: #6b6258; /* 5.98:1 white · 5.59:1 ground · 5.09:1 muted — worst 5.09:1 */
 
   /* ---- BRONZE / GOLD ------------------------------------------------------
      --accent is the only bronze in the system that survives as TEXT and as a
      CTA fill with white text. The lighter bronze of the reference eyebrows
      (~#B8895A) is 2.9:1 on ivory and is NOT a text colour here — that is what
      --gold is for, and only as a line. Do not "brighten" --accent. */
-  --accent: #8A5A2B;                /* THE bronze for text + CTAs.
+  --accent: #8a5a2b; /* THE bronze for text + CTAs.
                                        5.87:1 white · 5.49:1 ground · 5.04:1 secondary
                                        · 4.99:1 muted (worst case) · 5.69:1 on .glass */
-  --accent-foreground: #FFFFFF;     /* 5.87:1 on --accent fill */
-  --accent-strong: #6E4620;         /* Hover/pressed bronze fill — 8.20:1 with white.
+  --accent-foreground: #ffffff; /* 5.87:1 on --accent fill */
+  --accent-strong: #6e4620; /* Hover/pressed bronze fill — 8.20:1 with white.
                                        Prefer `hover:bg-accent-strong` over `hover:bg-accent/90`,
                                        which composites with less headroom. */
-  --gold: #C4A074;                  /* DECORATIVE ONLY — 2.43:1 on white. Hairlines, frames, ✦,
+  --gold: #c4a074; /* DECORATIVE ONLY — 2.43:1 on white. Hairlines, frames, ✦,
                                        rules, borders. NEVER text, NEVER a fill behind white text. */
-  --gold-bright: #E3C995;           /* DECORATIVE ON LIGHT — 1.61:1 on white, unusable there.
+  --gold-bright: #e3c995; /* DECORATIVE ON LIGHT — 1.61:1 on white, unusable there.
                                        Legal jobs: (a) light gold TEXT on a dark image scrim /
                                        --argaman-deep → 10.93:1; (b) a gold FILL that carries
                                        --argaman-deep text → 10.93:1. Never on white/glass. */
-  --cream: #F4EEE4;                 /* pale linen tint. Two jobs:
+  --cream: #f4eee4; /* pale linen tint. Two jobs:
                                        (a) `bg-cream` = faint surface on the ivory ground;
                                        (b) `text-cream` = light text on a dark image scrim
                                            (15.23:1 on --argaman-deep). NEVER text on white. */
@@ -215,31 +215,36 @@
      --argaman survives only as a small semantic fill (ProductCard corner badge,
      cart-count bubble, the active pagination chip) where it carries white text.
      --argaman-deep is the deep ink behind imagery and the dark text on gold. */
-  --argaman: #5B1F27;               /* small semantic fill — 12.57:1 with white text. */
-  --argaman-deep: #1E1812;          /* warm deep ink (was cool #191B21).
+  --argaman: #5b1f27; /* small semantic fill — 12.57:1 with white text. */
+  --argaman-deep: #1e1812; /* warm deep ink (was cool #191B21).
                                        Jobs: image scrim (`bg-argaman-deep/85`), dark text on a
                                        gold-bright fill (10.93:1), dark text on white (17.58:1).
                                        NOT a page ground. */
 
-  --destructive: #9C2B2B;           /* 7.52:1 as text on white · 7.03:1 on ground */
-  --destructive-foreground: #FFFFFF;
+  --destructive: #9c2b2b; /* 7.52:1 as text on white · 7.03:1 on ground */
+  --destructive-foreground: #ffffff;
 
   /* ---- LINES -------------------------------------------------------------- */
-  --border: #E8DFD2;                /* decorative separator hairline (1.23:1 — exempt from 1.4.11) */
-  --input: #948877;                 /* form-CONTROL boundary. 3.47:1 white / 3.25:1 ground —
+  --border: #e8dfd2; /* decorative separator hairline (1.23:1 — exempt from 1.4.11) */
+  --input: #948877; /* form-CONTROL boundary. 3.47:1 white / 3.25:1 ground —
                                        clears WCAG 1.4.11 (3:1) on both. */
-  --ring: #8A5A2B;                  /* focus ring — 5.87:1 on white, well past the 3:1 minimum */
+  --ring: #8a5a2b; /* focus ring — 5.87:1 on white, well past the 3:1 minimum */
 
   /* ---- GLASS PRIMITIVES ---------------------------------------------------
      Consumed by the .glass utilities below. Override per-element with an
      arbitrary property, e.g. class="glass [--glass-radius:1.5rem]". The fills
      are a warm white so a panel never reads blue against the ivory. */
-  --glass-bg: rgba(255, 253, 249, 0.74);        /* default panel over the ivory ground */
-  --glass-bg-strong: rgba(255, 253, 250, 0.94); /* over IMAGERY / unknown backdrops (see .glass-strong) */
-  --glass-bg-soft: rgba(255, 253, 249, 0.52);   /* decorative only — never put text on this */
-  --glass-line: rgba(60, 42, 22, 0.10);         /* the hairline */
+  --glass-bg: rgba(255, 253, 249, 0.74); /* default panel over the ivory ground */
+  --glass-bg-strong: rgba(
+    255,
+    253,
+    250,
+    0.94
+  ); /* over IMAGERY / unknown backdrops (see .glass-strong) */
+  --glass-bg-soft: rgba(255, 253, 249, 0.52); /* decorative only — never put text on this */
+  --glass-line: rgba(60, 42, 22, 0.1); /* the hairline */
   --glass-line-strong: rgba(60, 42, 22, 0.17);
-  --glass-line-gold: rgba(196, 160, 116, 0.50); /* the bronze hairline, decorative */
+  --glass-line-gold: rgba(196, 160, 116, 0.5); /* the bronze hairline, decorative */
   --glass-highlight: rgba(255, 255, 255, 0.75); /* inner top edge */
   --glass-blur: 16px;
   --glass-blur-strong: 24px;
@@ -247,12 +252,10 @@
   --glass-saturate: 1.15;
   /* Soft + wide, warm-tinted. Layered so the panel reads as floating, not boxed. */
   --glass-shadow:
-    0 1px 1px rgba(60, 42, 22, 0.03),
-    0 10px 30px -14px rgba(60, 42, 22, 0.14),
+    0 1px 1px rgba(60, 42, 22, 0.03), 0 10px 30px -14px rgba(60, 42, 22, 0.14),
     0 36px 60px -36px rgba(60, 42, 22, 0.18);
   --glass-shadow-lift:
-    0 1px 1px rgba(60, 42, 22, 0.04),
-    0 16px 40px -16px rgba(60, 42, 22, 0.18),
+    0 1px 1px rgba(60, 42, 22, 0.04), 0 16px 40px -16px rgba(60, 42, 22, 0.18),
     0 48px 80px -40px rgba(60, 42, 22, 0.24);
 
   /* ---- MOTION (Emil Kowalski standard) ------------------------------------
@@ -262,33 +265,38 @@
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
   /* Duration bands. Hard ceiling for UI is 300ms; drawers/modals may exceed it. */
-  --duration-press: 160ms;          /* 100–160 */
-  --duration-tooltip: 160ms;        /* 125–200 */
-  --duration-dropdown: 200ms;       /* 150–250 */
-  --duration-modal: 260ms;          /* 200–500 */
-  --duration-drawer: 380ms;         /* 200–500 */
-  --duration-reveal: 420ms;         /* one-shot page reveal — rare, may delight */
-  --duration-settle: 260ms;         /* scroll-reveal + stagger settle — calm entrance, under the 300ms UI ceiling */
-  --stagger-step: 55ms;             /* 30–80 */
+  --duration-press: 160ms; /* 100–160 */
+  --duration-tooltip: 160ms; /* 125–200 */
+  --duration-dropdown: 200ms; /* 150–250 */
+  --duration-modal: 260ms; /* 200–500 */
+  --duration-drawer: 380ms; /* 200–500 */
+  --duration-reveal: 420ms; /* one-shot page reveal — rare, may delight */
+  --duration-settle: 260ms; /* scroll-reveal + stagger settle — calm entrance, under the 300ms UI ceiling */
+  --stagger-step: 55ms; /* 30–80 */
 
   /* ---- GRADIENTS ---------------------------------------------------------- */
   --gradient-hero:                  /* a warm ivory wash with a bronze glow */
     radial-gradient(60rem 40rem at 82% -8%, rgba(196, 160, 116, 0.16), transparent 62%),
     radial-gradient(52rem 36rem at 8% 2%, rgba(227, 201, 149, 0.14), transparent 64%),
-    linear-gradient(180deg, #FFFDF9, #FAF7F2);
-  --gradient-gold:                  /* DECORATIVE sheen — never behind white text */
-    linear-gradient(135deg, #E3C995, #C4A074 55%, #A57C4C);
-  --gradient-gold-line:             /* the hairline rule; see .gold-rule */
-    linear-gradient(90deg, transparent, rgba(196, 160, 116, 0.85), transparent);
+    linear-gradient(180deg, #fffdf9, #faf7f2);
+  --gradient-gold:                  /* DECORATIVE sheen — never behind white text */ linear-gradient(
+    135deg,
+    #e3c995,
+    #c4a074 55%,
+    #a57c4c
+  );
+  --gradient-gold-line:             /* the hairline rule; see .gold-rule */ linear-gradient(
+    90deg,
+    transparent,
+    rgba(196, 160, 116, 0.85),
+    transparent
+  );
 
   /* ---- LEGACY SHADOW ALIASES ---------------------------------------------
      Names kept (components read them); values warm-tinted to sit in the same
      light as the glass. */
-  --shadow-card:
-    0 1px 2px rgba(60, 42, 22, 0.04),
-    0 8px 24px -12px rgba(60, 42, 22, 0.11);
-  --shadow-soft:
-    0 20px 56px -20px rgba(60, 42, 22, 0.20);
+  --shadow-card: 0 1px 2px rgba(60, 42, 22, 0.04), 0 8px 24px -12px rgba(60, 42, 22, 0.11);
+  --shadow-soft: 0 20px 56px -20px rgba(60, 42, 22, 0.2);
 }
 
 /* Dark mode is NOT part of this direction ("NOT dark mode") and `.dark` is not
@@ -315,8 +323,12 @@
 }
 
 @layer base {
-  * { border-color: var(--color-border); }
-  html { direction: rtl; }
+  * {
+    border-color: var(--color-border);
+  }
+  html {
+    direction: rtl;
+  }
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
@@ -336,7 +348,12 @@
       radial-gradient(52rem 36rem at 8% 4%, rgba(227, 201, 149, 0.12), transparent 62%),
       radial-gradient(70rem 44rem at 50% 108%, rgba(196, 160, 116, 0.08), transparent 65%);
   }
-  h1, h2, h3, .font-display { font-family: var(--font-display); }
+  h1,
+  h2,
+  h3,
+  .font-display {
+    font-family: var(--font-display);
+  }
 
   /* Global keyboard-focus ring — branded, everywhere. A sane DEFAULT only:
      it lives in @layer base, so any component that sets its own :focus-visible
@@ -386,7 +403,6 @@
    still yours to set with ordinary utilities.
    ========================================================================== */
 @layer utilities {
-
   /* ---- GLASS ------------------------------------------------------------ */
 
   /* The default panel. Safe over the light page ground ONLY: at 74% warm white the
@@ -429,11 +445,18 @@
   }
 
   /* Swap the hairline to gold. Decorative only — the ring is not text. */
-  .glass-gold { --glass-line: var(--glass-line-gold); --glass-line-strong: var(--glass-line-gold); }
+  .glass-gold {
+    --glass-line: var(--glass-line-gold);
+    --glass-line-strong: var(--glass-line-gold);
+  }
 
   /* Hairline with no fill and no blur — dividers, outlined chips, table rules. */
-  .hairline { box-shadow: inset 0 0 0 1px var(--glass-line); }
-  .hairline-gold { box-shadow: inset 0 0 0 1px var(--glass-line-gold); }
+  .hairline {
+    box-shadow: inset 0 0 0 1px var(--glass-line);
+  }
+  .hairline-gold {
+    box-shadow: inset 0 0 0 1px var(--glass-line-gold);
+  }
 
   /* The precise gold rule: a 1px gradient divider. Decorative. */
   .gold-rule {
@@ -453,7 +476,10 @@
   @media (hover: hover) and (pointer: fine) {
     /* Bare .glass-lift (a photo tile, a bordered plate) has no rings at rest and
        must gain none on hover — this stays a plain shadow swap. */
-    .glass-lift:hover { transform: translateY(-2px); box-shadow: var(--glass-shadow-lift); }
+    .glass-lift:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--glass-shadow-lift);
+    }
 
     /* Paired with a glass class it is a different story: box-shadow is ONE
        property, so the swap above would erase the panel's inset hairline and
@@ -489,9 +515,13 @@
     transition-duration: var(--duration-press);
     transition-timing-function: var(--ease-out);
   }
-  .press:active { transform: scale(0.97); }
+  .press:active {
+    transform: scale(0.97);
+  }
   /* Keyboard activation must never animate. */
-  .press:focus-visible:active { transform: none; }
+  .press:focus-visible:active {
+    transform: none;
+  }
 
   /* ---- REVEAL / STAGGER --------------------------------------------------
      Fade + translateY(8px), one shot, `both` fill so the element is visible in
@@ -508,15 +538,33 @@
      rides orz-stagger-in — the fade+rise plus a faint scale-settle (0.985→1) —
      over the calm settle band (<300ms). 55ms step, capped at 8 children so a long
      grid never crawls. */
-  .stagger > * { animation: orz-stagger-in var(--duration-settle) var(--ease-out) both; }
-  .stagger > *:nth-child(1) { animation-delay: 0ms; }
-  .stagger > *:nth-child(2) { animation-delay: calc(var(--stagger-step) * 1); }
-  .stagger > *:nth-child(3) { animation-delay: calc(var(--stagger-step) * 2); }
-  .stagger > *:nth-child(4) { animation-delay: calc(var(--stagger-step) * 3); }
-  .stagger > *:nth-child(5) { animation-delay: calc(var(--stagger-step) * 4); }
-  .stagger > *:nth-child(6) { animation-delay: calc(var(--stagger-step) * 5); }
-  .stagger > *:nth-child(7) { animation-delay: calc(var(--stagger-step) * 6); }
-  .stagger > *:nth-child(n + 8) { animation-delay: calc(var(--stagger-step) * 7); }
+  .stagger > * {
+    animation: orz-stagger-in var(--duration-settle) var(--ease-out) both;
+  }
+  .stagger > *:nth-child(1) {
+    animation-delay: 0ms;
+  }
+  .stagger > *:nth-child(2) {
+    animation-delay: calc(var(--stagger-step) * 1);
+  }
+  .stagger > *:nth-child(3) {
+    animation-delay: calc(var(--stagger-step) * 2);
+  }
+  .stagger > *:nth-child(4) {
+    animation-delay: calc(var(--stagger-step) * 3);
+  }
+  .stagger > *:nth-child(5) {
+    animation-delay: calc(var(--stagger-step) * 4);
+  }
+  .stagger > *:nth-child(6) {
+    animation-delay: calc(var(--stagger-step) * 5);
+  }
+  .stagger > *:nth-child(7) {
+    animation-delay: calc(var(--stagger-step) * 6);
+  }
+  .stagger > *:nth-child(n + 8) {
+    animation-delay: calc(var(--stagger-step) * 7);
+  }
 
   /* ---- SCROLL REVEAL (JS-driven, for <Reveal>) ---------------------------
      Unlike .reveal/.stagger (self-playing keyframes that fill to visible with no
@@ -534,25 +582,56 @@
       opacity var(--duration-settle) var(--ease-out),
       transform var(--duration-settle) var(--ease-out);
   }
-  .reveal-in.is-in { opacity: 1; transform: none; }
+  .reveal-in.is-in {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 @keyframes orz-reveal {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: none; }
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 /* Stagger children add a faint scale-settle to the same fade+rise — transform +
    opacity only, resolving to the natural box (transform:none) so nothing shifts
    layout. Reduced motion swaps the NAME to orz-reveal-static below, dropping both
    the rise and the scale while keeping the opacity fade. */
 @keyframes orz-stagger-in {
-  from { opacity: 0; transform: translateY(8px) scale(0.985); }
-  to   { opacity: 1; transform: none; }
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+/* Light sweep across the featured siddur tile in the hero (HeroCategoryTiles).
+   It rests off-tile for most of the cycle so it reads as a glint, not a loop.
+   RTL: the tile's start edge is on the right, so the sweep travels leftwards. */
+@keyframes orz-sheen {
+  0%,
+  55% {
+    transform: translateX(0) skewX(-12deg);
+  }
+  100% {
+    transform: translateX(-450%) skewX(-12deg);
+  }
 }
 /* Reduced motion: KEEP the opacity fade, DROP the movement. */
 @keyframes orz-reveal-static {
-  from { opacity: 0; }
-  to   { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 /* ===== Accessibility menu (a11y widget) ===== */
@@ -573,7 +652,7 @@ html.a11y-contrast {
   --primary-foreground: #ffffff;
   --secondary: #ffffff;
   --secondary-foreground: #000000;
-  --accent: #5c4300;                /* 9.30:1 both ways with white */
+  --accent: #5c4300; /* 9.30:1 both ways with white */
   --accent-foreground: #ffffff;
   --accent-strong: #3d2c00;
   --ring: #000000;
@@ -598,7 +677,9 @@ html.a11y-contrast .glass-soft {
   box-shadow: inset 0 0 0 2px #000000 !important;
 }
 /* The decorative light mesh has no business existing in high-contrast mode. */
-html.a11y-contrast body::before { background-image: none; }
+html.a11y-contrast body::before {
+  background-image: none;
+}
 
 /* High-contrast mode must also clamp brand gold wherever it is not routed
    through the theme tokens above. #5c4300 with white clears WCAG AA at 9.30:1.
@@ -640,28 +721,39 @@ html.a11y-links a {
   font-weight: 700 !important;
 }
 
-html.a11y-readable, html.a11y-readable * {
-  font-family: 'Assistant', system-ui, Arial, sans-serif !important;
+html.a11y-readable,
+html.a11y-readable * {
+  font-family: "Assistant", system-ui, Arial, sans-serif !important;
   letter-spacing: 0.02em;
   word-spacing: 0.05em;
 }
 
-html.a11y-no-motion *, html.a11y-no-motion *::before, html.a11y-no-motion *::after {
+html.a11y-no-motion *,
+html.a11y-no-motion *::before,
+html.a11y-no-motion *::after {
   animation-duration: 0.001s !important;
   animation-iteration-count: 1 !important;
   transition-duration: 0.001s !important;
   scroll-behavior: auto !important;
 }
 
-html.a11y-cursor, html.a11y-cursor * {
-  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 24 24'%3E%3Cpath d='M5 2 L5 20 L10 15 L13 22 L15.5 21 L12.5 14.5 L19 14.5 Z' fill='%23000' stroke='%23fff' stroke-width='1'/%3E%3C/svg%3E") 4 2, auto !important;
+html.a11y-cursor,
+html.a11y-cursor * {
+  cursor:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 24 24'%3E%3Cpath d='M5 2 L5 20 L10 15 L13 22 L15.5 21 L12.5 14.5 L19 14.5 Z' fill='%23000' stroke='%23fff' stroke-width='1'/%3E%3C/svg%3E")
+      4 2,
+    auto !important;
 }
 
 /* Grayscale: applied to the content wrapper, not <html>, so the fixed
    accessibility/WhatsApp buttons keep working. The page mesh lives on body,
    outside that wrapper, so it has to be desaturated separately. */
-#app-root.a11y-grayscale { filter: grayscale(100%); }
-html:has(#app-root.a11y-grayscale) body::before { filter: grayscale(100%); }
+#app-root.a11y-grayscale {
+  filter: grayscale(100%);
+}
+html:has(#app-root.a11y-grayscale) body::before {
+  filter: grayscale(100%);
+}
 
 /* Lift the floating buttons clear of a page-level mobile action bar.
    The product page's buy bar is `sticky bottom-0` and ~68px tall (12 + 44 + 12),
@@ -685,8 +777,12 @@ html:has(#app-root.a11y-grayscale) body::before { filter: grayscale(100%); }
    the FABs kept their 24px gap above the bar, the panel kept its 84px, and the
    cookie band kept the 4px that stopped it being half-covered. */
 @media (max-width: 1023px) {
-  body:has([data-mobile-actionbar]) .fab-float { bottom: 6.25rem; }
-  body:has([data-mobile-actionbar]) .fab-float-panel { bottom: 10rem; }
+  body:has([data-mobile-actionbar]) .fab-float {
+    bottom: 6.25rem;
+  }
+  body:has([data-mobile-actionbar]) .fab-float-panel {
+    bottom: 10rem;
+  }
   /* The cookie-consent band is the same class of problem as the FABs above, and
      it is worse: it sits at bottom:0, is ~44% of a 375x667 viewport, and opens
      itself 600ms into every first visit. Measured on the live PDP at 375x667,
@@ -694,7 +790,9 @@ html:has(#app-root.a11y-grayscale) body::before { filter: grayscale(100%); }
      band's "שמירת בחירה" button — the first tap of the money path, on the
      device most of this store's traffic uses. It starts at bottom:0 rather than
      bottom:1.25rem like the FABs, so it clears the ~4.75rem bar with 5rem. */
-  body:has([data-mobile-actionbar]) [data-cookie-consent] { bottom: 5rem; }
+  body:has([data-mobile-actionbar]) [data-cookie-consent] {
+    bottom: 5rem;
+  }
 }
 
 /* The admin panel on a phone: its bottom tab bar is the navigation, and a
@@ -703,20 +801,35 @@ html:has(#app-root.a11y-grayscale) body::before { filter: grayscale(100%); }
    "עוד" sheet opens the same accessibility menu instead (it clicks this very
    button), so the setting is one tap further, never gone. */
 @media (max-width: 1023px) {
-  body:has([data-admin-tabbar]) [data-a11y-fab] { display: none; }
+  body:has([data-admin-tabbar]) [data-a11y-fab] {
+    display: none;
+  }
 }
 
 /* Respect a system "reduce motion" preference by default.
    Per the standard: KEEP opacity and colour, DROP movement. */
 @media (prefers-reduced-motion: reduce) {
-  * { scroll-behavior: auto !important; }
+  * {
+    scroll-behavior: auto !important;
+  }
   .reveal,
-  .stagger > * { animation-name: orz-reveal-static; }
+  .stagger > * {
+    animation-name: orz-reveal-static;
+  }
   /* Scroll reveal is a JS-transition, not a self-playing keyframe: show it and
      drop the rise. This unlayered rule outranks the layered .reveal-in/.is-in, so
      content can never be trapped invisible under reduced motion. */
-  .reveal-in { opacity: 1; transform: none; }
-  .press:active { transform: none; }
-  .glass-lift { transition-property: box-shadow; }
-  .glass-lift:hover { transform: none; }
+  .reveal-in {
+    opacity: 1;
+    transform: none;
+  }
+  .press:active {
+    transform: none;
+  }
+  .glass-lift {
+    transition-property: box-shadow;
+  }
+  .glass-lift:hover {
+    transform: none;
+  }
 }

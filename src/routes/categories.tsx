@@ -37,8 +37,9 @@ import { OCCASION_COLLECTIONS } from "@/lib/collections";
 
 /** Never advertised even if they gain products: `uncategorized` is the
  *  importer's catch-all bucket and `sale` is an empty placeholder whose NAME is
- *  the English string "sale" in an otherwise all-Hebrew nav. */
-export const HIDDEN_CATEGORY_SLUGS = new Set(["sale", "uncategorized"]);
+ *  the English string "sale" in an otherwise all-Hebrew nav. `etim` (pens):
+ *  the owner does not want pens advertised (video 15.10.2026, request 27.10). */
+export const HIDDEN_CATEGORY_SLUGS = new Set(["sale", "uncategorized", "etim"]);
 
 /** PostgREST embed carrying a category's active-product count. Append it to any
  *  `categories` select and pair it with `.eq("products.is_active", true)`:

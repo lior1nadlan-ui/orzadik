@@ -106,7 +106,7 @@ type SearchSuggestion = {
 //
 // The label for brachot-chamsot-segulot is shortened from the DB name
 // "ברכות חמסות וסגולות"; the category page carries the full name in its own h1.
-const CURATED_CATEGORIES: { slug: string; label: string; count: number }[] = [
+const CURATED_CATEGORIES: { slug: string; label: string; count: number; drawerOnly?: boolean }[] = [
   { slug: "kipot", label: "כיפות", count: 743 },
   { slug: "chagim", label: "חגים", count: 523 },
   { slug: "talit-tefilin", label: "טלית ותפילין", count: 465 },
@@ -118,7 +118,8 @@ const CURATED_CATEGORIES: { slug: string; label: string; count: number }[] = [
   // several menus to find. marazim-chatanim still has 7 of 11 rows without a
   // photo (measured 2026-10-27); the owner chose reachability over that.
   { slug: "sidurim", label: "סידורים", count: 79 },
-  { slug: "marazim-chatanim", label: "מארזים לחתנים", count: 11 },
+  // Drawer only: one more link wraps the desktop row at 1366px (checked 27.10).
+  { slug: "marazim-chatanim", label: "מארזים לחתנים", count: 11, drawerOnly: true },
 ];
 
 // Shelves the owner asked to drop from the drawer's full category list (video
@@ -964,7 +965,7 @@ export function SiteHeader({ hideOnMobile = false }: { hideOnMobile?: boolean } 
               <Link to="/shop" className={NAV_LINK_CLS}>
                 חנות
               </Link>
-              {CURATED_CATEGORIES.map((c) => (
+              {CURATED_CATEGORIES.filter((c) => !c.drawerOnly).map((c) => (
                 <Link
                   key={c.slug}
                   to="/category/$slug"
