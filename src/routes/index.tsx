@@ -150,6 +150,36 @@ const OTHER_CAT_SLUGS = Object.keys(OTHER_CATS_IMAGES);
 /** Every src/assets/other-cats/*.webp is authored at this size. */
 const OTHER_CAT_IMG_SIZE = 760;
 
+// Owner request (27.10.2026): EVERY category gets a hero square, not only the
+// ones with commissioned artwork. These shelves have none, so each borrows one
+// real product photograph from its own shelf, chosen by eye on 27.10.2026 (a
+// display stand was swapped for a real product on the key-holder and jewellery
+// shelves). Ordered by shelf depth. Excluded on purpose: mazkarot-eretz-israel
+// (owner asked to drop it), and the 1-product aluminum / liqueur-sets stubs.
+const hero = (path: string) =>
+  thumbUrl("https://whtjslgrrfzehivrknuv.supabase.co/storage/v1/object/public/product-images/" + path + ".webp", 400) ?? "";
+const HERO_EXTRA_CATS: CatTile[] = [
+  { slug: "talit-tefilin", name: "טלית ותפילין", img: hero("catalog/60461") },
+  { slug: "chagim", name: "חגים", img: hero("catalog/60992") },
+  { slug: "shabbat", name: "שבת", img: hero("catalog/41632") },
+  { slug: "netilat-yadaim", name: "נטילת ידיים", img: hero("catalog/56159") },
+  { slug: "brachot-chamsot-segulot", name: "ברכות וחמסות", img: hero("catalog/83127") },
+  { slug: "gviei-kidush", name: "גביעי קידוש ויין", img: hero("catalog/81179") },
+  { slug: "machzikei-maftechot-magnetim", name: "מחזיקי מפתחות", img: hero("catalog/35856") },
+  { slug: "birchonim", name: "ברכונים", img: hero("catalog/42306") },
+  { slug: "kupot-tzedaka", name: "קופות צדקה", img: hero("catalog/45481") },
+  { slug: "beit-knesset-shtenderim", name: "בית כנסת ושטנדרים", img: hero("catalog/46430") },
+  { slug: "tachshitim", name: "תכשיטים", img: hero("catalog/80997") },
+  { slug: "chasidim-tzivoniim", name: "חסידים צבעוניים", img: hero("catalog/56364") },
+  { slug: "sidurim-tehilim", name: "סידורים ותהילים", img: hero("catalog/81689") },
+  { slug: "sakinim", name: "סכינים", img: hero("catalog/50742") },
+  { slug: "yeladim", name: "ילדים", img: hero("catalog/67087") },
+  { slug: "gufiya-tzitzit-kitelim", name: "ציצית וקיטלים", img: hero("catalog/66738") },
+  { slug: "karit-labrit", name: "כרית לברית", img: hero("catalog/66858") },
+  { slug: "wall-art", name: "ציורי קיר", img: hero("opt/a8d5d9bf07af6828f23fecbc") },
+  { slug: "polyrasin-stone", name: "פולירזין ואבן", img: hero("opt/d009c51df56c0a4915a2e762") },
+].map((c) => ({ ...c, w: 400, h: 400 }));
+
 /** Every public/groom-sets/*.jpeg used on this page is 1440×1920. */
 const GROOM_IMG_W = 1440;
 const GROOM_IMG_H = 1920;
@@ -971,7 +1001,7 @@ function HomePage() {
             {/* The shelves as photo squares (owner request 27.10.2026),
                 replacing the "לחנות" / "לחתן ולכלה" button pair. */}
             <div className="mt-5 w-full max-w-xl text-start lg:mt-8 lg:max-w-2xl">
-              <HeroCategoryTiles cats={[...cats, ...(otherCats ?? [])]} />
+              <HeroCategoryTiles cats={[...cats, ...HERO_EXTRA_CATS, ...(otherCats ?? [])]} />
             </div>
 
             {/* Three parallel facts, as a real list. Hairline dots between
