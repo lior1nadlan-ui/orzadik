@@ -157,7 +157,12 @@ const OTHER_CAT_IMG_SIZE = 760;
 // shelves). Ordered by shelf depth. Excluded on purpose: mazkarot-eretz-israel
 // (owner asked to drop it), and the 1-product aluminum / liqueur-sets stubs.
 const hero = (path: string) =>
-  thumbUrl("https://whtjslgrrfzehivrknuv.supabase.co/storage/v1/object/public/product-images/" + path + ".webp", 400) ?? "";
+  thumbUrl(
+    "https://whtjslgrrfzehivrknuv.supabase.co/storage/v1/object/public/product-images/" +
+      path +
+      ".webp",
+    400,
+  ) ?? "";
 const HERO_EXTRA_CATS: CatTile[] = [
   { slug: "talit-tefilin", name: "טלית ותפילין", img: hero("catalog/60461") },
   { slug: "chagim", name: "חגים", img: hero("catalog/60992") },
