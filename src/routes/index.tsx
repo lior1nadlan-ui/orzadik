@@ -889,11 +889,11 @@ function HomePage() {
           strip of the next section left showing as the scroll cue. CSS-only
           on purpose: reading the real height would jump the LCP element after
           first paint. Re-measure whenever SiteHeader's rows change. */}
-      <section className="relative flex min-h-[560px] flex-col overflow-hidden bg-[#3b2a17] lg:grid lg:min-h-[620px] lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)] lg:items-start lg:bg-cream">
+      <section className="relative flex min-h-[560px] flex-col overflow-hidden bg-[#3b2a17] lg:grid lg:overflow-visible lg:min-h-[620px] lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)] lg:items-start lg:bg-cream">
         {/* The photographs. Absolute behind the type on a phone; their own
             column, inside the arch, from lg. One instance either way, so the
             browser fetches one set of files. */}
-        <div className="absolute inset-x-0 top-0 h-[80svh] lg:sticky lg:top-24 lg:order-2 lg:flex lg:h-[calc(100svh-8rem)] lg:min-h-0 lg:items-center lg:justify-center lg:py-12 lg:pe-10 xl:pe-20">
+        <div className="absolute inset-x-0 top-0 h-[80svh] lg:sticky lg:top-24 lg:order-2 lg:self-start lg:flex lg:h-[calc(100svh-8rem)] lg:min-h-0 lg:items-center lg:justify-center lg:py-12 lg:pe-10 xl:pe-20">
           <div className="relative h-full w-full lg:aspect-[3/4] lg:w-auto lg:max-w-full">
             {/* The offset gold line — a second arch drawn 14px outside the
                 photograph, the frame-within-a-frame of a museum mount. */}
