@@ -76,7 +76,7 @@ const SECURITY_HEADERS: Record<string, string> = {
     "script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://www.googletagmanager.com https://connect.facebook.net",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
-    "img-src 'self' data: blob: https://whtjslgrrfzehivrknuv.supabase.co https://secure.cardcom.solutions https://*.google-analytics.com https://www.googletagmanager.com https://www.facebook.com https://www.google.com https://googleads.g.doubleclick.net",
+    "img-src 'self' data: blob: https://whtjslgrrfzehivrknuv.supabase.co https://secure.cardcom.solutions https://*.google-analytics.com https://www.googletagmanager.com https://www.facebook.com https://www.google.com https://googleads.g.doubleclick.net https://pagead2.googlesyndication.com",
     // NOTE on the google endpoints below: a CSP host wildcard matches SUBDOMAINS
     // ONLY — "https://*.analytics.google.com" does NOT match the apex host
     // "https://analytics.google.com", which is exactly where GA4 posts its
@@ -85,7 +85,10 @@ const SECURITY_HEADERS: Record<string, string> = {
     // listed explicitly alongside the wildcard. www.google.com and
     // googleads.g.doubleclick.net carry the Google Ads conversion/remarketing
     // pings fired by the GTM container; they were being blocked the same way.
-    "connect-src 'self' https://whtjslgrrfzehivrknuv.supabase.co wss://whtjslgrrfzehivrknuv.supabase.co https://secure.cardcom.solutions https://cloudflareinsights.com https://*.google-analytics.com https://analytics.google.com https://*.analytics.google.com https://www.googletagmanager.com https://www.google.com https://googleads.g.doubleclick.net https://connect.facebook.net https://www.facebook.com",
+    // pagead2.googlesyndication.com/ccm/collect is the Google Ads tag's own
+    // page_view / view_item beacon (fetch + image fallback); found blocked on
+    // every page in the live console on 2026-10-27, so it is in img-src too.
+    "connect-src 'self' https://whtjslgrrfzehivrknuv.supabase.co wss://whtjslgrrfzehivrknuv.supabase.co https://secure.cardcom.solutions https://cloudflareinsights.com https://*.google-analytics.com https://analytics.google.com https://*.analytics.google.com https://www.googletagmanager.com https://www.google.com https://googleads.g.doubleclick.net https://pagead2.googlesyndication.com https://connect.facebook.net https://www.facebook.com",
     "frame-src https://secure.cardcom.solutions",
     "frame-ancestors 'none'",
     "object-src 'none'",
