@@ -77,7 +77,7 @@ export function NewsletterSignup({ source = "footer" }: { source?: NewsletterSou
           placeholder="הדוא״ל שלכם"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="bg-card"
+          className="bg-card h-11 rounded-full px-4"
         />
         {/* Honeypot: hidden from people and assistive tech, irresistible to bots. */}
         <input
@@ -93,7 +93,7 @@ export function NewsletterSignup({ source = "footer" }: { source?: NewsletterSou
         <Button
           type="submit"
           disabled={busy}
-          className="shrink-0 bg-accent text-accent-foreground press [@media(hover:hover)_and_(pointer:fine)]:hover:bg-accent-strong"
+          className="h-11 shrink-0 rounded-full px-6 bg-accent text-accent-foreground press [@media(hover:hover)_and_(pointer:fine)]:hover:bg-accent-strong"
         >
           {busy ? "רושם..." : "הרשמה"}
         </Button>

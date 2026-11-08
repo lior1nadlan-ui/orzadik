@@ -351,6 +351,10 @@
     outline: 2px solid var(--ring);
     outline-offset: 2px;
   }
+  /* Headings balance their lines (UI review, 8.11.2026), so a two-line title
+     does not end on one stranded word. Engines without text-wrap: balance
+     simply wrap as before. */
+  h1, h2, h3 { text-wrap: balance; }
 }
 
 /* =============================================================================

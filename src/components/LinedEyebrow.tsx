@@ -10,9 +10,10 @@ import { cn } from "@/lib/utils";
  *
  *   • The label is --accent (5.49:1 on the ivory ground); the lines are --gold
  *     at 70%, decorative only.
- *   • tracking-[0.3em] is wider than the house 0.22em on purpose — it is the
- *     single most recognisable trait of the reference — and safe because this
- *     is always a one- or two-word label, never running Hebrew prose.
+ *   • tracking-[0.12em] with wider word gaps (UI review, 8.11.2026). The
+ *     reference's 0.3em comes from Latin small caps; Hebrew has no capitals to
+ *     track, and at 0.3em the letters of each word drifted apart. The extra
+ *     word-spacing keeps the spaced, engraved feel and the word shapes.
  *   • The negative margin-inline-end cancels the trailing letter-space that
  *     every engine emits after the LAST glyph, so the run sits centred between
  *     its two lines.
@@ -44,7 +45,12 @@ export function LinedEyebrow({
       )}
     >
       {align === "center" ? line : null}
-      <span className={cn("tracking-[0.3em]", align === "center" && "[margin-inline-end:-0.3em]")}>
+      <span
+        className={cn(
+          "font-medium tracking-[0.12em] [word-spacing:0.25em]",
+          align === "center" && "[margin-inline-end:-0.12em]",
+        )}
+      >
         {children}
       </span>
       {line}

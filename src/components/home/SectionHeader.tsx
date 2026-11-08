@@ -37,7 +37,7 @@ export function SectionHeader({
   return (
     <div className={cn("text-center mb-10 md:mb-14", className)}>
       {eyebrow ? <LinedEyebrow className="mb-4">{eyebrow}</LinedEyebrow> : null}
-      <h2 className="font-display text-[2rem] leading-tight md:text-5xl text-foreground">
+      <h2 className="font-display text-[1.75rem] leading-tight md:text-4xl text-foreground">
         {title}
       </h2>
       {sub ? (
