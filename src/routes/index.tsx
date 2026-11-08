@@ -21,6 +21,7 @@ import { NewsletterSignup } from "@/components/NewsletterSignup";
 import { HomeReviews } from "@/components/content/HomeReviews";
 import { fetchHomeReviews } from "@/lib/home-reviews";
 import { SectionHeader } from "@/components/home/SectionHeader";
+import { StoreVideo } from "@/components/home/StoreVideo";
 import { CollectionCard, type CatTile } from "@/components/home/CollectionCard";
 import { CategoryTile } from "@/components/home/CategoryTile";
 import { OccasionTile } from "@/components/home/OccasionTile";
@@ -67,6 +68,8 @@ import igReel4 from "@/assets/ig/reel-4.mp4";
 import igReel4Poster from "@/assets/ig/reel-4-poster.webp";
 import igReel5 from "@/assets/ig/reel-5.mp4";
 import igReel5Poster from "@/assets/ig/reel-5-poster.webp";
+import storeTour from "@/assets/video/store-tour.mp4";
+import storeTourPoster from "@/assets/video/store-tour-poster.webp";
 
 import oc_aluminum from "@/assets/other-cats/aluminum.webp";
 import oc_accessories from "@/assets/other-cats/accessories.webp";
@@ -1424,18 +1427,49 @@ function HomePage() {
         reserveSpace={featuredProducts === null}
       />
 
-      {/* 9. THE SLOT IS DELIBERATELY EMPTY.
-          It held "פריטי יוקרה נבחרים" (three products from the top 0.6% of the
-          catalogue), then ShelfDirectory (six text doors with live depth). Both
-          are gone. The doors were removed on the owner's call: on a page where
-          every other block carries a photograph, a text-only panel reads as
-          unfinished rather than as restraint.
-          Nothing replaces them, because nothing needs to. After PR #70 the
-          header already carries those same six shelves with the same counts, so
-          the doors were a second copy of the primary navigation two thirds of
-          the way down the page. The shelves are still reachable from the header
-          on every route, from "שאר הקטגוריות" above, and from /categories.
-          If you put something back here, it needs artwork. */}
+      {/* 9. הצצה לחנות — the owner's own store film (see <StoreVideo>).
+          This slot held "פריטי יוקרה נבחרים", then ShelfDirectory (six text
+          doors). Both were removed: on a page where every other block carries
+          a photograph, a text panel read as unfinished, and the doors repeated
+          the header's shelves. The rule they left was "if you put something
+          back here, it needs artwork". This is artwork: the clip the owner had
+          made "לאתר" (Drive, June 2026), which the site had never used.
+          Laid out like the chalaka band below: the clip and a glass panel side
+          by side from md, stacked on a phone with the clip first. */}
+      <section>
+        <Reveal className="container mx-auto px-4 py-14 md:py-20 max-w-6xl">
+          <div className="grid md:grid-cols-2 gap-8 md:gap-12 items-center">
+            <StoreVideo
+              src={storeTour}
+              poster={storeTourPoster}
+              label="סרטון הצצה לחנות אור זרוע לצדיק: פריטים מהחנות וחריטה בלייזר"
+            />
+            <div className="glass glass-gold p-8 md:p-12 text-center md:text-start [--glass-radius:1.5rem]">
+              <p className="text-meta md:text-body tracking-[0.3em] text-accent mb-4">הצצה לחנות</p>
+              <h2 className="font-display text-3xl md:text-5xl text-foreground mb-4">
+                ככה זה נראה אצלנו
+              </h2>
+              <div
+                className="flex items-center justify-center md:justify-start gap-3 mb-4"
+                aria-hidden="true"
+              >
+                <span className="gold-rule w-10 shrink-0" />
+                <span className="text-accent text-xs">✦</span>
+                <span className="gold-rule w-10 shrink-0" />
+              </div>
+              <p className="text-muted-foreground leading-7 mb-7">
+                קריסטל לשבת, נטלות, כיפות רקומות, מזוזות וסידורים, וגם הטבעה וחריטת שם בלייזר שנעשות
+                כאן בחנות. מוזמנים לבקר: {BUSINESS.address}.
+              </p>
+              <div>
+                <Link to="/shop" className={BTN_SOLID}>
+                  לכל המוצרים
+                </Link>
+              </div>
+            </div>
+          </div>
+        </Reveal>
+      </section>
 
       {/* 10. חלאקה — promo band. The argaman half is now a glass panel beside the
           photo rather than a wine fill behind cream text. */}
