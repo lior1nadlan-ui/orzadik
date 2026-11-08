@@ -41,6 +41,12 @@ describe("NAV_DEPARTMENTS", () => {
       "aluminum",
       "wedding",
       "yehudaika",
+      // Owner videos 08.11.2026: the mixed parent page, and the shelves taken
+      // off the site.
+      "talit-tefilin",
+      "machzikei-maftechot-magnetim",
+      "chasidim-tzivoniim",
+      "yeladim",
     ]) {
       expect(slugs.has(gone)).toBe(false);
     }

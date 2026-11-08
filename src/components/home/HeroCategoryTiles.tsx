@@ -2,20 +2,18 @@ import { Link } from "@tanstack/react-router";
 import { ChevronLeft } from "lucide-react";
 import { useMemo } from "react";
 import { heroTiles, type HeroTile } from "@/lib/hero-tiles";
-import { HERO_TILE_ART, HERO_TILE_LABELS } from "@/components/home/hero-tile-art";
+import { HERO_SQUARES, HERO_TILE_ART, HERO_TILE_LABELS } from "@/components/home/hero-tile-art";
 import { useNavDepartments } from "@/hooks/use-nav-departments";
 
-// The hero's doors (owner request, 27.10.2026): every category as a photo
-// square, right in the first screen, replacing the button pair AND the two
-// browse sections that used to follow the hero.
+// The hero's doors: photo squares right in the first screen, replacing the
+// button pair AND the two browse sections that used to follow the hero.
 //
-// THE SQUARES ARE THE MENU (UI review, 8.11.2026). They used to be three lists
-// joined together (seven curated doors, nineteen shelf photographs and every
-// row of the categories table that had artwork), so one shelf could appear under
-// three names ("נטילת ידיים", "נטלות", "מים אחרונים") and the squares disagreed
-// with the menu above them. Now they are built from the same category map as
-// the menu, in its order (departments first) and under its labels, and they
-// lose a shelf when the menu does (useNavDepartments).
+// A FEW CLEAR SQUARES (owner video, 08.11.2026). The owner first asked for every
+// category as a square (27.10.2026); at 36 squares he found them confusing
+// ("ממש מבולבלות") and asked for a few, one topic each. HERO_SQUARES lists them
+// (featured siddurim + nine), and "לכל המוצרים" closes the grid. Labels come
+// from the menu map, and a square drops out when the menu does
+// (useNavDepartments), so the two never disagree.
 //
 // Siddurim is the featured square: it spans two rows inside a gold frame, and a
 // light sweeps across the cover twice and stops (motion-safe only).
@@ -64,7 +62,7 @@ function Tile({ tile, eager }: { tile: HeroTile; eager: boolean }) {
 export function HeroCategoryTiles() {
   const departments = useNavDepartments();
   const tiles = useMemo(
-    () => heroTiles(departments, HERO_TILE_ART, HERO_TILE_LABELS),
+    () => heroTiles(HERO_SQUARES, departments, HERO_TILE_ART, HERO_TILE_LABELS),
     [departments],
   );
   const featured = tiles.find((t) => t.slug === FEATURED_SLUG);
@@ -101,17 +99,27 @@ export function HeroCategoryTiles() {
           </Link>
         ) : null}
 
-        {rest.map((t, i) => (
-          <Tile key={t.slug} tile={t} eager={i < 8} />
+        {rest.map((t) => (
+          <Tile key={t.slug} tile={t} eager />
         ))}
+
+        {/* Closes the grid: the whole catalogue, one tap from the first screen. */}
+        <Link
+          to="/shop"
+          className="press group flex aspect-square flex-col items-center justify-center gap-1.5 rounded-2xl border border-gold/60 bg-[#F3EDE3] p-2 text-center shadow-[0_14px_30px_-18px_rgba(22,15,4,0.8)]"
+        >
+          <span className="font-display text-lg leading-tight text-foreground sm:text-xl">
+            לכל המוצרים
+          </span>
+          <span className="inline-flex items-center gap-0.5 text-[0.8125rem] font-semibold text-accent">
+            לחנות
+            <ChevronLeft
+              className="h-3.5 w-3.5 transition-transform duration-200 ease-out motion-safe:[@media(hover:hover)_and_(pointer:fine)]:group-hover:-translate-x-0.5"
+              aria-hidden="true"
+            />
+          </span>
+        </Link>
       </div>
-      <Link
-        to="/shop"
-        className="mt-3 inline-flex min-h-11 items-center gap-1 text-base font-semibold text-white underline-offset-4 [@media(hover:hover)_and_(pointer:fine)]:hover:underline lg:text-accent"
-      >
-        לכל המוצרים בחנות
-        <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-      </Link>
     </nav>
   );
 }

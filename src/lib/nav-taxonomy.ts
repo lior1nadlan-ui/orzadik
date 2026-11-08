@@ -27,6 +27,15 @@
 //
 // Labels are written for the menu, not copied from the table: the category
 // page keeps the full database name in its own h1.
+//
+// OWNER VIDEOS 08.11.2026 (Lior, five clips filmed in the shop):
+//   • "טלית ותפילין" is a grouping now, not a door. Its own page mixed covers,
+//     sets, talit holders and tefillin boxes ("נראה סחורה אחרת לגמרי"), and it
+//     301s to the covers (CATEGORY_TO_CATEGORY_REDIRECTS). The covers lead the
+//     panel and the sets are named the way he asked: "סטים של תיקי טלית ותפילין".
+//   • Key holders, the colourful Hasidim figures, the children's shelf and the
+//     knives are off the site altogether ("אני לא רוצה למכור את זה בכלל"); their
+//     products were deactivated, so their shelves are gone from this map too.
 
 export type NavCategory = { slug: string; label: string };
 
@@ -54,15 +63,15 @@ export const NAV_DEPARTMENTS: NavDepartment[] = [
     ],
   },
   {
+    // A grouping, not a door: the mixed "טלית ותפילין" page redirects to the
+    // covers (owner, 08.11.2026). The shop's own embroidered lines come first.
     label: "טלית ותפילין",
-    slug: "talit-tefilin",
-    allLabel: "לכל הטלית והתפילין",
     children: [
-      { slug: "talitot", label: "טליתות" },
-      { slug: "setim-talit-tefilin", label: "סטים לטלית ותפילין" },
-      { slug: "tikei-talit", label: "תיקי טלית" },
       { slug: "talit-tefillin-covers", label: "כיסויים לטלית ותפילין" },
+      { slug: "setim-talit-tefilin", label: "סטים של תיקי טלית ותפילין" },
+      { slug: "tikei-talit", label: "תיקי טלית" },
       { slug: "tik-tefilin", label: "תיקי תפילין" },
+      { slug: "talitot", label: "טליתות" },
       { slug: "machzikei-talit-atarot", label: "מחזיקי טלית ועטרות" },
       { slug: "batei-tefilin-marot", label: "בתי תפילין ומראות" },
       { slug: "gufiya-tzitzit-kitelim", label: "גופיות ציצית וקיטלים" },
@@ -86,7 +95,8 @@ export const NAV_DEPARTMENTS: NavDepartment[] = [
       { slug: "candlesticks", label: "פמוטים" },
       { slug: "gviei-kidush", label: "גביעי קידוש וסטים ליין" },
       { slug: "challah-covers", label: "כיסויי חלה" },
-      { slug: "karshei-chala-sakinim", label: "קרשי חלה וסכינים" },
+      // The knives were taken off the site (owner, 08.11.2026); boards remain.
+      { slug: "karshei-chala-sakinim", label: "קרשי חלה" },
       { slug: "havdalah", label: "הבדלה" },
       { slug: "netilat-yadaim", label: "נטלות ומים אחרונים" },
       { slug: "mapot-shulchan-runner", label: "מפות שולחן ורנרים" },
@@ -151,9 +161,6 @@ export const NAV_DEPARTMENTS: NavDepartment[] = [
       { slug: "segulot", label: "סגולות" },
       { slug: "kupot-tzedaka", label: "קופות צדקה" },
       { slug: "wall-art", label: "ציורי קיר" },
-      { slug: "machzikei-maftechot-magnetim", label: "מחזיקי מפתחות ומגנטים" },
-      { slug: "chasidim-tzivoniim", label: "חסידים צבעוניים" },
-      { slug: "yeladim", label: "לילדים" },
     ],
   },
 ];

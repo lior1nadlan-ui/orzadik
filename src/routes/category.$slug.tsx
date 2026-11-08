@@ -51,7 +51,11 @@ import {
   type SelectedFacets,
 } from "@/lib/facets";
 import { cn } from "@/lib/utils";
-import { CATEGORY_TO_SHOP_REDIRECTS, MERGED_CATEGORY_REDIRECTS } from "@/lib/category-redirects";
+import {
+  CATEGORY_TO_CATEGORY_REDIRECTS,
+  CATEGORY_TO_SHOP_REDIRECTS,
+  MERGED_CATEGORY_REDIRECTS,
+} from "@/lib/category-redirects";
 import { ChevronDown, SlidersHorizontal, X } from "lucide-react";
 
 // THE CATEGORY HERO BANNER IS GONE, and this is the note that used to sit here
@@ -542,6 +546,10 @@ export const Route = createFileRoute("/category/$slug")({
     // misses too, the second pass 404s rather than bouncing.
     if (CATEGORY_TO_SHOP_REDIRECTS.has(params.slug)) {
       throw redirect({ to: "/shop", statusCode: 301 });
+    }
+    const moved = CATEGORY_TO_CATEGORY_REDIRECTS[params.slug];
+    if (moved) {
+      throw redirect({ to: "/category/$slug", params: { slug: moved }, statusCode: 301 });
     }
     const result = await fetchCategoryWithRetry(params.slug);
     if (!result.cat) {

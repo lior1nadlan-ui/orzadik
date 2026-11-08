@@ -43,3 +43,16 @@ export const MERGED_CATEGORY_REDIRECTS: Record<string, string> = {
  * category, and category-slugs.test.ts forbids configs naming those sources.
  */
 export const CATEGORY_TO_SHOP_REDIRECTS = new Set(["yehudaika"]);
+
+/**
+ * Category pages that 301 to ANOTHER category although their own row exists
+ * (MERGED_CATEGORY_REDIRECTS only fires for a slug that missed). Owner request
+ * (video 08.11.2026): the "טלית ותפילין" page mixed covers, sets, talit holders
+ * and tefillin boxes ("נראה סחורה אחרת לגמרי"), and he wants only "כיסויים
+ * לטלית ותפילין" as the door. The row stays: every product on it is also on a
+ * sub-shelf (0 products only on the parent, measured 08.11.2026), and
+ * cross-sells and collections still read its membership. Only the page goes.
+ */
+export const CATEGORY_TO_CATEGORY_REDIRECTS: Readonly<Record<string, string>> = {
+  "talit-tefilin": "talit-tefillin-covers",
+};
