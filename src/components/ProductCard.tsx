@@ -421,7 +421,12 @@ export function ProductCard({
             grows under the accessibility widget's font-size zoom. They were
             42px (`py-2.5` around a 14px line): 2px under the touch floor, on the
             one control a tile exists to offer. Links need inline-flex to centre
-            a label inside a min-height. */}
+            a label inside a min-height.
+
+            Only the add-to-cart button is filled. "לבחירת דגם" and "צרו קשר
+            להזמנה" open the product page, so they are outlined: a row of
+            cards then shows at a glance which items go straight into the cart
+            (UI review, 8.11.2026). */}
         <div className="mt-auto pt-4">
           {isOutOfStock ? (
             <Link
@@ -435,7 +440,7 @@ export function ProductCard({
             <Link
               to="/product/$slug"
               params={{ slug: p.slug }}
-              className="w-full inline-flex min-h-[2.75rem] items-center justify-center rounded-full bg-accent text-accent-foreground text-body text-center transition-[background-color,transform,scale] duration-160 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-accent-strong motion-safe:active:scale-[0.97] focus-visible:active:scale-100"
+              className="w-full inline-flex min-h-[2.75rem] items-center justify-center rounded-full border border-accent text-accent text-body text-center transition-[background-color,transform,scale] duration-160 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary motion-safe:active:scale-[0.97] focus-visible:active:scale-100"
             >
               צרו קשר להזמנה
             </Link>
@@ -446,7 +451,7 @@ export function ProductCard({
             <Link
               to="/product/$slug"
               params={{ slug: p.slug }}
-              className="w-full inline-flex min-h-[2.75rem] items-center justify-center rounded-full bg-accent text-accent-foreground text-body text-center transition-[background-color,transform,scale] duration-160 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-accent-strong motion-safe:active:scale-[0.97] focus-visible:active:scale-100"
+              className="w-full inline-flex min-h-[2.75rem] items-center justify-center rounded-full border border-accent text-accent text-body text-center transition-[background-color,transform,scale] duration-160 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary motion-safe:active:scale-[0.97] focus-visible:active:scale-100"
             >
               לבחירת דגם
             </Link>

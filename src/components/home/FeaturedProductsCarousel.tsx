@@ -62,8 +62,8 @@ export function ProductRail({
               </CarouselItem>
             ))}
           </CarouselContent>
-          <CarouselPrevious className="right-2 -translate-y-1/2 hidden md:inline-flex" />
-          <CarouselNext className="left-2 -translate-y-1/2 hidden md:inline-flex" />
+          <CarouselPrevious className="-translate-y-1/2 hidden h-10 w-10 shadow-[var(--shadow-card)] md:inline-flex md:-right-5" />
+          <CarouselNext className="-translate-y-1/2 hidden h-10 w-10 shadow-[var(--shadow-card)] md:inline-flex md:-left-5" />
         </Carousel>
 
         <div className="text-center">

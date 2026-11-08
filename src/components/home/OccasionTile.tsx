@@ -73,7 +73,7 @@ export function OccasionTile({
 
         <div className="absolute inset-x-4 bottom-5 text-center">
           <span
-            className={`block text-micro tracking-[0.3em] [margin-inline-end:-0.3em] ${
+            className={`block text-micro font-medium tracking-[0.12em] [word-spacing:0.25em] [margin-inline-end:-0.12em] ${
               art ? "text-white" : "text-accent"
             }`}
           >

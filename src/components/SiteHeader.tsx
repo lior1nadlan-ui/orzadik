@@ -1,18 +1,28 @@
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { SITE_MUSIC, musicCredit } from "@/lib/site-music";
-import { ShoppingBag, User as UserIcon, Search, Menu, X, Heart, ChevronDown } from "lucide-react";
+import {
+  ShoppingBag,
+  User as UserIcon,
+  Search,
+  Menu,
+  X,
+  Heart,
+  ChevronDown,
+  ChevronLeft,
+} from "lucide-react";
 import { OCCASION_COLLECTIONS } from "@/lib/collections";
+import type { NavDepartment } from "@/lib/nav-taxonomy";
+import { useNavDepartments } from "@/hooks/use-nav-departments";
 import { useCart, formatILS } from "@/lib/cart";
 import { priceView, promoFor } from "@/lib/promotions";
 import { usePromoIndex, usePromoHeadline } from "@/lib/promotions-data";
 import { useFavorites } from "@/components/engagement/favorites";
 import { useAuth } from "@/lib/auth";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, type RefObject } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { normalizeSearchTerm, sanitizeTerm } from "@/routes/shop";
 import { resolveSearchQuery } from "@/lib/search-redirects";
-import { CATEGORY_COUNT_EMBED, listableCategories } from "@/routes/categories";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { CartDrawer } from "@/components/cart/CartDrawer";
 import { ClubBadge } from "@/components/ClubBadge";
@@ -29,16 +39,6 @@ import logoUrl from "@/assets/logo.webp";
 const RECENT_SEARCHES_KEY = "ozl-recent-search-v1";
 const RECENT_SEARCHES_MAX = 5;
 
-type Cat = {
-  id: string;
-  slug: string;
-  name: string;
-  // parent_slug + the count embed are fetched only so listableCategories() can
-  // do its job (see the query below); neither is rendered.
-  parent_slug: string | null;
-  products?: { count: number }[] | null;
-};
-
 type SearchSuggestion = {
   id: string;
   slug: string;
@@ -48,84 +48,10 @@ type SearchSuggestion = {
   thumbnail_url: string | null;
 };
 
-// ---------------------------------------------------------------------------
-// The six doors in the header.
-//
-// WHAT WAS HERE BEFORE, AND WHY IT WENT
-//
-// The four curated shortcuts were marazim-chatanim / chatan-kala / chalaka-set
-// / talitot. Measured on the live anon REST 2026-08-09 (count=exact, active
-// products only): 11 / 45 / 40 / 55 products — 151 rows, 3.2% of the 4,648-item
-// catalogue, and the two most expensive shelves in the shop (marazim-chatanim
-// runs ₪1,150-1,800 effective, talitot ₪235-1,100). Every page of this site
-// carried a nav whose shopping links pointed almost exclusively at things a
-// stranger cannot afford to risk on a shop they have never bought from.
-//
-// The six below are the six deepest shelves the catalogue actually has —
-// verified the same day, same query, and every one of them has ZERO rows with a
-// null thumbnail:
-//
-//   כיפות              kipot                    743
-//   חגים               chagim                   523
-//   טלית ותפילין        talit-tefilin            465
-//   נרתיקי מזוזה        plastic                  383
-//   שבת                shabbat                  357
-//   ברכות וחמסות        brachot-chamsot-segulot  301
-//
-// (The plan this implements said 525 / 359 for chagim / shabbat; the live counts
-// are 523 / 357 and those are the numbers printed. Re-check with:
-//   /rest/v1/categories?select=slug,name,products(count)
-//     &slug=in.(kipot,chagim,talit-tefilin,plastic,shabbat,brachot-chamsot-segulot)
-//     &products.is_active=eq.true )
-//
-// The two sets share ZERO products, so this is not a reshuffle — it is 2,772
-// products of newly-reachable shelf against 151.
-//
-// COUNTS ARE HARDCODED, DELIBERATELY. The header's own categories query does
-// carry live counts (CATEGORY_COUNT_EMBED, below), but SiteHeader is a
-// component and not a route: that query is client-only, so a live number would
-// pop in after hydration and reflow the nav on every page of the site. A static
-// label is in the server HTML. It is a NAV LABEL, not a promise — re-run the
-// query above after a supplier import and edit the six numbers.
-//
-// WHAT THE NUMBER MEANS: products, not tiles. /category/<slug> collapses
-// same-name models into one card (collapseSameName), so kipot's 743 products
-// render as ~671 cards, each carrying its own model_count. Nothing is hidden
-// and nothing is inflated; the count is the shelf's depth.
-//
-// marazim-chatanim KEEPS ITS PAGE AND LOSES THE HEADER. The old comment here
-// recorded why it was chosen over /category/wedding — "/category/wedding
-// contains הפרשת חלה sets, a bride's blessing plaque and tallit clips, zero
-// groom boxes; the groom sets are all in marazim-chatanim" — and that reasoning
-// is still correct FOR THAT PAGE, which is why the page stays and the flagship
-// band on the homepage still sells it. What changed is that it may not be a
-// DOOR: 7 of its 11 active products have a null thumbnail (measured 2026-08-09,
-// same 7 as the last audit), so a stranger arriving from the site chrome meets
-// a grid that is majority placeholder. That is a blocking owner input — photos —
-// not something markup can fix. Re-add it here when the 7 rows have images.
-//
-// The label for brachot-chamsot-segulot is shortened from the DB name
-// "ברכות חמסות וסגולות"; the category page carries the full name in its own h1.
-const CURATED_CATEGORIES: { slug: string; label: string; count: number; drawerOnly?: boolean }[] = [
-  { slug: "kipot", label: "כיפות", count: 743 },
-  { slug: "chagim", label: "חגים", count: 523 },
-  { slug: "talit-tefilin", label: "טלית ותפילין", count: 465 },
-  { slug: "plastic", label: "נרתיקי מזוזה", count: 383 },
-  { slug: "shabbat", label: "שבת", count: 357 },
-  { slug: "brachot-chamsot-segulot", label: "ברכות וחמסות", count: 301 },
-  // Owner request (videos 15.10 and 20.10, 2026): a door for siddurim next to
-  // kippot and tallit, and a direct way to the groom boxes, which took him
-  // several menus to find. marazim-chatanim still has 7 of 11 rows without a
-  // photo (measured 2026-10-27); the owner chose reachability over that.
-  { slug: "sidurim", label: "סידורים", count: 79 },
-  // Drawer only: one more link wraps the desktop row at 1366px (checked 27.10).
-  { slug: "marazim-chatanim", label: "מארזים לחתנים", count: 11, drawerOnly: true },
-];
-
-// Shelves the owner asked to drop from the drawer's full category list (video
-// 15.10.2026: "עטים, סכינים, מזכרות ארץ ישראל ומנורות — לא מתאים"). Their pages
-// and products stay; only the menu entry goes, so the list reads shorter.
-const DRAWER_HIDDEN_SLUGS = new Set(["etim", "sakinim", "mazkarot-eretz-israel"]);
+// The category menu (desktop dropdowns, phone accordion, search shortcuts) is
+// one hand-curated map in src/lib/nav-taxonomy.ts, where each category appears
+// exactly once. See that file for why the menus stopped mirroring the
+// categories table, and for what was left out on purpose.
 
 // ---------------------------------------------------------------------------
 // Shared class idioms for the chrome.
@@ -190,16 +116,9 @@ const LINK_HOVER_CLS = `transition-[color] duration-200 ease-out
 // Apple's HIG and Material set for a primary touch control — and under
 // SC 2.5.5 (AAA). The glyph inside stays h-5 w-5; only the hit area grew, so
 // nothing about the bar's density changes visually.
-const ICON_BTN_CLS = `inline-flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-full
+const ICON_BTN_CLS = `inline-flex h-11 w-11 items-center justify-center rounded-full
   text-foreground press
   [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent`;
-
-// The depth number beside a curated shortcut. Muted and a step down in size so
-// it reads as metadata ON the label rather than as a second word. It lives
-// INSIDE the <Link>, which means it is part of the accessible name ("כיפות
-// 743") — the only way the number means anything to a screen-reader user.
-// tabular-nums keeps the six of them optically aligned in the drawer's column.
-const NAV_COUNT_CLS = "ms-1.5 text-[11px] text-muted-foreground tabular-nums";
 
 /**
  * "מתנות לפי אירוע" — the seven occasion hubs, as seven real links.
@@ -235,7 +154,9 @@ function OccasionMenu() {
           sets that variable to a zero-alpha shadow at rest and custom
           properties inherit, so without this the panel would have no lift at
           all until the page scrolled. */}
-      <div className="glass-strong absolute start-0 top-full z-50 mt-2 w-72 p-2 [--glass-radius:1rem] [--glass-shadow-lift:var(--shadow-soft)]">
+      <div className="glass-strong absolute end-0 top-full z-50 mt-2 w-72 p-5 [--glass-bg-strong:#FFFDFA] [--glass-radius:1rem] [--glass-shadow-lift:var(--shadow-soft)]">
+        <span className="font-display text-lg text-foreground">מתנות לפי אירוע</span>
+        <div aria-hidden="true" className="gold-rule my-3" />
         <ul className="flex flex-col">
           {OCCASION_COLLECTIONS.map((c) => (
             <li key={c.slug}>
@@ -246,7 +167,7 @@ function OccasionMenu() {
               <Link
                 to="/collection/$slug"
                 params={{ slug: c.slug }}
-                className="flex min-h-[44px] items-center rounded-lg px-3 text-sm text-foreground transition-[color,background-color] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
+                className="flex min-h-10 items-center rounded-lg px-2 text-[15px] text-foreground transition-[color,background-color] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
               >
                 {c.title}
               </Link>
@@ -256,6 +177,121 @@ function OccasionMenu() {
       </div>
     </details>
   );
+}
+
+/**
+ * One department of the category map in the desktop nav row: a native
+ * <details> dropdown, like OccasionMenu and for the same reasons (every anchor
+ * is in the server HTML, it opens without JS, it is keyboard-operable).
+ * useNavDisclosures() adds what <details> lacks.
+ *
+ * The panel hangs from a `pt-2` wrapper rather than an `mt-2` offset, so there
+ * is no dead gap between the trigger and the panel. `align="end"` anchors it to
+ * the trigger's far edge for the departments near the row's left end, so a wide
+ * panel never runs off the screen. More than five shelves go in two columns.
+ */
+function DepartmentMenu({ dept, align }: { dept: NavDepartment; align: "start" | "end" }) {
+  const twoCols = dept.children.length > 5;
+  return (
+    <details className="group relative">
+      <summary className="flex cursor-pointer list-none items-center gap-1 py-1 text-foreground transition-[color] duration-200 ease-out group-open:text-accent [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent [&::-webkit-details-marker]:hidden">
+        {dept.label}
+        <ChevronDown
+          aria-hidden="true"
+          className="h-3.5 w-3.5 opacity-70 transition-transform duration-200 ease-out motion-reduce:transition-none group-open:rotate-180"
+        />
+      </summary>
+      <div className={`absolute top-full z-50 pt-2 ${align === "end" ? "end-0" : "start-0"}`}>
+        {/* Opaque on purpose: the header bar has its own backdrop-filter, so a
+            nested panel's blur cannot reach the page and the 94% glass let the
+            hero heading show through. */}
+        <div
+          className={`glass-strong p-5 [--glass-bg-strong:#FFFDFA] [--glass-radius:1rem] [--glass-shadow-lift:var(--shadow-soft)] ${twoCols ? "w-[34rem]" : "w-72"}`}
+        >
+          <div className="flex items-baseline justify-between gap-4">
+            <span className="font-display text-lg text-foreground">{dept.label}</span>
+            {dept.slug ? (
+              <Link
+                to="/category/$slug"
+                params={{ slug: dept.slug }}
+                className="inline-flex items-center gap-1 text-sm font-semibold text-accent transition-[color] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-strong"
+              >
+                {dept.allLabel}
+                <ChevronLeft aria-hidden="true" className="h-4 w-4" />
+              </Link>
+            ) : null}
+          </div>
+          <div aria-hidden="true" className="gold-rule my-3" />
+          {/* columns-2, not a grid: the list reads DOWN each column. */}
+          <ul className={twoCols ? "columns-2 gap-x-8" : "flex flex-col"}>
+            {dept.children.map((c) => (
+              <li key={c.slug} className="break-inside-avoid">
+                <Link
+                  to="/category/$slug"
+                  params={{ slug: c.slug }}
+                  className="flex min-h-10 items-center rounded-lg px-2 text-[15px] text-foreground transition-[color,background-color] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-secondary [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
+                >
+                  {c.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </details>
+  );
+}
+
+/**
+ * What native <details> menus lack, for the desktop nav row: opening one closes
+ * the others; a click outside, Escape (focus returns to the trigger), a click on
+ * a link inside, or a route change closes whatever is open. The route change
+ * matters because the header persists between pages, so without it a panel
+ * would stay open over the next page.
+ */
+function useNavDisclosures(ref: RefObject<HTMLElement | null>) {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  useEffect(() => {
+    ref.current
+      ?.querySelectorAll<HTMLDetailsElement>("details[open]")
+      .forEach((d) => (d.open = false));
+  }, [pathname, ref]);
+  useEffect(() => {
+    const root = ref.current;
+    if (!root) return;
+    const closeAll = (except?: Element) =>
+      root.querySelectorAll<HTMLDetailsElement>("details[open]").forEach((d) => {
+        if (d !== except) d.open = false;
+      });
+    // `toggle` does not bubble, so it is caught on the way down.
+    const onToggle = (e: Event) => {
+      const d = e.target as HTMLDetailsElement;
+      if (d.open) closeAll(d);
+    };
+    const onPointerDown = (e: PointerEvent) => {
+      if (!root.contains(e.target as Node)) closeAll();
+    };
+    const onClick = (e: MouseEvent) => {
+      if ((e.target as Element | null)?.closest?.("details a")) closeAll();
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      const open = root.querySelector<HTMLDetailsElement>("details[open]");
+      if (!open) return;
+      open.open = false;
+      open.querySelector<HTMLElement>("summary")?.focus();
+    };
+    root.addEventListener("toggle", onToggle, true);
+    root.addEventListener("click", onClick);
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      root.removeEventListener("toggle", onToggle, true);
+      root.removeEventListener("click", onClick);
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [ref]);
 }
 
 export function SiteHeader({ hideOnMobile = false }: { hideOnMobile?: boolean } = {}) {
@@ -285,6 +321,9 @@ export function SiteHeader({ hideOnMobile = false }: { hideOnMobile?: boolean } 
   const searchTriggerRef = useRef<HTMLButtonElement>(null);
   const searchPanelRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  // Set when the drawer's search button closes the drawer to open search, so
+  // the Sheet does not hand focus back to the menu button over the field.
+  const openSearchFromDrawer = useRef(false);
   const navigate = useNavigate();
 
   // Visual-only: the sticky bar rests on its gold hairline; the soft shadow
@@ -297,41 +336,20 @@ export function SiteHeader({ hideOnMobile = false }: { hideOnMobile?: boolean } 
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  const { data: categories = [] } = useQuery({
-    queryKey: ["header-categories"],
-    // The top-level category list is effectively static across a session — it
-    // changes only when the owner edits the catalog. A generous staleTime (10m)
-    // plus a long gcTime keeps the nav out of the refetch path so navigating
-    // between pages doesn't trigger a fresh Supabase round-trip. (The global
-    // default is only 60s with refetchOnWindowFocus off; this is the nav's own,
-    // longer budget.) What the nav renders is unchanged.
-    staleTime: 10 * 60 * 1000,
-    gcTime: 60 * 60 * 1000,
-    queryFn: async () => {
-      // The WHOLE tree is fetched (102 small rows, cached for the session) but
-      // only the top level is rendered: with the full supplier catalog loaded
-      // there are 56 top-level categories, and listing every subcategory turns
-      // the drawer into a 100-item scroll. Subcategories stay reachable from
-      // /categories. The children are here purely so listableCategories() can
-      // roll a child's stock up to its parent before filtering.
-      const { data, error } = await supabase
-        .from("categories")
-        .select(`id, slug, name, parent_slug, ${CATEGORY_COUNT_EMBED}`)
-        .eq("products.is_active", true)
-        .order("sort_order")
-        .order("name");
-      if (error) throw error;
-      // The drawer is the ONLY navigation on a phone, and it was listing every
-      // top-level row with just `uncategorized` excluded — 8 of those 55 entries
-      // held zero active products and dead-ended on "לא נמצאו מוצרים", three of
-      // them above the fold (positions 3, 8, 9) and one labelled with the
-      // English word "sale". Four of the eight were outright 404s. The shared
-      // predicate replaces the hand-maintained exclusion list.
-      return listableCategories((data ?? []) as Cat[]).filter(
-        (c) => !c.parent_slug && !DRAWER_HIDDEN_SLUGS.has(c.slug),
-      );
-    },
-  });
+  // The category map (nav-taxonomy.ts) minus any shelf that has emptied out;
+  // the homepage squares read the same hook, so the two always agree.
+  const departments = useNavDepartments();
+  // Every entry of the map as a flat list, for the search suggestions.
+  const menuCategories = useMemo(
+    () =>
+      departments.flatMap((d) => [
+        ...(d.slug ? [{ id: d.slug, slug: d.slug, name: d.label }] : []),
+        ...d.children.map((c) => ({ id: c.slug, slug: c.slug, name: c.label })),
+      ]),
+    [departments],
+  );
+  const navRef = useRef<HTMLElement>(null);
+  useNavDisclosures(navRef);
 
   // Restore the visitor's recent search terms once on mount (SSR-safe: no
   // localStorage access on the server).
@@ -486,9 +504,10 @@ export function SiteHeader({ hideOnMobile = false }: { hideOnMobile?: boolean } 
     },
   });
 
-  // Category suggestions come from the already-cached header list — no extra fetch.
+  // Category suggestions come from the same menu map, so search never offers a
+  // duplicate shelf or one the menu leaves out. No extra fetch.
   const catSuggestions = suggestionsEnabled
-    ? categories.filter((c) => c.name.includes(term)).slice(0, 2)
+    ? menuCategories.filter((c) => c.name.includes(term)).slice(0, 2)
     : [];
 
   // Record a submitted term at the front of the recent list (deduped, capped).
@@ -646,11 +665,10 @@ export function SiteHeader({ hideOnMobile = false }: { hideOnMobile?: boolean } 
           the logo (h-9) and buttons (40px) step down on the smallest screens
           so the whole cluster fits one row from 360px up.
 
-          WHY 2xl AND NOT xl: the nav is ~1030px of links. At 2xl (1536px) the
-          container leaves 1127px beside the logo and the icons, so it fits with
-          room to spare; at xl (1280px) only 871px, and it would wrap INSIDE the
-          bar — a two-line bar, which is worse than two clean rows. Measured,
-          not guessed; re-measure if CURATED_CATEGORIES grows. */}
+          The nav used to join this row at 2xl. Since the department menu
+          (8.11.2026) it is wider than the space beside the logo and the icons
+          even at 1536px, and wrapping INSIDE the bar would make a two-line bar,
+          which is worse than two clean rows. So it always takes its own row. */}
           <div className="container mx-auto flex min-h-14 flex-nowrap items-center lg:flex-wrap justify-between gap-x-2 px-3 sm:gap-x-4 sm:px-4 2xl:gap-x-6">
             {/* RTL start (RIGHT): the logo.
             Moved out of the centre at the owner's request. The three-column
@@ -670,134 +688,193 @@ export function SiteHeader({ hideOnMobile = false }: { hideOnMobile?: boolean } 
                 alt="אור זרוע לצדיק"
                 width={586}
                 height={200}
-                className="h-9 w-auto object-contain sm:h-11"
+                className="h-11 w-auto object-contain"
               />
             </Link>
 
-            {/* RTL end (LEFT): every control, in one cluster.
-            `2xl:order-last` is what keeps it at the LEFT EDGE once the nav
-            joins this row. Without it all three children sit at order 0 and DOM
-            order wins, which put the icons between the logo and the nav — a
-            control cluster stranded in the middle of the bar. */}
-            <div className="flex shrink-0 items-center gap-0.5 sm:gap-1 2xl:order-last">
+            {/* RTL end (LEFT): every control, in one cluster. The nav row below
+            is `order-last w-full`, so it always wraps to a row of its own and
+            this cluster stays at the left edge of the bar. */}
+            <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
               <div className="flex items-center gap-1">
                 <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
                   <SheetTrigger asChild>
-                    <button className={ICON_BTN_CLS} aria-label="תפריט">
+                    <button className={`${ICON_BTN_CLS} lg:hidden`} aria-label="תפריט">
                       <Menu className="h-5 w-5" />
                     </button>
                   </SheetTrigger>
-                  <SheetContent side="right" className="w-[320px] sm:w-[380px] p-0 overflow-y-auto">
+                  <SheetContent
+                    side="right"
+                    className="w-[320px] sm:w-[380px] p-0 overflow-y-auto"
+                    onCloseAutoFocus={(e) => {
+                      // Opening search from the drawer: do not pull focus back
+                      // to the menu button over the search field.
+                      if (openSearchFromDrawer.current) {
+                        e.preventDefault();
+                        openSearchFromDrawer.current = false;
+                      }
+                    }}
+                  >
                     <SheetTitle className="sr-only">תפריט ניווט</SheetTitle>
                     <div className="flex flex-col h-full">
-                      <div className="px-6 py-5 border-b border-border/60">
-                        <div className="font-display text-lg text-foreground">תפריט</div>
-                        <div aria-hidden="true" className="gold-rule mt-3 w-16" />
-                      </div>
-
-                      <nav className="px-6 py-4 flex flex-col text-base">
+                      {/* The drawer opens on the brand and a search field, not on
+                      the word "תפריט" and a "בית" row (UI review, 8.11.2026). The
+                      logo is the way home. ps-14 keeps it clear of the Sheet's
+                      close button, which is pinned to the physical right, where
+                      an RTL header starts. */}
+                      <div className="ps-14 pe-6 py-4 border-b border-border/60">
                         <Link
                           to="/"
                           onClick={() => setDrawerOpen(false)}
-                          className={`py-3 border-b border-border/40 ${LINK_HOVER_CLS}`}
+                          aria-label="אור זרוע לצדיק, לדף הבית"
+                          className="inline-flex"
                         >
-                          בית
+                          <img
+                            src={logoUrl}
+                            alt=""
+                            width={586}
+                            height={200}
+                            className="h-10 w-auto object-contain"
+                          />
                         </Link>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          openSearchFromDrawer.current = true;
+                          setDrawerOpen(false);
+                          setSearchOpen(true);
+                        }}
+                        className="mx-6 mt-4 flex h-12 items-center gap-3 rounded-full border border-input/60 bg-card px-4 text-[15px] text-muted-foreground transition-[border-color] duration-150 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:border-accent"
+                      >
+                        <Search className="h-4 w-4 shrink-0" aria-hidden="true" />
+                        חיפוש מוצרים…
+                      </button>
+
+                      {/* The category map (src/lib/nav-taxonomy.ts) as an
+                      accordion: nine departments, each category exactly once,
+                      then the occasion hubs as a tenth row. name="drawer-dept"
+                      makes the details elements exclusive, so one group is open
+                      at a time and an open group reads as a block (tinted). */}
+                      <nav aria-label="ניווט בתפריט" className="px-6 pt-3">
                         <Link
                           to="/shop"
                           onClick={() => setDrawerOpen(false)}
-                          className={`py-3 border-b border-border/40 ${LINK_HOVER_CLS}`}
+                          className={`flex min-h-[52px] items-center justify-between border-b border-border/40 font-display text-[17px] text-foreground ${LINK_HOVER_CLS}`}
                         >
                           כל המוצרים
+                          <ChevronLeft
+                            aria-hidden="true"
+                            className="h-4 w-4 text-muted-foreground"
+                          />
                         </Link>
+                        {departments.map((d) => (
+                          <details
+                            key={d.label}
+                            name="drawer-dept"
+                            className="group border-b border-border/40"
+                          >
+                            <summary className="flex min-h-[52px] cursor-pointer list-none items-center justify-between font-display text-[17px] text-foreground group-open:text-accent [&::-webkit-details-marker]:hidden">
+                              {d.label}
+                              <ChevronDown
+                                aria-hidden="true"
+                                className="h-4 w-4 text-muted-foreground transition-transform duration-200 ease-out motion-reduce:transition-none group-open:rotate-180"
+                              />
+                            </summary>
+                            <ul className="mb-3 flex flex-col rounded-xl bg-secondary/70 py-1 ps-4 pe-3">
+                              {d.slug ? (
+                                <li>
+                                  <Link
+                                    to="/category/$slug"
+                                    params={{ slug: d.slug }}
+                                    onClick={() => setDrawerOpen(false)}
+                                    className="flex min-h-[44px] items-center gap-1 text-[15px] font-semibold text-accent"
+                                  >
+                                    {d.allLabel}
+                                    <ChevronLeft aria-hidden="true" className="h-4 w-4" />
+                                  </Link>
+                                </li>
+                              ) : null}
+                              {d.children.map((c) => (
+                                <li key={c.slug}>
+                                  <Link
+                                    to="/category/$slug"
+                                    params={{ slug: c.slug }}
+                                    onClick={() => setDrawerOpen(false)}
+                                    className={`flex min-h-[44px] items-center text-[15px] text-foreground/90 ${LINK_HOVER_CLS}`}
+                                  >
+                                    {c.label}
+                                  </Link>
+                                </li>
+                              ))}
+                            </ul>
+                          </details>
+                        ))}
+                        {/* מתנות לפי אירוע: the seven occasion hubs, mirroring the
+                        desktop OccasionMenu (which is the crawlable copy; this
+                        Sheet unmounts when closed). */}
+                        <details name="drawer-dept" className="group border-b border-border/40">
+                          <summary className="flex min-h-[52px] cursor-pointer list-none items-center justify-between font-display text-[17px] text-foreground group-open:text-accent [&::-webkit-details-marker]:hidden">
+                            מתנות לפי אירוע
+                            <ChevronDown
+                              aria-hidden="true"
+                              className="h-4 w-4 text-muted-foreground transition-transform duration-200 ease-out motion-reduce:transition-none group-open:rotate-180"
+                            />
+                          </summary>
+                          <ul className="mb-3 flex flex-col rounded-xl bg-secondary/70 py-1 ps-4 pe-3">
+                            {OCCASION_COLLECTIONS.map((c) => (
+                              <li key={c.slug}>
+                                <Link
+                                  to="/collection/$slug"
+                                  params={{ slug: c.slug }}
+                                  onClick={() => setDrawerOpen(false)}
+                                  className={`flex min-h-[44px] items-center text-[15px] text-foreground/90 ${LINK_HOVER_CLS}`}
+                                >
+                                  {c.title}
+                                </Link>
+                              </li>
+                            ))}
+                          </ul>
+                        </details>
                         <Link
                           to="/categories"
                           onClick={() => setDrawerOpen(false)}
-                          className={`py-3 border-b border-border/40 ${LINK_HOVER_CLS}`}
+                          className={`flex min-h-[52px] items-center justify-between font-display text-[17px] text-foreground ${LINK_HOVER_CLS}`}
                         >
-                          קטגוריות
-                        </Link>
-                        {/* /articles had no entry point anywhere in the shell; the drawer
-                      is the one nav that is visible at every breakpoint, so the
-                      guides live here as well as in the footer. */}
-                        <Link
-                          to="/articles"
-                          onClick={() => setDrawerOpen(false)}
-                          className={`py-3 border-b border-border/40 ${LINK_HOVER_CLS}`}
-                        >
-                          מדריכים ומאמרים
-                        </Link>
-                        <Link
-                          to="/about"
-                          onClick={() => setDrawerOpen(false)}
-                          className={`py-3 border-b border-border/40 ${LINK_HOVER_CLS}`}
-                        >
-                          אודות
+                          כל הקטגוריות
+                          <ChevronLeft
+                            aria-hidden="true"
+                            className="h-4 w-4 text-muted-foreground"
+                          />
                         </Link>
                       </nav>
 
-                      <div className="px-6 pt-4 pb-2">
-                        {/* Curated shortcuts — the same six deepest shelves surfaced
-                      in the desktop nav row, mirrored here as quick-access chips
-                      (the gold-hairline chip idiom the search suggestions already
-                      use), each carrying the same depth number. min-h-[44px]
-                      clears the touch floor: this drawer is the ONLY navigation
-                      on a phone. The full category list follows below. */}
-                        <div className="text-[11px] tracking-[0.2em] uppercase text-muted-foreground mb-2">
-                          קטגוריות מובחרות
-                        </div>
-                        <div className="flex flex-wrap gap-2 mb-5">
-                          {CURATED_CATEGORIES.map((c) => (
-                            <Link
-                              key={c.slug}
-                              to="/category/$slug"
-                              params={{ slug: c.slug }}
-                              onClick={() => setDrawerOpen(false)}
-                              className="inline-flex min-h-[44px] items-center rounded-full border border-gold/40 px-3.5 text-xs text-foreground/85 press [@media(hover:hover)_and_(pointer:fine)]:hover:border-accent [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
-                            >
-                              {c.label}
-                              <span className={NAV_COUNT_CLS}>{c.count}</span>
-                            </Link>
-                          ))}
-                        </div>
-                        {/* מתנות לפי אירוע — the seven occasion hubs as seven real
-                      links, replacing the single "מתנות לפי אירוע" row that
-                      pointed at /categories and made every occasion a two-click
-                      journey. This is the desktop OccasionMenu's counterpart:
-                      the Sheet unmounts when closed, so these anchors are for
-                      the shopper, and the crawlable copy is the one in the nav
-                      row. Same chip idiom, same 44px floor. */}
-                        <div className="text-[11px] tracking-[0.2em] uppercase text-muted-foreground mb-2">
-                          מתנות לפי אירוע
-                        </div>
-                        <div className="flex flex-wrap gap-2 mb-5">
-                          {OCCASION_COLLECTIONS.map((c) => (
-                            <Link
-                              key={c.slug}
-                              to="/collection/$slug"
-                              params={{ slug: c.slug }}
-                              onClick={() => setDrawerOpen(false)}
-                              className="inline-flex min-h-[44px] items-center rounded-full border border-gold/40 px-3.5 text-xs text-foreground/85 press [@media(hover:hover)_and_(pointer:fine)]:hover:border-accent [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
-                            >
-                              {c.title}
-                            </Link>
-                          ))}
-                        </div>
-                        <div className="text-[11px] tracking-[0.2em] uppercase text-muted-foreground mb-2">
-                          כל הקטגוריות
+                      <div className="px-6 pt-6 pb-4">
+                        <div className="mb-1 text-[11px] font-medium tracking-[0.12em] [word-spacing:0.25em] text-muted-foreground">
+                          מידע
                         </div>
                         <div className="flex flex-col">
-                          {categories.map((c) => (
-                            <Link
-                              key={c.id}
-                              to="/category/$slug"
-                              params={{ slug: c.slug }}
-                              onClick={() => setDrawerOpen(false)}
-                              className={`py-2.5 text-sm text-foreground/85 border-b border-border/30 ${LINK_HOVER_CLS}`}
-                            >
-                              {c.name}
-                            </Link>
-                          ))}
+                          <Link
+                            to="/articles"
+                            onClick={() => setDrawerOpen(false)}
+                            className={`flex min-h-[44px] items-center text-[15px] text-foreground/85 border-b border-border/30 ${LINK_HOVER_CLS}`}
+                          >
+                            מדריכים ומאמרים
+                          </Link>
+                          <Link
+                            to="/about"
+                            onClick={() => setDrawerOpen(false)}
+                            className={`flex min-h-[44px] items-center text-[15px] text-foreground/85 border-b border-border/30 ${LINK_HOVER_CLS}`}
+                          >
+                            אודות
+                          </Link>
+                          <Link
+                            to="/contact"
+                            onClick={() => setDrawerOpen(false)}
+                            className={`flex min-h-[44px] items-center text-[15px] text-foreground/85 ${LINK_HOVER_CLS}`}
+                          >
+                            צור קשר
+                          </Link>
                         </div>
                       </div>
 
@@ -811,7 +888,7 @@ export function SiteHeader({ hideOnMobile = false }: { hideOnMobile?: boolean } 
                         <Link
                           to="/cart"
                           onClick={() => setDrawerOpen(false)}
-                          className={`flex items-center justify-between py-2 text-sm ${LINK_HOVER_CLS}`}
+                          className={`flex items-center justify-between min-h-[44px] py-2 text-[15px] ${LINK_HOVER_CLS}`}
                         >
                           <span className="flex items-center gap-2">
                             <ShoppingBag className="h-4 w-4" /> עגלת קניות
@@ -823,7 +900,7 @@ export function SiteHeader({ hideOnMobile = false }: { hideOnMobile?: boolean } 
                         <Link
                           to="/favorites"
                           onClick={() => setDrawerOpen(false)}
-                          className={`flex items-center justify-between py-2 text-sm ${LINK_HOVER_CLS}`}
+                          className={`flex items-center justify-between min-h-[44px] py-2 text-[15px] ${LINK_HOVER_CLS}`}
                         >
                           <span className="flex items-center gap-2">
                             <Heart className="h-4 w-4" /> מועדפים
@@ -837,7 +914,7 @@ export function SiteHeader({ hideOnMobile = false }: { hideOnMobile?: boolean } 
                             <Link
                               to="/account"
                               onClick={() => setDrawerOpen(false)}
-                              className={`flex items-center gap-2 py-2 text-sm ${LINK_HOVER_CLS}`}
+                              className={`flex items-center gap-2 min-h-[44px] py-2 text-[15px] ${LINK_HOVER_CLS}`}
                             >
                               <UserIcon className="h-4 w-4" /> החשבון שלי
                             </Link>
@@ -845,7 +922,7 @@ export function SiteHeader({ hideOnMobile = false }: { hideOnMobile?: boolean } 
                               <Link
                                 to="/admin"
                                 onClick={() => setDrawerOpen(false)}
-                                className={`py-2 text-sm ${LINK_HOVER_CLS}`}
+                                className={`min-h-[44px] py-2 text-[15px] ${LINK_HOVER_CLS}`}
                               >
                                 ניהול
                               </Link>
@@ -855,7 +932,7 @@ export function SiteHeader({ hideOnMobile = false }: { hideOnMobile?: boolean } 
                                 signOut();
                                 setDrawerOpen(false);
                               }}
-                              className={`text-right py-2 text-sm ${LINK_HOVER_CLS}`}
+                              className={`text-right min-h-[44px] py-2 text-[15px] ${LINK_HOVER_CLS}`}
                             >
                               יציאה
                             </button>
@@ -864,7 +941,7 @@ export function SiteHeader({ hideOnMobile = false }: { hideOnMobile?: boolean } 
                           <Link
                             to="/auth"
                             onClick={() => setDrawerOpen(false)}
-                            className={`flex items-center gap-2 py-2 text-sm ${LINK_HOVER_CLS}`}
+                            className={`flex items-center gap-2 min-h-[44px] py-2 text-[15px] ${LINK_HOVER_CLS}`}
                           >
                             <UserIcon className="h-4 w-4" /> כניסה / הרשמה
                           </Link>
@@ -920,9 +997,13 @@ export function SiteHeader({ hideOnMobile = false }: { hideOnMobile?: boolean } 
                     </span>
                   )}
                 </button>
+                {/* Favourites and account leave the phone bar (UI review,
+                8.11.2026): five 44px targets beside the logo crowd a 375px
+                screen, and both sit at the bottom of the drawer with their
+                counts. */}
                 <Link
                   to="/favorites"
-                  className={`relative ${ICON_BTN_CLS}`}
+                  className={`relative ${ICON_BTN_CLS} max-sm:hidden`}
                   aria-label={
                     favCount === 0
                       ? "מועדפים"
@@ -939,46 +1020,44 @@ export function SiteHeader({ hideOnMobile = false }: { hideOnMobile?: boolean } 
                   )}
                 </Link>
                 {user ? (
-                  <Link to="/account" className={ICON_BTN_CLS} aria-label="החשבון שלי">
+                  <Link
+                    to="/account"
+                    className={`${ICON_BTN_CLS} max-sm:hidden`}
+                    aria-label="החשבון שלי"
+                  >
                     <UserIcon className="h-5 w-5 text-accent" />
                   </Link>
                 ) : (
-                  <Link to="/auth" className={ICON_BTN_CLS} aria-label="כניסה">
+                  <Link to="/auth" className={`${ICON_BTN_CLS} max-sm:hidden`} aria-label="כניסה">
                     <UserIcon className="h-5 w-5" />
                   </Link>
                 )}
               </div>
             </div>
 
-            {/* Desktop nav row — the six deepest shelves with their depth (the full
-          102-category drawer stays behind the hamburger). Owner: swap items by
-          editing CURATED_CATEGORIES above; every slug is a real category
-          verified against the live REST API on the date recorded there.
-          h-11 became min-h-11 + flex-wrap: six labels carrying counts plus the
-          five chrome links exceed the lg container on one line, and a row that
-          wraps to two at 1024px and back to one at xl is a better trade than
-          dropping a door. Gap tightens to 5 at lg for the same reason. */}
+            {/* Desktop nav row: the nine departments of the category map
+          (src/lib/nav-taxonomy.ts), each a dropdown with its shelves, so every
+          category is one hover-free click away and none is listed twice. It
+          replaced seven shortcut links with frozen counts and a separate
+          "כל הקטגוריות" door (owner, 8.11.2026). The row is wider than the 2xl
+          logo row can hold, so it stays on its own line at every desktop
+          width; it may wrap to two lines on a 1024px screen. Panels in the
+          left half of the row open toward the centre (align="end"). */}
             <nav
+              ref={navRef}
               aria-label="ניווט ראשי"
-              className="order-last hidden min-h-11 w-full flex-wrap items-center justify-center gap-x-5 gap-y-1 py-1.5 text-[15px] lg:flex xl:gap-x-7 2xl:order-none 2xl:w-auto 2xl:min-h-0 2xl:flex-1 2xl:flex-nowrap 2xl:gap-x-5 2xl:py-0"
+              className="order-last hidden min-h-11 w-full flex-wrap items-center justify-center gap-x-5 gap-y-1 py-1.5 text-[15px] lg:flex xl:gap-x-6"
             >
               <Link to="/shop" className={NAV_LINK_CLS}>
                 חנות
               </Link>
-              {CURATED_CATEGORIES.filter((c) => !c.drawerOnly).map((c) => (
-                <Link
-                  key={c.slug}
-                  to="/category/$slug"
-                  params={{ slug: c.slug }}
-                  className={NAV_LINK_CLS}
-                >
-                  {c.label}
-                  <span className={NAV_COUNT_CLS}>{c.count}</span>
-                </Link>
+              {departments.map((d, i) => (
+                <DepartmentMenu
+                  key={d.label}
+                  dept={d}
+                  align={i < departments.length / 2 ? "start" : "end"}
+                />
               ))}
-              <Link to="/categories" className={NAV_LINK_CLS}>
-                כל הקטגוריות
-              </Link>
               {/* Secondary group — a discovery entry plus the informational
             destinations that only lived in the drawer/footer before. A hairline
             divider sets them off from the curated shopping links so the row
@@ -1075,7 +1154,7 @@ export function SiteHeader({ hideOnMobile = false }: { hideOnMobile?: boolean } 
                   <button
                     type="button"
                     onClick={() => setSearchOpen(false)}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-full text-foreground press [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
+                    className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-foreground press [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
                     aria-label="סגור"
                   >
                     <X className="h-4 w-4" />
@@ -1177,7 +1256,7 @@ export function SiteHeader({ hideOnMobile = false }: { hideOnMobile?: boolean } 
                               <Link
                                 to="/shop"
                                 onClick={() => setSearchOpen(false)}
-                                className="rounded-full border border-accent px-4 py-1.5 text-xs font-medium text-accent press [@media(hover:hover)_and_(pointer:fine)]:hover:bg-accent [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-foreground"
+                                className="inline-flex min-h-[44px] items-center rounded-full border border-accent px-4 text-sm font-medium text-accent press [@media(hover:hover)_and_(pointer:fine)]:hover:bg-accent [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-foreground"
                               >
                                 עיון בכל המוצרים
                               </Link>
@@ -1189,7 +1268,7 @@ export function SiteHeader({ hideOnMobile = false }: { hideOnMobile?: boolean } 
                                 )}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="rounded-full border border-gold/40 px-4 py-1.5 text-xs press [@media(hover:hover)_and_(pointer:fine)]:hover:border-accent [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
+                                className="inline-flex min-h-[44px] items-center rounded-full border border-gold/40 px-4 text-sm press [@media(hover:hover)_and_(pointer:fine)]:hover:border-accent [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
                               >
                                 שליחת הודעה בוואטסאפ
                               </a>
@@ -1205,7 +1284,7 @@ export function SiteHeader({ hideOnMobile = false }: { hideOnMobile?: boolean } 
                               aria-selected={activeOptionId === "sopt-all"}
                               tabIndex={-1}
                               onClick={goToAllResults}
-                              className={`w-full rounded-full border border-accent px-6 py-2 text-sm font-medium text-accent press ${activeOptionId === "sopt-all" ? "bg-accent text-accent-foreground" : ""} [@media(hover:hover)_and_(pointer:fine)]:hover:bg-accent [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-foreground`}
+                              className={`min-h-[44px] w-full rounded-full border border-accent px-6 py-2 text-sm font-medium text-accent press ${activeOptionId === "sopt-all" ? "bg-accent text-accent-foreground" : ""} [@media(hover:hover)_and_(pointer:fine)]:hover:bg-accent [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-foreground`}
                             >
                               כל התוצאות ({totalSuggestions})
                             </button>
@@ -1226,7 +1305,7 @@ export function SiteHeader({ hideOnMobile = false }: { hideOnMobile?: boolean } 
                                 key={t}
                                 type="button"
                                 onClick={() => runSearch(t)}
-                                className="rounded-full border border-gold/40 px-3 py-1 text-xs press [@media(hover:hover)_and_(pointer:fine)]:hover:border-accent [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
+                                className="inline-flex min-h-[44px] items-center rounded-full border border-gold/40 px-4 text-sm press [@media(hover:hover)_and_(pointer:fine)]:hover:border-accent [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
                               >
                                 {t}
                               </button>
@@ -1235,20 +1314,21 @@ export function SiteHeader({ hideOnMobile = false }: { hideOnMobile?: boolean } 
                         </div>
                       )}
                       <div>
-                        <div className="text-xs text-muted-foreground mb-2">קטגוריות מובחרות</div>
+                        <div className="text-xs text-muted-foreground mb-2">קטגוריות</div>
                         <div className="flex flex-wrap gap-2">
-                          {CURATED_CATEGORIES.map((c) => (
-                            <Link
-                              key={c.slug}
-                              to="/category/$slug"
-                              params={{ slug: c.slug }}
-                              onClick={() => setSearchOpen(false)}
-                              className="inline-flex min-h-[44px] items-center rounded-full border border-gold/40 px-3.5 text-xs text-foreground/85 press [@media(hover:hover)_and_(pointer:fine)]:hover:border-accent [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
-                            >
-                              {c.label}
-                              <span className={NAV_COUNT_CLS}>{c.count}</span>
-                            </Link>
-                          ))}
+                          {departments.map((d) =>
+                            d.slug ? (
+                              <Link
+                                key={d.slug}
+                                to="/category/$slug"
+                                params={{ slug: d.slug }}
+                                onClick={() => setSearchOpen(false)}
+                                className="inline-flex min-h-[44px] items-center rounded-full border border-gold/40 px-4 text-sm text-foreground/85 press [@media(hover:hover)_and_(pointer:fine)]:hover:border-accent [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
+                              >
+                                {d.label}
+                              </Link>
+                            ) : null,
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1304,7 +1384,9 @@ export function SiteFooter({ hideOnMobile = false }: { hideOnMobile?: boolean } 
         <div className="mx-auto max-w-5xl glass [--glass-radius:1.5rem] px-6 py-10 md:px-10">
           <div className="grid gap-10 md:grid-cols-3">
             <div className="text-center md:text-right">
-              <div className="text-xs tracking-[0.35em] text-accent uppercase mb-4">קישורים</div>
+              <div className="text-xs font-medium tracking-[0.12em] [word-spacing:0.25em] text-accent mb-4">
+                קישורים
+              </div>
               <ul className="space-y-4 text-[15px] text-muted-foreground">
                 <li>
                   <Link to="/shop" className={FOOT_LINK_CLS}>
@@ -1352,7 +1434,9 @@ export function SiteFooter({ hideOnMobile = false }: { hideOnMobile?: boolean } 
               </ul>
             </div>
             <div className="text-center">
-              <div className="text-xs tracking-[0.35em] text-accent uppercase mb-4">תקנון האתר</div>
+              <div className="text-xs font-medium tracking-[0.12em] [word-spacing:0.25em] text-accent mb-4">
+                תקנון האתר
+              </div>
               <ul className="space-y-4 text-[15px] text-muted-foreground">
                 {/* Shipping/returns lead the column: they are what a first-time
                   buyer looks for, and each is a short summary of the matching
@@ -1392,7 +1476,9 @@ export function SiteFooter({ hideOnMobile = false }: { hideOnMobile?: boolean } 
             {/* Contact block — the CANONICAL home of the address/phone (the
               homepage colophon de-emphasizes them); content stays unchanged. */}
             <div className="text-center md:text-left">
-              <div className="text-xs tracking-[0.35em] text-accent uppercase mb-4">צור קשר</div>
+              <div className="text-xs font-medium tracking-[0.12em] [word-spacing:0.25em] text-accent mb-4">
+                צור קשר
+              </div>
               <p className="text-[15px] text-muted-foreground leading-relaxed">
                 לבירורים והזמנות מיוחדות,
                 <br />
@@ -1465,7 +1551,7 @@ export function SiteFooter({ hideOnMobile = false }: { hideOnMobile?: boolean } 
           {/* Newsletter capture — marketing consent, separate from the
             operational contact consent collected at checkout. */}
           <div className="mx-auto max-w-lg text-center">
-            <div className="text-xs tracking-[0.35em] text-accent uppercase mb-3">
+            <div className="text-xs font-medium tracking-[0.12em] [word-spacing:0.25em] text-accent mb-3">
               הצטרפו לרשימת התפוצה
             </div>
             <p className="text-sm text-muted-foreground mb-4">

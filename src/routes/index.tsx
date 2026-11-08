@@ -17,14 +17,11 @@ import { thumbUrl } from "@/lib/img";
 import { MobileCarousel } from "@/components/MobileCarousel";
 import { ProductCard, type ProductCardData } from "@/components/ProductCard";
 import { readRecent } from "@/components/engagement/recently-viewed";
-import { NewsletterSignup } from "@/components/NewsletterSignup";
 import { HomeReviews } from "@/components/content/HomeReviews";
 import { fetchHomeReviews } from "@/lib/home-reviews";
 import { SectionHeader } from "@/components/home/SectionHeader";
 import { StoreVideo } from "@/components/home/StoreVideo";
 import { rangeableVideoSrc } from "@/lib/video-range";
-import { CollectionCard, type CatTile } from "@/components/home/CollectionCard";
-import { CategoryTile } from "@/components/home/CategoryTile";
 import { OccasionTile } from "@/components/home/OccasionTile";
 import { Reveal } from "@/components/Reveal";
 import { OCCASION_COLLECTIONS } from "@/lib/collections";
@@ -51,13 +48,6 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import imgSiddur from "@/assets/cat-siddur.webp";
-import imgTallit from "@/assets/cat-tallit.webp";
-import imgChatan from "@/assets/cat-chatan.webp";
-import imgChalaka from "@/assets/cat-chalaka.webp";
-import imgGoldJewelry from "@/assets/cat-gold-jewelry.webp";
-import imgTallitTefillinCovers from "@/assets/cat-tallit-tefillin-covers.webp";
-import imgJudaica from "@/assets/cat-judaica.webp";
 import igPost1 from "@/assets/ig/post-1.jpg";
 import igReel1 from "@/assets/ig/reel-1.mp4";
 import igReel1Poster from "@/assets/ig/reel-1-poster.webp";
@@ -71,123 +61,6 @@ import igReel5 from "@/assets/ig/reel-5.mp4";
 import igReel5Poster from "@/assets/ig/reel-5-poster.webp";
 import storeTour from "@/assets/video/store-tour.mp4";
 import storeTourPoster from "@/assets/video/store-tour-poster.webp";
-
-import oc_aluminum from "@/assets/other-cats/aluminum.webp";
-import oc_accessories from "@/assets/other-cats/accessories.webp";
-import oc_blessings from "@/assets/other-cats/blessings.webp";
-import oc_metalKiddush from "@/assets/other-cats/metal-kiddush.webp";
-import oc_crystalKiddush from "@/assets/other-cats/crystal-kiddush.webp";
-import oc_havdalah from "@/assets/other-cats/havdalah.webp";
-import oc_hanukkah from "@/assets/other-cats/hanukkah.webp";
-import oc_wedding from "@/assets/other-cats/wedding.webp";
-import oc_tallitTzitzit from "@/assets/other-cats/tallit-tzitzit.webp";
-import oc_challahCover from "@/assets/other-cats/challah-cover.webp";
-import oc_kippot from "@/assets/other-cats/kippot.webp";
-import oc_holidays from "@/assets/other-cats/holidays.webp";
-import oc_mezuzot from "@/assets/other-cats/mezuzot.webp";
-import oc_wineDividers from "@/assets/other-cats/wine-dividers.webp";
-import oc_maimAchronim from "@/assets/other-cats/maim-achronim.webp";
-import oc_branding from "@/assets/other-cats/branding.webp";
-import oc_bencherStands from "@/assets/other-cats/bencher-stands.webp";
-import oc_mirrors from "@/assets/other-cats/mirrors.webp";
-import oc_washingCups from "@/assets/other-cats/washing-cups.webp";
-import oc_talitTefillinSet from "@/assets/other-cats/talit-tefillin-set.webp";
-import oc_talitTefillinSets from "@/assets/other-cats/talit-tefillin-sets.webp";
-import oc_liqueurSets from "@/assets/other-cats/liqueur-sets.webp";
-import oc_atara from "@/assets/other-cats/atara.webp";
-import oc_purim from "@/assets/other-cats/purim.webp";
-import oc_plastic from "@/assets/other-cats/plastic.webp";
-import oc_candlesticks from "@/assets/other-cats/candlesticks.webp";
-// Not other-cats/passover.webp: that "seder plate" is a platter of cheese slabs.
-// The table photograph (matza, kiddush cup, candles) is the same crop the
-// Pesach occasion tile uses — see src/components/home/occasion-art.ts.
-import oc_passover from "@/assets/occasions/passover-table.webp";
-import oc_talitClips from "@/assets/other-cats/talit-clips.webp";
-import oc_roshHashana from "@/assets/other-cats/rosh-hashana.webp";
-import oc_pvcBags from "@/assets/other-cats/pvc-bags.webp";
-import oc_tefillinCases from "@/assets/other-cats/tefillin-cases.webp";
-
-const OTHER_CATS_IMAGES: Record<string, string> = {
-  aluminum: oc_aluminum,
-  "%d7%90%d7%a7%d7%a1%d7%a1%d7%95%d7%a8%d7%99%d7%96": oc_accessories,
-  blessings: oc_blessings,
-  "metal-kiddush-cups": oc_metalKiddush,
-  "crystal-ceramic-kiddush-cups": oc_crystalKiddush,
-  havdalah: oc_havdalah,
-  hanukkah: oc_hanukkah,
-  wedding: oc_wedding,
-  talitot: oc_tallitTzitzit,
-  "challah-covers": oc_challahCover,
-  kipot: oc_kippot,
-  "%d7%9e%d7%95%d7%a6%d7%a8%d7%99-%d7%97%d7%92%d7%99%d7%9d": oc_holidays,
-
-  "wine-dividers": oc_wineDividers,
-  "maim-achronim": oc_maimAchronim,
-  "%d7%9e%d7%99%d7%aa%d7%95%d7%92": oc_branding,
-  "bencher-stands": oc_bencherStands,
-  mirrors: oc_mirrors,
-  "washing-cups": oc_washingCups,
-  "%d7%a1%d7%98-%d7%98%d7%9c%d7%99%d7%aa-%d7%aa%d7%a4%d7%99%d7%9c%d7%99%d7%9f": oc_talitTefillinSet,
-  "talit-tefillin-covers": oc_talitTefillinSets,
-  "liqueur-sets": oc_liqueurSets,
-  atara: oc_atara,
-  // "polyrasin-stone" is deliberately absent. The artwork that sat here was an
-  // AI-generated robed figure with hands clasped in prayer — Marian iconography
-  // with pseudo-Hebrew glyphs painted on the robe. A figurative devotional
-  // statue is the one image a תשמישי קדושה shop can never show, and this map is
-  // what puts a tile on the homepage, so the key is the removal. The category
-  // itself is real (12 polymer/stone mezuza cases with genuine supplier photos)
-  // and still lives at /category/polyrasin-stone.
-  purim: oc_purim,
-  plastic: oc_mezuzot,
-  candlesticks: oc_candlesticks,
-  passover: oc_passover,
-  "talit-clips": oc_talitClips,
-  "rosh-hashana": oc_roshHashana,
-  "pvc-bags": oc_pvcBags,
-  "tefillin-cases": oc_tefillinCases,
-};
-
-/** The only category slugs this page has artwork for — see the map above. */
-const OTHER_CAT_SLUGS = Object.keys(OTHER_CATS_IMAGES);
-
-/** Every src/assets/other-cats/*.webp is authored at this size. */
-const OTHER_CAT_IMG_SIZE = 760;
-
-// Owner request (27.10.2026): EVERY category gets a hero square, not only the
-// ones with commissioned artwork. These shelves have none, so each borrows one
-// real product photograph from its own shelf, chosen by eye on 27.10.2026 (a
-// display stand was swapped for a real product on the key-holder and jewellery
-// shelves). Ordered by shelf depth. Excluded on purpose: mazkarot-eretz-israel
-// (owner asked to drop it), and the 1-product aluminum / liqueur-sets stubs.
-const hero = (path: string) =>
-  thumbUrl(
-    "https://whtjslgrrfzehivrknuv.supabase.co/storage/v1/object/public/product-images/" +
-      path +
-      ".webp",
-    400,
-  ) ?? "";
-const HERO_EXTRA_CATS: CatTile[] = [
-  { slug: "talit-tefilin", name: "טלית ותפילין", img: hero("catalog/60461") },
-  { slug: "chagim", name: "חגים", img: hero("catalog/60992") },
-  { slug: "shabbat", name: "שבת", img: hero("catalog/41632") },
-  { slug: "netilat-yadaim", name: "נטילת ידיים", img: hero("catalog/56159") },
-  { slug: "brachot-chamsot-segulot", name: "ברכות וחמסות", img: hero("catalog/83127") },
-  { slug: "gviei-kidush", name: "גביעי קידוש ויין", img: hero("catalog/81179") },
-  { slug: "machzikei-maftechot-magnetim", name: "מחזיקי מפתחות", img: hero("catalog/35856") },
-  { slug: "birchonim", name: "ברכונים", img: hero("catalog/42306") },
-  { slug: "kupot-tzedaka", name: "קופות צדקה", img: hero("catalog/45481") },
-  { slug: "beit-knesset-shtenderim", name: "בית כנסת ושטנדרים", img: hero("catalog/46430") },
-  { slug: "tachshitim", name: "תכשיטים", img: hero("catalog/80997") },
-  { slug: "chasidim-tzivoniim", name: "חסידים צבעוניים", img: hero("catalog/56364") },
-  { slug: "sidurim-tehilim", name: "סידורים ותהילים", img: hero("catalog/81689") },
-  { slug: "sakinim", name: "סכינים", img: hero("catalog/50742") },
-  { slug: "yeladim", name: "ילדים", img: hero("catalog/67087") },
-  { slug: "gufiya-tzitzit-kitelim", name: "ציצית וקיטלים", img: hero("catalog/66738") },
-  { slug: "karit-labrit", name: "כרית לברית", img: hero("catalog/66858") },
-  { slug: "wall-art", name: "ציורי קיר", img: hero("opt/a8d5d9bf07af6828f23fecbc") },
-  { slug: "polyrasin-stone", name: "פולירזין ואבן", img: hero("opt/d009c51df56c0a4915a2e762") },
-].map((c) => ({ ...c, w: 400, h: 400 }));
 
 /** Every public/groom-sets/*.jpeg used on this page is 1440×1920. */
 const GROOM_IMG_W = 1440;
@@ -255,67 +128,6 @@ async function fetchGiftPicks(): Promise<ProductCardData[]> {
     limit: GIFT_POOL,
   });
   return rotateDaily(pool, GIFT_SHOW);
-}
-
-/**
- * Categories that are not in FEATURED but do have a tile image. Runs in the
- * route loader (so the strip is server-rendered) and again as the client query.
- */
-async function fetchOtherCategories(): Promise<CatTile[]> {
-  const featuredIds = FEATURED.map((f) => f.id);
-  const { data: cats, error } = await supabase
-    .from("categories")
-    .select("id, slug, name")
-    // Ask only for the ~32 slugs we can actually render. The previous
-    // unbounded select pulled every category row and discarded most of them.
-    .in("slug", OTHER_CAT_SLUGS)
-    .not("id", "in", `(${featuredIds.join(",")})`);
-  if (error) throw error;
-
-  // Verified against production 2026-07-31: these have ZERO active products and no
-  // children with products, yet each shipped as a full-size gift photograph with a
-  // gold-bordered label, visually indistinguishable from the 24 that work. Five of
-  // the 37 homepage category links were dead ends; three more (aluminum /
-  // bencher-stands / liqueur-sets) hold a single product that is a duplicate of one
-  // already reachable via mezuzot-aluminium / gviei-kidush / birchonim, so the tile
-  // buys the shopper nothing.
-  //
-  // Re-check with:
-  //   select c.slug, count(p.id) filter (where p.is_active)
-  //     from categories c
-  //     left join product_categories pc on pc.category_id = c.id
-  //     left join products p on p.id = pc.product_id
-  //    group by c.slug having count(p.id) filter (where p.is_active) = 0;
-  const blacklist = new Set([
-    "sale",
-    "uncategorized",
-    "wine-dividers", // מחלקי יין — 0
-    "birkat-habayit", // תמונות בלייזר — 0
-    "study-books", // ספרי לימוד — 0
-    "%d7%90%d7%a7%d7%a1%d7%a1%d7%95%d7%a8%d7%99%d7%96", // אקססוריז — 0
-    "%d7%9e%d7%95%d7%a6%d7%a8%d7%99-%d7%97%d7%92%d7%99%d7%9d", // מוצרי חגים — 0
-    "%d7%9e%d7%99%d7%aa%d7%95%d7%92", // מיתוג — 0
-    "%d7%a1%d7%98-%d7%98%d7%9c%d7%99%d7%aa-%d7%aa%d7%a4%d7%99%d7%9c%d7%99%d7%9f", // סט טלית תפילין — 0
-    "aluminum", // 1 product, duplicate
-    "bencher-stands", // 1 product, duplicate
-    "liqueur-sets", // 1 product, duplicate
-    "etim", // עטים — owner does not want pens advertised (27.10.2026)
-    // מראות — 4 products, all tefillin items (3 pairs of plastic tefillin boxes
-    // and a stand of tefillin mirrors), every one also filed under בתי תפילין
-    // ומראות and תיקי תפילין. The tile's artwork is an ornate WALL mirror, so it
-    // promised something the shelf does not hold. Checked 2026-09-24.
-    "mirrors",
-  ]);
-  const bySlug = new Map((cats ?? []).map((c) => [c.slug, c.name]));
-  // Emit in the curated map order rather than PostgREST's (unordered) row
-  // order, so the loader result and any later refetch render the same sequence.
-  return OTHER_CAT_SLUGS.filter((slug) => bySlug.has(slug) && !blacklist.has(slug)).map((slug) => ({
-    slug,
-    name: bySlug.get(slug)!,
-    img: OTHER_CATS_IMAGES[slug],
-    w: OTHER_CAT_IMG_SIZE,
-    h: OTHER_CAT_IMG_SIZE,
-  }));
 }
 
 /**
@@ -400,8 +212,7 @@ export const Route = createFileRoute("/")({
   // rest down. Resolving them here puts them in the server-rendered HTML.
   // Each fetch is independently fault-tolerant — see settle().
   loader: async () => {
-    const [otherCats, featuredProducts, reviews, groomPrices, giftPicks] = await Promise.all([
-      settle(fetchOtherCategories()),
+    const [featuredProducts, reviews, groomPrices, giftPicks] = await Promise.all([
       settle(fetchHomeFeaturedProducts()),
       settle(fetchHomeReviews()),
       settle(fetchGroomThumbPrices()),
@@ -414,7 +225,7 @@ export const Route = createFileRoute("/")({
       OCCASION_COLLECTIONS.map((c) => c.slug),
       Date.now(),
     );
-    return { otherCats, featuredProducts, reviews, groomPrices, giftPicks, occasionOrder };
+    return { featuredProducts, reviews, groomPrices, giftPicks, occasionOrder };
   },
   head: () => ({
     meta: [
@@ -566,86 +377,6 @@ export const Route = createFileRoute("/")({
   }),
 });
 
-// `w`/`h` are the tile image's real intrinsic pixels, so the browser can size
-// the box before the file arrives. The tiles themselves are square (the CSS
-// aspect + object-cover own the layout); these are not display dimensions.
-//
-// CatTile lives with <CollectionCard>, and <CategoryTile> takes the same shape —
-// both rails on this page feed one of the two, so the shape is their contract,
-// not this route's. Re-exported below because the loader's return type is public.
-export type { CatTile };
-
-// Curated featured categories. `slug` is hardcoded (verified against the DB) so
-// the section renders at SSR — no client round-trip, no post-hydration CLS.
-const FEATURED: { id: string; slug: string; name: string; img: string; w: number; h: number }[] = [
-  {
-    id: "ac72c907-8981-404d-b776-642467e43110",
-    slug: "talitot",
-    name: "טליתות",
-    img: imgTallit,
-    w: 800,
-    h: 1000,
-  },
-  // Was marazim-chatanim. 7 of that category's 11 active products carry a null
-  // thumbnail (measured 2026-08-09), so a homepage tile opened a grid that is
-  // majority placeholder — a blocking owner input (photographs), not something
-  // markup fixes. The groom sets keep their flagship band above, which uses the
-  // real local photographs in public/groom-sets/, and the three product links
-  // in that band still land on the photographed SKUs. This tile now opens the
-  // wider חתן וכלה shelf: 45 active products, floor ₪28 effective, and its own
-  // 7 image-less rows sink to the back under the shared shelf ordering.
-  {
-    id: "d2954417-843b-48fa-bf00-92a6dcf87d03",
-    slug: "chatan-kala",
-    name: "חתן וכלה",
-    img: imgChatan,
-    w: 800,
-    h: 1067,
-  },
-  {
-    id: "f48e44e3-eab6-4281-a09d-cac9a96a8e96",
-    slug: "talit-tefillin-covers",
-    name: "כיסויים לטלית ותפילין",
-    img: imgTallitTefillinCovers,
-    w: 800,
-    h: 1067,
-  },
-  {
-    id: "3109eed6-32e3-40eb-9fe4-874029b8ab4d",
-    slug: "chalaka-set",
-    name: "סט חלאקה",
-    img: imgChalaka,
-    w: 800,
-    h: 1067,
-  },
-  {
-    id: "c78aea58-8a38-43ee-a236-3aa2f1942225",
-    // /category/yehudaika 301s to /shop (owner, 20.10.2026), so this door
-    // opens the whole catalogue and its label says so.
-    slug: "yehudaika",
-    name: "כל מוצרי היודאיקה",
-    img: imgJudaica,
-    w: 800,
-    h: 800,
-  },
-  {
-    id: "b6854069-9746-4490-b6ea-ef7debe4d795",
-    slug: "sidurim",
-    name: "סידורים ותהילים",
-    img: imgSiddur,
-    w: 800,
-    h: 800,
-  },
-  {
-    id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-    slug: "esh-sheli-gold",
-    name: "אש שלי - תכשיטי זהב",
-    img: imgGoldJewelry,
-    w: 800,
-    h: 1144,
-  },
-];
-
 // Light-ground button variants. Every band on this page is now white/glass, so
 // the old dark-ground pair is gone: `bg-gold-bright` is 1.84:1 on white and
 // `text-cream` ~1.1:1 — both were only ever legal over the deleted argaman.
@@ -679,6 +410,12 @@ const FEATURED: { id: string; slug: string; name: string; img: string; w: number
 // min-h in rem, not px, so the control still grows with the accessibility
 // widget's font-size zoom — 3.25rem is 52px at the default root, comfortably
 // past the 44px floor.
+// The house eyebrow (UI review, 8.11.2026). Hebrew has no capitals to track:
+// the old 0.3em pulled the letters of each word apart, so a light 0.12em with
+// wider word gaps keeps the spaced, engraved feel and the word shapes.
+const EYEBROW =
+  "text-meta md:text-body font-medium tracking-[0.12em] [word-spacing:0.25em] text-accent";
+
 const BTN_BASE =
   "press inline-flex items-center justify-center gap-2 rounded-full min-h-[3.25rem] px-8 text-base font-semibold";
 const BTN_SOLID = `${BTN_BASE} bg-accent text-white shadow-[var(--glass-shadow)] [@media(hover:hover)_and_(pointer:fine)]:hover:bg-accent-strong`;
@@ -882,7 +619,7 @@ function prefersReducedMotion() {
 }
 
 function HomePage() {
-  const { otherCats, featuredProducts, reviews, groomPrices, giftPicks, occasionOrder } =
+  const { featuredProducts, reviews, groomPrices, giftPicks, occasionOrder } =
     Route.useLoaderData();
   const occasions = (occasionOrder ?? OCCASION_COLLECTIONS.map((c) => ({ slug: c.slug })))
     .map((slot: SeasonalSlot) => {
@@ -899,16 +636,6 @@ function HomePage() {
   const heroCycles = useHeroCycles();
   const [heroPaused, setHeroPaused] = useState(false);
 
-  // Static — rendered at SSR from the curated FEATURED list (slugs hardcoded), so
-  // the tiles are in the initial HTML and the section never shifts after hydration.
-  const cats: CatTile[] = FEATURED.map((f) => ({
-    slug: f.slug,
-    name: f.name,
-    img: f.img,
-    w: f.w,
-    h: f.h,
-  }));
-
   return (
     <>
       {/* 1. Hero — the owner's own golden-hour shoot.
@@ -923,9 +650,10 @@ function HomePage() {
           catalogue shots flicking past, some still stamped "for demonstration
           purposes", read as a dropshipper — the opposite of what a shop with
           a counter in קרית ביאליק should say first. */}
-      {/* HEIGHT: viewport MINUS the header MINUS a deliberate peek — measured
-          header heights per breakpoint (125px under 2xl, 93px from 2xl), and a
-          strip of the next section left showing as the scroll cue. CSS-only
+      {/* HEIGHT: viewport MINUS the header MINUS a deliberate peek — the
+          header is two rows at every desktop width (~125px: the logo row, then
+          the department row), and a strip of the next section is left showing
+          as the scroll cue. CSS-only
           on purpose: reading the real height would jump the LCP element after
           first paint. Re-measure whenever SiteHeader's rows change. */}
       <section className="relative flex min-h-[560px] flex-col overflow-hidden bg-[#3b2a17] lg:grid lg:overflow-visible lg:min-h-[620px] lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)] lg:items-start lg:bg-cream">
@@ -967,14 +695,15 @@ function HomePage() {
         </div>
 
         {/* Scrim — phone only, where the type sits on the photograph. The
-            stops are in pixels and sized to the ~380px text block against the
-            worst case of a bright frame: 0.84 over white leaves white text at
-            4.88:1 (L_bg ≤ 0.183 needs α ≥ 0.82). The ramp above it dissolves
-            into the untouched picture. From lg the type is on linen and this
-            is not needed at all. */}
+            top fifth of the picture is left clear (UI review, 8.11.2026: the
+            headline used to sit across the model's face), and the ramp reaches
+            0.88 at 42% of this 80svh layer, i.e. at 33.6svh, just above where
+            the type starts (pt-[34svh] below). 0.84 over white already leaves
+            white text at 4.88:1, so the eyebrow and headline never sit on less
+            than that. From lg the type is on linen and this is not needed. */}
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 top-0 h-[80svh] bg-[linear-gradient(to_bottom,transparent_0%,rgba(22,15,4,0.35)_25%,rgba(22,15,4,0.88)_60%,#3b2a17_100%)] lg:hidden"
+          className="pointer-events-none absolute inset-x-0 top-0 h-[80svh] bg-[linear-gradient(to_bottom,transparent_0%,transparent_20%,rgba(22,15,4,0.6)_32%,rgba(22,15,4,0.88)_42%,#3b2a17_75%)] lg:hidden"
         />
 
         {/* The selling block. Every claim is sourced, none invented: no free
@@ -982,7 +711,7 @@ function HomePage() {
             marked up — see GOOGLE_PLACE_URL); the address and the cancellation
             window come from BUSINESS and CONSUMER_POLICY, the same constants
             the footer and /returns render. */}
-        <div className="relative z-10 flex flex-col items-center px-5 pb-8 pt-[16svh] text-center sm:px-6 md:pb-12 lg:order-1 lg:items-start lg:justify-center lg:py-12 lg:pe-8 lg:ps-12 lg:text-start xl:ps-20 2xl:ps-[max(5rem,calc((100vw-84rem)/2))]">
+        <div className="relative z-10 flex flex-col items-center px-5 pb-8 pt-[34svh] text-center sm:px-6 md:pb-12 lg:order-1 lg:items-start lg:justify-center lg:py-12 lg:pe-8 lg:ps-12 lg:text-start xl:ps-20 2xl:ps-[max(5rem,calc((100vw-84rem)/2))]">
           <div className="stagger flex w-full max-w-2xl flex-col items-center lg:max-w-xl lg:items-start">
             {/* Eyebrow: where the shop is, between two hairlines — the one
                 fact a dropshipper cannot claim. Gold is decorative-only on
@@ -996,26 +725,22 @@ function HomePage() {
             {/* The brand name leads the H1 — an SEO decision: the Hebrew name is
                 a verse from תהילים צ״ז and that query is contested by scripture
                 sites, so the strongest heading on the page carries it. */}
-            <h1 className="mt-3 font-display text-[1.6rem] font-semibold leading-[1.15] text-white sm:text-[2.1rem] lg:mt-5 lg:text-[3.1rem] lg:leading-[1.08] lg:text-foreground xl:text-[3.5rem]">
+            <h1 className="mt-3 font-display text-[2.25rem] font-semibold leading-[1.15] text-white sm:text-[2.5rem] lg:mt-5 lg:text-[3.1rem] lg:leading-[1.08] lg:text-foreground xl:text-[3.5rem]">
               אור זרוע לצדיק
               <span className="mt-1 block text-[0.62em] font-medium text-white/90 lg:mt-3 lg:text-accent">
                 תשמישי קדושה ויודאיקה מהודרת
               </span>
             </h1>
             <span aria-hidden="true" className="gold-rule mt-5 hidden w-24 lg:block" />
-            <p className="mt-3 hidden max-w-xl text-sm leading-relaxed text-white/95 sm:block sm:text-base lg:mt-5 lg:text-lg lg:text-muted-foreground">
+            <p className="mt-3 hidden max-w-xl text-balance text-sm leading-relaxed text-white/95 sm:block sm:text-base lg:mt-5 lg:text-lg lg:text-muted-foreground">
               טליתות, מארזים לחתנים, כיסויי תפילין ונרתיקי מזוזה — נבחרים בהקפדה על כשרות והידור
             </p>
 
-            {/* The shelves as photo squares (owner request 27.10.2026),
-                replacing the "לחנות" / "לחתן ולכלה" button pair. */}
-            <div className="mt-5 w-full max-w-xl text-start lg:mt-8 lg:max-w-2xl">
-              <HeroCategoryTiles cats={[...cats, ...HERO_EXTRA_CATS, ...(otherCats ?? [])]} />
-            </div>
-
             {/* Three parallel facts, as a real list. Hairline dots between
-                them are aria-hidden so the list is not read as bullets. */}
-            <ul className="mt-6 flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 text-[0.8125rem] text-white/90 sm:gap-x-4 sm:text-sm lg:mt-8 lg:justify-start lg:text-muted-foreground">
+                them are aria-hidden so the list is not read as bullets. Above
+                the squares, where they are seen: below the wall of squares
+                nobody reached them (UI review, 8.11.2026). */}
+            <ul className="mt-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 text-[0.8125rem] text-white/90 sm:gap-x-4 sm:text-sm lg:mt-6 lg:justify-start lg:text-muted-foreground">
               <li>משלוח או איסוף</li>
               <li aria-hidden="true" className="opacity-40">
                 ·
@@ -1026,6 +751,12 @@ function HomePage() {
               </li>
               <li>תשלום מאובטח</li>
             </ul>
+
+            {/* The shelves as photo squares (owner request 27.10.2026), built
+                from the menu's category map — see HeroCategoryTiles. */}
+            <div className="mt-6 w-full max-w-xl text-start lg:mt-8 lg:max-w-2xl">
+              <HeroCategoryTiles />
+            </div>
           </div>
 
           {/* The stop for the cycling photographs (WCAG 2.2.2). Rendered only
@@ -1047,11 +778,76 @@ function HomePage() {
             </button>
           ) : null}
         </div>
+        {/* Phone: a gold hairline closes the dark hero against the linen below. */}
+        <span
+          aria-hidden="true"
+          className="gold-rule pointer-events-none absolute inset-x-0 bottom-0 lg:hidden"
+        />
       </section>
 
-      {/* 2-3. "הקולקציות שלנו" and the "שאר הקטגוריות" rail were removed on
+      {/* "הקולקציות שלנו" and the "שאר הקטגוריות" rail were removed on
           27.10.2026 at the owner's request: every category is now a square in
           the hero, and showing the same doors twice read as clutter. */}
+
+      {/* 2. מתנות עד ₪150 — the low-risk entry point, right after the hero
+          (UI review, 8.11.2026). See fetchGiftPicks for the measurement that
+          motivates it. Rendered from loader data so the
+          tiles are in the server HTML like every other rail on this page; on the
+          rare loader failure the rail simply does not exist rather than
+          injecting itself mid-page after hydration.
+          The shipping line is on the RAIL, not the cart: a shopper who commits
+          to a ₪106 item and first meets ₪37 of shipping at checkout has been
+          surprised, and this is the one rail whose whole promise is "no
+          surprise". SHIPPING_FLAT is read from the pricing module, so it cannot
+          drift from what checkout charges. */}
+      {giftPicks && giftPicks.length >= 4 && (
+        <ProductRail
+          eyebrow="בלי להתחייב בגדול"
+          title={`מתנות עד ${formatILS(GIFT_CEILING)}`}
+          sub={`כל המחירים כאן הם המחיר הסופי לפריט. משלוח עד הבית ${formatILS(SHIPPING_FLAT)} לכל הארץ, לכל הזמנה.`}
+          products={giftPicks}
+          moreLabel="לכל המוצרים, מהזול ליקר ←"
+          moreSearch={{ sort: "price-asc" }}
+        />
+      )}
+
+      {/* 3. Personalization — the store's moat (רקמה/חריטה), right after the
+          gift rail. A full-width linen band with a real photograph of matching
+          embroidered pieces (UI review, 8.11.2026): it was a third bordered
+          glass card in a row, with a ✦ ornament and no picture. Honest: it
+          only restates what the PDP and /collection/personalized promise — the
+          personalization is coordinated with the customer AFTER the order. */}
+      <section className="bg-secondary/70">
+        <Reveal className="container mx-auto grid max-w-6xl items-center gap-6 px-4 py-12 sm:grid-cols-[auto_minmax(0,1fr)] sm:gap-8 md:grid-cols-[auto_minmax(0,1fr)_auto] md:gap-10 md:py-14">
+          <img
+            src="/product-photos/drive-2026-08/img_0097-400w.webp"
+            srcSet="/product-photos/drive-2026-08/img_0097-400w.webp 400w, /product-photos/drive-2026-08/img_0097-800w.webp 800w"
+            sizes="(min-width: 768px) 11rem, 8rem"
+            alt="כיסויים לטלית ותפילין, כיפה ועטרה ברקמה אישית תואמת"
+            width={400}
+            height={533}
+            loading="lazy"
+            decoding="async"
+            className="mx-auto aspect-[3/4] w-32 rounded-2xl object-cover shadow-[var(--shadow-card)] ring-1 ring-gold/40 md:w-44"
+          />
+          <div className="text-center sm:text-start">
+            <p className={EYEBROW}>בעיצוב אישי</p>
+            <h2 className="mt-2 font-display text-[1.75rem] leading-tight text-foreground md:text-4xl">
+              רקמה וחריטה אישית — הוסיפו שם על המתנה
+            </h2>
+            <p className="mt-3 max-w-xl text-[15px] leading-7 text-muted-foreground md:text-base">
+              על כיסויים לטלית ותפילין, תיקים וסידורים — את הגופן, הצבע והמיקום נתאם איתכם לאחר
+              ההזמנה.
+            </p>
+          </div>
+          <Link
+            to="/collection/personalized"
+            className={`${BTN_SOLID} justify-self-center sm:col-span-2 md:col-span-1`}
+          >
+            לפריטים להתאמה אישית
+          </Link>
+        </Reveal>
+      </section>
 
       {/* 4. מארזי חתן — flagship band: the ivory ground carrying a single glass
           panel. Every descendant that once relied on a dark backing moved with
@@ -1066,17 +862,10 @@ function HomePage() {
           <div className="glass glass-gold grid md:grid-cols-2 gap-6 md:gap-10 items-center p-5 sm:p-8 md:p-12 [--glass-radius:1.5rem]">
             {/* Text column (RTL start) */}
             <div>
-              <p className="text-meta md:text-body tracking-[0.3em] text-accent mb-4">
-                קולקציית החתנים
-              </p>
-              <h2 className="font-display text-3xl md:text-5xl text-foreground leading-tight mb-5">
+              <p className={`${EYEBROW} mb-4`}>קולקציית החתנים</p>
+              <h2 className="font-display text-[1.75rem] md:text-4xl text-foreground leading-tight mb-5">
                 מארז חתן שמלווה אותו לכל החיים
               </h2>
-              <div className="flex items-center gap-3 mb-5" aria-hidden="true">
-                <span className="gold-rule w-10 shrink-0" />
-                <span className="text-accent text-xs">✦</span>
-                <span className="gold-rule w-10 shrink-0" />
-              </div>
               {/* No "from ₪X" line here. The old one read "החל מ־2,000 ₪" — a bare
                   literal nothing computed, and 43% above what the cheapest set
                   actually costs. The CTA below lands on live prices; if a floor
@@ -1087,11 +876,10 @@ function HomePage() {
                 אישית בשם החתן.
               </p>
               <div className="flex flex-wrap items-center gap-x-6 gap-y-4">
-                {/* The band's own CTA also leaves /category/marazim-chatanim —
-                    see the hero note above for the measurement. The three thumb
-                    links below still go straight to the photographed groom sets,
-                    so a shopper who wants a groom box is one tap away; what is
-                    gone is the door that opened on 7 placeholders. */}
+                {/* The CTA opens the חתן וכלה collection, not
+                    /category/marazim-chatanim: 7 of that shelf's 11 products had
+                    no photograph (measured 2026-08-09). The three thumbs below
+                    go straight to the photographed groom sets. */}
                 <Link to="/collection/$slug" params={{ slug: "chatan-kala" }} className={BTN_SOLID}>
                   לכל מתנות החתן והכלה
                 </Link>
@@ -1103,13 +891,17 @@ function HomePage() {
                   Vertical padding on a bare inline element paints without
                   enlarging the hit box at all, which is why `inline-block`
                   is doing the work rather than the padding alone. */}
-                <Link
-                  to="/category/$slug"
-                  params={{ slug: "chatan-kala" }}
+                {/* Was a second door to the same shelf ("לכל מוצרי חתן וכלה").
+                    A groom box is a considered buy, so the second link is a
+                    question to the shop instead (UI review, 8.11.2026). */}
+                <a
+                  href={`https://wa.me/${BUSINESS.whatsapp}?text=${encodeURIComponent("שלום, יש לי שאלה על מארז חתן.")}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="inline-block py-1.5 -my-1.5 text-sm md:text-base text-accent underline underline-offset-4 transition-colors duration-200 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-strong"
                 >
-                  לכל מוצרי חתן וכלה
-                </Link>
+                  שאלה על מארז? כתבו לנו בוואטסאפ
+                </a>
               </div>
             </div>
 
@@ -1187,45 +979,127 @@ function HomePage() {
         </Reveal>
       </section>
 
-      {/* 4.2. Personalization teaser — the store's moat (רקמה/חריטה) as a compact
-          band, placed right after the flagship. (The three-card differentiators strip that
-          used to sit here repeated the trust band below it almost word for word,
-          and was removed.) Honest:
-          it only restates what the PDP and /collection/personalized already
-          promise — the personalization is coordinated with the customer AFTER the
-          order. --accent is the only gold; the ✦ gold-rule bracket is the reused
-          house motif; the CTA rides BTN_SOLID. SSR-safe: static markup, no
-          browser globals. */}
+      {/* 5. קונים לפי אירוע — the occasion/holiday hubs (/collection/<slug>).
+          Judaica is calendar- and lifecycle-driven, so shopping by occasion
+          (בר מצווה, חתונה, בית חדש) and by holiday (ראש השנה, חנוכה, פסח) is a
+          primary path. Text-only glass cards — no imagery to fetch — with the
+          eyebrow in --accent (the only gold) and the shared .glass-lift hover
+          motion. Swipeable on a phone via MobileCarousel, a grid from md up.
+          SSR-safe: OCCASION_COLLECTIONS is pure data imported at module scope,
+          so the rail is in the server HTML.
+
+          It sat above both category rails until 2026-09-24, on the argument
+          that a stranger wants a present for a simcha more than "a category".
+          The owner's reference leads with the photographic collection doors
+          instead, and they now open the page; this rail follows the groom
+          band, still ahead of the product rails. Text-only cards cannot
+          compete with photographs for the first screen. */}
       <section>
-        <Reveal className="container mx-auto px-4 pb-14 md:pb-20 max-w-6xl">
-          <div className="glass glass-gold [--glass-radius:1.5rem] px-6 py-7 md:px-10 md:py-8 flex flex-col items-center gap-6 text-center md:flex-row md:items-center md:justify-between md:gap-8 md:text-right">
-            <div>
-              <div
-                className="flex items-center justify-center gap-3 mb-3 md:justify-start"
-                aria-hidden="true"
-              >
-                <span className="gold-rule w-8 shrink-0" />
-                <span className="text-accent text-sm">✦</span>
-                <span className="gold-rule w-8 shrink-0" />
-              </div>
-              <h2 className="font-display text-2xl md:text-3xl text-foreground leading-tight">
-                רקמה וחריטה אישית — הוסיפו שם על המתנה
+        <Reveal className="container mx-auto px-4 py-14 md:py-20">
+          <SectionHeader eyebrow="מתנה לכל שמחה" title="קונים לפי אירוע" />
+          {/* Photographic portrait tiles (see <OccasionTile>). basis-[62%] on a
+              phone: ~230px, one tile whole and the next peeking so the rail
+              reads as swipeable.
+              From md the rail is a grid, and seven tiles do not divide evenly
+              into rows — a plain 3- or 4-column grid strands the last row at
+              the start edge. So every tile spans TWO tracks of a doubled grid
+              (6 tracks at md = 3 across, 8 at lg = 4 across) and one tile is
+              nudged a track inward to centre the short last row: the 7th at md
+              (3+3+1), the 5th at lg (4+3). This is tied to the seven entries in
+              OCCASION_COLLECTIONS; if that count changes, re-derive the nudge. */}
+          <MobileCarousel
+            basis="basis-[62%]"
+            mdGrid="md:grid-cols-6 md:*:col-span-2 md:[&>*:nth-child(7)]:col-start-3 lg:grid-cols-8 lg:[&>*:nth-child(7)]:col-start-auto lg:[&>*:nth-child(5)]:col-start-2"
+            mdGap="md:gap-5"
+            className="max-w-6xl mx-auto"
+          >
+            {/* Ordered for the season: the coming holiday's hub leads, with
+                "לקראת חנוכה" as its eyebrow (holiday-season.ts). Same seven
+                tiles, so the grid nudges above still hold. */}
+            {occasions.map(({ c, label }) => (
+              <OccasionTile key={c.slug} c={c} eyebrow={label} />
+            ))}
+          </MobileCarousel>
+        </Reveal>
+      </section>
+
+      {/* 6. מומלצים באתר — pool איכות מסובב יומית */}
+      <FeaturedProductsCarousel
+        initialProducts={featuredProducts ?? undefined}
+        reserveSpace={featuredProducts === null}
+      />
+
+      {/* 7. הצצה לחנות — the owner's store film (see <StoreVideo>) beside the
+          shop's address and opening hours.
+          This slot held "פריטי יוקרה נבחרים", then ShelfDirectory (six text
+          doors); both were removed for repeating the header's shelves. The film
+          is the clip the owner had made "לאתר" (Drive, June 2026).
+          The physical-store card that sat further up (address, hours, the
+          Google Maps profile) is merged in here (UI review, 8.11.2026): the film
+          of the shop and the way to get there are one message, and two panels
+          saying "come and see" read as a repeat.
+          Every line is a verifiable fact, none is a claim. The address and the
+          hours come from BUSINESS and OPENING_HOURS, the constants the Store
+          JSON-LD reads, so the table and the structured data cannot drift. NOT
+          here on purpose: any rating or review count. The Google reviews are
+          real but they are Google's, and review markup is only permitted for
+          reviews a site collects itself (see GOOGLE_PLACE_URL); the link lets a
+          shopper read them at the source. */}
+      <section>
+        <Reveal className="container mx-auto max-w-6xl px-4 py-14 md:py-20">
+          <div className="grid items-center gap-8 md:grid-cols-[22rem_minmax(0,1fr)] md:gap-16">
+            <StoreVideo
+              src={storeTour}
+              poster={storeTourPoster}
+              label="סרטון הצצה לחנות אור זרוע לצדיק: פריטים מהחנות וחריטה בלייזר"
+            />
+            <div className="text-center md:text-start">
+              <p className={EYEBROW}>הצצה לחנות</p>
+              <h2 className="mt-3 font-display text-[1.75rem] leading-tight text-foreground md:text-4xl">
+                ככה זה נראה אצלנו
               </h2>
-              <p className="mt-2 text-sm md:text-base text-muted-foreground max-w-xl mx-auto md:mx-0 leading-7">
-                על כיסויים לטלית ותפילין, תיקים וסידורים — את הגופן, הצבע והמיקום נתאם איתכם לאחר
-                ההזמנה.
+              <p className="mt-4 leading-7 text-muted-foreground">
+                קריסטל לשבת, נטלות, כיפות רקומות, מזוזות וסידורים, וגם הטבעה וחריטת שם בלייזר שנעשות
+                כאן בחנות. מוזמנים לבקר.
               </p>
+              <p className="mt-6 font-medium text-foreground">{BUSINESS.address}</p>
+              {/* A real <dl>: day → hours, each pair in its own row wrapper.
+                  The ranges use an ASCII hyphen (see openingHoursLabel —
+                  U+2013 has bidi class ON and reverses a range in RTL). */}
+              <dl className="mx-auto mt-3 grid max-w-xs grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-start text-sm text-muted-foreground md:mx-0">
+                {OPENING_HOURS.map((h) => (
+                  <div key={h.he} className="contents">
+                    <dt className="text-foreground">{h.he}</dt>
+                    <dd>{openingHoursLabel(h)}</dd>
+                  </div>
+                ))}
+                <div className="contents">
+                  <dt className="text-foreground">שבת</dt>
+                  <dd>סגור</dd>
+                </div>
+              </dl>
+              <div className="mt-7 flex flex-wrap items-center justify-center gap-x-6 gap-y-4 md:justify-start">
+                {/* rel="noopener": external target. No `nofollow` — this is our
+                    own Business Profile, and the link corroborates the sameAs
+                    claim rather than passing equity to a third party. */}
+                <a href={GOOGLE_PLACE_URL} target="_blank" rel="noopener" className={BTN_SOLID}>
+                  הפרופיל שלנו בגוגל מפות
+                </a>
+                <a
+                  href={`tel:${BUSINESS.phone}`}
+                  className="inline-block py-1.5 -my-1.5 text-accent underline underline-offset-4 transition-colors duration-200 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-strong"
+                >
+                  {BUSINESS.phoneDisplay}
+                </a>
+              </div>
             </div>
-            <Link to="/collection/personalized" className={`${BTN_SOLID} shrink-0`}>
-              לפריטים להתאמה אישית
-            </Link>
           </div>
         </Reveal>
       </section>
 
-      {/* 5. Trust badges — moved up out of the proof footer to break the run of
-          browse-grids right after the flagship. No gold-rule bracket here: this
-          is not an act boundary, so the ground stays continuous white. */}
+      {/* 8. Trust badges — after the store film, where the page turns from
+          browsing to proof. No gold-rule bracket here: this is not an act
+          boundary, so the ground stays continuous white. */}
       <section>
         <Reveal className="container mx-auto px-4 py-14 md:py-20">
           {/* Heading was "למה לקוחות בוחרים בנו". The three cards under it are
@@ -1239,7 +1113,7 @@ function HomePage() {
               to count. */}
           <SectionHeader eyebrow="ההבטחה שלנו" title="מה מובטח לכם כאן" />
 
-          <div className="grid grid-cols-1 md:grid-cols-3 max-w-6xl mx-auto divide-y md:divide-y-0 md:divide-x md:divide-x-reverse divide-border">
+          <div className="grid grid-cols-1 md:grid-cols-3 max-w-6xl mx-auto divide-y md:divide-y-0 md:divide-x divide-border">
             {/* Every claim here has to be one the store can actually stand
                 behind — this strip is the homepage's trust promise, and an
                 unbacked line here is worse than no line at all.
@@ -1293,234 +1167,16 @@ function HomePage() {
         </Reveal>
       </section>
 
-      {/* 5.5. חנות אמיתית — the one piece of third-party proof this business
-          has, finally rendered for humans.
-          GOOGLE_PLACE_URL has existed in src/lib/business.ts since the entity
-          work and was referenced in exactly ONE place in the codebase:
-          __root.tsx's JSON-LD `hasMap`. So a crawler could see that this brand
-          is a real place on Google's map and a shopper could not — and the
-          opening hours were in the same position, present only in structured
-          data. For a store with zero orders, whose whole problem is whether a
-          stranger believes it is a real shop, that is the wrong way round.
-          The address, the hours and the profile link are all verifiable facts;
-          nothing here is a claim. Deliberately NOT here: any rating or review
-          count. The 6 Google reviews are real but they are Google's, and review
-          markup is only permitted for reviews a site collects itself — see the
-          note on GOOGLE_PLACE_URL. The link lets a shopper go read them at the
-          source, which is the honest version of the same reassurance.
-          Hours come from OPENING_HOURS, the same constant the Store node reads,
-          so the visible table and the structured data cannot drift. */}
-      <section>
-        <Reveal className="container mx-auto px-4 pb-14 md:pb-20 max-w-6xl">
-          <div className="glass glass-gold [--glass-radius:1.5rem] px-6 py-7 md:px-10 md:py-8 grid gap-6 md:grid-cols-[1fr_auto] md:items-center">
-            <div>
-              <div className="flex items-center gap-3 mb-3" aria-hidden="true">
-                <span className="gold-rule w-8 shrink-0" />
-                <span className="text-accent text-sm">✦</span>
-              </div>
-              <h2 className="font-display text-2xl md:text-3xl text-foreground leading-tight">
-                יש לנו גם חנות פיזית — אפשר לבוא לראות
-              </h2>
-              <p className="mt-2 text-sm md:text-base text-muted-foreground leading-7">
-                {BUSINESS.address} · {BUSINESS.legalId}
-              </p>
-              {/* A real <dl> rather than a table: two-column rows of day → hours,
-                  with the numeric range written with an ASCII hyphen (see
-                  openingHoursLabel — U+2013 has bidi class ON and reverses a
-                  range in RTL). */}
-              <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm text-muted-foreground max-w-sm">
-                {OPENING_HOURS.map((h) => (
-                  <div key={h.he} className="contents">
-                    <dt className="text-foreground">{h.he}</dt>
-                    <dd>{openingHoursLabel(h)}</dd>
-                  </div>
-                ))}
-                <dt className="text-foreground">שבת</dt>
-                <dd>סגור</dd>
-              </dl>
-            </div>
-            <div className="flex flex-col items-start gap-3 md:items-end">
-              {/* rel="noopener": external target. No `nofollow` — this is our own
-                  Business Profile and the outbound link corroborates the sameAs
-                  claim rather than passing equity to a third party. */}
-              <a href={GOOGLE_PLACE_URL} target="_blank" rel="noopener" className={BTN_SOLID}>
-                הפרופיל שלנו בגוגל מפות
-              </a>
-              <a
-                href={`tel:${BUSINESS.phone}`}
-                className="inline-block py-1.5 -my-1.5 text-sm text-accent underline underline-offset-4 transition-colors duration-200 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-strong"
-              >
-                {BUSINESS.phoneDisplay}
-              </a>
-            </div>
-          </div>
-        </Reveal>
-      </section>
-
-      {/* 5.6. מתנות עד ₪150 — the low-risk entry point. See fetchGiftPicks for
-          the measurement that motivates it. Rendered from loader data so the
-          tiles are in the server HTML like every other rail on this page; on the
-          rare loader failure the rail simply does not exist rather than
-          injecting itself mid-page after hydration.
-          The shipping line is on the RAIL, not the cart: a shopper who commits
-          to a ₪106 item and first meets ₪37 of shipping at checkout has been
-          surprised, and this is the one rail whose whole promise is "no
-          surprise". SHIPPING_FLAT is read from the pricing module, so it cannot
-          drift from what checkout charges. */}
-      {giftPicks && giftPicks.length >= 4 && (
-        <ProductRail
-          eyebrow="בלי להתחייב בגדול"
-          title={`מתנות עד ${formatILS(GIFT_CEILING)}`}
-          sub={`כל המחירים כאן הם המחיר הסופי לפריט. משלוח עד הבית ${formatILS(SHIPPING_FLAT)} לכל הארץ, לכל הזמנה.`}
-          products={giftPicks}
-          moreLabel="לכל המוצרים, מהזול ליקר ←"
-          moreSearch={{ sort: "price-asc" }}
-        />
-      )}
-
-      {/* 5.7. קונים לפי אירוע — the occasion/holiday hubs (/collection/<slug>).
-          Judaica is calendar- and lifecycle-driven, so shopping by occasion
-          (בר מצווה, חתונה, בית חדש) and by holiday (ראש השנה, חנוכה, פסח) is a
-          primary path. Text-only glass cards — no imagery to fetch — with the
-          eyebrow in --accent (the only gold) and the shared .glass-lift hover
-          motion. Swipeable on a phone via MobileCarousel, a grid from md up.
-          SSR-safe: OCCASION_COLLECTIONS is pure data imported at module scope,
-          so the rail is in the server HTML.
-
-          It sat above both category rails until 2026-09-24, on the argument
-          that a stranger wants a present for a simcha more than "a category".
-          The owner's reference leads with the photographic collection doors
-          instead, and they now open the page; this rail follows the proof
-          blocks, still ahead of the product rails. Text-only cards cannot
-          compete with photographs for the first screen. */}
-      <section>
-        <Reveal className="container mx-auto px-4 py-14 md:py-20">
-          <SectionHeader eyebrow="מתנה לכל שמחה" title="קונים לפי אירוע" />
-          {/* Photographic portrait tiles (see <OccasionTile>). basis-[62%] on a
-              phone: ~230px, one tile whole and the next peeking so the rail
-              reads as swipeable.
-              From md the rail is a grid, and seven tiles do not divide evenly
-              into rows — a plain 3- or 4-column grid strands the last row at
-              the start edge. So every tile spans TWO tracks of a doubled grid
-              (6 tracks at md = 3 across, 8 at lg = 4 across) and one tile is
-              nudged a track inward to centre the short last row: the 7th at md
-              (3+3+1), the 5th at lg (4+3). This is tied to the seven entries in
-              OCCASION_COLLECTIONS; if that count changes, re-derive the nudge. */}
-          <MobileCarousel
-            basis="basis-[62%]"
-            mdGrid="md:grid-cols-6 md:*:col-span-2 md:[&>*:nth-child(7)]:col-start-3 lg:grid-cols-8 lg:[&>*:nth-child(7)]:col-start-auto lg:[&>*:nth-child(5)]:col-start-2"
-            mdGap="md:gap-5"
-            className="max-w-6xl mx-auto"
-          >
-            {/* Ordered for the season: the coming holiday's hub leads, with
-                "לקראת חנוכה" as its eyebrow (holiday-season.ts). Same seven
-                tiles, so the grid nudges above still hold. */}
-            {occasions.map(({ c, label }) => (
-              <OccasionTile key={c.slug} c={c} eyebrow={label} />
-            ))}
-          </MobileCarousel>
-        </Reveal>
-      </section>
-
-      {/* 8. מומלצים באתר — pool איכות מסובב יומית */}
-      <FeaturedProductsCarousel
-        initialProducts={featuredProducts ?? undefined}
-        reserveSpace={featuredProducts === null}
-      />
-
-      {/* 9. הצצה לחנות — the owner's own store film (see <StoreVideo>).
-          This slot held "פריטי יוקרה נבחרים", then ShelfDirectory (six text
-          doors). Both were removed: on a page where every other block carries
-          a photograph, a text panel read as unfinished, and the doors repeated
-          the header's shelves. The rule they left was "if you put something
-          back here, it needs artwork". This is artwork: the clip the owner had
-          made "לאתר" (Drive, June 2026), which the site had never used.
-          Laid out like the chalaka band below: the clip and a glass panel side
-          by side from md, stacked on a phone with the clip first. */}
-      <section>
-        <Reveal className="container mx-auto px-4 py-14 md:py-20 max-w-6xl">
-          <div className="grid md:grid-cols-2 gap-8 md:gap-12 items-center">
-            <StoreVideo
-              src={storeTour}
-              poster={storeTourPoster}
-              label="סרטון הצצה לחנות אור זרוע לצדיק: פריטים מהחנות וחריטה בלייזר"
-            />
-            <div className="glass glass-gold p-8 md:p-12 text-center md:text-start [--glass-radius:1.5rem]">
-              <p className="text-meta md:text-body tracking-[0.3em] text-accent mb-4">הצצה לחנות</p>
-              <h2 className="font-display text-3xl md:text-5xl text-foreground mb-4">
-                ככה זה נראה אצלנו
-              </h2>
-              <div
-                className="flex items-center justify-center md:justify-start gap-3 mb-4"
-                aria-hidden="true"
-              >
-                <span className="gold-rule w-10 shrink-0" />
-                <span className="text-accent text-xs">✦</span>
-                <span className="gold-rule w-10 shrink-0" />
-              </div>
-              <p className="text-muted-foreground leading-7 mb-7">
-                קריסטל לשבת, נטלות, כיפות רקומות, מזוזות וסידורים, וגם הטבעה וחריטת שם בלייזר שנעשות
-                כאן בחנות. מוזמנים לבקר: {BUSINESS.address}.
-              </p>
-              <div>
-                <Link to="/shop" className={BTN_SOLID}>
-                  לכל המוצרים
-                </Link>
-              </div>
-            </div>
-          </div>
-        </Reveal>
-      </section>
-
-      {/* 10. חלאקה — promo band. The argaman half is now a glass panel beside the
-          photo rather than a wine fill behind cream text. */}
-      <section>
-        <Reveal className="container mx-auto px-4 py-14 md:py-20 max-w-6xl">
-          <div className="grid md:grid-cols-2 gap-6 md:gap-8 items-stretch">
-            <img
-              src={imgChalaka}
-              alt="סט חלאקה מהודר"
-              loading="lazy"
-              decoding="async"
-              width={800}
-              height={1067}
-              className="w-full h-full aspect-[4/3] object-cover rounded-[1.5rem] border border-gold/40"
-            />
-            <div className="glass glass-gold p-10 md:p-14 flex flex-col justify-center [--glass-radius:1.5rem]">
-              <p className="text-meta md:text-body tracking-[0.3em] text-accent mb-4">
-                מסורת של שמחה
-              </p>
-              <h3 className="font-display text-3xl md:text-5xl text-foreground mb-4">
-                חוגגים חלאקה?
-              </h3>
-              <div className="flex items-center gap-3 mb-4" aria-hidden="true">
-                <span className="gold-rule w-10 shrink-0" />
-                <span className="text-accent text-xs">✦</span>
-                <span className="gold-rule w-10 shrink-0" />
-              </div>
-              <p className="text-muted-foreground leading-7 mb-7">
-                סטים מהודרים לגיל שלוש — מבחר עיצובים וסגנונות לבחירה, ארוזים ומוכנים לחגיגה.
-              </p>
-              <div>
-                <Link to="/category/$slug" params={{ slug: "chalaka-set" }} className={BTN_SOLID}>
-                  לכל סטי החלאקה
-                </Link>
-              </div>
-            </div>
-          </div>
-        </Reveal>
-      </section>
-
-      {/* 11. לקוחות ממליצים — real approved reviews */}
+      {/* 9. לקוחות ממליצים — real approved reviews */}
       <HomeReviews initialReviews={reviews ?? undefined} reserveSpace={reviews === null} />
 
-      {/* 11.5. נצפו לאחרונה — client-only, personalized. Renders nothing on the
+      {/* 9.5. נצפו לאחרונה — client-only, personalized. Renders nothing on the
           server and for first-time visitors, so there is no reserved box and no
           layout shift; it mounts in low on the page only for returning shoppers
           whose recently-viewed store has items. */}
       <RecentlyViewedRail />
 
-      {/* 12. Gallery — visual closer.
+      {/* 10. Gallery — visual closer.
           Framed as OUR gallery, not as an Instagram feed: the tiles are a fixed
           set of stills and clips bundled with the site (see GALLERY_MEDIA), not
           posts pulled live from the account. Calling it a feed implied fresh
@@ -1551,12 +1207,12 @@ function HomePage() {
         </Reveal>
       </section>
 
-      {/* 12.5. מדריכי קנייה — the homepage's first links into /articles. See
+      {/* 11. מדריכי קנייה — the homepage's first links into /articles. See
           HOME_GUIDES above for the measurement that motivates it (0 guide links
           from the site's most-linked page, while the guides hold its four best
-          Search Console positions). Placed here, directly above the newsletter
-          block that already promises "מדריכים ותוכן", so the reading order goes
-          content → sign-up rather than interrupting the shopping rails. Same
+          Search Console positions). Placed near the end so it does not
+          interrupt the shopping rails; the sign-up that used to follow it is
+          the footer's (one newsletter form per page). Same
           card as the occasion rail (glass-soft + glass-lift + one arrow glyph)
           so the page keeps a single card language; the GuideLinks component is
           the category/PDP density and would not carry blurbs at this width. */}
@@ -1568,10 +1224,14 @@ function HomePage() {
             sub="חומרים, מידות ומנהגים — מה שכדאי לדעת לפני שבוחרים."
           />
           {/* basis-[68%] on mobile: one card fills the rail and the next peeks
-              past the edge, exactly as the occasion rail above. */}
+              past the edge, exactly as the occasion rail above. From md, five
+              cards in three columns would strand the last two at the start
+              edge, so each card spans two of six tracks and the fourth starts
+              one track in: the short second row sits centred. Tied to the five
+              HOME_GUIDES; re-derive the nudge if that count changes. */}
           <MobileCarousel
             basis="basis-[68%]"
-            mdGrid="md:grid-cols-3"
+            mdGrid="md:grid-cols-6 md:*:col-span-2 md:[&>*:nth-child(4)]:col-start-2"
             mdGap="md:gap-5"
             className="max-w-6xl mx-auto"
           >
@@ -1605,34 +1265,14 @@ function HomePage() {
         </Reveal>
       </section>
 
-      {/* 13. Newsletter capture — moved down to the last quiet ask before the
-          footer, once the visitor has seen the full catalog and the proof.
-          Content/holiday value proposition, not deals. */}
-      <section className="py-14 md:py-20">
-        <Reveal className="container mx-auto px-4">
-          <div className="glass glass-gold [--glass-radius:1.5rem] max-w-2xl mx-auto px-6 md:px-10 py-10 text-center">
-            <div className="text-xs tracking-[0.35em] text-accent mb-3">הישארו מעודכנים</div>
-            <h2 className="font-display text-2xl md:text-3xl text-foreground mb-2">
-              מדריכים ותוכן לקראת החגים
-            </h2>
-            <p className="text-sm text-muted-foreground mb-5">
-              ופריטים חדשים לפני כולם — בלי ספאם, אפשר להסיר בכל רגע.
-            </p>
-            <div className="mx-auto max-w-md">
-              <NewsletterSignup source="home" />
-            </div>
-          </div>
-        </Reveal>
-      </section>
-
-      {/* 14. SEO colophon + FAQ — demoted to the last content slot before the footer.
+      {/* 12. SEO colophon + FAQ — demoted to the last content slot before the footer.
           The H1 and both paragraphs stay in the DOM for SEO; canonical address/phone
           live in the footer. */}
       <section>
         <span aria-hidden="true" className="gold-rule block w-full" />
         <div className="container mx-auto px-4 py-14 md:py-20 max-w-4xl">
           {/* Colophon heading — demoted to h2; the hero value-prop line owns the page's only h1. */}
-          <h2 className="font-display text-2xl md:text-3xl font-bold text-foreground text-center mb-4 tracking-wide">
+          <h2 className="font-display text-2xl md:text-3xl font-normal text-foreground text-center mb-4">
             אור זרוע לצדיק — חנות תשמישי קדושה ויודאיקה מהודרת
           </h2>
           <p className="text-center text-sm text-muted-foreground leading-relaxed mb-4 max-w-3xl mx-auto">
@@ -1651,7 +1291,7 @@ function HomePage() {
           </p>
 
           {/* FAQ */}
-          <h2 className="font-display text-2xl md:text-3xl font-semibold text-center mb-8 tracking-wide">
+          <h2 className="font-display text-2xl md:text-3xl font-normal text-center mb-8">
             שאלות נפוצות
           </h2>
           {/* The Question nodes in head() are the SEO carrier, because Radix
@@ -1724,100 +1364,9 @@ function RecentlyViewedRail() {
               </CarouselItem>
             ))}
           </CarouselContent>
-          <CarouselPrevious className="right-2 -translate-y-1/2 hidden md:inline-flex" />
-          <CarouselNext className="left-2 -translate-y-1/2 hidden md:inline-flex" />
+          <CarouselPrevious className="-translate-y-1/2 hidden h-10 w-10 shadow-[var(--shadow-card)] md:inline-flex md:-right-5" />
+          <CarouselNext className="-translate-y-1/2 hidden h-10 w-10 shadow-[var(--shadow-card)] md:inline-flex md:-left-5" />
         </Carousel>
-      </div>
-    </section>
-  );
-}
-
-/**
- * Height of the populated "שאר הקטגוריות" section, measured in-browser at the
- * widths where the fluid container changes size (max per range, so it can only
- * ever over-reserve). Re-measured 2026-08-09 after the tiles became
- * <CollectionCard>, which changed the basis chain and therefore the tile square:
- *
- *   <768px      390 -> 494 · 767 -> 500      max 500
- *   768-1279px  768 -> 577 · 1279 -> 583     max 583
- *   >=1280px    1280 -> 581 · 1536 -> 632    max 632
- *
- * The plate itself adds nothing: it is absolutely positioned inside the square,
- * so a two-line category name grows it upward and the section height is a pure
- * function of the tile width.
- *
- * NOTE THIS CONSTANT IS CURRENTLY UNREACHABLE. `reserveSpace` has one call site
- * and it passes `false` unconditionally, so both branches that read this are
- * dead. It is kept correct rather than deleted because it is the right guard if
- * the loader ever stops resolving the strip at SSR — but if you are here because
- * it went stale again, deleting it and the prop is a behaviour-preserving change.
- */
-const OTHER_CATS_RESERVED_HEIGHT = " min-h-[500px] md:min-h-[590px] xl:min-h-[640px]";
-
-/**
- * "שאר הקטגוריות" — the tile carousel for every category with artwork that is
- * not already in FEATURED.
- *
- * `reserveSpace` is set when the route loader could not resolve the strip, so
- * the ">0 categories" decision happens after hydration. In that case the
- * section keeps its height while the client query is in flight, instead of
- * appearing mid-page and pushing the rest down.
- */
-function OtherCategoriesSection({
-  cats,
-  reserveSpace,
-}: {
-  cats: CatTile[];
-  reserveSpace: boolean;
-}) {
-  if (cats.length === 0) {
-    return reserveSpace ? (
-      <section aria-hidden="true" className={OTHER_CATS_RESERVED_HEIGHT.trim()} />
-    ) : null;
-  }
-
-  return (
-    <section className={reserveSpace ? OTHER_CATS_RESERVED_HEIGHT.trim() : undefined}>
-      <div className="container mx-auto px-4 py-14 md:py-20">
-        <SectionHeader eyebrow="גלו עוד" title="שאר הקטגוריות" />
-
-        <Carousel
-          dir="rtl"
-          opts={{ direction: "rtl", loop: true, dragFree: true, align: "center" }}
-          aria-label="שאר הקטגוריות"
-        >
-          {/* The reference's rail: one tile centred and whole, its neighbours
-              dissolving into the ground at both edges. align "center" puts a
-              tile in the middle; the mask on the VIEWPORT (not the Carousel
-              root, which also holds the arrows) does the dissolve. 44% on a
-              phone is ~160px, the reference's tile, with ~a third of each
-              neighbour showing. The chain stays monotonic upward, so no
-              breakpoint hands a narrower tile than the one below it. */}
-          <CarouselContent viewportClassName="[mask-image:linear-gradient(to_right,transparent,#000_3rem,#000_calc(100%-3rem),transparent)] md:[mask-image:linear-gradient(to_right,transparent,#000_5rem,#000_calc(100%-5rem),transparent)]">
-            {cats.map((c) => (
-              <CarouselItem
-                key={c.slug}
-                className="basis-[44%] sm:basis-[30%] md:basis-1/4 lg:basis-1/5 xl:basis-1/6"
-              >
-                <CategoryTile cat={c} />
-              </CarouselItem>
-            ))}
-          </CarouselContent>
-          {/* RTL side + arrow icon come from the carousel component; only the edge offset is tuned here */}
-          <CarouselPrevious className="right-0 -translate-y-1/2 hidden md:inline-flex" />
-          <CarouselNext className="left-0 -translate-y-1/2 hidden md:inline-flex" />
-        </Carousel>
-
-        {/* Browse-everything path — the crawlable link out to the full category
-            hub (/categories lists all 105 categories). */}
-        <div className="text-center">
-          <Link
-            to="/categories"
-            className="mt-6 inline-block text-sm text-accent underline underline-offset-4 transition-colors duration-200 ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-strong"
-          >
-            לכל הקטגוריות ←
-          </Link>
-        </div>
       </div>
     </section>
   );
@@ -1955,8 +1504,8 @@ function StoreGallery() {
           </CarouselItem>
         ))}
       </CarouselContent>
-      <CarouselPrevious className="right-2 -translate-y-1/2 hidden md:inline-flex" />
-      <CarouselNext className="left-2 -translate-y-1/2 hidden md:inline-flex" />
+      <CarouselPrevious className="-translate-y-1/2 hidden h-10 w-10 shadow-[var(--shadow-card)] md:inline-flex md:-right-5" />
+      <CarouselNext className="-translate-y-1/2 hidden h-10 w-10 shadow-[var(--shadow-card)] md:inline-flex md:-left-5" />
     </Carousel>
   );
 }

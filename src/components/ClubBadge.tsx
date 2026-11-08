@@ -44,7 +44,7 @@ export function ClubBadge({ variant = "inline", className = "" }: Props) {
       <Link
         to="/club"
         dir="rtl"
-        className={`group flex h-9 w-full items-center justify-center px-4 text-[13px] tracking-wide text-foreground
+        className={`group flex h-9 w-full items-center justify-center px-4 text-[13px] text-foreground
           glass-strong
           [--glass-radius:0]
           [--glass-bg-strong:rgba(252,250,243,0.94)]
@@ -54,6 +54,7 @@ export function ClubBadge({ variant = "inline", className = "" }: Props) {
           ${className}`}
       >
         <span className="truncate">
+          <span className="sm:hidden">מועדון הלקוחות — </span>
           <span className="hidden sm:inline">הצטרפו למועדון הלקוחות שלנו — </span>
           <span className="font-bold text-accent">חברות חינם</span>
           <span className="hidden md:inline"> · מעקב הזמנות והטבות לחברי מועדון</span>
