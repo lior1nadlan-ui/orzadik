@@ -22,6 +22,7 @@ import { HomeReviews } from "@/components/content/HomeReviews";
 import { fetchHomeReviews } from "@/lib/home-reviews";
 import { SectionHeader } from "@/components/home/SectionHeader";
 import { StoreVideo } from "@/components/home/StoreVideo";
+import { rangeableVideoSrc } from "@/lib/video-range";
 import { CollectionCard, type CatTile } from "@/components/home/CollectionCard";
 import { CategoryTile } from "@/components/home/CategoryTile";
 import { OccasionTile } from "@/components/home/OccasionTile";
@@ -1880,7 +1881,8 @@ function LazyReel({ src, poster }: { src: string; poster?: string }) {
   return (
     <video
       ref={ref}
-      src={visible ? src : undefined}
+      // /v/ in production: the byte-range path iOS Safari needs (video-range.ts).
+      src={visible ? rangeableVideoSrc(src) : undefined}
       poster={poster}
       muted
       loop

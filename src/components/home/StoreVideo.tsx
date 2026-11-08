@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Pause, Play, Volume2, VolumeX } from "lucide-react";
+import { rangeableVideoSrc } from "@/lib/video-range";
 
 /**
  * The owner's own store film: "סרטון לאתר" in the photographer's shared Drive
@@ -94,7 +95,8 @@ export function StoreVideo({ src, poster, label }: { src: string; poster: string
     <div className="relative mx-auto aspect-[9/16] w-full max-w-[20rem] overflow-hidden rounded-[1.5rem] border border-gold/40 bg-muted shadow-[var(--shadow-card)] md:max-w-[22rem]">
       <video
         ref={ref}
-        src={near ? src : undefined}
+        // /v/ in production: the byte-range path iOS Safari needs (video-range.ts).
+        src={near ? rangeableVideoSrc(src) : undefined}
         poster={poster}
         muted={muted}
         loop
