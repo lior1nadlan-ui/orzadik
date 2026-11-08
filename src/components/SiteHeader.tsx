@@ -1316,19 +1316,22 @@ export function SiteHeader({ hideOnMobile = false }: { hideOnMobile?: boolean } 
                       <div>
                         <div className="text-xs text-muted-foreground mb-2">קטגוריות</div>
                         <div className="flex flex-wrap gap-2">
-                          {departments.map((d) =>
-                            d.slug ? (
+                          {departments.map((d) => {
+                            // A grouping (no page of its own) offers its first
+                            // shelf, under that shelf's own name.
+                            const chip = d.slug ? { slug: d.slug, label: d.label } : d.children[0];
+                            return chip ? (
                               <Link
-                                key={d.slug}
+                                key={chip.slug}
                                 to="/category/$slug"
-                                params={{ slug: d.slug }}
+                                params={{ slug: chip.slug }}
                                 onClick={() => setSearchOpen(false)}
                                 className="inline-flex min-h-[44px] items-center rounded-full border border-gold/40 px-4 text-sm text-foreground/85 press [@media(hover:hover)_and_(pointer:fine)]:hover:border-accent [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent"
                               >
-                                {d.label}
+                                {chip.label}
                               </Link>
-                            ) : null,
-                          )}
+                            ) : null;
+                          })}
                         </div>
                       </div>
                     </div>

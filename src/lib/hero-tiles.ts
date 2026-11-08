@@ -15,26 +15,32 @@ export type TileArt = {
 export type HeroTile = TileArt & { slug: string; name: string };
 
 /**
- * The homepage squares, built from the menu's category map: the departments
- * first, then their shelves, in menu order, each slug once and under its menu
- * label. `labels` overrides a label that leans on the menu panel around it
- * ("פולירזין ואבן" reads as a mezuza case only under "נרתיקי מזוזה"). A shelf
- * with no picture is left out rather than shown as a blank square.
+ * The homepage squares: a short, curated list of menu categories in a fixed
+ * order (owner video 08.11.2026: "צריך למיין אותם ולעשות כמה משבצות", a few
+ * clear squares with one topic each, not one per shelf). Each square takes its
+ * menu label unless `labels` overrides it. A category the menu no longer lists
+ * (a shelf that emptied out, see pruneEmptyNav) or one with no picture is
+ * dropped rather than shown as a dead end or a blank.
  */
 export function heroTiles(
+  order: readonly string[],
   departments: readonly NavDepartment[],
   art: Readonly<Record<string, TileArt>>,
   labels: Readonly<Record<string, string>> = {},
 ): HeroTile[] {
+  const menuLabel = new Map<string, string>();
+  for (const d of departments) {
+    if (d.slug) menuLabel.set(d.slug, d.label);
+    for (const c of d.children) menuLabel.set(c.slug, c.label);
+  }
   const out: HeroTile[] = [];
   const seen = new Set<string>();
-  const add = (slug: string, label: string) => {
+  for (const slug of order) {
     const a = art[slug];
-    if (!a || seen.has(slug)) return;
+    const label = menuLabel.get(slug);
+    if (!a || label === undefined || seen.has(slug)) continue;
     seen.add(slug);
     out.push({ ...a, slug, name: labels[slug] ?? label });
-  };
-  for (const d of departments) if (d.slug) add(d.slug, d.label);
-  for (const d of departments) for (const c of d.children) add(c.slug, c.label);
+  }
   return out;
 }

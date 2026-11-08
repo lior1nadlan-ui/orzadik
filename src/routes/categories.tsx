@@ -13,12 +13,9 @@ import { OCCASION_COLLECTIONS } from "@/lib/collections";
 //
 // NOT yet routed through this predicate — two surfaces still decide for
 // themselves, so "every surface agrees" is not true yet:
-//   • src/routes/index.tsx (fetchOtherCategories) keeps a hand-maintained
-//     blacklist. It is a strict superset of HIDDEN_CATEGORY_SLUGS: it also drops
-//     `aluminum`, `bencher-stands` and `liqueur-sets`, which DO hold active
-//     products, as editorial "1 product, duplicate" calls. Replacing it means
-//     deciding which of those exclusions are editorial and which were really
-//     just stock checks — an owner call, not a mechanical one.
+//   • The menu and the homepage squares read the curated map in
+//     src/lib/nav-taxonomy.ts, and only use this predicate to drop shelves
+//     that emptied out (useNavDepartments → pruneEmptyNav).
 //   • src/components/catalog/SubcategoryChips.tsx filters on parent_slug only,
 //     against the unfiltered ["all-cats"] cache. Harmless today only because all
 //     nine dead categories happen to be top-level — data luck, not a guarantee.
@@ -39,9 +36,16 @@ import { OCCASION_COLLECTIONS } from "@/lib/collections";
  *  importer's catch-all bucket and `sale` is an empty placeholder whose NAME is
  *  the English string "sale" in an otherwise all-Hebrew nav. `etim` (pens):
  *  the owner does not want pens advertised (video 15.10.2026, request 27.10).
- *  `yehudaika` now 301s to /shop (CATEGORY_TO_SHOP_REDIRECTS), so listing it
- *  would link a redirect. */
-export const HIDDEN_CATEGORY_SLUGS = new Set(["sale", "uncategorized", "etim", "yehudaika"]);
+ *  `yehudaika` now 301s to /shop (CATEGORY_TO_SHOP_REDIRECTS) and
+ *  `talit-tefilin` to the covers (CATEGORY_TO_CATEGORY_REDIRECTS), so listing
+ *  either would link a redirect. */
+export const HIDDEN_CATEGORY_SLUGS = new Set([
+  "sale",
+  "uncategorized",
+  "etim",
+  "yehudaika",
+  "talit-tefilin",
+]);
 
 /** PostgREST embed carrying a category's active-product count. Append it to any
  *  `categories` select and pair it with `.eq("products.is_active", true)`:

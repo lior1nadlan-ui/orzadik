@@ -752,8 +752,9 @@ function HomePage() {
               <li>תשלום מאובטח</li>
             </ul>
 
-            {/* The shelves as photo squares (owner request 27.10.2026), built
-                from the menu's category map — see HeroCategoryTiles. */}
+            {/* Photo squares: the featured siddurim, nine categories and
+                "לכל המוצרים" (owner videos 27.10 and 08.11.2026) — see
+                HeroCategoryTiles. */}
             <div className="mt-6 w-full max-w-xl text-start lg:mt-8 lg:max-w-2xl">
               <HeroCategoryTiles />
             </div>
