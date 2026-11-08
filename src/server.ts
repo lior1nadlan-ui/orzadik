@@ -2,6 +2,7 @@ import "./lib/error-capture";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
+import { VIDEO_PROXY_PREFIX, rangedResponse, videoAssetPath } from "./lib/video-range";
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
@@ -223,6 +224,64 @@ function renamedProductSlug(pathname: string): string | undefined {
     : undefined;
 }
 
+type AssetsBinding = { fetch: (request: Request) => Promise<Response> };
+
+const VIDEO_CACHE_CONTROL = "public, max-age=31536000, immutable";
+
+/**
+ * /v/<name>.mp4: the site's video with byte-range support, which iOS Safari
+ * needs before it will play anything (see src/lib/video-range.ts for the
+ * measurement). The file itself still ships as a hashed static asset; this
+ * reads it from the asset binding. The Range header is forwarded, so if the
+ * binding ever answers 206 itself that passes straight through. Otherwise a
+ * whole-file request is streamed and a ranged one is sliced here.
+ */
+async function serveVideo(request: Request, url: URL): Promise<Response> {
+  const assetPath = videoAssetPath(url.pathname);
+  if (!assetPath) return new Response("Not found", { status: 404 });
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    return new Response(null, { status: 405, headers: { Allow: "GET, HEAD" } });
+  }
+  // Nitro's Cloudflare runtime stores the Worker env here on every request
+  // (node_modules/nitro/dist/presets/cloudflare/runtime/_module-handler.mjs).
+  const assets = (globalThis as { __env__?: { ASSETS?: AssetsBinding } }).__env__?.ASSETS;
+  // No asset binding (vite dev, a Vercel preview): send the browser to the
+  // plain file, which those hosts already serve with ranges.
+  const fallback = () => new Response(null, { status: 302, headers: { Location: assetPath } });
+  if (!assets) return fallback();
+  try {
+    const range = request.headers.get("Range");
+    const upstream = await assets.fetch(
+      new Request(new URL(assetPath, url.origin), { headers: range ? { Range: range } : {} }),
+    );
+    const head = request.method === "HEAD";
+    if (upstream.status === 206) {
+      const headers = new Headers(upstream.headers);
+      headers.set("Accept-Ranges", "bytes");
+      headers.set("Cache-Control", VIDEO_CACHE_CONTROL);
+      return new Response(head ? null : upstream.body, { status: 206, headers });
+    }
+    if (!upstream.ok) return new Response("Not found", { status: 404 });
+    const base: Record<string, string> = {
+      "Content-Type": upstream.headers.get("Content-Type") ?? "video/mp4",
+      "Cache-Control": VIDEO_CACHE_CONTROL,
+    };
+    const etag = upstream.headers.get("ETag");
+    if (etag) base.ETag = etag;
+    if (!range) {
+      const headers = new Headers(base);
+      headers.set("Accept-Ranges", "bytes");
+      const length = upstream.headers.get("Content-Length");
+      if (length) headers.set("Content-Length", length);
+      return new Response(head ? null : upstream.body, { status: 200, headers });
+    }
+    return rangedResponse(await upstream.arrayBuffer(), range, request.method, base);
+  } catch (error) {
+    console.error(error);
+    return fallback();
+  }
+}
+
 // NOTE: cron triggers are NOT handled here. Nitro overrides wrangler's `main`
 // and emits its own Cloudflare module, so a `scheduled` export on this object
 // would never be invoked. The handler lives in src/nitro/cron.ts, registered on
@@ -262,6 +321,10 @@ export default {
       if (isInsecure) reqUrl.protocol = "https:";
       if (isWww) reqUrl.hostname = "orzadik.com";
       return new Response(null, { status: 301, headers: { Location: reqUrl.toString() } });
+    }
+    // Video with byte ranges (iOS Safari). Before the app: /v/ is not a page.
+    if (reqUrl.pathname.startsWith(VIDEO_PROXY_PREFIX)) {
+      return applySecurityHeaders(await serveVideo(request, reqUrl));
     }
     // Renamed product slugs. Mutating only `pathname` keeps any query string
     // (?utm_source=…) intact, so campaign attribution survives the hop.
