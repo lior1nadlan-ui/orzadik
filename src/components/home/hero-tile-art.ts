@@ -2,11 +2,15 @@
 //
 // OWNER VIDEO 08.11.2026 (Lior): "כל המשבצות האלה ממש מבולבלות, צריך למיין
 // אותם ולעשות כמה משבצות". The 36 squares (one per shelf of the menu) became
-// the featured siddurim plus nine, and a "לכל המוצרים" square closes the grid:
-// 1 featured (two cells) + 9 + 1 = 12 cells, so the grid fills exactly at three
-// columns on a phone and at four from sm. The rest of the catalogue is one tap
-// away in the menu. "טלית ותפילין" has no square of its own any more (he asked
-// for it to go); its two lines are here instead: the covers, and the sets.
+// the featured siddurim plus ten: 1 featured (two cells) + 10 = 12 cells, so
+// the grid fills exactly at three columns on a phone and at four from sm, and
+// a "לכל המוצרים" row closes it. The rest of the catalogue is one tap away in
+// the menu. "טלית ותפילין" has no square of its own any more (he asked for it to
+// go); its lines are here instead: the covers, the tallitot and the sets.
+//
+// טליתות came back on 09.11.2026 (Ariel: "ריבוע זה חשוב, טליתות נמכר הרבה").
+// It is the tenth square rather than a swap, which is why "לכל המוצרים" became
+// a full row instead of the twelfth cell.
 //
 // Pictures, kept from the squares the owner approved on 27.10.2026:
 //   • the shop's own category photographs (src/assets/cat-*.webp);
@@ -18,6 +22,7 @@ import { thumbUrl } from "@/lib/img";
 import type { TileArt } from "@/lib/hero-tiles";
 
 import imgSiddur from "@/assets/cat-siddur.webp";
+import imgTallit from "@/assets/cat-tallit.webp";
 import imgChatan from "@/assets/cat-chatan.webp";
 import imgChalaka from "@/assets/cat-chalaka.webp";
 import imgTallitTefillinCovers from "@/assets/cat-tallit-tefillin-covers.webp";
@@ -29,6 +34,7 @@ import artTalitTefillinSet from "@/assets/other-cats/talit-tefillin-set.webp";
 export const HERO_SQUARES: readonly string[] = [
   "sidurim",
   "talit-tefillin-covers",
+  "talitot",
   "setim-talit-tefilin",
   "kipot",
   "shabbat",
@@ -56,6 +62,7 @@ const shelfPhoto = (path: string): TileArt => ({
 export const HERO_TILE_ART: Readonly<Record<string, TileArt>> = {
   sidurim: { img: imgSiddur, w: 800, h: 800 },
   "talit-tefillin-covers": { img: imgTallitTefillinCovers, w: 800, h: 1067 },
+  talitot: { img: imgTallit, w: 800, h: 1000 },
   "setim-talit-tefilin": art(artTalitTefillinSet),
   kipot: art(artKippot),
   shabbat: shelfPhoto("catalog/41632"),

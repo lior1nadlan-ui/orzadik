@@ -11,7 +11,7 @@ import { useNavDepartments } from "@/hooks/use-nav-departments";
 // A FEW CLEAR SQUARES (owner video, 08.11.2026). The owner first asked for every
 // category as a square (27.10.2026); at 36 squares he found them confusing
 // ("ממש מבולבלות") and asked for a few, one topic each. HERO_SQUARES lists them
-// (featured siddurim + nine), and "לכל המוצרים" closes the grid. Labels come
+// (featured siddurim + ten), and a "לכל המוצרים" row closes the grid. Labels come
 // from the menu map, and a square drops out when the menu does
 // (useNavDepartments), so the two never disagree.
 //
@@ -103,21 +103,21 @@ export function HeroCategoryTiles() {
           <Tile key={t.slug} tile={t} eager />
         ))}
 
-        {/* Closes the grid: the whole catalogue, one tap from the first screen. */}
+        {/* A full row under the squares: the whole catalogue, one tap from the
+            first screen. As a row it closes the grid whatever the column count,
+            so the squares alone have to fill it: 1 featured (two cells) + 10 =
+            12 cells, i.e. 4 rows of 3 on a phone and 3 rows of 4 from sm. */}
         <Link
           to="/shop"
-          className="press group flex aspect-square flex-col items-center justify-center gap-1.5 rounded-2xl border border-gold/60 bg-[#F3EDE3] p-2 text-center shadow-[0_14px_30px_-18px_rgba(22,15,4,0.8)]"
+          className="press group col-span-full flex min-h-[3.25rem] items-center justify-center gap-2 rounded-2xl border border-gold/60 bg-[#F3EDE3] px-4 text-center shadow-[0_14px_30px_-18px_rgba(22,15,4,0.8)]"
         >
           <span className="font-display text-lg leading-tight text-foreground sm:text-xl">
-            לכל המוצרים
+            לכל המוצרים בחנות
           </span>
-          <span className="inline-flex items-center gap-0.5 text-[0.8125rem] font-semibold text-accent">
-            לחנות
-            <ChevronLeft
-              className="h-3.5 w-3.5 transition-transform duration-200 ease-out motion-safe:[@media(hover:hover)_and_(pointer:fine)]:group-hover:-translate-x-0.5"
-              aria-hidden="true"
-            />
-          </span>
+          <ChevronLeft
+            className="h-4 w-4 text-accent transition-transform duration-200 ease-out motion-safe:[@media(hover:hover)_and_(pointer:fine)]:group-hover:-translate-x-0.5"
+            aria-hidden="true"
+          />
         </Link>
       </div>
     </nav>

@@ -42,10 +42,12 @@ describe("heroTiles", () => {
 describe("HERO_SQUARES", () => {
   const menu = new Set(navSlugs());
 
-  it("is the featured siddurim plus nine, so the 'all products' square closes the grid", () => {
-    // 1 featured (two cells) + 9 + 1 = 12 cells: 4 full rows of 3, 3 full rows of 4.
+  it("is the featured siddurim plus ten, so the squares fill the grid exactly", () => {
+    // 1 featured (two cells) + 10 = 12 cells: 4 full rows of 3, 3 full rows of 4.
+    // "לכל המוצרים" is a full row under them.
     expect(HERO_SQUARES[0]).toBe("sidurim");
-    expect(HERO_SQUARES).toHaveLength(10);
+    expect(HERO_SQUARES).toHaveLength(11);
+    expect(HERO_SQUARES).toContain("talitot");
     expect(new Set(HERO_SQUARES).size).toBe(HERO_SQUARES.length);
   });
 
@@ -60,6 +62,6 @@ describe("HERO_SQUARES", () => {
 
   it("has no square for the mixed טלית ותפילין page (owner, 08.11.2026)", () => {
     expect(HERO_SQUARES).not.toContain("talit-tefilin");
-    expect(heroTiles(HERO_SQUARES, NAV_DEPARTMENTS, HERO_TILE_ART)).toHaveLength(10);
+    expect(heroTiles(HERO_SQUARES, NAV_DEPARTMENTS, HERO_TILE_ART)).toHaveLength(11);
   });
 });
