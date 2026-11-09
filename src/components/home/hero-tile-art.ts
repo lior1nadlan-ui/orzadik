@@ -23,7 +23,7 @@ import type { TileArt } from "@/lib/hero-tiles";
 
 import imgSiddur from "@/assets/cat-siddur.webp";
 import imgTallit from "@/assets/cat-tallit-studio.webp";
-import imgChalaka from "@/assets/cat-chalaka.webp";
+import imgChalaka from "@/assets/cat-chalaka-gold-star.webp";
 import imgTallitTefillinCovers from "@/assets/cat-tallit-tefillin-bag.webp";
 import artKippot from "@/assets/other-cats/kippot.webp";
 import artMezuza from "@/assets/other-cats/mezuzot.webp";
@@ -69,7 +69,8 @@ export const HERO_TILE_ART: Readonly<Record<string, TileArt>> = {
   "netilat-yadaim": art(artWashingCups),
   // 09.11.2026: the warm-lit artwork; the busy photo of a full set read as clutter.
   "chatan-kala": art(artWedding),
-  "chalaka-set": { img: imgChalaka, w: 800, h: 1067 },
+  // 09.11.2026: a warmer, cleaner shot (gold star on white, beige suede).
+  "chalaka-set": { img: imgChalaka, w: 800, h: 800 },
 };
 
 /** Square labels that differ from the menu's, where a menu label is too long
