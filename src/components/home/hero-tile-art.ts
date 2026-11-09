@@ -23,14 +23,14 @@ import type { TileArt } from "@/lib/hero-tiles";
 
 import imgSiddur from "@/assets/cat-siddur.webp";
 import imgTallit from "@/assets/cat-tallit-studio.webp";
-import imgChatan from "@/assets/cat-chatan.webp";
 import imgChalaka from "@/assets/cat-chalaka.webp";
-import imgTallitTefillinCovers from "@/assets/cat-tallit-tefillin-covers.webp";
+import imgTallitTefillinCovers from "@/assets/cat-tallit-tefillin-bag.webp";
 import artKippot from "@/assets/other-cats/kippot.webp";
 import artMezuza from "@/assets/other-cats/mezuzot.webp";
 import artTalitTefillinSet from "@/assets/other-cats/talit-tefillin-set.webp";
 import artCandlesticks from "@/assets/other-cats/candlesticks.webp";
 import artHolidays from "@/assets/other-cats/holidays.webp";
+import artWedding from "@/assets/other-cats/wedding.webp";
 import artWashingCups from "@/assets/other-cats/washing-cups.webp";
 
 /** The squares in order. The first is the featured square (two rows). */
@@ -53,7 +53,9 @@ const art = (img: string): TileArt => ({ img, w: ART, h: ART });
 
 export const HERO_TILE_ART: Readonly<Record<string, TileArt>> = {
   sidurim: { img: imgSiddur, w: 800, h: 800 },
-  "talit-tefillin-covers": { img: imgTallitTefillinCovers, w: 800, h: 1067 },
+  // 09.11.2026: a white embroidered tallit bag on marble (one of the shop's
+  // own photos) instead of a shot with a white patch in its corner.
+  "talit-tefillin-covers": { img: imgTallitTefillinCovers, w: 800, h: 800 },
   // 09.11.2026: a studio shot of an embroidered tallit (the shop's name
   // embroidery) instead of a person wearing one: calmer and more formal.
   talitot: { img: imgTallit, w: 800, h: 800 },
@@ -65,7 +67,8 @@ export const HERO_TILE_ART: Readonly<Record<string, TileArt>> = {
   chagim: art(artHolidays),
   plastic: art(artMezuza),
   "netilat-yadaim": art(artWashingCups),
-  "chatan-kala": { img: imgChatan, w: 800, h: 1067 },
+  // 09.11.2026: the warm-lit artwork; the busy photo of a full set read as clutter.
+  "chatan-kala": art(artWedding),
   "chalaka-set": { img: imgChalaka, w: 800, h: 1067 },
 };
 
