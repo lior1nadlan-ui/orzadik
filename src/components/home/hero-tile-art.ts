@@ -77,4 +77,8 @@ export const HERO_TILE_ART: Readonly<Record<string, TileArt>> = {
  *  for two lines of a phone square. */
 export const HERO_TILE_LABELS: Readonly<Record<string, string>> = {
   "netilat-yadaim": "נטלות",
+  // 09.11.2026: the menu's names ran to three lines on a phone and were cut
+  // off with "..." ("כיסויים לטלית...", "סטים של תיקי טלי...").
+  "talit-tefillin-covers": "תיקי טלית ותפילין",
+  "setim-talit-tefilin": "סטי טלית ותפילין",
 };
