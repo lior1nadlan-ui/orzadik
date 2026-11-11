@@ -18,12 +18,15 @@
 //   • (09.11.2026) the catalogue shots on white that stood in for Shabbat,
 //     holidays and washing cups gave way to the same warm-lit artwork, and the
 //     tallit square to a studio shot of an embroidered tallit, so the wall
-//     reads as one formal set.
+//     reads as one formal set;
+//   • (11.11.2026) the owner asked for nicer tallit and chalaka pictures: the
+//     tallit square is a golden-hour frame from the shop's own shoot, the
+//     chalaka square the embroidered crown-and-wreath cape with its scissors.
 import type { TileArt } from "@/lib/hero-tiles";
 
 import imgSiddur from "@/assets/cat-siddur.webp";
-import imgTallit from "@/assets/cat-tallit-studio.webp";
-import imgChalaka from "@/assets/cat-chalaka-gold-star.webp";
+import imgTallit from "@/assets/cat-tallit-golden.webp";
+import imgChalaka from "@/assets/cat-chalaka-wreath.webp";
 import imgTallitTefillinCovers from "@/assets/cat-tallit-tefillin-bag.webp";
 import artKippot from "@/assets/other-cats/kippot.webp";
 import artMezuza from "@/assets/other-cats/mezuzot.webp";
@@ -56,8 +59,9 @@ export const HERO_TILE_ART: Readonly<Record<string, TileArt>> = {
   // 09.11.2026: a white embroidered tallit bag on marble (one of the shop's
   // own photos) instead of a shot with a white patch in its corner.
   "talit-tefillin-covers": { img: imgTallitTefillinCovers, w: 800, h: 800 },
-  // 09.11.2026: a studio shot of an embroidered tallit (the shop's name
-  // embroidery) instead of a person wearing one: calmer and more formal.
+  // 11.11.2026: a man wrapped in a white tallit at golden hour (the shop's
+  // own shoot, public/product-photos/drive-2026-08/…17-39-56_5, a frame the
+  // hero slides don't use) instead of the close-up of an embroidered tallit.
   talitot: { img: imgTallit, w: 800, h: 800 },
   "setim-talit-tefilin": art(artTalitTefillinSet),
   kipot: art(artKippot),
@@ -69,7 +73,11 @@ export const HERO_TILE_ART: Readonly<Record<string, TileArt>> = {
   "netilat-yadaim": art(artWashingCups),
   // 09.11.2026: the warm-lit artwork; the busy photo of a full set read as clutter.
   "chatan-kala": art(artWedding),
-  // 09.11.2026: a warmer, cleaner shot (gold star on white, beige suede).
+  // 11.11.2026: the white chalaka cape with the embroidered crown and wreath,
+  // and the scissors (public/product-photos/drive-2026-11/
+  // chalaka-white-quilted-cream-wreath-4). The customer's child's name that
+  // was embroidered inside the wreath has been removed from the picture, so
+  // no customer's name sits on the homepage.
   "chalaka-set": { img: imgChalaka, w: 800, h: 800 },
 };
 
