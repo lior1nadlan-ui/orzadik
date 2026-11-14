@@ -343,6 +343,66 @@ export type Database = {
           },
         ]
       }
+      coupons: {
+        Row: {
+          code: string
+          created_at: string
+          created_by: string | null
+          discount_type: string
+          discount_value: number
+          ends_at: string | null
+          free_shipping: boolean
+          id: string
+          influencer_name: string | null
+          is_active: boolean
+          max_uses: number | null
+          min_order: number | null
+          notes: string | null
+          once_per_customer: boolean
+          starts_at: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          created_by?: string | null
+          discount_type: string
+          discount_value: number
+          ends_at?: string | null
+          free_shipping?: boolean
+          id?: string
+          influencer_name?: string | null
+          is_active?: boolean
+          max_uses?: number | null
+          min_order?: number | null
+          notes?: string | null
+          once_per_customer?: boolean
+          starts_at?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          discount_type?: string
+          discount_value?: number
+          ends_at?: string | null
+          free_shipping?: boolean
+          id?: string
+          influencer_name?: string | null
+          is_active?: boolean
+          max_uses?: number | null
+          min_order?: number | null
+          notes?: string | null
+          once_per_customer?: boolean
+          starts_at?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       crm_action_state: {
         Row: {
           action_key: string
@@ -642,6 +702,9 @@ export type Database = {
           telegram_created_alert_sent_at: string | null
           telegram_paid_alert_sent_at: string | null
           contact_consent: boolean
+          coupon_code: string | null
+          coupon_discount: number
+          coupon_id: string | null
           contact_consent_at: string | null
           created_at: string
           customer_address: string
@@ -688,6 +751,9 @@ export type Database = {
           telegram_created_alert_sent_at?: string | null
           telegram_paid_alert_sent_at?: string | null
           contact_consent?: boolean
+          coupon_code?: string | null
+          coupon_discount?: number
+          coupon_id?: string | null
           contact_consent_at?: string | null
           created_at?: string
           customer_address: string
@@ -734,6 +800,9 @@ export type Database = {
           telegram_created_alert_sent_at?: string | null
           telegram_paid_alert_sent_at?: string | null
           contact_consent?: boolean
+          coupon_code?: string | null
+          coupon_discount?: number
+          coupon_id?: string | null
           contact_consent_at?: string | null
           created_at?: string
           customer_address?: string
@@ -768,7 +837,15 @@ export type Database = {
           updated_at?: string
           user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "orders_coupon_id_fkey"
+            columns: ["coupon_id"]
+            isOneToOne: false
+            referencedRelation: "coupons"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       product_categories: {
         Row: {
@@ -1354,6 +1431,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_coupon_stats: {
+        Args: never
+        Returns: {
+          coupon_id: string
+          customers: number
+          discount: number
+          last_order_at: string
+          paid_orders: number
+          sales: number
+          unpaid_orders: number
+        }[]
+      }
       admin_promotion_preview: {
         Args: { p_category_ids: string[]; p_product_ids: string[]; p_scope: string }
         Returns: Json
@@ -1474,6 +1563,13 @@ export type Database = {
         Returns: boolean
       }
       he_variants: { Args: { w: string }; Returns: string[] }
+      coupon_usage: {
+        Args: { p_coupon_id: string; p_email: string; p_phone: string }
+        Returns: {
+          customer_uses: number
+          total_uses: number
+        }[]
+      }
       increment_rate_limit: {
         Args: { p_key: string; p_ttl_seconds: number }
         Returns: number

@@ -1324,7 +1324,7 @@ export const getCustomerDetail = createServerFn({ method: "POST" })
       supabaseAdmin
         .from("orders")
         .select(
-          "id, order_number, total, status, payment_status, created_at, paid_at, shipped_at, shipping_carrier, tracking_number, review_request_sent_at, payment_reminder_sent_at, order_items(product_name, quantity, line_total)",
+          "id, order_number, total, status, payment_status, created_at, paid_at, shipped_at, shipping_carrier, tracking_number, review_request_sent_at, payment_reminder_sent_at, coupon_code, order_items(product_name, quantity, line_total)",
         )
         .ilike("customer_email", email)
         .order("created_at", { ascending: false })

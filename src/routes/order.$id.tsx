@@ -6,6 +6,7 @@ import { getOrderConfirmation } from "@/lib/order.functions";
 import { createCardcomPayment } from "@/lib/cardcom.functions";
 import { formatILS, useCart } from "@/lib/cart";
 import { BUSINESS } from "@/lib/business";
+import { orderBreakdown } from "@/lib/coupons";
 import { Button } from "@/components/ui/button";
 import { CardSkeleton } from "@/components/Skeletons";
 import { CheckCircle2, Clock, Mail, Truck, Package, MessageCircle, Loader2 } from "lucide-react";
@@ -386,11 +387,11 @@ function OrderConfirmationPage() {
             the least transparent of the three. Derived from data already
             fetched — no query change, no pricing.ts change. */}
         {(() => {
-          const itemsSum = order.order_items.reduce(
-            (s: number, it: any) => s + Number(it.line_total),
-            0,
+          // orderBreakdown splits the member's 5% from a coupon's shekels.
+          const { itemsSum, memberBenefit, couponDiscount, couponCode } = orderBreakdown(
+            order,
+            order.order_items,
           );
-          const memberBenefit = itemsSum - Number(order.subtotal);
           return (
             <div className="space-y-2 border-t border-glass-line pt-3">
               <div className="flex justify-between text-sm">
@@ -401,6 +402,14 @@ function OrderConfirmationPage() {
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">הטבת מועדון</span>
                   <span className="whitespace-nowrap">{formatILS(-memberBenefit)}</span>
+                </div>
+              )}
+              {couponDiscount > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">
+                    קופון <bdi dir="ltr">{couponCode}</bdi>
+                  </span>
+                  <span className="whitespace-nowrap">{formatILS(-couponDiscount)}</span>
                 </div>
               )}
               <div className="flex justify-between text-sm">

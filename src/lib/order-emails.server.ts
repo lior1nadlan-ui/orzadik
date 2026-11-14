@@ -22,6 +22,7 @@ import {
 import { orderItemImageUrl } from "@/lib/order-item-photo";
 import { sendOrderTelegramAlert } from "@/lib/telegram.server";
 import { getStaffRecipients } from "@/lib/staff-recipients.server";
+import { orderBreakdown } from "@/lib/coupons";
 
 /**
  * Origin for image URLs in mail. Absolute, always: a mail client has no page to
@@ -106,7 +107,7 @@ export async function sendOrderConfirmationEmails(orderId: string): Promise<bool
   const { data: order } = await supabaseAdmin
     .from("orders")
     .select(
-      "id, order_number, customer_name, customer_email, customer_phone, customer_address, customer_city, fulfillment, subtotal, shipping, total, is_gift, gift_note, gift_wrap, order_items(product_name, quantity, line_total, variant_label, custom_text, products(slug, thumbnail_url))",
+      "id, order_number, customer_name, customer_email, customer_phone, customer_address, customer_city, fulfillment, subtotal, shipping, total, coupon_code, coupon_discount, is_gift, gift_note, gift_wrap, order_items(product_name, quantity, line_total, variant_label, custom_text, products(slug, thumbnail_url))",
     )
     .eq("id", orderId)
     .single();
@@ -135,16 +136,21 @@ export async function sendOrderConfirmationEmails(orderId: string): Promise<bool
   // email doubles as the §14ג(ב) written confirmation, so it is the last place
   // that should be less transparent than the CardCom invoice (which does list
   // "הנחת חבר מועדון" as its own line).
-  const itemsSum = items.reduce((s, it) => s + Number(it.line_total ?? 0), 0);
-  const memberBenefit = itemsSum - Number(order.subtotal);
+  // A coupon is a row of its own too (orderBreakdown splits it from the 5%).
+  const { itemsSum, memberBenefit, couponDiscount, couponCode } = orderBreakdown(order, items);
   const memberRow =
     memberBenefit > 0
       ? `<tr><td class="oz-muted" style="color:#666;">הטבת חבר מועדון</td><td style="text-align:left;">-${ils(memberBenefit)}</td></tr>`
+      : "";
+  const couponRow =
+    couponDiscount > 0
+      ? `<tr><td class="oz-muted" style="color:#666;">קופון ${esc(couponCode ?? "")}</td><td style="text-align:left;">-${ils(couponDiscount)}</td></tr>`
       : "";
   const totalsBlock = `
     <table style="width:100%;font-size:14px;margin-top:12px;">
       <tr><td class="oz-muted" style="color:#666;">סכום פריטים</td><td style="text-align:left;">${ils(itemsSum)}</td></tr>
       ${memberRow}
+      ${couponRow}
       <tr><td class="oz-muted" style="color:#666;">משלוח</td><td style="text-align:left;">${Number(order.shipping) === 0 ? "חינם" : ils(order.shipping)}</td></tr>
       <tr><td style="font-weight:bold;font-size:16px;padding-top:8px;">סך הכל</td><td style="font-weight:bold;font-size:16px;text-align:left;padding-top:8px;color:#A8862A;">${ils(order.total)}</td></tr>
     </table>`;
@@ -214,6 +220,7 @@ export async function sendOrderConfirmationEmails(orderId: string): Promise<bool
         <tr><td style="color:#666;">טלפון</td><td style="text-align:left;">${esc(order.customer_phone)}</td></tr>
         <tr><td style="color:#666;">אימייל</td><td style="text-align:left;">${esc(order.customer_email)}</td></tr>
         <tr><td style="color:#666;">כתובת</td><td style="text-align:left;">${esc(order.customer_address)}${order.customer_city ? ", " + esc(order.customer_city) : ""}</td></tr>
+        ${couponCode ? `<tr><td style="color:#666;">קופון</td><td style="text-align:left;">${esc(couponCode)}</td></tr>` : ""}
       </table>
       <table style="width:100%;border-collapse:collapse;font-size:14px;">${rows}</table>
       ${totalsBlock}
@@ -263,7 +270,7 @@ export async function sendOrderCreatedOwnerAlert(orderId: string) {
   const { data: order } = await supabaseAdmin
     .from("orders")
     .select(
-      "order_number, customer_name, customer_email, customer_phone, customer_address, customer_city, notes, subtotal, shipping, total, is_gift, gift_note, gift_wrap, order_items(product_name, quantity, line_total, variant_label, custom_text, products(slug, thumbnail_url))",
+      "order_number, customer_name, customer_email, customer_phone, customer_address, customer_city, notes, subtotal, shipping, total, coupon_code, coupon_discount, is_gift, gift_note, gift_wrap, order_items(product_name, quantity, line_total, variant_label, custom_text, products(slug, thumbnail_url))",
     )
     .eq("id", orderId)
     .single();
@@ -285,6 +292,7 @@ export async function sendOrderCreatedOwnerAlert(orderId: string) {
       <tr><td style="color:#666;">אימייל</td><td style="text-align:left;">${esc(order.customer_email)}</td></tr>
       <tr><td style="color:#666;">כתובת</td><td style="text-align:left;">${esc(order.customer_address)}${order.customer_city ? ", " + esc(order.customer_city) : ""}</td></tr>
       ${order.notes ? `<tr><td style="color:#666;">הערות</td><td style="text-align:left;">${esc(order.notes)}</td></tr>` : ""}
+      ${order.coupon_code ? `<tr><td style="color:#666;">קופון</td><td style="text-align:left;">${esc(order.coupon_code)} (−${ils(order.coupon_discount)})</td></tr>` : ""}
     </table>
     <table style="width:100%;border-collapse:collapse;font-size:14px;">${rows}</table>
     <table style="width:100%;font-size:14px;margin-top:12px;">

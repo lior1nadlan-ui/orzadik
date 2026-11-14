@@ -181,6 +181,34 @@ export async function checkContactRateLimitByIp(
 }
 
 /**
+ * IP-based rate limiter for checking coupon codes at checkout.
+ *
+ * Its own `coupon:` namespace, like `track:`: the check answers "does this code
+ * exist", so without a cap a script could walk the influencers' codes. A
+ * shopper types one or two codes, so 20 in ten minutes never gets in a real
+ * buyer's way — and sharing the `order:` bucket would let typos block an order.
+ */
+export async function checkCouponRateLimitByIp(
+  ip: string,
+  maxPerWindow = 20,
+  windowSeconds = 10 * 60,
+): Promise<{ limited: boolean }> {
+  if (!ip || ip === "unknown") return { limited: false };
+  try {
+    const bucket = Math.floor(Date.now() / (windowSeconds * 1000));
+    const key = `coupon:${ip}:${bucket}`;
+    const { data, error } = await supabaseAdmin.rpc("increment_rate_limit", {
+      p_key: key,
+      p_ttl_seconds: windowSeconds * 2,
+    });
+    if (error) return { limited: false };
+    return { limited: (data as number) > maxPerWindow };
+  } catch {
+    return { limited: false };
+  }
+}
+
+/**
  * IP-based rate limiter for the CardCom webhook endpoint.
  * Uses the rate_limits table (see migration 20260626040000).
  * Returns { limited: true } if the IP has exceeded the threshold.

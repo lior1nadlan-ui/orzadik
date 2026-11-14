@@ -28,9 +28,15 @@ type Line = {
   quantity: number;
   customText: string;
 };
-type Created = { id: string; orderNumber: string; total: number; payUrl: string };
+type Created = {
+  id: string;
+  orderNumber: string;
+  total: number;
+  payUrl: string;
+  couponNotApplied?: boolean;
+};
 
-const EMPTY = { name: "", email: "", phone: "", city: "", address: "", notes: "" };
+const EMPTY = { name: "", email: "", phone: "", city: "", address: "", notes: "", coupon: "" };
 
 export function PhoneOrderDialog({
   open,
@@ -164,6 +170,7 @@ export function PhoneOrderDialog({
           customer_city: pickup ? null : form.city || null,
           notes: form.notes || null,
           contact_consent: consent,
+          coupon_code: form.coupon.trim() || null,
           items: lines.map((l) => ({
             product_id: l.productId,
             variant_id: l.variantId,
@@ -175,6 +182,9 @@ export function PhoneOrderDialog({
       setCreated(r);
       onCreated();
       toast.success(`הזמנה ${r.orderNumber} נוצרה`);
+      if (r.couponNotApplied) {
+        toast.warning("הקופון לא הוחל: ההזמנה לא מגיעה לסכום המינימום שלו.");
+      }
     } catch (e: any) {
       toast.error(e?.message ?? "יצירת ההזמנה נכשלה");
     } finally {
@@ -217,7 +227,7 @@ export function PhoneOrderDialog({
                 פריטים {formatILS(itemsTotal)} ·{" "}
                 {pickup ? "איסוף עצמי" : `משלוח ${formatILS(shipping)}`}
                 <span className="block">
-                  הסכום הסופי נקבע בשרת (מבצעים והנחת חבר מועדון חלים אוטומטית)
+                  הסכום הסופי נקבע בשרת (מבצעים, הנחת חבר מועדון וקופון חלים אוטומטית)
                 </span>
               </div>
               <Button onClick={submit} disabled={busy} className="w-full sm:w-auto">
@@ -454,6 +464,22 @@ export function PhoneOrderDialog({
                 ))}
               </ul>
             )}
+
+            <div>
+              <Label htmlFor="po-coupon">קוד קופון (לא חובה)</Label>
+              <Input
+                id="po-coupon"
+                dir="ltr"
+                autoComplete="off"
+                maxLength={60}
+                placeholder="למשל DANA10"
+                value={form.coupon}
+                onChange={(e) => setForm({ ...form, coupon: e.target.value })}
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                נבדק ומחושב כמו באתר, ונרשם בהזמנה — כך רואים מאיזה קופון הגיעה.
+              </p>
+            </div>
 
             <div>
               <Label htmlFor="po-notes">הערות</Label>

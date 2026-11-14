@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { COUPON_STORAGE_KEY } from "@/lib/coupons";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   Outlet,
@@ -579,6 +580,16 @@ function RootComponent() {
     // larger text, stop-animations…) IMMEDIATELY — deferring the widget's UI
     // must not delay the actual page adaptation those users depend on.
     applySavedA11ySettings();
+
+    // An influencer's link (any page, ?coupon=DANA10): keep the code for this
+    // tab so the checkout applies it by itself (src/lib/coupons.ts). The
+    // checkout re-checks it with the server; nothing here grants a discount.
+    try {
+      const linked = new URLSearchParams(window.location.search).get("coupon");
+      if (linked) sessionStorage.setItem(COUPON_STORAGE_KEY, linked.slice(0, 60));
+    } catch {
+      /* storage unavailable — the shopper can still type the code */
+    }
 
     const w = window as typeof window & {
       requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;

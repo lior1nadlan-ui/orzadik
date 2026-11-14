@@ -8,6 +8,7 @@ import { restoreOrderStock } from "@/lib/admin-crm.functions";
 // Used by the unsettled-session guard in createCardcomPayment: before opening a
 // second payment page, ask CardCom whether the first one was already completed.
 import { getLpResult, settleCardcomOrder } from "@/lib/cardcom-settle.server";
+import { orderBreakdown } from "@/lib/coupons";
 
 const CARDCOM_BASE = "https://secure.cardcom.solutions/api/v11";
 
@@ -113,10 +114,12 @@ type DocProduct = { Description: string; UnitCost: number; Quantity: number };
  * which is exactly why it went unnoticed.
  *
  * The arithmetic closes on integers: placeOrder stores subtotal AFTER the member
- * discount, so lines = Σ(unit_price × quantity) + shipping − memberDiscount
- *                    = rawSubtotal + shipping − (rawSubtotal − subtotal)
- *                    = subtotal + shipping = total.
- * Nothing here imports pricing.ts — every figure is read back off the order row.
+ * discount and the coupon (orders.coupon_discount), so
+ *   lines = Σ(unit_price × quantity) + shipping − memberDiscount − couponDiscount
+ *         = rawSubtotal + shipping − (rawSubtotal − subtotal − coupon) − coupon
+ *         = subtotal + shipping = total.
+ * orderBreakdown() is the one place that splits the two discounts; every figure
+ * is still read back off the order row, nothing is re-priced here.
  */
 function buildDocumentProducts(order: any): DocProduct[] {
   const items: any[] = Array.isArray(order.order_items) ? order.order_items : [];
@@ -132,9 +135,12 @@ function buildDocumentProducts(order: any): DocProduct[] {
     Quantity: Number(it.quantity),
   }));
 
-  const rawSubtotal = items.reduce((s, it) => s + Number(it.line_total), 0);
-  const memberDiscount = rawSubtotal - Number(order.subtotal);
-  const shipping = Number(order.shipping);
+  const {
+    memberBenefit: memberDiscount,
+    couponDiscount,
+    couponCode,
+    shipping,
+  } = orderBreakdown(order, items);
 
   if (Number.isFinite(shipping) && shipping > 0) {
     lines.push({ Description: "משלוח", UnitCost: shipping, Quantity: 1 });
@@ -144,6 +150,13 @@ function buildDocumentProducts(order: any): DocProduct[] {
   // customer on the document instead of silently shrinking a product's price.
   if (Number.isFinite(memberDiscount) && memberDiscount > 0) {
     lines.push({ Description: "הנחת חבר מועדון", UnitCost: -memberDiscount, Quantity: 1 });
+  }
+  if (couponDiscount > 0) {
+    lines.push({
+      Description: cap(couponCode ? `הנחת קופון ${couponCode}` : "הנחת קופון", 250) ?? "הנחת קופון",
+      UnitCost: -couponDiscount,
+      Quantity: 1,
+    });
   }
   return lines;
 }
@@ -169,7 +182,7 @@ export const createCardcomPayment = createServerFn({ method: "POST" })
         // cardcom_low_profile_id is in this select for the unsettled-session guard
         // below — without it this function could not see that it had already opened
         // a payment page for this order.
-        "id, user_id, order_number, subtotal, shipping, total, customer_name, customer_email, customer_phone, customer_address, customer_city, payment_status, cardcom_tranzaction_id, cardcom_low_profile_id, order_items(product_name, variant_label, custom_text, unit_price, quantity, line_total)",
+        "id, user_id, order_number, subtotal, shipping, total, coupon_code, coupon_discount, customer_name, customer_email, customer_phone, customer_address, customer_city, payment_status, cardcom_tranzaction_id, cardcom_low_profile_id, order_items(product_name, variant_label, custom_text, unit_price, quantity, line_total)",
       )
       .eq("id", data.order_id)
       .maybeSingle();

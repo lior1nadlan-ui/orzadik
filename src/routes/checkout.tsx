@@ -7,7 +7,6 @@ import {
   useCart,
   formatILS,
   getEffectivePrice,
-  applyMemberDiscount,
   getShipping,
   lineKey,
   type CartItem,
@@ -16,6 +15,15 @@ import { useCartRevalidation, isBlocking } from "@/lib/cart-revalidation";
 import { trackBeginCheckout } from "@/lib/analytics";
 import { useAuth } from "@/lib/auth";
 import { placeOrder } from "@/lib/checkout.functions";
+import { checkCoupon } from "@/lib/coupons.functions";
+import {
+  computeOrderTotals,
+  normalizeCouponCode,
+  COUPON_MESSAGE_PREFIX,
+  COUPON_STORAGE_KEY,
+  type CouponTerms,
+} from "@/lib/coupons";
+import { CouponField } from "@/components/cart/CouponField";
 import { createCardcomPayment } from "@/lib/cardcom.functions";
 import { saveAbandonedCart } from "@/lib/abandoned-cart.functions";
 import { Button } from "@/components/ui/button";
@@ -53,6 +61,7 @@ function CheckoutPage() {
   const navigate = useNavigate();
   const submitOrder = useServerFn(placeOrder);
   const startPayment = useServerFn(createCardcomPayment);
+  const checkCouponFn = useServerFn(checkCoupon);
   const saveCart = useServerFn(saveAbandonedCart);
   const [submitting, setSubmitting] = useState(false);
   // Set only in the instant between "CardCom gave us a URL" and the browser
@@ -83,6 +92,11 @@ function CheckoutPage() {
   // Persistent, screen-reader-announced failure banner shown above the submit
   // CTA. Complements the transient toast, which a returning shopper can miss.
   const [submitError, setSubmitError] = useState<string | null>(null);
+  // The coupon in use (its terms come from the server, checkCoupon), and the
+  // box's own state. placeOrder checks the code again when the order is placed.
+  const [coupon, setCoupon] = useState<CouponTerms | null>(null);
+  const [couponBusy, setCouponBusy] = useState(false);
+  const [couponError, setCouponError] = useState<string | null>(null);
   const consentRef = useRef<HTMLButtonElement>(null);
 
   // Update one field and clear its inline error as the shopper corrects it.
@@ -202,19 +216,86 @@ function CheckoutPage() {
     if (c && isBlocking(c)) return s;
     return s + (lineRegular(i) - linePrice(i)) * i.quantity;
   }, 0);
-  const memberSubtotal = applyMemberDiscount(itemsTotal, isMember);
-  const memberBenefit = itemsTotal - memberSubtotal;
-  // Same helper + input as the server and /cart (SHIPPING_FLAT on a positive
-  // post-member subtotal), computed from the revalidated subtotal rather than the
-  // stale cart's shipping so a fully-blocked cart never quotes a phantom fee.
-  const shipping = getShipping(memberSubtotal, fulfillment);
-  const finalTotal = memberSubtotal + shipping;
+  // The same computeOrderTotals() placeOrder charges with: member discount,
+  // then the coupon, then shipping (SHIPPING_FLAT on a positive subtotal unless
+  // the coupon waives it) — computed from the revalidated subtotal rather than
+  // the stale cart's shipping so a fully-blocked cart never quotes a phantom fee.
+  const totals = computeOrderTotals({ itemsTotal, isMember, fulfillment, coupon });
+  const memberBenefit = totals.memberBenefit;
+  const memberSubtotal = itemsTotal - memberBenefit;
+  const shipping = totals.shipping;
+  const finalTotal = totals.total;
   // Nothing here can actually be ordered (every line is one placeOrder() would
   // reject): itemsTotal — and with it משלוח and סך הכל — collapses to 0. Printing
   // "סך הכל ₪0" over visible product rows reads as "free", so the numeric
   // breakdown is withheld (mirrors /cart). blockedCount is 0 while the check
   // loads and if it failed, so the fail-open path keeps the ordinary summary.
   const nothingOrderable = blockedCount > 0 && itemsTotal === 0;
+
+  // Check a code with the server and use its terms. `quiet` is for a code that
+  // came back by itself (sessionStorage): if it no longer works it is simply
+  // dropped, without an error the shopper never asked for.
+  const applyCoupon = async (raw: string, quiet = false) => {
+    const code = normalizeCouponCode(raw);
+    if (!code) return;
+    setCouponBusy(true);
+    if (!quiet) setCouponError(null);
+    try {
+      const r = await checkCouponFn({
+        data: { code, email: form.email.trim() || null, phone: form.phone.trim() || null },
+      });
+      if (r.ok) {
+        setCoupon(r.terms);
+        setCouponError(null);
+        try {
+          sessionStorage.setItem(COUPON_STORAGE_KEY, r.terms.code);
+        } catch {
+          /* storage unavailable — the code still applies for this page */
+        }
+      } else {
+        setCoupon(null);
+        if (!quiet) setCouponError(r.message);
+        try {
+          sessionStorage.removeItem(COUPON_STORAGE_KEY);
+        } catch {
+          /* ignore */
+        }
+      }
+    } catch (e) {
+      if (!quiet) {
+        setCouponError(
+          hebrewOrFallback((e as Error)?.message, "לא הצלחנו לבדוק את הקופון. נסו שוב."),
+        );
+      }
+    } finally {
+      setCouponBusy(false);
+    }
+  };
+  const removeCoupon = () => {
+    setCoupon(null);
+    setCouponError(null);
+    try {
+      sessionStorage.removeItem(COUPON_STORAGE_KEY);
+    } catch {
+      /* ignore */
+    }
+  };
+  // A code from an influencer's link (?coupon=DANA10, captured by the root on
+  // any page) or applied earlier in this tab comes back by itself. A link that
+  // lands straight on /checkout?coupon= is read here too.
+  useEffect(() => {
+    let code: string | null = null;
+    try {
+      code =
+        new URLSearchParams(window.location.search).get("coupon") ||
+        sessionStorage.getItem(COUPON_STORAGE_KEY);
+    } catch {
+      /* storage unavailable */
+    }
+    if (code) void applyCoupon(code, true);
+    // Once, on open: later changes go through the box.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Save abandoned-cart snapshot 2s after the user types a valid email
   const lastSavedRef = useRef<string>("");
@@ -349,6 +430,10 @@ function CheckoutPage() {
           // The amount this page showed for the items. placeOrder refuses to
           // charge more — e.g. a promotion that ended while the form was open.
           expected_items_total: itemsTotal,
+          // Only a code that actually gives something here is sent; with it, the
+          // total this page showed, which the server will not exceed.
+          coupon_code: coupon && totals.couponApplied ? coupon.code : null,
+          expected_total: coupon && totals.couponApplied ? finalTotal : undefined,
           items: items.map((i) => ({
             product_id: i.productId,
             quantity: i.quantity,
@@ -392,6 +477,12 @@ function CheckoutPage() {
         err?.message,
         "שגיאה בשליחת ההזמנה, נסו שוב או צרו קשר בוואטסאפ",
       );
+      // The coupon stopped the order (expired, used up, changed): drop it so the
+      // summary and the button show the amount without it, and say why.
+      if (msg.startsWith(COUPON_MESSAGE_PREFIX)) {
+        removeCoupon();
+        setCouponError(msg);
+      }
       setSubmitError(msg);
       toast.error(msg);
     } finally {
@@ -420,7 +511,11 @@ function CheckoutPage() {
             <div className="flex items-baseline justify-between gap-3 text-sm">
               <span className="text-muted-foreground">
                 {items.length === 1 ? "פריט אחד" : `${items.length} פריטים`} ·{" "}
-                {isPickup ? "איסוף עצמי" : `משלוח ${formatILS(shipping)}`}
+                {isPickup
+                  ? "איסוף עצמי"
+                  : totals.shippingWaived > 0
+                    ? "משלוח חינם"
+                    : `משלוח ${formatILS(shipping)}`}
               </span>
               <span className="font-bold text-accent whitespace-nowrap">
                 {formatILS(finalTotal)}
@@ -510,7 +605,10 @@ function CheckoutPage() {
                   {
                     value: "delivery",
                     title: "משלוח עד הבית",
-                    sub: `${formatILS(getShipping(memberSubtotal, "delivery"))} · תעריף אחיד לכל הזמנה`,
+                    sub:
+                      totals.couponApplied && coupon?.freeShipping
+                        ? "חינם עם הקופון"
+                        : `${formatILS(getShipping(memberSubtotal, "delivery"))} · תעריף אחיד לכל הזמנה`,
                   },
                   {
                     value: "pickup",
@@ -703,6 +801,18 @@ function CheckoutPage() {
             להסרה בכל עת).
           </span>
         </label>
+        {!nothingOrderable && (
+          <CouponField
+            coupon={coupon}
+            applied={totals.couponApplied}
+            saved={totals.couponDiscount + totals.shippingWaived}
+            busy={couponBusy}
+            error={couponError}
+            disabled={submitting || redirecting}
+            onApply={(code) => void applyCoupon(code)}
+            onRemove={removeCoupon}
+          />
+        )}
         <PrivacyNotice context="checkout" />
         {/* Persistent failure banner directly above the CTA — the toast is
             transient and easy to miss, this stays until the next submit. */}
@@ -851,7 +961,7 @@ function CheckoutPage() {
                 factual component of that number — no percentages and no "before" price.
                 The one saving it states is a live CRM promotion's, as a fact about
                 סכום פריטים rather than a row of its own, so the arithmetic still
-                reads סכום פריטים (− הטבת מועדון) + משלוח = סך הכל. */}
+                reads סכום פריטים (− הטבת מועדון) (− קופון) + משלוח = סך הכל. */}
             <div className="space-y-2 border-t border-glass-line pt-3">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">סכום פריטים</span>
@@ -868,11 +978,25 @@ function CheckoutPage() {
                   <span className="whitespace-nowrap">{formatILS(-memberBenefit)}</span>
                 </div>
               )}
+              {coupon && totals.couponDiscount > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">
+                    קופון <bdi dir="ltr">{coupon.code}</bdi>
+                  </span>
+                  <span className="whitespace-nowrap">{formatILS(-totals.couponDiscount)}</span>
+                </div>
+              )}
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">
-                  {isPickup ? "איסוף עצמי מהחנות" : "משלוח (תעריף אחיד לכל הזמנה)"}
+                  {isPickup
+                    ? "איסוף עצמי מהחנות"
+                    : totals.shippingWaived > 0
+                      ? "משלוח (חינם עם הקופון)"
+                      : "משלוח (תעריף אחיד לכל הזמנה)"}
                 </span>
-                <span className="whitespace-nowrap">{formatILS(shipping)}</span>
+                <span className="whitespace-nowrap">
+                  {totals.shippingWaived > 0 ? "חינם" : formatILS(shipping)}
+                </span>
               </div>
             </div>
             {/* Decorative gold hairline — a gradient rule, not text. */}

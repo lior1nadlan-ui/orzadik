@@ -624,6 +624,21 @@ function AdminCustomers() {
                     אישר/ה יצירת קשר
                   </span>
                 )}
+                {/* The coupons (influencers) this customer bought through. */}
+                {[
+                  ...new Set(
+                    (cust?.orders ?? [])
+                      .map((o: any) => o.coupon_code as string | null)
+                      .filter(Boolean),
+                  ),
+                ].map((code) => (
+                  <span
+                    key={code}
+                    className="text-[11px] rounded-full bg-amber-100 px-2 py-0.5 font-semibold text-amber-900"
+                  >
+                    קופון <bdi dir="ltr">{code}</bdi>
+                  </span>
+                ))}
               </div>
               <div className="grid grid-cols-4 gap-1.5 text-center sm:gap-2">
                 <div className="rounded-lg border px-1 py-2 sm:p-3">
@@ -756,6 +771,12 @@ function AdminCustomers() {
                               <span className="text-[11px] rounded-full bg-muted px-2 py-0.5">
                                 {paymentStatusHe(o.payment_status)}
                               </span>
+                              {/* Which coupon (influencer) this order came through. */}
+                              {o.coupon_code && (
+                                <span className="ms-1 text-[11px] rounded-full bg-amber-100 px-2 py-0.5 font-semibold text-amber-900">
+                                  קופון <bdi dir="ltr">{o.coupon_code}</bdi>
+                                </span>
+                              )}
                             </div>
                             <div className="font-bold">{formatILS(Number(o.total))}</div>
                           </div>
