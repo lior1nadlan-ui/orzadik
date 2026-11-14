@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
   commissionOwed,
+  hebrewMonth,
+  monthKey,
+  partnerMonths,
+  payoutBalance,
   computeOrderTotals,
   couponDiscount,
   couponInputErrors,
@@ -311,5 +315,37 @@ describe("couponInputErrors", () => {
         ends_at: "2026-11-01T00:00:00Z",
       }),
     ).toHaveLength(1);
+  });
+});
+
+describe("influencer report helpers", () => {
+  it("files an order under its Israel-time month", () => {
+    // 22:30 UTC on 31 Oct is already 1 Nov in Israel (UTC+2).
+    expect(monthKey("2026-10-31T22:30:00Z")).toBe("2026-11");
+    expect(monthKey("2026-10-31T21:30:00Z")).toBe("2026-10");
+    expect(monthKey("not a date")).toBeNull();
+  });
+  it("groups paid orders by month, newest first, with the commission", () => {
+    const months = partnerMonths(
+      [
+        { created_at: "2026-10-05T10:00:00Z", subtotal: 100 },
+        { created_at: "2026-11-02T10:00:00Z", subtotal: "250" },
+        { created_at: "2026-11-20T10:00:00Z", subtotal: 150 },
+      ],
+      10,
+    );
+    expect(months).toEqual([
+      { month: "2026-11", orders: 2, sales: 400, commission: 40 },
+      { month: "2026-10", orders: 1, sales: 100, commission: 10 },
+    ]);
+    expect(partnerMonths([], 10)).toEqual([]);
+  });
+  it("names the month in Hebrew", () => {
+    expect(hebrewMonth("2026-11")).toMatch(/נובמבר.*2026/);
+  });
+  it("works out the balance to the agora", () => {
+    expect(payoutBalance(245, 200)).toBe(45);
+    expect(payoutBalance(245, 300)).toBe(-55);
+    expect(payoutBalance(34.2, 0.1)).toBe(34.1);
   });
 });

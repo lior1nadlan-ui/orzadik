@@ -343,6 +343,44 @@ export type Database = {
           },
         ]
       }
+      coupon_payouts: {
+        Row: {
+          amount: number
+          coupon_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          note: string | null
+          paid_at: string
+        }
+        Insert: {
+          amount: number
+          coupon_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note?: string | null
+          paid_at?: string
+        }
+        Update: {
+          amount?: number
+          coupon_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note?: string | null
+          paid_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coupon_payouts_coupon_id_fkey"
+            columns: ["coupon_id"]
+            isOneToOne: false
+            referencedRelation: "coupons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       coupons: {
         Row: {
           code: string
@@ -360,6 +398,7 @@ export type Database = {
           min_order: number | null
           notes: string | null
           once_per_customer: boolean
+          partner_token: string | null
           starts_at: string
           updated_at: string
           updated_by: string | null
@@ -380,6 +419,7 @@ export type Database = {
           min_order?: number | null
           notes?: string | null
           once_per_customer?: boolean
+          partner_token?: string | null
           starts_at?: string
           updated_at?: string
           updated_by?: string | null
@@ -400,6 +440,7 @@ export type Database = {
           min_order?: number | null
           notes?: string | null
           once_per_customer?: boolean
+          partner_token?: string | null
           starts_at?: string
           updated_at?: string
           updated_by?: string | null

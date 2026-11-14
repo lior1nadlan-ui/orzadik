@@ -11,12 +11,15 @@ import {
   couponInputErrors,
   couponStatus,
   normalizeCouponCode,
+  payoutBalance,
   type CouponRecord,
   type CouponStatus,
 } from "@/lib/coupons";
 
 export type CouponListItem = CouponRecord & {
   created_at: string;
+  /** Secret of the influencer's report link (/partner/<token>), or null. */
+  partner_token: string | null;
   status: CouponStatus;
   /** Paid orders that used the code. */
   paid_orders: number;
@@ -26,6 +29,10 @@ export type CouponListItem = CouponRecord & {
   discount: number;
   /** The influencer's commission on `sales` (commission_percent), 0 when none. */
   commission: number;
+  /** Commission payments recorded so far (coupon_payouts). */
+  paid_out: number;
+  /** commission − paid_out; negative = paid in advance. */
+  balance: number;
   /** Distinct customers (by email) among them. */
   customers: number;
   /** Orders with the code that are not (yet) paid. */
@@ -35,26 +42,41 @@ export type CouponListItem = CouponRecord & {
 
 export const listCoupons = createServerFn({ method: "POST" }).handler(async () => {
   await requireAdmin();
-  const [{ data: rows, error }, { data: stats, error: sErr }] = await Promise.all([
-    supabaseAdmin.from("coupons").select("*").order("created_at", { ascending: false }).limit(500),
-    supabaseAdmin.rpc("admin_coupon_stats"),
-  ]);
+  const [{ data: rows, error }, { data: stats, error: sErr }, { data: payouts, error: pErr }] =
+    await Promise.all([
+      supabaseAdmin
+        .from("coupons")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(500),
+      supabaseAdmin.rpc("admin_coupon_stats"),
+      supabaseAdmin.from("coupon_payouts").select("coupon_id, amount").limit(10000),
+    ]);
   if (error) {
     console.error("[coupons] list:", error);
     throw new Error("שגיאה בטעינת הקופונים.");
   }
   if (sErr) console.error("[coupons] stats:", sErr);
+  if (pErr) console.error("[coupons] payouts:", pErr);
   const byCoupon = new Map((stats ?? []).map((s) => [s.coupon_id, s]));
+  const paidOut = new Map<string, number>();
+  for (const p of payouts ?? []) {
+    paidOut.set(p.coupon_id, (paidOut.get(p.coupon_id) ?? 0) + Number(p.amount));
+  }
   const now = new Date();
   return (rows ?? []).map((r): CouponListItem => {
     const s = byCoupon.get(r.id);
     const paid = Number(s?.paid_orders ?? 0);
+    const commission = commissionOwed(Number(s?.sales ?? 0), r.commission_percent);
+    const out = Math.round((paidOut.get(r.id) ?? 0) * 100) / 100;
     return {
       ...r,
       discount_value: Number(r.discount_value),
       min_order: r.min_order == null ? null : Number(r.min_order),
       commission_percent: r.commission_percent == null ? null : Number(r.commission_percent),
-      commission: commissionOwed(Number(s?.sales ?? 0), r.commission_percent),
+      commission,
+      paid_out: out,
+      balance: payoutBalance(commission, out),
       status: couponStatus(r, paid, now),
       paid_orders: paid,
       sales: Number(s?.sales ?? 0),
@@ -193,4 +215,106 @@ export const listCouponOrders = createServerFn({ method: "POST" })
       total: Number(r.total),
       coupon_discount: Number(r.coupon_discount),
     }));
+  });
+
+// ---- Commission payments ----------------------------------------------------
+
+export type CouponPayout = { id: string; amount: number; paid_at: string; note: string | null };
+
+export const listCouponPayouts = createServerFn({ method: "POST" })
+  .validator((input: unknown) => z.object({ coupon_id: z.string().uuid() }).parse(input))
+  .handler(async ({ data }): Promise<CouponPayout[]> => {
+    await requireAdmin();
+    const { data: rows, error } = await supabaseAdmin
+      .from("coupon_payouts")
+      .select("id, amount, paid_at, note")
+      .eq("coupon_id", data.coupon_id)
+      .order("paid_at", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(500);
+    if (error) {
+      console.error("[coupons] payouts list:", error);
+      throw new Error("שגיאה בטעינת התשלומים.");
+    }
+    return (rows ?? []).map((r) => ({ ...r, amount: Number(r.amount) }));
+  });
+
+/** "רישום תשלום": the shop paid the influencer `amount` on `paid_at`. */
+export const addCouponPayout = createServerFn({ method: "POST" })
+  .validator((input: unknown) =>
+    z
+      .object({
+        coupon_id: z.string().uuid(),
+        amount: z.number().positive().max(1_000_000),
+        paid_at: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        note: z.string().trim().max(500).nullable(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data }) => {
+    const adminId = await requireAdmin();
+    const { error } = await supabaseAdmin.from("coupon_payouts").insert({
+      coupon_id: data.coupon_id,
+      amount: Math.round(data.amount * 100) / 100,
+      paid_at: data.paid_at,
+      note: data.note || null,
+      created_by: adminId,
+    });
+    if (error) {
+      console.error("[coupons] payout insert:", error);
+      throw new Error("לא ניתן לרשום את התשלום.");
+    }
+    return { ok: true };
+  });
+
+/** Undo a payment recorded by mistake. */
+export const deleteCouponPayout = createServerFn({ method: "POST" })
+  .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .handler(async ({ data }) => {
+    await requireAdmin();
+    const { error } = await supabaseAdmin.from("coupon_payouts").delete().eq("id", data.id);
+    if (error) {
+      console.error("[coupons] payout delete:", error);
+      throw new Error("לא ניתן למחוק את התשלום.");
+    }
+    return { ok: true };
+  });
+
+// ---- The influencer's private report link -------------------------------------
+
+/**
+ * Create (or replace) the secret behind /partner/<token>. Replacing it turns
+ * the old link off at once — for a link that was passed on too far.
+ */
+export const createPartnerLink = createServerFn({ method: "POST" })
+  .validator((input: unknown) => z.object({ coupon_id: z.string().uuid() }).parse(input))
+  .handler(async ({ data }) => {
+    const adminId = await requireAdmin();
+    const bytes = crypto.getRandomValues(new Uint8Array(16));
+    const token = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+    const { error } = await supabaseAdmin
+      .from("coupons")
+      .update({ partner_token: token, updated_at: new Date().toISOString(), updated_by: adminId })
+      .eq("id", data.coupon_id);
+    if (error) {
+      console.error("[coupons] partner link:", error);
+      throw new Error("לא ניתן ליצור את הקישור.");
+    }
+    return { token };
+  });
+
+/** Turn the influencer's report link off. */
+export const removePartnerLink = createServerFn({ method: "POST" })
+  .validator((input: unknown) => z.object({ coupon_id: z.string().uuid() }).parse(input))
+  .handler(async ({ data }) => {
+    const adminId = await requireAdmin();
+    const { error } = await supabaseAdmin
+      .from("coupons")
+      .update({ partner_token: null, updated_at: new Date().toISOString(), updated_by: adminId })
+      .eq("id", data.coupon_id);
+    if (error) {
+      console.error("[coupons] partner link off:", error);
+      throw new Error("לא ניתן לבטל את הקישור.");
+    }
+    return { ok: true };
   });

@@ -209,6 +209,31 @@ export async function checkCouponRateLimitByIp(
 }
 
 /**
+ * IP-based rate limiter for an influencer's report page (/partner/<token>).
+ * Its own `partner:` namespace: the token is 128 random bits, so this is not
+ * what keeps it secret — it only stops a script from hammering the lookup.
+ */
+export async function checkPartnerRateLimitByIp(
+  ip: string,
+  maxPerWindow = 30,
+  windowSeconds = 10 * 60,
+): Promise<{ limited: boolean }> {
+  if (!ip || ip === "unknown") return { limited: false };
+  try {
+    const bucket = Math.floor(Date.now() / (windowSeconds * 1000));
+    const key = `partner:${ip}:${bucket}`;
+    const { data, error } = await supabaseAdmin.rpc("increment_rate_limit", {
+      p_key: key,
+      p_ttl_seconds: windowSeconds * 2,
+    });
+    if (error) return { limited: false };
+    return { limited: (data as number) > maxPerWindow };
+  } catch {
+    return { limited: false };
+  }
+}
+
+/**
  * IP-based rate limiter for the CardCom webhook endpoint.
  * Uses the rate_limits table (see migration 20260626040000).
  * Returns { limited: true } if the IP has exceeded the threshold.

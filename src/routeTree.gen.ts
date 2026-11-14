@@ -51,6 +51,7 @@ import { Route as CategorySlugRouteImport } from './routes/category.$slug'
 import { Route as CollectionSlugRouteImport } from './routes/collection.$slug'
 import { Route as CollectionPersonalizedRouteImport } from './routes/collection.personalized'
 import { Route as OrderIdRouteImport } from './routes/order.$id'
+import { Route as PartnerTokenRouteImport } from './routes/partner.$token'
 import { Route as ProductSlugRouteImport } from './routes/product.$slug'
 import { Route as ApiCronAbandonedCartRemindersRouteImport } from './routes/api/cron/abandoned-cart-reminders'
 import { Route as ApiCronCampaignTickRouteImport } from './routes/api/cron/campaign-tick'
@@ -273,6 +274,11 @@ const OrderIdRoute = OrderIdRouteImport.update({
   path: '/order/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PartnerTokenRoute = PartnerTokenRouteImport.update({
+  id: '/partner/$token',
+  path: '/partner/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProductSlugRoute = ProductSlugRouteImport.update({
   id: '/product/$slug',
   path: '/product/$slug',
@@ -372,6 +378,7 @@ export interface FileRoutesByFullPath {
   '/collection/$slug': typeof CollectionSlugRoute
   '/collection/personalized': typeof CollectionPersonalizedRoute
   '/order/$id': typeof OrderIdRoute
+  '/partner/$token': typeof PartnerTokenRoute
   '/product/$slug': typeof ProductSlugRoute
   '/admin/': typeof AdminIndexRoute
   '/articles/': typeof ArticlesIndexRoute
@@ -426,6 +433,7 @@ export interface FileRoutesByTo {
   '/collection/$slug': typeof CollectionSlugRoute
   '/collection/personalized': typeof CollectionPersonalizedRoute
   '/order/$id': typeof OrderIdRoute
+  '/partner/$token': typeof PartnerTokenRoute
   '/product/$slug': typeof ProductSlugRoute
   '/admin': typeof AdminIndexRoute
   '/articles': typeof ArticlesIndexRoute
@@ -482,6 +490,7 @@ export interface FileRoutesById {
   '/collection/$slug': typeof CollectionSlugRoute
   '/collection/personalized': typeof CollectionPersonalizedRoute
   '/order/$id': typeof OrderIdRoute
+  '/partner/$token': typeof PartnerTokenRoute
   '/product/$slug': typeof ProductSlugRoute
   '/admin/': typeof AdminIndexRoute
   '/articles/': typeof ArticlesIndexRoute
@@ -539,6 +548,7 @@ export interface FileRouteTypes {
     | '/collection/$slug'
     | '/collection/personalized'
     | '/order/$id'
+    | '/partner/$token'
     | '/product/$slug'
     | '/admin/'
     | '/articles/'
@@ -593,6 +603,7 @@ export interface FileRouteTypes {
     | '/collection/$slug'
     | '/collection/personalized'
     | '/order/$id'
+    | '/partner/$token'
     | '/product/$slug'
     | '/admin'
     | '/articles'
@@ -648,6 +659,7 @@ export interface FileRouteTypes {
     | '/collection/$slug'
     | '/collection/personalized'
     | '/order/$id'
+    | '/partner/$token'
     | '/product/$slug'
     | '/admin/'
     | '/articles/'
@@ -692,6 +704,7 @@ export interface RootRouteChildren {
   CollectionSlugRoute: typeof CollectionSlugRoute
   CollectionPersonalizedRoute: typeof CollectionPersonalizedRoute
   OrderIdRoute: typeof OrderIdRoute
+  PartnerTokenRoute: typeof PartnerTokenRoute
   ProductSlugRoute: typeof ProductSlugRoute
   ArticlesIndexRoute: typeof ArticlesIndexRoute
   ApiCronAbandonedCartRemindersRoute: typeof ApiCronAbandonedCartRemindersRoute
@@ -1001,6 +1014,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OrderIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/partner/$token': {
+      id: '/partner/$token'
+      path: '/partner/$token'
+      fullPath: '/partner/$token'
+      preLoaderRoute: typeof PartnerTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/product/$slug': {
       id: '/product/$slug'
       path: '/product/$slug'
@@ -1146,6 +1166,7 @@ const rootRouteChildren: RootRouteChildren = {
   CollectionSlugRoute: CollectionSlugRoute,
   CollectionPersonalizedRoute: CollectionPersonalizedRoute,
   OrderIdRoute: OrderIdRoute,
+  PartnerTokenRoute: PartnerTokenRoute,
   ProductSlugRoute: ProductSlugRoute,
   ArticlesIndexRoute: ArticlesIndexRoute,
   ApiCronAbandonedCartRemindersRoute: ApiCronAbandonedCartRemindersRoute,

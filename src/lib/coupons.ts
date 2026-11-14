@@ -400,3 +400,74 @@ export function couponInputErrors(i: CouponInput): string[] {
     errors.push("תאריך הסיום חייב להיות אחרי תאריך ההתחלה.");
   return errors;
 }
+
+// ---- Influencer report (/partner/<token>) and commission payments ---------
+
+/** A paid order as the influencer's report sees it: money and time, no customer. */
+export type PartnerOrder = {
+  created_at: string;
+  subtotal: number | string;
+};
+
+export type PartnerMonth = { month: string; orders: number; sales: number; commission: number };
+
+const monthKeyFmt = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Jerusalem",
+  year: "numeric",
+  month: "2-digit",
+});
+
+/** "2026-11" — the Israel-time month an order belongs to. */
+export function monthKey(iso: string): string | null {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  const parts = monthKeyFmt.formatToParts(d);
+  const y = parts.find((p) => p.type === "year")?.value;
+  const m = parts.find((p) => p.type === "month")?.value;
+  return y && m ? `${y}-${m}` : null;
+}
+
+/** Paid orders by Israel-time month, newest first, with each month's commission. */
+export function partnerMonths(
+  orders: readonly PartnerOrder[],
+  commissionPercent: number | string | null | undefined,
+  limit = 12,
+): PartnerMonth[] {
+  const by = new Map<string, { orders: number; sales: number }>();
+  for (const o of orders) {
+    const key = monthKey(o.created_at);
+    if (!key) continue;
+    const cur = by.get(key) ?? { orders: 0, sales: 0 };
+    cur.orders += 1;
+    cur.sales += Number(o.subtotal) || 0;
+    by.set(key, cur);
+  }
+  return [...by.entries()]
+    .sort((a, b) => (a[0] < b[0] ? 1 : a[0] > b[0] ? -1 : 0))
+    .slice(0, limit)
+    .map(([month, v]) => ({
+      month,
+      orders: v.orders,
+      sales: v.sales,
+      commission: commissionOwed(v.sales, commissionPercent),
+    }));
+}
+
+/** "2026-11" → "נובמבר 2026". */
+export function hebrewMonth(key: string): string {
+  const [y, m] = key.split("-").map(Number);
+  if (!y || !m) return key;
+  return new Intl.DateTimeFormat("he-IL", {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(Date.UTC(y, m - 1, 15)));
+}
+
+/** Commission still owed (negative = paid in advance), to the agora. */
+export function payoutBalance(commission: number, paidOut: number): number {
+  return Math.round((commission - paidOut) * 100) / 100;
+}
+
+/** Shape of a partner link's secret: 32 lowercase hex characters (128 bits). */
+export const PARTNER_TOKEN_RE = /^[a-f0-9]{32}$/;

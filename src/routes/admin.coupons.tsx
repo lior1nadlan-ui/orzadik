@@ -12,12 +12,17 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Copy, Download, Link2, Plus, TicketPercent, Users } from "lucide-react";
+import { Copy, Download, Link2, Plus, TicketPercent, Trash2, Users } from "lucide-react";
 import {
   listCoupons,
   listCouponOrders,
   saveCoupon,
   setCouponActive,
+  addCouponPayout,
+  createPartnerLink,
+  deleteCouponPayout,
+  listCouponPayouts,
+  removePartnerLink,
   type CouponListItem,
   type CouponOrder,
 } from "@/lib/admin-coupons.functions";
@@ -88,6 +93,9 @@ const dateIL = (iso: string) =>
   }).format(new Date(iso));
 
 /** The link an influencer shares: any page with ?coupon= applies the code at checkout. */
+/** The influencer's private report page. */
+const partnerLink = (token: string) => `${BUSINESS.site}/partner/${token}`;
+
 const couponLink = (code: string) => `${BUSINESS.site}/?coupon=${encodeURIComponent(code)}`;
 
 async function copy(text: string, done: string) {
@@ -110,6 +118,8 @@ function AdminCoupons() {
   });
   const [editing, setEditing] = useState<FormState | null>(null);
   const [usersOf, setUsersOf] = useState<CouponListItem | null>(null);
+  const [payoutsOf, setPayoutsOf] = useState<CouponListItem | null>(null);
+  const [linksOf, setLinksOf] = useState<CouponListItem | null>(null);
 
   const toggleMut = useMutation({
     mutationFn: (v: { id: string; active: boolean }) => toggle({ data: v }),
@@ -188,6 +198,8 @@ function AdminCoupons() {
               }}
               toggling={toggleMut.isPending && toggleMut.variables?.id === c.id}
               onUsers={() => setUsersOf(c)}
+              onPayouts={() => setPayoutsOf(c)}
+              onLinks={() => setLinksOf(c)}
             />
           ))}
         </div>
@@ -207,6 +219,22 @@ function AdminCoupons() {
       <AdminSheet open={!!usersOf} onOpenChange={(v) => !v && setUsersOf(null)}>
         {usersOf && <CouponOrdersSheet c={usersOf} />}
       </AdminSheet>
+
+      {payoutsOf && (
+        <PayoutsDialog
+          // The list reloads after each change; read the fresh row by id.
+          c={coupons.find((x) => x.id === payoutsOf.id) ?? payoutsOf}
+          onClose={() => setPayoutsOf(null)}
+          onChanged={() => void qc.invalidateQueries({ queryKey: ["admin-coupons"] })}
+        />
+      )}
+      {linksOf && (
+        <LinksDialog
+          c={coupons.find((x) => x.id === linksOf.id) ?? linksOf}
+          onClose={() => setLinksOf(null)}
+          onChanged={() => void qc.invalidateQueries({ queryKey: ["admin-coupons"] })}
+        />
+      )}
     </div>
   );
 }
@@ -227,12 +255,16 @@ function CouponCard({
   onToggle,
   toggling,
   onUsers,
+  onPayouts,
+  onLinks,
 }: {
   c: CouponListItem;
   onEdit: () => void;
   onToggle: () => void;
   toggling: boolean;
   onUsers: () => void;
+  onPayouts: () => void;
+  onLinks: () => void;
 }) {
   const terms = {
     discountType: c.discount_type === "fixed" ? ("fixed" as const) : ("percent" as const),
@@ -285,9 +317,30 @@ function CouponCard({
         </div>
       </div>
       {c.commission_percent != null && (
-        <div className="mt-2 flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-sm text-amber-900">
-          <span>עמלה למפורסם ({Number(c.commission_percent)}%)</span>
-          <span className="font-bold">{formatILS(c.commission)}</span>
+        <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          <div className="flex items-center justify-between">
+            <span>עמלה למפורסם ({Number(c.commission_percent)}%)</span>
+            <span className="font-bold">{formatILS(c.commission)}</span>
+          </div>
+          <div className="mt-1 flex items-center justify-between gap-2 text-xs">
+            <span>
+              שולם {formatILS(c.paid_out)} ·{" "}
+              {c.balance > 0 ? (
+                <strong>יתרה לתשלום {formatILS(c.balance)}</strong>
+              ) : c.balance < 0 ? (
+                `שולם מראש ${formatILS(-c.balance)}`
+              ) : (
+                "הכול שולם"
+              )}
+            </span>
+            <button
+              type="button"
+              onClick={onPayouts}
+              className="shrink-0 font-semibold underline underline-offset-2"
+            >
+              תשלומים
+            </button>
+          </div>
         </div>
       )}
       <div className="mt-1.5 text-xs text-muted-foreground">
@@ -319,12 +372,10 @@ function CouponCard({
         <Button
           size="sm"
           variant="outline"
-          onClick={() =>
-            copy(couponLink(c.code), "הקישור הועתק — מי שנכנס דרכו מקבל את הקוד בקופה")
-          }
-          title="קישור לאתר שמחיל את הקוד בקופה"
+          onClick={onLinks}
+          title="קישור לקנייה עם הקוד, ודוח אישי למפורסם"
         >
-          <Link2 className="ms-1 h-4 w-4" /> קישור
+          <Link2 className="ms-1 h-4 w-4" /> קישורים
         </Button>
         <Button
           size="sm"
@@ -723,6 +774,289 @@ function CouponDialog({
             </Button>
           </DialogFooter>
         </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** Today in Israel, "YYYY-MM-DD" — the default date of a payment. */
+const todayIL = () =>
+  new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jerusalem" }).format(new Date());
+
+/**
+ * "תשלומים": what the influencer has been paid. Owed (commission on paid
+ * sales) − paid = balance; each payment can be removed if recorded by mistake.
+ */
+function PayoutsDialog({
+  c,
+  onClose,
+  onChanged,
+}: {
+  c: CouponListItem;
+  onClose: () => void;
+  onChanged: () => void;
+}) {
+  const load = useServerFn(listCouponPayouts);
+  const add = useServerFn(addCouponPayout);
+  const del = useServerFn(deleteCouponPayout);
+  const qc = useQueryClient();
+  const key = ["admin-coupon-payouts", c.id];
+  const { data: payouts = [], isLoading } = useQuery({
+    queryKey: key,
+    queryFn: () => load({ data: { coupon_id: c.id } }),
+  });
+  const [amount, setAmount] = useState(c.balance > 0 ? String(c.balance) : "");
+  const [date, setDate] = useState(todayIL());
+  const [note, setNote] = useState("");
+  const refresh = () => {
+    void qc.invalidateQueries({ queryKey: key });
+    onChanged();
+  };
+  const addMut = useMutation({
+    mutationFn: () =>
+      add({
+        data: { coupon_id: c.id, amount: Number(amount), paid_at: date, note: note.trim() || null },
+      }),
+    onSuccess: () => {
+      toast.success("התשלום נרשם.");
+      setAmount("");
+      setNote("");
+      refresh();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const delMut = useMutation({
+    mutationFn: (id: string) => del({ data: { id } }),
+    onSuccess: () => {
+      toast.success("התשלום נמחק.");
+      refresh();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const valid = Number.isFinite(Number(amount)) && Number(amount) > 0 && !!date;
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-h-[90vh] max-w-md overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>
+            תשלומי עמלה — {c.influencer_name || <bdi dir="ltr">{c.code}</bdi>}
+          </DialogTitle>
+          <DialogDescription>
+            העמלה מחושבת מהמכירות ששולמו עם הקוד ({Number(c.commission_percent ?? 0)}% מסכום
+            המוצרים, בלי משלוח). כאן רושמים מה כבר הועבר למפורסם.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="grid grid-cols-3 gap-2 rounded-lg bg-muted/40 p-2 text-center text-sm">
+          <div>
+            <div className="font-bold">{formatILS(c.commission)}</div>
+            <div className="text-[11px] text-muted-foreground">מגיע</div>
+          </div>
+          <div>
+            <div className="font-bold">{formatILS(c.paid_out)}</div>
+            <div className="text-[11px] text-muted-foreground">שולם</div>
+          </div>
+          <div>
+            <div className={`font-bold ${c.balance > 0 ? "text-amber-800" : ""}`}>
+              {formatILS(c.balance)}
+            </div>
+            <div className="text-[11px] text-muted-foreground">יתרה</div>
+          </div>
+        </div>
+
+        <form
+          className="space-y-2 rounded-lg border p-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (valid) addMut.mutate();
+          }}
+        >
+          <div className="text-sm font-medium">רישום תשלום</div>
+          <div className="flex flex-wrap gap-2">
+            <Input
+              aria-label="סכום ששולם"
+              type="number"
+              inputMode="decimal"
+              min={0}
+              step="any"
+              placeholder="סכום ₪"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              className="w-28"
+            />
+            <Input
+              aria-label="תאריך התשלום"
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="w-40"
+            />
+          </div>
+          <Input
+            aria-label="הערה"
+            maxLength={500}
+            placeholder="הערה (למשל: העברה בנקאית)"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+          />
+          <Button type="submit" size="sm" disabled={!valid || addMut.isPending}>
+            {addMut.isPending ? "רושמים…" : "רישום התשלום"}
+          </Button>
+        </form>
+
+        <div>
+          <div className="mb-1 text-sm font-medium">היסטוריה</div>
+          {isLoading ? (
+            <p className="text-sm text-muted-foreground">טוען…</p>
+          ) : payouts.length === 0 ? (
+            <p className="text-sm text-muted-foreground">עוד לא נרשמו תשלומים.</p>
+          ) : (
+            <ul className="divide-y text-sm">
+              {payouts.map((p) => (
+                <li key={p.id} className="flex items-center justify-between gap-2 py-2">
+                  <div className="min-w-0">
+                    <span className="font-semibold">{formatILS(p.amount)}</span>{" "}
+                    <span className="text-xs text-muted-foreground">
+                      {new Intl.DateTimeFormat("he-IL").format(new Date(`${p.paid_at}T12:00:00`))}
+                    </span>
+                    {p.note && (
+                      <div className="truncate text-xs text-muted-foreground">{p.note}</div>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm(`למחוק את התשלום של ${formatILS(p.amount)}?`))
+                        delMut.mutate(p.id);
+                    }}
+                    disabled={delMut.isPending}
+                    aria-label={`מחיקת התשלום של ${formatILS(p.amount)}`}
+                    className="shrink-0 rounded p-1 text-muted-foreground hover:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * "קישורים": the shopping link that applies the code, and the influencer's own
+ * report — a private page with their numbers and no customer details.
+ */
+function LinksDialog({
+  c,
+  onClose,
+  onChanged,
+}: {
+  c: CouponListItem;
+  onClose: () => void;
+  onChanged: () => void;
+}) {
+  const create = useServerFn(createPartnerLink);
+  const remove = useServerFn(removePartnerLink);
+  const createMut = useMutation({
+    mutationFn: () => create({ data: { coupon_id: c.id } }),
+    onSuccess: ({ token }) => {
+      void copy(partnerLink(token), "הקישור לדוח נוצר והועתק");
+      onChanged();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const removeMut = useMutation({
+    mutationFn: () => remove({ data: { coupon_id: c.id } }),
+    onSuccess: () => {
+      toast.success("הקישור לדוח בוטל.");
+      onChanged();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const shop = couponLink(c.code);
+  const report = c.partner_token ? partnerLink(c.partner_token) : null;
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>
+            קישורים לקוד <bdi dir="ltr">{c.code}</bdi>
+          </DialogTitle>
+        </DialogHeader>
+
+        <section className="space-y-1.5">
+          <div className="text-sm font-medium">קישור לקנייה</div>
+          <p className="text-xs text-muted-foreground">
+            למפורסם לשתף: מי שנכנס דרכו רואה הודעה שהקוד יוחל, והקוד מוחל בקופה בעצמו.
+          </p>
+          <div className="flex gap-2">
+            <Input readOnly dir="ltr" value={shop} onFocus={(e) => e.currentTarget.select()} />
+            <Button type="button" variant="outline" onClick={() => copy(shop, "הקישור הועתק")}>
+              העתקה
+            </Button>
+          </div>
+        </section>
+
+        <section className="space-y-1.5 border-t pt-3">
+          <div className="text-sm font-medium">דוח אישי למפורסם</div>
+          <p className="text-xs text-muted-foreground">
+            עמוד פרטי שבו המפורסם רואה את הנתונים שלו: הזמנות, מכירות, עמלה ותשלומים — בלי שום פרט
+            על הלקוחות. כל מי שמחזיק בקישור יכול לפתוח אותו, אז שולחים רק למפורסם.
+          </p>
+          {report ? (
+            <>
+              <div className="flex gap-2">
+                <Input
+                  readOnly
+                  dir="ltr"
+                  value={report}
+                  onFocus={(e) => e.currentTarget.select()}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => copy(report, "הקישור לדוח הועתק")}
+                >
+                  העתקה
+                </Button>
+              </div>
+              <div className="flex flex-wrap gap-2 pt-1">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  disabled={createMut.isPending}
+                  onClick={() => {
+                    if (window.confirm("ליצור קישור חדש? הקישור הקודם יפסיק לעבוד."))
+                      createMut.mutate();
+                  }}
+                >
+                  החלפת הקישור
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="text-destructive"
+                  disabled={removeMut.isPending}
+                  onClick={() => {
+                    if (window.confirm("לבטל את הקישור לדוח?")) removeMut.mutate();
+                  }}
+                >
+                  ביטול הקישור
+                </Button>
+              </div>
+            </>
+          ) : (
+            <Button type="button" disabled={createMut.isPending} onClick={() => createMut.mutate()}>
+              {createMut.isPending ? "יוצרים…" : "יצירת קישור לדוח"}
+            </Button>
+          )}
+        </section>
       </DialogContent>
     </Dialog>
   );
