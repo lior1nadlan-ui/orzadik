@@ -138,6 +138,9 @@ function OrderConfirmationPage() {
         transaction_id: order.order_number ?? id,
         value,
         currency: "ILS",
+        // GA4's own coupon field: sales per influencer code in the ecommerce
+        // reports, next to the CRM's /admin/coupons figures.
+        ...(order.coupon_code ? { coupon: order.coupon_code } : {}),
         items: items.map((it: any) => ({
           // item_id ties the purchase line to the same id used by view_item /
           // add_to_cart, so GA4 can attribute revenue to a product across the

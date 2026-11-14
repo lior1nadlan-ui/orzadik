@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  commissionOwed,
   computeOrderTotals,
   couponDiscount,
   couponInputErrors,
@@ -260,6 +261,18 @@ describe("couponStatus", () => {
   });
 });
 
+describe("commissionOwed", () => {
+  it("is the agreed share of the paid sales, in whole shekels", () => {
+    expect(commissionOwed(2450, 10)).toBe(245);
+    expect(commissionOwed(999, "12.5")).toBe(125);
+  });
+  it("is 0 without a commission or sales", () => {
+    expect(commissionOwed(2450, null)).toBe(0);
+    expect(commissionOwed(0, 10)).toBe(0);
+    expect(commissionOwed(100, 0)).toBe(0);
+  });
+});
+
 describe("couponInputErrors", () => {
   const valid: CouponInput = {
     code: "dana10",
@@ -273,6 +286,7 @@ describe("couponInputErrors", () => {
     ends_at: null,
     max_uses: null,
     once_per_customer: false,
+    commission_percent: null,
   };
   it("accepts a valid coupon (the code is normalised first)", () => {
     expect(couponInputErrors(valid)).toEqual([]);
@@ -287,6 +301,9 @@ describe("couponInputErrors", () => {
     expect(couponInputErrors({ ...valid, discount_value: 0, free_shipping: true })).toEqual([]);
     expect(couponInputErrors({ ...valid, min_order: 0 })).toHaveLength(1);
     expect(couponInputErrors({ ...valid, max_uses: 1.5 })).toHaveLength(1);
+    expect(couponInputErrors({ ...valid, commission_percent: 0 })).toHaveLength(1);
+    expect(couponInputErrors({ ...valid, commission_percent: 120 })).toHaveLength(1);
+    expect(couponInputErrors({ ...valid, commission_percent: 12.5 })).toEqual([]);
     expect(
       couponInputErrors({
         ...valid,

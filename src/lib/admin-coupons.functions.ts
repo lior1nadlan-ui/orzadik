@@ -7,6 +7,7 @@ import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { requireAdmin } from "@/lib/admin-authz.server";
 import {
+  commissionOwed,
   couponInputErrors,
   couponStatus,
   normalizeCouponCode,
@@ -23,6 +24,8 @@ export type CouponListItem = CouponRecord & {
   sales: number;
   /** Shekels the code took off them. */
   discount: number;
+  /** The influencer's commission on `sales` (commission_percent), 0 when none. */
+  commission: number;
   /** Distinct customers (by email) among them. */
   customers: number;
   /** Orders with the code that are not (yet) paid. */
@@ -50,6 +53,8 @@ export const listCoupons = createServerFn({ method: "POST" }).handler(async () =
       ...r,
       discount_value: Number(r.discount_value),
       min_order: r.min_order == null ? null : Number(r.min_order),
+      commission_percent: r.commission_percent == null ? null : Number(r.commission_percent),
+      commission: commissionOwed(Number(s?.sales ?? 0), r.commission_percent),
       status: couponStatus(r, paid, now),
       paid_orders: paid,
       sales: Number(s?.sales ?? 0),
@@ -74,6 +79,7 @@ const InputSchema = z.object({
   ends_at: z.string().nullable(),
   max_uses: z.number().nullable(),
   once_per_customer: z.boolean(),
+  commission_percent: z.number().nullable(),
 });
 
 export const saveCoupon = createServerFn({ method: "POST" })
@@ -102,6 +108,7 @@ export const saveCoupon = createServerFn({ method: "POST" })
       ends_at: data.ends_at ? new Date(data.ends_at).toISOString() : null,
       max_uses: data.max_uses,
       once_per_customer: data.once_per_customer,
+      commission_percent: data.commission_percent,
       updated_at: new Date().toISOString(),
       updated_by: adminId,
     };

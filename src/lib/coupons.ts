@@ -38,6 +38,8 @@ export type CouponRecord = {
   max_uses: number | null;
   once_per_customer: boolean;
   is_active: boolean;
+  /** Share of the coupon's sales owed to the person behind it, or null. Reporting only. */
+  commission_percent?: number | string | null;
 };
 
 export const COUPON_PERCENT_MAX = 50;
@@ -345,7 +347,19 @@ export type CouponInput = {
   ends_at: string | null;
   max_uses: number | null;
   once_per_customer: boolean;
+  commission_percent: number | null;
 };
+
+/**
+ * What the shop owes the person behind a coupon: their percentage of the
+ * coupon's paid sales (items after every discount, without shipping), in whole
+ * shekels. 0 when no commission was agreed.
+ */
+export function commissionOwed(sales: number, percent: number | string | null | undefined): number {
+  const pct = Number(percent);
+  if (!Number.isFinite(sales) || sales <= 0 || !Number.isFinite(pct) || pct <= 0) return 0;
+  return Math.round((sales * Math.min(pct, 100)) / 100);
+}
 
 /** The form's errors in Hebrew — the same rules as the table's CHECKs. Empty = valid. */
 export function couponInputErrors(i: CouponInput): string[] {
@@ -366,6 +380,13 @@ export function couponInputErrors(i: CouponInput): string[] {
     errors.push("קופון צריך לתת משהו: הנחה, משלוח חינם, או שניהם.");
   if (i.min_order != null && (!Number.isFinite(i.min_order) || i.min_order <= 0))
     errors.push("סכום מינימום חייב להיות גדול מ-0, או להישאר ריק.");
+  if (
+    i.commission_percent != null &&
+    (!Number.isFinite(i.commission_percent) ||
+      i.commission_percent <= 0 ||
+      i.commission_percent > 100)
+  )
+    errors.push("עמלה באחוזים: בין 0 ל-100, או להשאיר ריק.");
   if (
     i.max_uses != null &&
     (!Number.isInteger(i.max_uses) || i.max_uses <= 0 || i.max_uses > 1_000_000)

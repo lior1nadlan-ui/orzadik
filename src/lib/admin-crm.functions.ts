@@ -692,8 +692,10 @@ function applyOrderFilters(query: any, f: z.infer<typeof OrdersFilterSchema>) {
   const term = sanitizeTerm(f.q ?? "");
   if (term) {
     const like = `%${term}%`;
+    // The coupon code too: "DANA10" in the search lists that influencer's orders
+    // (the link from /admin/coupons lands here with it).
     query = query.or(
-      `order_number.ilike.${like},customer_name.ilike.${like},customer_phone.ilike.${like},customer_email.ilike.${like}`,
+      `order_number.ilike.${like},customer_name.ilike.${like},customer_phone.ilike.${like},customer_email.ilike.${like},coupon_code.ilike.${like}`,
     );
   }
   return query;
@@ -746,7 +748,7 @@ export const exportOrdersCsv = createServerFn({ method: "POST" })
         // sheet the owner packs and engraves from. Without them the export said
         // "טלית x1" for a line whose whole value is the size and the wording —
         // the two fields that make the order non-returnable once produced.
-        "order_number, created_at, customer_name, customer_phone, customer_email, customer_address, customer_city, subtotal, shipping, total, status, payment_status, tracking_number, shipping_carrier, notes, is_gift, gift_note, gift_wrap, order_items(product_name, quantity, line_total, variant_label, custom_text)",
+        "order_number, created_at, customer_name, customer_phone, customer_email, customer_address, customer_city, subtotal, shipping, total, coupon_code, coupon_discount, status, payment_status, tracking_number, shipping_carrier, notes, is_gift, gift_note, gift_wrap, order_items(product_name, quantity, line_total, variant_label, custom_text)",
       );
       query = applyOrderFilters(query, f);
       const { data, error } = await query
@@ -777,6 +779,8 @@ export const exportOrdersCsv = createServerFn({ method: "POST" })
       "מתנה",
       "הקדשה",
       "עטיפה",
+      "קופון",
+      "הנחת קופון",
     ];
     const lines = rows.map((o) =>
       [
@@ -809,6 +813,8 @@ export const exportOrdersCsv = createServerFn({ method: "POST" })
         o.is_gift ? "כן" : "לא",
         o.gift_note ?? "",
         o.gift_wrap ? "כן" : "לא",
+        o.coupon_code ?? "",
+        Number(o.coupon_discount ?? 0) || "",
       ]
         .map(csvEsc)
         .join(","),

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { COUPON_STORAGE_KEY } from "@/lib/coupons";
+import { COUPON_STORAGE_KEY, describeCoupon } from "@/lib/coupons";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   Outlet,
@@ -14,6 +14,7 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import { Toaster } from "@/components/ui/sonner";
+import { toast } from "sonner";
 import { CartProvider } from "@/lib/cart";
 import { PromoProvider, loadPromoPayload } from "@/lib/promotions-data";
 import { AuthProvider } from "@/lib/auth";
@@ -584,11 +585,34 @@ function RootComponent() {
     // An influencer's link (any page, ?coupon=DANA10): keep the code for this
     // tab so the checkout applies it by itself (src/lib/coupons.ts). The
     // checkout re-checks it with the server; nothing here grants a discount.
+    let linked: string | null = null;
     try {
-      const linked = new URLSearchParams(window.location.search).get("coupon");
+      linked = new URLSearchParams(window.location.search).get("coupon");
       if (linked) sessionStorage.setItem(COUPON_STORAGE_KEY, linked.slice(0, 60));
     } catch {
       /* storage unavailable — the shopper can still type the code */
+    }
+    // Tell the visitor the code is live, so they know the discount is waiting
+    // for them at checkout. Checked with the server first; a code that no
+    // longer works is dropped quietly (the checkout box still takes another).
+    // Loaded on demand: only visitors who came through a link pay for it.
+    if (linked) {
+      const code = linked.slice(0, 60);
+      void import("@/lib/coupons.functions")
+        .then(async (fns) => {
+          const r = await fns.checkCoupon({ data: { code } });
+          if (r.ok) {
+            toast.success(`הקוד ${r.terms.code} יוחל אוטומטית בעמוד התשלום`, {
+              description: describeCoupon(r.terms),
+              duration: 6000,
+            });
+          } else {
+            sessionStorage.removeItem(COUPON_STORAGE_KEY);
+          }
+        })
+        .catch(() => {
+          /* a failed check changes nothing: the checkout checks again */
+        });
     }
 
     const w = window as typeof window & {

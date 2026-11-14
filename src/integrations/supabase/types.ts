@@ -346,6 +346,7 @@ export type Database = {
       coupons: {
         Row: {
           code: string
+          commission_percent: number | null
           created_at: string
           created_by: string | null
           discount_type: string
@@ -365,6 +366,7 @@ export type Database = {
         }
         Insert: {
           code: string
+          commission_percent?: number | null
           created_at?: string
           created_by?: string | null
           discount_type: string
@@ -384,6 +386,7 @@ export type Database = {
         }
         Update: {
           code?: string
+          commission_percent?: number | null
           created_at?: string
           created_by?: string | null
           discount_type?: string

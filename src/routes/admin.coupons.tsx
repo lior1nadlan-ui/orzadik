@@ -12,18 +12,20 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Copy, Link2, Plus, TicketPercent, Users } from "lucide-react";
+import { Copy, Download, Link2, Plus, TicketPercent, Users } from "lucide-react";
 import {
   listCoupons,
   listCouponOrders,
   saveCoupon,
   setCouponActive,
   type CouponListItem,
+  type CouponOrder,
 } from "@/lib/admin-coupons.functions";
 import {
   COUPON_FIXED_MAX,
   COUPON_PERCENT_MAX,
   COUPON_STATUS_HE,
+  commissionOwed,
   couponDiscount,
   couponInputErrors,
   describeCoupon,
@@ -33,6 +35,7 @@ import {
 } from "@/lib/coupons";
 import { toLocalInput, fromLocalInput } from "@/lib/admin-promotions";
 import { formatILS } from "@/lib/cart";
+import { downloadCsv, toCsv } from "@/lib/csv";
 import { BUSINESS } from "@/lib/business";
 import { AdminSheet, AdminSheetContent } from "@/components/admin/AdminSheet";
 import { Button } from "@/components/ui/button";
@@ -73,6 +76,7 @@ const emptyForm = (): FormState => ({
   ends_at: null,
   max_uses: null,
   once_per_customer: false,
+  commission_percent: null,
 });
 
 const dateIL = (iso: string) =>
@@ -170,6 +174,8 @@ function AdminCoupons() {
                   ends_at: c.ends_at,
                   max_uses: c.max_uses,
                   once_per_customer: c.once_per_customer,
+                  commission_percent:
+                    c.commission_percent == null ? null : Number(c.commission_percent),
                 })
               }
               onToggle={() => {
@@ -278,6 +284,12 @@ function CouponCard({
           <div className="text-[11px] text-muted-foreground">הנחה שניתנה</div>
         </div>
       </div>
+      {c.commission_percent != null && (
+        <div className="mt-2 flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-sm text-amber-900">
+          <span>עמלה למפורסם ({Number(c.commission_percent)}%)</span>
+          <span className="font-bold">{formatILS(c.commission)}</span>
+        </div>
+      )}
       <div className="mt-1.5 text-xs text-muted-foreground">
         {c.customers === 0
           ? "עוד לא השתמשו בקוד"
@@ -335,6 +347,35 @@ const PAYMENT_HE: Record<string, string> = {
   refunded: "זוכה",
 };
 
+/**
+ * The coupon's report for the person behind it: paid orders only, with the
+ * sale, the discount and the commission per order. Deliberately without any
+ * customer's name, phone or email (privacy — they bought from the shop, not
+ * from the influencer).
+ */
+function downloadInfluencerReport(c: CouponListItem, orders: CouponOrder[]) {
+  const paid = orders.filter((o) => o.payment_status === "paid");
+  const pct = c.commission_percent == null ? null : Number(c.commission_percent);
+  const header = ["תאריך", "מספר הזמנה", "סכום מכירה (ללא משלוח)", "הנחת קופון"];
+  if (pct != null) header.push(`עמלה (${pct}%)`);
+  const rows = paid.map((o) => {
+    const row: unknown[] = [dateIL(o.created_at), o.order_number, o.subtotal, o.coupon_discount];
+    // Exact to the agora per order; the total below is rounded once, like the card.
+    if (pct != null) row.push(Math.round(o.subtotal * pct) / 100);
+    return row;
+  });
+  const sales = paid.reduce((s, o) => s + o.subtotal, 0);
+  const totalRow: unknown[] = [
+    "סה״כ",
+    paid.length === 1 ? "הזמנה אחת" : `${paid.length} הזמנות`,
+    sales,
+    paid.reduce((s, o) => s + o.coupon_discount, 0),
+  ];
+  if (pct != null) totalRow.push(commissionOwed(sales, pct));
+  rows.push(totalRow);
+  downloadCsv(toCsv(header, rows), `coupon-${c.code}-${new Date().toISOString().slice(0, 10)}.csv`);
+}
+
 function CouponOrdersSheet({ c }: { c: CouponListItem }) {
   const load = useServerFn(listCouponOrders);
   const { data: orders = [], isLoading } = useQuery({
@@ -352,7 +393,27 @@ function CouponOrdersSheet({ c }: { c: CouponListItem }) {
         <p className="text-xs text-muted-foreground">
           {c.influencer_name ? `${c.influencer_name} · ` : ""}
           {c.paid_orders} הזמנות ששולמו · מכירות {formatILS(c.sales)} · הנחה {formatILS(c.discount)}
+          {c.commission_percent != null && ` · עמלה ${formatILS(c.commission)}`}
         </p>
+      }
+      footer={
+        <div className="flex flex-wrap items-center gap-2">
+          {/* For settling with the influencer: dates, order numbers and
+              amounts only — never the customers' names or contact details,
+              which are not the influencer's to have. */}
+          <Button
+            variant="outline"
+            disabled={orders.length === 0}
+            onClick={() => downloadInfluencerReport(c, orders)}
+          >
+            <Download className="ms-1 h-4 w-4" /> דוח למפורסם (CSV)
+          </Button>
+          <Button asChild variant="ghost">
+            <Link to="/admin/orders" search={{ q: c.code }}>
+              כל ההזמנות עם הקוד
+            </Link>
+          </Button>
+        </div>
       }
     >
       {isLoading ? (
@@ -501,6 +562,25 @@ function CouponDialog({
             </div>
           </div>
 
+          <div>
+            <Label htmlFor="cp-commission">עמלה למפורסם (%)</Label>
+            <Input
+              id="cp-commission"
+              type="number"
+              inputMode="decimal"
+              min={0}
+              max={100}
+              step="any"
+              placeholder="ללא"
+              value={form.commission_percent ?? ""}
+              onChange={(e) => set("commission_percent", num(e.target.value))}
+              className="w-28"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              לא משנה את המחיר ללקוח — רק מחשב כמה מגיע למפורסם מהמכירות עם הקוד.
+            </p>
+          </div>
+
           <fieldset>
             <legend className="mb-1.5 text-sm font-medium">ההנחה</legend>
             <div className="flex flex-wrap items-center gap-2">
@@ -617,7 +697,7 @@ function CouponDialog({
               id="cp-notes"
               rows={2}
               maxLength={1000}
-              placeholder="למשל: עמלה של 10% על כל מכירה"
+              placeholder="למשל: איך ליצור קשר, מתי משלמים את העמלה"
               value={form.notes ?? ""}
               onChange={(e) => set("notes", e.target.value)}
             />
