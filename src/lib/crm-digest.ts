@@ -46,6 +46,8 @@ export type DigestOrder = {
   created_at: string;
   paid_at: string | null;
   shipped_at: string | null;
+  /** The coupon the order used (src/lib/coupons.ts), if any. */
+  coupon_code?: string | null;
 };
 
 export type DigestCart = {
@@ -93,6 +95,9 @@ export type Digest = {
   openCarts: { count: number; value: number; top: { name: string; value: number }[] };
   last24h: { paidCount: number; revenue: number };
   last7d: { paidCount: number; revenue: number };
+  /** Paid orders of the last 7 days per coupon code, best-selling first —
+   *  which influencer is bringing sales. Information, never "actionable". */
+  coupons7d: { code: string; orders: number; revenue: number }[];
   pendingReviews: number;
   /** Site searches from the last day that found nothing (see site_searches):
    *  a product someone asked for that the shop lacks, or names differently. */
@@ -282,6 +287,21 @@ export function buildDigest(
     return { paidCount: rows.length, revenue: rows.reduce((s, o) => s + num(o.total), 0) };
   };
 
+  const byCoupon = new Map<string, { code: string; orders: number; revenue: number }>();
+  for (const o of orders) {
+    const code = clean(o.coupon_code);
+    if (!code || !isPaidish(o)) continue;
+    const at = paidAtMs(o);
+    if (now - at > 7 * DAY || at > now) continue;
+    const cur = byCoupon.get(code) ?? { code, orders: 0, revenue: 0 };
+    cur.orders += 1;
+    cur.revenue += num(o.total);
+    byCoupon.set(code, cur);
+  }
+  const coupons7d = [...byCoupon.values()].sort(
+    (a, b) => b.revenue - a.revenue || b.orders - a.orders,
+  );
+
   return {
     followUps,
     toShip,
@@ -289,6 +309,7 @@ export function buildDigest(
     openCarts,
     last24h: paidWithin(DAY),
     last7d: paidWithin(7 * DAY),
+    coupons7d,
     pendingReviews,
     missedSearches,
     suspiciousPrices,
@@ -306,6 +327,15 @@ export function buildDigest(
 // ---- Rendering ---------------------------------------------------------------
 
 /** ₪1,437 — whole shekels, the way the rest of the admin prints money. */
+/** "DANA10 ×3 · ₪890, YOSSI50 ×1 · ₪300" — the top three, then "ועוד N". */
+function couponLine(d: Digest, esc: (v: unknown) => string): string {
+  const shown = d.coupons7d
+    .slice(0, 3)
+    .map((c) => `${esc(c.code)} ×${c.orders} · ${shekels(c.revenue)}`);
+  const more = d.coupons7d.length - shown.length;
+  return shown.join(", ") + (more > 0 ? ` ועוד ${more}` : "");
+}
+
 export function shekels(n: number): string {
   return `₪${Math.round(n).toLocaleString("en-US")}`;
 }
@@ -403,6 +433,7 @@ export function renderDigestTelegram(d: Digest, now: number, origin: string): st
 
   m += `\n💰 24 שעות: ${d.last24h.paidCount} הזמנות · ${shekels(d.last24h.revenue)}`;
   m += `\n📈 7 ימים: ${d.last7d.paidCount} הזמנות · ${shekels(d.last7d.revenue)}\n`;
+  if (d.coupons7d.length > 0) m += `🎟 קופונים (7 ימים): ${couponLine(d, tg)}\n`;
   m += `\n${origin}/admin`;
   return m;
 }
@@ -514,7 +545,9 @@ export function renderDigestEmailInner(d: Digest, now: number, origin: string): 
   html +=
     `<p class="oz-muted" style="margin:22px 0 0;font-size:13px;color:#6B6258;">` +
     `24 שעות: ${d.last24h.paidCount} הזמנות · ${shekels(d.last24h.revenue)}<br>` +
-    `7 ימים: ${d.last7d.paidCount} הזמנות · ${shekels(d.last7d.revenue)}</p>`;
+    `7 ימים: ${d.last7d.paidCount} הזמנות · ${shekels(d.last7d.revenue)}` +
+    (d.coupons7d.length > 0 ? `<br>קופונים (7 ימים): ${couponLine(d, h)}` : "") +
+    `</p>`;
   html += `<p style="margin:18px 0 0;"><a href="${h(origin)}/admin" style="color:#7E611E;font-weight:bold;">לפאנל הניהול ←</a></p>`;
   return html;
 }

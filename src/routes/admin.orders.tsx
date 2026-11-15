@@ -3,6 +3,7 @@ import { paymentStatusHe } from "@/lib/order-labels";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { formatILS } from "@/lib/cart";
+import { orderBreakdown } from "@/lib/coupons";
 import { refundCardcomOrder } from "@/lib/cardcom.functions";
 import {
   listOrdersPaged,
@@ -241,6 +242,18 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+/** The coupon an order used — who brought the sale (see /admin/coupons). */
+function CouponBadge({ code }: { code: string }) {
+  return (
+    <span
+      className="text-[11px] rounded-full bg-amber-100 px-2 py-0.5 font-semibold whitespace-nowrap text-amber-900"
+      title="הזמנה עם קופון"
+    >
+      קופון <bdi dir="ltr">{code}</bdi>
+    </span>
+  );
+}
+
 function PickupBadge() {
   return (
     <span className="text-[11px] rounded-full bg-sky-100 px-2 py-0.5 font-semibold whitespace-nowrap text-sky-900">
@@ -296,6 +309,7 @@ function OrderCard({
         <PaymentBadge status={o.payment_status} />
         <StatusBadge status={o.status} />
         {o.fulfillment === "pickup" && <PickupBadge />}
+        {o.coupon_code && <CouponBadge code={o.coupon_code} />}
       </div>
     </button>
   );
@@ -899,6 +913,11 @@ function AdminOrders() {
                       איסוף עצמי
                     </span>
                   )}
+                  {o.coupon_code && (
+                    <span className="mt-1 block w-fit rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900">
+                      קופון <bdi dir="ltr">{o.coupon_code}</bdi>
+                    </span>
+                  )}
                 </td>
                 <td className="p-3">
                   <select
@@ -970,6 +989,7 @@ function AdminOrders() {
                 <PaymentBadge status={selected.payment_status} />
                 <StatusBadge status={selected.status} />
                 {selected.fulfillment === "pickup" && <PickupBadge />}
+                {selected.coupon_code && <CouponBadge code={selected.coupon_code} />}
                 <span className="text-xs text-muted-foreground">
                   {new Date(selected.created_at).toLocaleString("he-IL", {
                     day: "numeric",
@@ -1153,6 +1173,32 @@ function AdminOrders() {
                     </div>
                   );
                 })}
+                {(() => {
+                  const b = orderBreakdown(selected, selected.order_items ?? []);
+                  if (b.memberBenefit <= 0 && b.couponDiscount <= 0) return null;
+                  return (
+                    <div className="space-y-1 border-t border-glass-line pt-3 text-sm">
+                      {b.memberBenefit > 0 && (
+                        <div className="flex justify-between text-muted-foreground">
+                          <span>הטבת חבר מועדון</span>
+                          <span className="whitespace-nowrap">{formatILS(-b.memberBenefit)}</span>
+                        </div>
+                      )}
+                      {b.couponDiscount > 0 && (
+                        <div className="flex justify-between text-muted-foreground">
+                          <span>
+                            קופון <bdi dir="ltr">{b.couponCode}</bdi>
+                          </span>
+                          <span className="whitespace-nowrap">{formatILS(-b.couponDiscount)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between text-muted-foreground">
+                        <span>משלוח</span>
+                        <span className="whitespace-nowrap">{formatILS(b.shipping)}</span>
+                      </div>
+                    </div>
+                  );
+                })()}
                 <div className="flex justify-between border-t border-glass-line pt-3 text-lg font-bold">
                   <span>סך הכל</span>
                   <span className="text-primary">{formatILS(Number(selected.total))}</span>

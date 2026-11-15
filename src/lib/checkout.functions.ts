@@ -8,7 +8,8 @@ import { sendOrderCreatedOwnerAlert } from "@/lib/order-emails.server";
 import { recordNewsletterConsent } from "@/lib/newsletter.functions";
 import { priceOrderLines } from "@/lib/order-pricing.server";
 import { PICKUP } from "@/lib/business";
-import { getShipping, applyMemberDiscount as applyMember } from "@/lib/pricing";
+import { computeOrderTotals } from "@/lib/coupons";
+import { orderEligibleTotal, resolveOrderCoupon } from "@/lib/coupons.server";
 
 // Price math (SITE_DISCOUNT / MEMBER_DISCOUNT / SHIPPING_FLAT / effectivePrice /
 // applyMember) now comes from the shared src/lib/pricing.ts — no more duplicated
@@ -41,6 +42,12 @@ const CheckoutSchema = z.object({
   // member discount and shipping). Optional so an older cached bundle can still
   // order; when present, placeOrder will not charge more than it.
   expected_items_total: z.number().int().nonnegative().optional(),
+  // A coupon code the shopper applied (coupons.ts). Re-checked here — the page
+  // only says which code; its terms are read from the database.
+  coupon_code: z.string().trim().max(60).optional().nullable(),
+  // The total the checkout showed, sent with a coupon: the charge never goes
+  // above it (e.g. the coupon's terms changed while the form was open).
+  expected_total: z.number().int().nonnegative().optional(),
   items: z
     .array(
       z.object({
@@ -102,13 +109,37 @@ export const placeOrder = createServerFn({ method: "POST" })
         "המחירים באתר עודכנו בזמן שמילאתם את הפרטים (למשל מבצע שהסתיים). רעננו את העמוד כדי לראות את הסכום המעודכן לפני התשלום.",
       );
     }
-    const subtotal = applyMember(rawSubtotal, isMember);
-    const memberDiscount = rawSubtotal - subtotal;
     const fulfillment = data.fulfillment ?? "delivery";
-    const shipping = getShipping(subtotal, fulfillment);
-    const total = subtotal + shipping;
 
-    const memberNote = isMember ? `[חבר מועדון — הנחת 5% (${memberDiscount} ₪)]` : "";
+    // A coupon is checked again here, never taken from the page: an expired,
+    // disabled or used-up code stops the order with a message that starts with
+    // "הקופון", and the checkout then drops the code and shows the amount
+    // without it before anything is charged.
+    const coupon = data.coupon_code
+      ? await resolveOrderCoupon(data.coupon_code, {
+          email: normalizedEmail,
+          phone: data.customer_phone,
+        })
+      : null;
+    const totals = computeOrderTotals({
+      itemsTotal: rawSubtotal,
+      isMember,
+      fulfillment,
+      coupon: coupon?.terms ?? null,
+      // Only the lines the coupon covers (its categories/products, and sale
+      // items only if it allows them) — read from the database here too.
+      eligibleTotal: coupon
+        ? await orderEligibleTotal(coupon.record, coupon.terms, lineItems)
+        : undefined,
+    });
+    if (coupon && data.expected_total !== undefined && totals.total > data.expected_total) {
+      throw new Error(
+        "הקופון עודכן בזמן שמילאתם את הפרטים. החילו אותו שוב כדי לראות את הסכום המעודכן לפני התשלום.",
+      );
+    }
+    const { subtotal, shipping, total } = totals;
+
+    const memberNote = isMember ? `[חבר מועדון — הנחת 5% (${totals.memberBenefit} ₪)]` : "";
     const finalNotes = data.notes
       ? memberNote
         ? `${data.notes}\n${memberNote}`
@@ -141,6 +172,11 @@ export const placeOrder = createServerFn({ method: "POST" })
         is_gift: data.is_gift ?? false,
         gift_wrap: data.is_gift ? (data.gift_wrap ?? false) : false,
         gift_note: data.is_gift ? data.gift_note || null : null,
+        // Which coupon this order used — the CRM's "who bought with which code".
+        // Recorded only when it applied (a code under its minimum gave nothing).
+        coupon_id: coupon && totals.couponApplied ? coupon.record.id : null,
+        coupon_code: coupon && totals.couponApplied ? coupon.record.code : null,
+        coupon_discount: totals.couponDiscount,
       })
       .select()
       .single();

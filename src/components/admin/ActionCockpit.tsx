@@ -26,7 +26,7 @@ import { Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { getActionQueue } from "@/lib/admin-crm.functions";
+import { getActionQueue, markReviewWhatsapp } from "@/lib/admin-crm.functions";
 import { clearActionDecision, setActionDecision, updateFollowUp } from "@/lib/crm-tasks.functions";
 import {
   waThankYou,
@@ -80,6 +80,8 @@ type QueueRow = {
   customerEmail?: string;
   customerPhone?: string;
   pickup?: boolean;
+  /** review_request rows: the order's signed review link (getActionQueue). */
+  reviewUrl?: string;
   context: string;
   createdAt: string;
 };
@@ -155,7 +157,7 @@ function waForRow(row: QueueRow): string | null {
     case "recover_cart":
       return waAbandonedCart(row);
     case "review_request":
-      return waReviewRequest(row);
+      return waReviewRequest(row, row.reviewUrl);
     default:
       return null;
   }
@@ -187,7 +189,18 @@ const ICON_BTN = cn(ACTION_BTN, "max-sm:w-11 max-sm:px-0");
 
 type Decide = (row: QueueRow, decision: "today" | "days3" | "dismiss" | "done") => void;
 
-function OpenRow({ row, onDecide, busy }: { row: QueueRow; onDecide: Decide; busy: boolean }) {
+function OpenRow({
+  row,
+  onDecide,
+  onWhatsApp,
+  busy,
+}: {
+  row: QueueRow;
+  onDecide: Decide;
+  /** Called as the WhatsApp draft opens (a review ask records itself). */
+  onWhatsApp?: (row: QueueRow) => void;
+  busy: boolean;
+}) {
   const wa = waForRow(row);
   const isReminder = row.type === "follow_up";
   const orderId = row.id.slice(row.id.indexOf(":") + 1);
@@ -240,6 +253,7 @@ function OpenRow({ row, onDecide, busy }: { row: QueueRow; onDecide: Decide; bus
             href={wa}
             target="_blank"
             rel="noreferrer"
+            onClick={() => onWhatsApp?.(row)}
             className={cn(
               ACTION_BTN,
               "max-sm:min-w-0 max-sm:flex-1 max-sm:border-transparent max-sm:bg-emerald-700 max-sm:font-semibold max-sm:text-white border-emerald-600/30 text-emerald-700 dark:text-emerald-400",
@@ -379,6 +393,7 @@ export function ActionCockpit() {
   const decideFn = useServerFn(setActionDecision);
   const clearFn = useServerFn(clearActionDecision);
   const followUpFn = useServerFn(updateFollowUp);
+  const markReviewFn = useServerFn(markReviewWhatsapp);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery({
@@ -406,6 +421,19 @@ export function ActionCockpit() {
     } finally {
       setBusyId(null);
     }
+  };
+
+  // A review ask records itself as its WhatsApp draft opens: the row leaves the
+  // queue and the order's review link starts working. The draft opens anyway
+  // (a link in onClick must not wait); a failed save says so.
+  const onWhatsApp = (row: QueueRow) => {
+    if (row.type !== "review_request") return;
+    const orderId = row.id.slice(row.id.indexOf(":") + 1);
+    markReviewFn({ data: { order_id: orderId } })
+      .then(() => qc.invalidateQueries({ queryKey: QUEUE_KEY }))
+      .catch(() =>
+        toast.error("הבקשה לא נרשמה, ולכן הקישור בהודעה עוד לא פעיל. נסו שוב בעוד רגע."),
+      );
   };
 
   const onDecide: Decide = (row, decision) => {
@@ -487,7 +515,13 @@ export function ActionCockpit() {
                 </div>
                 <div className="stagger space-y-2">
                   {g.rows.map((row) => (
-                    <OpenRow key={row.id} row={row} onDecide={onDecide} busy={busyId === row.id} />
+                    <OpenRow
+                      key={row.id}
+                      row={row}
+                      onDecide={onDecide}
+                      onWhatsApp={onWhatsApp}
+                      busy={busyId === row.id}
+                    />
                   ))}
                 </div>
               </div>

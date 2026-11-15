@@ -254,6 +254,18 @@ function LegalPage() {
               "Google — שירותי Google Analytics ו-Google Ads, לצורך מדידת השימוש באתר ומדידת אפקטיביות הפרסום, וכן שירות הגופנים Google Fonts. תגי המדידה וקובצי הגופנים נטענים משרתי Google בכל עמוד, ולפיכך כתובת ה-IP ונתוני הדפדפן שלכם נמסרים ל-Google גם בטרם מתן הסכמה. עוגיות אנליטיקה ושיווק ומדידה מזוהה מופעלות רק לאחר קבלת הסכמתכם (Consent Mode), כמפורט בסעיף 7. בנוסף, למשתמשים הבוחרים להתחבר באמצעות חשבון Google, ההתחברות מתבצעת מול Google."
             }
           </li>
+          {/* Meta, worded on the same STORAGE-vs-TRANSFER line as Google above:
+              __root.tsx loads fbevents.js from connect.facebook.net on every
+              page with fbq('consent','revoke') as the default, so the script
+              request (IP, browser headers) reaches Meta before any choice;
+              cookies and events wait for marketing consent (MetaPixel.tsx).
+              The events carry product ids, quantities and amounts only — no
+              name, email or phone (analytics.ts, order.$id.tsx). */}
+          <li>
+            {
+              "Meta Platforms (פייסבוק ואינסטגרם) — Meta Pixel, לצורך מדידת אפקטיביות הפרסום ברשתות של Meta והצגת מודעות מותאמות. קוד הפיקסל נטען משרתי Meta בכל עמוד, ולפיכך כתובת ה-IP ונתוני הדפדפן שלכם נמסרים ל-Meta גם בטרם מתן הסכמה. עוגיות שיווק ואירועי מדידה (צפייה במוצר, הוספה לסל, התחלת תשלום ורכישה, הכוללים מזהי מוצרים, כמויות וסכומים בלבד, ללא שם, אימייל או טלפון) נשלחים ל-Meta רק לאחר קבלת הסכמתכם לעוגיות שיווק, כמפורט בסעיף 7."
+            }
+          </li>
           <li>
             {
               "חברת שילוח / דואר — לצורך מסירת ההזמנה ליעדה. מועברים אליה שם המקבל, מספר הטלפון וכתובת המשלוח בלבד, ולא פרטי תשלום."

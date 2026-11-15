@@ -1021,6 +1021,16 @@ function HomePage() {
               <OccasionTile key={c.slug} c={c} eyebrow={label} />
             ))}
           </MobileCarousel>
+          {/* For the shopper who does not know what to look for: three
+              questions, then a shelf (routes/gift-finder.tsx). */}
+          <p className="mt-6 text-center text-sm">
+            <Link
+              to="/gift-finder"
+              className="text-accent underline underline-offset-2 [@media(hover:hover)_and_(pointer:fine)]:hover:text-accent-strong"
+            >
+              לא בטוחים מה לקנות? מוצא המתנות: שלוש שאלות קצרות
+            </Link>
+          </p>
         </Reveal>
       </section>
 

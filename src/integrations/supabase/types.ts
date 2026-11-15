@@ -17,6 +17,7 @@ export type Database = {
       abandoned_carts: {
         Row: {
           converted_order_id: string | null
+          coupon_code: string | null
           created_at: string
           email: string
           id: string
@@ -35,6 +36,7 @@ export type Database = {
         }
         Insert: {
           converted_order_id?: string | null
+          coupon_code?: string | null
           created_at?: string
           email: string
           id?: string
@@ -53,6 +55,7 @@ export type Database = {
         }
         Update: {
           converted_order_id?: string | null
+          coupon_code?: string | null
           created_at?: string
           email?: string
           id?: string
@@ -343,6 +346,160 @@ export type Database = {
           },
         ]
       }
+      coupon_payouts: {
+        Row: {
+          amount: number
+          coupon_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          note: string | null
+          paid_at: string
+        }
+        Insert: {
+          amount: number
+          coupon_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note?: string | null
+          paid_at?: string
+        }
+        Update: {
+          amount?: number
+          coupon_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note?: string | null
+          paid_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coupon_payouts_coupon_id_fkey"
+            columns: ["coupon_id"]
+            isOneToOne: false
+            referencedRelation: "coupons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coupon_visits: {
+        Row: {
+          coupon_id: string
+          day: string
+          visits: number
+        }
+        Insert: {
+          coupon_id: string
+          day: string
+          visits?: number
+        }
+        Update: {
+          coupon_id?: string
+          day?: string
+          visits?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coupon_visits_coupon_id_fkey"
+            columns: ["coupon_id"]
+            isOneToOne: false
+            referencedRelation: "coupons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coupons: {
+        Row: {
+          allowed_email: string | null
+          apply_to_sale_items: boolean
+          category_ids: string[]
+          code: string
+          commission_percent: number | null
+          created_at: string
+          created_by: string | null
+          discount_type: string
+          discount_value: number
+          ends_at: string | null
+          free_shipping: boolean
+          id: string
+          influencer_name: string | null
+          influencer_phone: string | null
+          max_discount: number | null
+          new_customers_only: boolean
+          is_active: boolean
+          max_uses: number | null
+          min_order: number | null
+          notes: string | null
+          once_per_customer: boolean
+          partner_token: string | null
+          product_ids: string[]
+          scope: string
+          starts_at: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          allowed_email?: string | null
+          apply_to_sale_items?: boolean
+          category_ids?: string[]
+          code: string
+          commission_percent?: number | null
+          created_at?: string
+          created_by?: string | null
+          discount_type: string
+          discount_value: number
+          ends_at?: string | null
+          free_shipping?: boolean
+          id?: string
+          influencer_name?: string | null
+          influencer_phone?: string | null
+          max_discount?: number | null
+          new_customers_only?: boolean
+          is_active?: boolean
+          max_uses?: number | null
+          min_order?: number | null
+          notes?: string | null
+          once_per_customer?: boolean
+          partner_token?: string | null
+          product_ids?: string[]
+          scope?: string
+          starts_at?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          allowed_email?: string | null
+          apply_to_sale_items?: boolean
+          category_ids?: string[]
+          code?: string
+          commission_percent?: number | null
+          created_at?: string
+          created_by?: string | null
+          discount_type?: string
+          discount_value?: number
+          ends_at?: string | null
+          free_shipping?: boolean
+          id?: string
+          influencer_name?: string | null
+          influencer_phone?: string | null
+          max_discount?: number | null
+          new_customers_only?: boolean
+          is_active?: boolean
+          max_uses?: number | null
+          min_order?: number | null
+          notes?: string | null
+          once_per_customer?: boolean
+          partner_token?: string | null
+          product_ids?: string[]
+          scope?: string
+          starts_at?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       crm_action_state: {
         Row: {
           action_key: string
@@ -605,6 +762,27 @@ export type Database = {
           },
         ]
       }
+      site_settings: {
+        Row: {
+          key: string
+          updated_at: string
+          updated_by: string | null
+          value: Json
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          updated_by?: string | null
+          value: Json
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          updated_by?: string | null
+          value?: Json
+        }
+        Relationships: []
+      }
       staff_alert_prefs: {
         Row: {
           contacts: boolean
@@ -642,6 +820,9 @@ export type Database = {
           telegram_created_alert_sent_at: string | null
           telegram_paid_alert_sent_at: string | null
           contact_consent: boolean
+          coupon_code: string | null
+          coupon_discount: number
+          coupon_id: string | null
           contact_consent_at: string | null
           created_at: string
           customer_address: string
@@ -663,6 +844,7 @@ export type Database = {
           payment_status: string
           payment_txn_id: string | null
           review_request_sent_at: string | null
+          review_whatsapp_at: string | null
           shipped_at: string | null
           shipping: number
           shipping_carrier: string | null
@@ -688,6 +870,9 @@ export type Database = {
           telegram_created_alert_sent_at?: string | null
           telegram_paid_alert_sent_at?: string | null
           contact_consent?: boolean
+          coupon_code?: string | null
+          coupon_discount?: number
+          coupon_id?: string | null
           contact_consent_at?: string | null
           created_at?: string
           customer_address: string
@@ -709,6 +894,7 @@ export type Database = {
           payment_status?: string
           payment_txn_id?: string | null
           review_request_sent_at?: string | null
+          review_whatsapp_at?: string | null
           shipped_at?: string | null
           shipping?: number
           shipping_carrier?: string | null
@@ -734,6 +920,9 @@ export type Database = {
           telegram_created_alert_sent_at?: string | null
           telegram_paid_alert_sent_at?: string | null
           contact_consent?: boolean
+          coupon_code?: string | null
+          coupon_discount?: number
+          coupon_id?: string | null
           contact_consent_at?: string | null
           created_at?: string
           customer_address?: string
@@ -755,6 +944,7 @@ export type Database = {
           payment_status?: string
           payment_txn_id?: string | null
           review_request_sent_at?: string | null
+          review_whatsapp_at?: string | null
           shipped_at?: string | null
           shipping?: number
           shipping_carrier?: string | null
@@ -768,7 +958,15 @@ export type Database = {
           updated_at?: string
           user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "orders_coupon_id_fkey"
+            columns: ["coupon_id"]
+            isOneToOne: false
+            referencedRelation: "coupons"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       product_categories: {
         Row: {
@@ -1354,6 +1552,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_coupon_stats: {
+        Args: never
+        Returns: {
+          coupon_id: string
+          customers: number
+          discount: number
+          last_order_at: string
+          paid_orders: number
+          sales: number
+          unpaid_orders: number
+        }[]
+      }
       admin_promotion_preview: {
         Args: { p_category_ids: string[]; p_product_ids: string[]; p_scope: string }
         Returns: Json
@@ -1474,6 +1684,26 @@ export type Database = {
         Returns: boolean
       }
       he_variants: { Args: { w: string }; Returns: string[] }
+      coupon_box_visible: { Args: never; Returns: boolean }
+      coupon_eligible_products: {
+        Args: { p_coupon_id: string; p_product_ids: string[] }
+        Returns: string[]
+      }
+      customer_paid_orders: {
+        Args: { p_email: string; p_phone: string }
+        Returns: number
+      }
+      increment_coupon_visit: {
+        Args: { p_coupon_id: string }
+        Returns: undefined
+      }
+      coupon_usage: {
+        Args: { p_coupon_id: string; p_email: string; p_phone: string }
+        Returns: {
+          customer_uses: number
+          total_uses: number
+        }[]
+      }
       increment_rate_limit: {
         Args: { p_key: string; p_ttl_seconds: number }
         Returns: number

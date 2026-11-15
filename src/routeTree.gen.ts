@@ -22,6 +22,7 @@ import { Route as ClubRouteImport } from './routes/club'
 import { Route as ContactRouteImport } from './routes/contact'
 import { Route as FavoritesRouteImport } from './routes/favorites'
 import { Route as FeedDotxmlRouteImport } from './routes/feed[.]xml'
+import { Route as GiftFinderRouteImport } from './routes/gift-finder'
 import { Route as MivtzaimRouteImport } from './routes/mivtzaim'
 import { Route as OrZaruaLatzadikRouteImport } from './routes/or-zarua-latzadik'
 import { Route as PrivacyRouteImport } from './routes/privacy'
@@ -36,6 +37,7 @@ import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as AdminAbandonedRouteImport } from './routes/admin.abandoned'
 import { Route as AdminCampaignsRouteImport } from './routes/admin.campaigns'
 import { Route as AdminCategoriesRouteImport } from './routes/admin.categories'
+import { Route as AdminCouponsRouteImport } from './routes/admin.coupons'
 import { Route as AdminCustomersRouteImport } from './routes/admin.customers'
 import { Route as AdminLeadsRouteImport } from './routes/admin.leads'
 import { Route as AdminOrdersRouteImport } from './routes/admin.orders'
@@ -50,6 +52,7 @@ import { Route as CategorySlugRouteImport } from './routes/category.$slug'
 import { Route as CollectionSlugRouteImport } from './routes/collection.$slug'
 import { Route as CollectionPersonalizedRouteImport } from './routes/collection.personalized'
 import { Route as OrderIdRouteImport } from './routes/order.$id'
+import { Route as PartnerTokenRouteImport } from './routes/partner.$token'
 import { Route as ProductSlugRouteImport } from './routes/product.$slug'
 import { Route as ApiCronAbandonedCartRemindersRouteImport } from './routes/api/cron/abandoned-cart-reminders'
 import { Route as ApiCronCampaignTickRouteImport } from './routes/api/cron/campaign-tick'
@@ -127,6 +130,11 @@ const FeedDotxmlRoute = FeedDotxmlRouteImport.update({
   path: '/feed.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GiftFinderRoute = GiftFinderRouteImport.update({
+  id: '/gift-finder',
+  path: '/gift-finder',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MivtzaimRoute = MivtzaimRouteImport.update({
   id: '/mivtzaim',
   path: '/mivtzaim',
@@ -197,6 +205,11 @@ const AdminCategoriesRoute = AdminCategoriesRouteImport.update({
   path: '/categories',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminCouponsRoute = AdminCouponsRouteImport.update({
+  id: '/coupons',
+  path: '/coupons',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminCustomersRoute = AdminCustomersRouteImport.update({
   id: '/customers',
   path: '/customers',
@@ -265,6 +278,11 @@ const CollectionPersonalizedRoute = CollectionPersonalizedRouteImport.update({
 const OrderIdRoute = OrderIdRouteImport.update({
   id: '/order/$id',
   path: '/order/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PartnerTokenRoute = PartnerTokenRouteImport.update({
+  id: '/partner/$token',
+  path: '/partner/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProductSlugRoute = ProductSlugRouteImport.update({
@@ -339,6 +357,7 @@ export interface FileRoutesByFullPath {
   '/contact': typeof ContactRoute
   '/favorites': typeof FavoritesRoute
   '/feed.xml': typeof FeedDotxmlRoute
+  '/gift-finder': typeof GiftFinderRoute
   '/mivtzaim': typeof MivtzaimRoute
   '/or-zarua-latzadik': typeof OrZaruaLatzadikRoute
   '/privacy': typeof PrivacyRoute
@@ -352,6 +371,7 @@ export interface FileRoutesByFullPath {
   '/admin/abandoned': typeof AdminAbandonedRoute
   '/admin/campaigns': typeof AdminCampaignsRoute
   '/admin/categories': typeof AdminCategoriesRoute
+  '/admin/coupons': typeof AdminCouponsRoute
   '/admin/customers': typeof AdminCustomersRoute
   '/admin/leads': typeof AdminLeadsRoute
   '/admin/orders': typeof AdminOrdersRoute
@@ -365,6 +385,7 @@ export interface FileRoutesByFullPath {
   '/collection/$slug': typeof CollectionSlugRoute
   '/collection/personalized': typeof CollectionPersonalizedRoute
   '/order/$id': typeof OrderIdRoute
+  '/partner/$token': typeof PartnerTokenRoute
   '/product/$slug': typeof ProductSlugRoute
   '/admin/': typeof AdminIndexRoute
   '/articles/': typeof ArticlesIndexRoute
@@ -392,6 +413,7 @@ export interface FileRoutesByTo {
   '/contact': typeof ContactRoute
   '/favorites': typeof FavoritesRoute
   '/feed.xml': typeof FeedDotxmlRoute
+  '/gift-finder': typeof GiftFinderRoute
   '/mivtzaim': typeof MivtzaimRoute
   '/or-zarua-latzadik': typeof OrZaruaLatzadikRoute
   '/privacy': typeof PrivacyRoute
@@ -405,6 +427,7 @@ export interface FileRoutesByTo {
   '/admin/abandoned': typeof AdminAbandonedRoute
   '/admin/campaigns': typeof AdminCampaignsRoute
   '/admin/categories': typeof AdminCategoriesRoute
+  '/admin/coupons': typeof AdminCouponsRoute
   '/admin/customers': typeof AdminCustomersRoute
   '/admin/leads': typeof AdminLeadsRoute
   '/admin/orders': typeof AdminOrdersRoute
@@ -418,6 +441,7 @@ export interface FileRoutesByTo {
   '/collection/$slug': typeof CollectionSlugRoute
   '/collection/personalized': typeof CollectionPersonalizedRoute
   '/order/$id': typeof OrderIdRoute
+  '/partner/$token': typeof PartnerTokenRoute
   '/product/$slug': typeof ProductSlugRoute
   '/admin': typeof AdminIndexRoute
   '/articles': typeof ArticlesIndexRoute
@@ -447,6 +471,7 @@ export interface FileRoutesById {
   '/contact': typeof ContactRoute
   '/favorites': typeof FavoritesRoute
   '/feed.xml': typeof FeedDotxmlRoute
+  '/gift-finder': typeof GiftFinderRoute
   '/mivtzaim': typeof MivtzaimRoute
   '/or-zarua-latzadik': typeof OrZaruaLatzadikRoute
   '/privacy': typeof PrivacyRoute
@@ -460,6 +485,7 @@ export interface FileRoutesById {
   '/admin/abandoned': typeof AdminAbandonedRoute
   '/admin/campaigns': typeof AdminCampaignsRoute
   '/admin/categories': typeof AdminCategoriesRoute
+  '/admin/coupons': typeof AdminCouponsRoute
   '/admin/customers': typeof AdminCustomersRoute
   '/admin/leads': typeof AdminLeadsRoute
   '/admin/orders': typeof AdminOrdersRoute
@@ -473,6 +499,7 @@ export interface FileRoutesById {
   '/collection/$slug': typeof CollectionSlugRoute
   '/collection/personalized': typeof CollectionPersonalizedRoute
   '/order/$id': typeof OrderIdRoute
+  '/partner/$token': typeof PartnerTokenRoute
   '/product/$slug': typeof ProductSlugRoute
   '/admin/': typeof AdminIndexRoute
   '/articles/': typeof ArticlesIndexRoute
@@ -503,6 +530,7 @@ export interface FileRouteTypes {
     | '/contact'
     | '/favorites'
     | '/feed.xml'
+    | '/gift-finder'
     | '/mivtzaim'
     | '/or-zarua-latzadik'
     | '/privacy'
@@ -516,6 +544,7 @@ export interface FileRouteTypes {
     | '/admin/abandoned'
     | '/admin/campaigns'
     | '/admin/categories'
+    | '/admin/coupons'
     | '/admin/customers'
     | '/admin/leads'
     | '/admin/orders'
@@ -529,6 +558,7 @@ export interface FileRouteTypes {
     | '/collection/$slug'
     | '/collection/personalized'
     | '/order/$id'
+    | '/partner/$token'
     | '/product/$slug'
     | '/admin/'
     | '/articles/'
@@ -556,6 +586,7 @@ export interface FileRouteTypes {
     | '/contact'
     | '/favorites'
     | '/feed.xml'
+    | '/gift-finder'
     | '/mivtzaim'
     | '/or-zarua-latzadik'
     | '/privacy'
@@ -569,6 +600,7 @@ export interface FileRouteTypes {
     | '/admin/abandoned'
     | '/admin/campaigns'
     | '/admin/categories'
+    | '/admin/coupons'
     | '/admin/customers'
     | '/admin/leads'
     | '/admin/orders'
@@ -582,6 +614,7 @@ export interface FileRouteTypes {
     | '/collection/$slug'
     | '/collection/personalized'
     | '/order/$id'
+    | '/partner/$token'
     | '/product/$slug'
     | '/admin'
     | '/articles'
@@ -610,6 +643,7 @@ export interface FileRouteTypes {
     | '/contact'
     | '/favorites'
     | '/feed.xml'
+    | '/gift-finder'
     | '/mivtzaim'
     | '/or-zarua-latzadik'
     | '/privacy'
@@ -623,6 +657,7 @@ export interface FileRouteTypes {
     | '/admin/abandoned'
     | '/admin/campaigns'
     | '/admin/categories'
+    | '/admin/coupons'
     | '/admin/customers'
     | '/admin/leads'
     | '/admin/orders'
@@ -636,6 +671,7 @@ export interface FileRouteTypes {
     | '/collection/$slug'
     | '/collection/personalized'
     | '/order/$id'
+    | '/partner/$token'
     | '/product/$slug'
     | '/admin/'
     | '/articles/'
@@ -665,6 +701,7 @@ export interface RootRouteChildren {
   ContactRoute: typeof ContactRoute
   FavoritesRoute: typeof FavoritesRoute
   FeedDotxmlRoute: typeof FeedDotxmlRoute
+  GiftFinderRoute: typeof GiftFinderRoute
   MivtzaimRoute: typeof MivtzaimRoute
   OrZaruaLatzadikRoute: typeof OrZaruaLatzadikRoute
   PrivacyRoute: typeof PrivacyRoute
@@ -680,6 +717,7 @@ export interface RootRouteChildren {
   CollectionSlugRoute: typeof CollectionSlugRoute
   CollectionPersonalizedRoute: typeof CollectionPersonalizedRoute
   OrderIdRoute: typeof OrderIdRoute
+  PartnerTokenRoute: typeof PartnerTokenRoute
   ProductSlugRoute: typeof ProductSlugRoute
   ArticlesIndexRoute: typeof ArticlesIndexRoute
   ApiCronAbandonedCartRemindersRoute: typeof ApiCronAbandonedCartRemindersRoute
@@ -786,6 +824,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FeedDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/gift-finder': {
+      id: '/gift-finder'
+      path: '/gift-finder'
+      fullPath: '/gift-finder'
+      preLoaderRoute: typeof GiftFinderRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/mivtzaim': {
       id: '/mivtzaim'
       path: '/mivtzaim'
@@ -882,6 +927,13 @@ declare module '@tanstack/react-router' {
       path: '/categories'
       fullPath: '/admin/categories'
       preLoaderRoute: typeof AdminCategoriesRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/coupons': {
+      id: '/admin/coupons'
+      path: '/coupons'
+      fullPath: '/admin/coupons'
+      preLoaderRoute: typeof AdminCouponsRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/customers': {
@@ -982,6 +1034,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OrderIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/partner/$token': {
+      id: '/partner/$token'
+      path: '/partner/$token'
+      fullPath: '/partner/$token'
+      preLoaderRoute: typeof PartnerTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/product/$slug': {
       id: '/product/$slug'
       path: '/product/$slug'
@@ -1066,6 +1125,7 @@ interface AdminRouteChildren {
   AdminAbandonedRoute: typeof AdminAbandonedRoute
   AdminCampaignsRoute: typeof AdminCampaignsRoute
   AdminCategoriesRoute: typeof AdminCategoriesRoute
+  AdminCouponsRoute: typeof AdminCouponsRoute
   AdminCustomersRoute: typeof AdminCustomersRoute
   AdminLeadsRoute: typeof AdminLeadsRoute
   AdminOrdersRoute: typeof AdminOrdersRoute
@@ -1082,6 +1142,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminAbandonedRoute: AdminAbandonedRoute,
   AdminCampaignsRoute: AdminCampaignsRoute,
   AdminCategoriesRoute: AdminCategoriesRoute,
+  AdminCouponsRoute: AdminCouponsRoute,
   AdminCustomersRoute: AdminCustomersRoute,
   AdminLeadsRoute: AdminLeadsRoute,
   AdminOrdersRoute: AdminOrdersRoute,
@@ -1110,6 +1171,7 @@ const rootRouteChildren: RootRouteChildren = {
   ContactRoute: ContactRoute,
   FavoritesRoute: FavoritesRoute,
   FeedDotxmlRoute: FeedDotxmlRoute,
+  GiftFinderRoute: GiftFinderRoute,
   MivtzaimRoute: MivtzaimRoute,
   OrZaruaLatzadikRoute: OrZaruaLatzadikRoute,
   PrivacyRoute: PrivacyRoute,
@@ -1125,6 +1187,7 @@ const rootRouteChildren: RootRouteChildren = {
   CollectionSlugRoute: CollectionSlugRoute,
   CollectionPersonalizedRoute: CollectionPersonalizedRoute,
   OrderIdRoute: OrderIdRoute,
+  PartnerTokenRoute: PartnerTokenRoute,
   ProductSlugRoute: ProductSlugRoute,
   ArticlesIndexRoute: ArticlesIndexRoute,
   ApiCronAbandonedCartRemindersRoute: ApiCronAbandonedCartRemindersRoute,

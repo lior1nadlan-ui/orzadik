@@ -10,7 +10,9 @@ import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { requireAdmin } from "@/lib/admin-authz.server";
 import { priceOrderLines } from "@/lib/order-pricing.server";
-import { applyMemberDiscount, getEffectivePrice, getShipping } from "@/lib/pricing";
+import { getEffectivePrice } from "@/lib/pricing";
+import { computeOrderTotals } from "@/lib/coupons";
+import { orderEligibleTotal, resolveOrderCoupon } from "@/lib/coupons.server";
 import { PICKUP } from "@/lib/business";
 import { orderPaymentUrl } from "@/lib/wa-templates";
 import { logOrderEvent } from "@/lib/order-events.server";
@@ -68,6 +70,9 @@ const PhoneOrderSchema = z.object({
   // same consent the checkout box records. Drives the payment reminder and
   // the review request.
   contact_consent: z.boolean(),
+  // A coupon the customer mentioned on the call — checked like on the site, and
+  // recorded on the order so the influencer behind it gets the credit.
+  coupon_code: z.string().trim().max(60).optional().nullable(),
   items: z
     .array(
       z.object({
@@ -113,12 +118,24 @@ export const createPhoneOrder = createServerFn({ method: "POST" })
     const isMember = !!prof?.is_member;
 
     const rawSubtotal = lineItems.reduce((s, l) => s + l.line_total, 0);
-    const subtotal = applyMemberDiscount(rawSubtotal, isMember);
-    const shipping = getShipping(subtotal, data.fulfillment);
-    const total = subtotal + shipping;
+    const coupon = data.coupon_code?.trim()
+      ? await resolveOrderCoupon(data.coupon_code, { email, phone: data.customer_phone })
+      : null;
+    const totals = computeOrderTotals({
+      itemsTotal: rawSubtotal,
+      isMember,
+      fulfillment: data.fulfillment,
+      coupon: coupon?.terms ?? null,
+      // Only the lines the coupon covers (its categories/products, and sale
+      // items only if it allows them) — read from the database here too.
+      eligibleTotal: coupon
+        ? await orderEligibleTotal(coupon.record, coupon.terms, lineItems)
+        : undefined,
+    });
+    const { subtotal, shipping, total } = totals;
 
     const tags = [PHONE_ORDER_TAG];
-    if (isMember) tags.push(`[חבר מועדון — הנחת 5% (${rawSubtotal - subtotal} ₪)]`);
+    if (isMember) tags.push(`[חבר מועדון — הנחת 5% (${totals.memberBenefit} ₪)]`);
     const notes = [data.notes, ...tags].filter(Boolean).join("\n");
 
     const now = new Date().toISOString();
@@ -140,6 +157,9 @@ export const createPhoneOrder = createServerFn({ method: "POST" })
         payment_status: "unpaid",
         contact_consent: data.contact_consent,
         contact_consent_at: data.contact_consent ? now : null,
+        coupon_id: coupon && totals.couponApplied ? coupon.record.id : null,
+        coupon_code: coupon && totals.couponApplied ? coupon.record.code : null,
+        coupon_discount: totals.couponDiscount,
       })
       .select("id, order_number")
       .single();
@@ -170,6 +190,9 @@ export const createPhoneOrder = createServerFn({ method: "POST" })
       id: order.id as string,
       orderNumber: order.order_number as string,
       total,
+      // Set when a coupon was given but gives nothing on this order, and why.
+      couponNotApplied: !!coupon && !totals.couponApplied,
+      couponIssue: coupon ? totals.couponIssue : null,
       payUrl: orderPaymentUrl(order.id),
     };
   });

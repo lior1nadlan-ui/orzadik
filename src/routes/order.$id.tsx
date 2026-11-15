@@ -6,6 +6,8 @@ import { getOrderConfirmation } from "@/lib/order.functions";
 import { createCardcomPayment } from "@/lib/cardcom.functions";
 import { formatILS, useCart } from "@/lib/cart";
 import { BUSINESS } from "@/lib/business";
+import { orderBreakdown } from "@/lib/coupons";
+import { rememberCoupon } from "@/lib/coupon-session";
 import { Button } from "@/components/ui/button";
 import { CardSkeleton } from "@/components/Skeletons";
 import { CheckCircle2, Clock, Mail, Truck, Package, MessageCircle, Loader2 } from "lucide-react";
@@ -102,7 +104,11 @@ function OrderConfirmationPage() {
 
   // Clear the cart only once payment is confirmed — never before.
   useEffect(() => {
-    if (isPaid) clear();
+    if (isPaid) {
+      clear();
+      // The code did its job on this order; the strip and checkout drop it.
+      rememberCoupon(null);
+    }
   }, [isPaid, clear]);
 
   // Fire the `purchase` conversion once when payment is confirmed — to BOTH GA4
@@ -137,6 +143,9 @@ function OrderConfirmationPage() {
         transaction_id: order.order_number ?? id,
         value,
         currency: "ILS",
+        // GA4's own coupon field: sales per influencer code in the ecommerce
+        // reports, next to the CRM's /admin/coupons figures.
+        ...(order.coupon_code ? { coupon: order.coupon_code } : {}),
         items: items.map((it: any) => ({
           // item_id ties the purchase line to the same id used by view_item /
           // add_to_cart, so GA4 can attribute revenue to a product across the
@@ -159,17 +168,24 @@ function OrderConfirmationPage() {
       }
     }
     if (typeof w.fbq === "function") {
-      w.fbq("track", "Purchase", {
-        value,
-        currency: "ILS",
-        num_items: items.reduce((n, it) => n + (Number(it.quantity) || 1), 0),
-        content_type: "product",
-        contents: items.map((it: any) => ({
-          id: String(it.product_id ?? it.product_name ?? ""),
-          quantity: Number(it.quantity) || 1,
-          item_price: unitPrice(it),
-        })),
-      });
+      w.fbq(
+        "track",
+        "Purchase",
+        {
+          value,
+          currency: "ILS",
+          num_items: items.reduce((n, it) => n + (Number(it.quantity) || 1), 0),
+          content_type: "product",
+          contents: items.map((it: any) => ({
+            id: String(it.product_id ?? it.product_name ?? ""),
+            quantity: Number(it.quantity) || 1,
+            item_price: unitPrice(it),
+          })),
+        },
+        // One id per order: Meta counts a purchase once even if it is reported
+        // again (another device, or later from the server via Conversions API).
+        { eventID: `purchase-${id}` },
+      );
     }
   }, [isPaid, order, id]);
 
@@ -386,11 +402,11 @@ function OrderConfirmationPage() {
             the least transparent of the three. Derived from data already
             fetched — no query change, no pricing.ts change. */}
         {(() => {
-          const itemsSum = order.order_items.reduce(
-            (s: number, it: any) => s + Number(it.line_total),
-            0,
+          // orderBreakdown splits the member's 5% from a coupon's shekels.
+          const { itemsSum, memberBenefit, couponDiscount, couponCode } = orderBreakdown(
+            order,
+            order.order_items,
           );
-          const memberBenefit = itemsSum - Number(order.subtotal);
           return (
             <div className="space-y-2 border-t border-glass-line pt-3">
               <div className="flex justify-between text-sm">
@@ -401,6 +417,14 @@ function OrderConfirmationPage() {
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">הטבת מועדון</span>
                   <span className="whitespace-nowrap">{formatILS(-memberBenefit)}</span>
+                </div>
+              )}
+              {couponDiscount > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">
+                    קופון <bdi dir="ltr">{couponCode}</bdi>
+                  </span>
+                  <span className="whitespace-nowrap">{formatILS(-couponDiscount)}</span>
                 </div>
               )}
               <div className="flex justify-between text-sm">

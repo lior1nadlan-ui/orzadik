@@ -1,4 +1,12 @@
 import { useEffect, useState } from "react";
+import {
+  COUPON_STORAGE_KEY,
+  couponWaitsForEmail,
+  keepRefusedCoupon,
+  normalizeCouponCode,
+  offerText,
+} from "@/lib/coupons";
+import { rememberCoupon, rememberCouponCode } from "@/lib/coupon-session";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   Outlet,
@@ -13,6 +21,7 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import { Toaster } from "@/components/ui/sonner";
+import { toast } from "sonner";
 import { CartProvider } from "@/lib/cart";
 import { PromoProvider, loadPromoPayload } from "@/lib/promotions-data";
 import { AuthProvider } from "@/lib/auth";
@@ -579,6 +588,63 @@ function RootComponent() {
     // larger text, stop-animations…) IMMEDIATELY — deferring the widget's UI
     // must not delay the actual page adaptation those users depend on.
     applySavedA11ySettings();
+
+    // An influencer's link (any page, ?coupon=DANA10): keep the code for this
+    // tab so the checkout applies it by itself (src/lib/coupons.ts). The
+    // checkout re-checks it with the server; nothing here grants a discount.
+    let linked: string | null = null;
+    try {
+      linked = new URLSearchParams(window.location.search).get("coupon");
+      if (linked) sessionStorage.setItem(COUPON_STORAGE_KEY, linked.slice(0, 60));
+    } catch {
+      /* storage unavailable — the shopper can still type the code */
+    }
+    // Tell the visitor the code is live, so they know the discount is waiting
+    // for them at checkout. Checked with the server first; a code that no
+    // longer works is dropped quietly (the checkout box still takes another).
+    // Loaded on demand: only visitors who came through a link pay for it.
+    if (linked) {
+      const code = linked.slice(0, 60);
+      void import("@/lib/coupons.functions")
+        .then(async (fns) => {
+          // One visit per tab per code, for the influencer's "כניסות" count
+          // (coupon_visits: a number per day, no person).
+          try {
+            const seenKey = `oz-coupon-visit:${normalizeCouponCode(code)}`;
+            if (!sessionStorage.getItem(seenKey)) {
+              sessionStorage.setItem(seenKey, "1");
+              void fns.logCouponVisit({ data: { code } }).catch(() => {});
+            }
+          } catch {
+            /* storage unavailable: the visit is simply not counted */
+          }
+          const r = await fns.checkCoupon({ data: { code } });
+          if (r.ok) {
+            rememberCoupon(r.terms);
+            toast.success(`הקוד ${r.terms.code} יוחל אוטומטית בעמוד התשלום`, {
+              description: offerText(r.terms),
+              duration: 6000,
+            });
+          } else if (couponWaitsForEmail(r.reason)) {
+            // A personal code (a gift from the CRM's customer card): it works
+            // only with its customer's email, which this page does not know.
+            // Kept for the checkout, which applies it once the email is typed.
+            const saved = normalizeCouponCode(code);
+            rememberCouponCode(saved);
+            toast.success(`הקוד האישי ${saved} שמור לכם`, {
+              description: "הוא יוחל בעמוד התשלום, אחרי מילוי כתובת האימייל שלכם.",
+              duration: 6000,
+            });
+          } else if (!keepRefusedCoupon(r.reason)) {
+            // Final (expired, used up, unknown…). A passing per-IP cap keeps
+            // the code: the checkout asks again.
+            rememberCoupon(null);
+          }
+        })
+        .catch(() => {
+          /* a failed check changes nothing: the checkout checks again */
+        });
+    }
 
     const w = window as typeof window & {
       requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;

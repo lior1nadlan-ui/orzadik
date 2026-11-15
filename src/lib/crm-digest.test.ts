@@ -329,3 +329,34 @@ describe("suspicious prices", () => {
     expect(buildDigest([], [], 0, NOW).actionable).toBe(false);
   });
 });
+
+describe("coupons in the digest", () => {
+  it("sums the last 7 days' paid orders per code, best first", () => {
+    const d = buildDigest(
+      [
+        order({ coupon_code: "DANA10", total: 300 }),
+        order({ coupon_code: "DANA10", total: 200 }),
+        order({ coupon_code: "YOSSI50", total: 600 }),
+        // too old, unpaid, or without a code: not counted
+        order({ coupon_code: "DANA10", paid_at: ago(9 * DAY), created_at: ago(9 * DAY) }),
+        order({ coupon_code: "DANA10", payment_status: "failed", paid_at: null }),
+        order({ total: 999 }),
+      ],
+      [],
+      0,
+      NOW,
+    );
+    expect(d.coupons7d).toEqual([
+      { code: "YOSSI50", orders: 1, revenue: 600 },
+      { code: "DANA10", orders: 2, revenue: 500 },
+    ]);
+    const tgText = renderDigestTelegram(d, NOW, "https://orzadik.com");
+    expect(tgText).toContain("קופונים (7 ימים)");
+    expect(tgText).toContain("YOSSI50 ×1");
+  });
+  it("says nothing about coupons when none were used", () => {
+    const d = buildDigest([order()], [], 0, NOW);
+    expect(d.coupons7d).toEqual([]);
+    expect(renderDigestTelegram(d, NOW, "https://orzadik.com")).not.toContain("קופונים");
+  });
+});

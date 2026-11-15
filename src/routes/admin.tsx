@@ -38,6 +38,7 @@ import {
   Target,
   Ellipsis,
   Accessibility,
+  TicketPercent,
   type LucideIcon,
 } from "lucide-react";
 
@@ -71,6 +72,8 @@ const items: NavItem[] = [
   { to: "/admin/products", label: "מוצרים", icon: Package },
   { to: "/admin/categories", label: "קטגוריות", icon: FolderTree },
   { to: "/admin/promotions", label: "מבצעים", icon: BadgePercent },
+  // Codes a shopper types at checkout (one per influencer), and who used each.
+  { to: "/admin/coupons", label: "קופונים", icon: TicketPercent },
   { to: "/admin/campaigns", label: "דיוור", icon: Mail },
   { to: "/admin/reviews", label: "חוות דעת", icon: Star },
   // The carts' own history (reminder runs, converted carts). Day-to-day

@@ -170,8 +170,11 @@ export const BUSINESS = {
    * audiences. Loaded consent-gated (marketing category) with Meta's consent
    * API — the tag loads on every page but sets NO ad cookies and fires NO
    * events until the visitor grants marketing consent. Empty = pixel omitted.
+   * 2024147204911666 was created in ad account 100867013588264 on 2.9.2026 but
+   * never set here; the owner approved turning it on 15.11.2026, together with
+   * the Meta entry in /privacy (§ third parties) and the cookie banner wording.
    */
-  metaPixelId: "",
+  metaPixelId: "2024147204911666",
   /**
    * Google Ads conversion tracking. `googleAdsId` is the account conversion ID
    * ("AW-XXXXXXXXXX"); `googleAdsPurchaseLabel` is the conversion action's label
@@ -229,7 +232,8 @@ export function orderStatusHe(s: string): string {
 // correct here, since /terms §11 binds the privacy policy in as part of the
 // same agreement and its jurisdiction clause changed in the same pass.
 // 1.10.2026: /terms §6 added collection from the shop (איסוף עצמי).
-export const LEGAL_LAST_UPDATED = "1.10.2026";
+// 15.11.2026: /privacy names Meta (Meta Pixel), now that the pixel is on.
+export const LEGAL_LAST_UPDATED = "15.11.2026";
 
 /** Consumer-law policy constants (Consumer Protection Law §14ג–§14ה). */
 export const CONSUMER_POLICY = {

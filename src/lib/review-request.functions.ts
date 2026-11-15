@@ -76,6 +76,8 @@ export async function runReviewRequests(): Promise<{
     .in("status", ["shipped", "completed"])
     .eq("contact_consent", true)
     .is("review_request_sent_at", null)
+    // Already asked in person on WhatsApp from the CRM queue: one ask is enough.
+    .is("review_whatsapp_at", null)
     .lte("shipped_at", cutoff)
     .gte("shipped_at", floor)
     // Oldest first, so the orders nearest aging out get their retry before the

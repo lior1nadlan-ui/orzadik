@@ -1,0 +1,680 @@
+import { describe, it, expect } from "vitest";
+import {
+  commissionOwed,
+  generateCouponCode,
+  influencerKitMessage,
+  personalCouponMessage,
+  whatsappLink,
+  couponEligibleTotal,
+  couponScopeText,
+  isHighCouponDiscount,
+  noEligibleHint,
+  hebrewMonth,
+  monthKey,
+  partnerMonths,
+  payoutBalance,
+  computeOrderTotals,
+  couponDiscount,
+  couponInputErrors,
+  couponRejection,
+  couponRejectionMessage,
+  couponStatus,
+  couponTerms,
+  couponWaitsForEmail,
+  keepRefusedCoupon,
+  waitingCouponNote,
+  describeCoupon,
+  offerText,
+  visitConversion,
+  isValidCouponCode,
+  latinFromHebrewKeyboard,
+  minimumHint,
+  normalizeCouponCode,
+  orderBreakdown,
+  COUPON_MESSAGE_PREFIX,
+  type CouponInput,
+  type CouponRecord,
+  type CouponTerms,
+} from "@/lib/coupons";
+import { applyMemberDiscount, getShipping, SHIPPING_FLAT } from "@/lib/pricing";
+
+const NOW = new Date("2026-11-14T12:00:00Z");
+
+const record = (over: Partial<CouponRecord> = {}): CouponRecord => ({
+  id: "c1",
+  code: "DANA10",
+  influencer_name: "דנה",
+  notes: null,
+  discount_type: "percent",
+  discount_value: "10.00",
+  free_shipping: false,
+  min_order: null,
+  starts_at: "2026-11-01T00:00:00Z",
+  ends_at: null,
+  max_uses: null,
+  once_per_customer: false,
+  is_active: true,
+  ...over,
+});
+
+const pct = (v: number, over: Partial<CouponTerms> = {}): CouponTerms => ({
+  code: "X",
+  discountType: "percent",
+  discountValue: v,
+  freeShipping: false,
+  minOrder: null,
+  ...over,
+});
+
+describe("normalizeCouponCode / isValidCouponCode", () => {
+  it("upper-cases and drops spaces and direction marks", () => {
+    expect(normalizeCouponCode("  dana 10 ")).toBe("DANA10");
+    expect(normalizeCouponCode("‏dana10‎")).toBe("DANA10");
+  });
+  it("accepts Latin, Hebrew, digits, dash and underscore, 3-30 long", () => {
+    expect(isValidCouponCode("DANA10")).toBe(true);
+    expect(isValidCouponCode("דנה10")).toBe(true);
+    expect(isValidCouponCode("VIP_2026-A")).toBe(true);
+    expect(isValidCouponCode("AB")).toBe(false);
+    expect(isValidCouponCode("A".repeat(31))).toBe(false);
+    expect(isValidCouponCode("DANA!")).toBe(false);
+    expect(isValidCouponCode("dana10")).toBe(false);
+  });
+});
+
+describe("latinFromHebrewKeyboard", () => {
+  it("reads a Latin code typed on a Hebrew keyboard", () => {
+    expect(latinFromHebrewKeyboard("גשמש10")).toBe("DANA10");
+  });
+  it("is null for Latin text or a key with no Latin letter", () => {
+    expect(latinFromHebrewKeyboard("DANA10")).toBeNull();
+    expect(latinFromHebrewKeyboard("שףף")).toBeNull();
+  });
+});
+
+describe("couponTerms", () => {
+  it("parses numerics and hides nothing it needs", () => {
+    expect(couponTerms(record({ min_order: "200.00" }))).toEqual({
+      code: "DANA10",
+      discountType: "percent",
+      discountValue: 10,
+      freeShipping: false,
+      minOrder: 200,
+      scope: "all",
+      applyToSaleItems: true,
+      eligibleProductIds: null,
+    });
+  });
+  it("treats an unknown type as percent and a 0 minimum as none", () => {
+    const t = couponTerms(record({ discount_type: "weird", min_order: 0 }));
+    expect(t.discountType).toBe("percent");
+    expect(t.minOrder).toBeNull();
+  });
+});
+
+describe("couponRejection", () => {
+  it("passes a live coupon", () => {
+    expect(couponRejection(record(), { now: NOW })).toBeNull();
+  });
+  it("names each reason", () => {
+    expect(couponRejection(null)).toBe("not_found");
+    expect(couponRejection(record({ is_active: false }), { now: NOW })).toBe("inactive");
+    expect(couponRejection(record({ starts_at: "2026-12-01T00:00:00Z" }), { now: NOW })).toBe(
+      "not_started",
+    );
+    expect(couponRejection(record({ ends_at: "2026-11-14T11:59:00Z" }), { now: NOW })).toBe(
+      "expired",
+    );
+    expect(couponRejection(record({ max_uses: 3 }), { now: NOW, totalUses: 3 })).toBe("used_up");
+    expect(couponRejection(record({ max_uses: 3 }), { now: NOW, totalUses: 2 })).toBeNull();
+    expect(
+      couponRejection(record({ once_per_customer: true }), { now: NOW, customerUses: 1 }),
+    ).toBe("already_used");
+  });
+  it("every message starts with the prefix the checkout keys on", () => {
+    for (const r of [
+      "not_found",
+      "inactive",
+      "not_started",
+      "expired",
+      "used_up",
+      "already_used",
+    ] as const) {
+      expect(couponRejectionMessage(r).startsWith(COUPON_MESSAGE_PREFIX)).toBe(true);
+    }
+    expect(minimumHint(pct(10, { minOrder: 200 })).startsWith(COUPON_MESSAGE_PREFIX)).toBe(true);
+  });
+});
+
+describe("couponDiscount", () => {
+  it("rounds a percentage to whole shekels", () => {
+    expect(couponDiscount(333, pct(10))).toBe(33);
+    expect(couponDiscount(335, pct(10))).toBe(34);
+  });
+  it("takes a fixed amount, leaving at least ₪1 to pay", () => {
+    expect(couponDiscount(300, { discountType: "fixed", discountValue: 50 })).toBe(50);
+    expect(couponDiscount(40, { discountType: "fixed", discountValue: 50 })).toBe(39);
+  });
+  it("gives nothing on an empty cart or a zero value, and caps a percent at 50", () => {
+    expect(couponDiscount(0, pct(10))).toBe(0);
+    expect(couponDiscount(1, pct(10))).toBe(0);
+    expect(couponDiscount(100, pct(0))).toBe(0);
+    expect(couponDiscount(100, pct(95))).toBe(90);
+  });
+});
+
+describe("computeOrderTotals", () => {
+  it("without a coupon is exactly the old math", () => {
+    for (const isMember of [false, true]) {
+      for (const fulfillment of ["delivery", "pickup"] as const) {
+        const t = computeOrderTotals({ itemsTotal: 437, isMember, fulfillment, coupon: null });
+        const sub = applyMemberDiscount(437, isMember);
+        expect(t.subtotal).toBe(sub);
+        expect(t.shipping).toBe(getShipping(sub, fulfillment));
+        expect(t.total).toBe(sub + getShipping(sub, fulfillment));
+        expect(t.couponApplied).toBe(false);
+        expect(t.couponDiscount).toBe(0);
+      }
+    }
+  });
+  it("takes the coupon off after the member discount, never off shipping", () => {
+    const t = computeOrderTotals({
+      itemsTotal: 400,
+      isMember: true,
+      fulfillment: "delivery",
+      coupon: pct(10),
+    });
+    expect(t.memberBenefit).toBe(20); // 400 → 380
+    expect(t.couponDiscount).toBe(38); // 10% of 380
+    expect(t.subtotal).toBe(342);
+    expect(t.shipping).toBe(SHIPPING_FLAT);
+    expect(t.total).toBe(342 + SHIPPING_FLAT);
+    expect(t.couponApplied).toBe(true);
+  });
+  it("does not apply below the minimum", () => {
+    const t = computeOrderTotals({
+      itemsTotal: 150,
+      isMember: false,
+      fulfillment: "delivery",
+      coupon: pct(10, { minOrder: 200 }),
+    });
+    expect(t.couponApplied).toBe(false);
+    expect(t.couponDiscount).toBe(0);
+    expect(t.total).toBe(150 + SHIPPING_FLAT);
+  });
+  it("waives delivery for a free-shipping coupon, and has nothing to waive on pickup", () => {
+    const free = pct(0, { freeShipping: true });
+    const d = computeOrderTotals({
+      itemsTotal: 200,
+      isMember: false,
+      fulfillment: "delivery",
+      coupon: free,
+    });
+    expect(d.shipping).toBe(0);
+    expect(d.shippingWaived).toBe(SHIPPING_FLAT);
+    expect(d.total).toBe(200);
+    const p = computeOrderTotals({
+      itemsTotal: 200,
+      isMember: false,
+      fulfillment: "pickup",
+      coupon: free,
+    });
+    expect(p.shippingWaived).toBe(0);
+    expect(p.couponApplied).toBe(true);
+  });
+  it("never applies to an empty cart", () => {
+    const t = computeOrderTotals({
+      itemsTotal: 0,
+      isMember: false,
+      fulfillment: "delivery",
+      coupon: pct(10),
+    });
+    expect(t.couponApplied).toBe(false);
+    expect(t.total).toBe(0);
+  });
+});
+
+describe("orderBreakdown", () => {
+  const items = [{ line_total: 300 }, { line_total: "100" }];
+  it("splits the member's benefit from the coupon's shekels", () => {
+    // 400 → member 380 → coupon 38 → subtotal 342
+    const b = orderBreakdown(
+      { subtotal: 342, shipping: 37, total: 379, coupon_discount: "38", coupon_code: "DANA10" },
+      items,
+    );
+    expect(b).toEqual({
+      itemsSum: 400,
+      memberBenefit: 20,
+      couponDiscount: 38,
+      couponCode: "DANA10",
+      shipping: 37,
+      total: 379,
+    });
+    expect(b.itemsSum - b.memberBenefit - b.couponDiscount + b.shipping).toBe(b.total);
+  });
+  it("reads an order from before coupons", () => {
+    const b = orderBreakdown({ subtotal: 380, shipping: 37, total: 417 }, items);
+    expect(b.memberBenefit).toBe(20);
+    expect(b.couponDiscount).toBe(0);
+    expect(b.couponCode).toBeNull();
+  });
+});
+
+describe("describeCoupon", () => {
+  it("says what the code gives", () => {
+    expect(describeCoupon(pct(10))).toBe("10% הנחה");
+    expect(describeCoupon(pct(12.5, { freeShipping: true }))).toBe("12.5% הנחה + משלוח חינם");
+    expect(describeCoupon(pct(0, { freeShipping: true }))).toBe("משלוח חינם");
+    expect(
+      describeCoupon({ discountType: "fixed", discountValue: 50, freeShipping: false }),
+    ).toMatch(/50.*הנחה/);
+  });
+});
+
+describe("couponStatus", () => {
+  it("orders the states the CRM shows", () => {
+    expect(couponStatus(record(), 0, NOW)).toBe("active");
+    expect(couponStatus(record({ is_active: false }), 0, NOW)).toBe("disabled");
+    expect(couponStatus(record({ ends_at: "2026-11-01T01:00:00Z" }), 0, NOW)).toBe("expired");
+    expect(couponStatus(record({ max_uses: 2 }), 2, NOW)).toBe("used_up");
+    expect(couponStatus(record({ starts_at: "2026-12-01T00:00:00Z" }), 0, NOW)).toBe("scheduled");
+  });
+});
+
+describe("commissionOwed", () => {
+  it("is the agreed share of the paid sales, in whole shekels", () => {
+    expect(commissionOwed(2450, 10)).toBe(245);
+    expect(commissionOwed(999, "12.5")).toBe(125);
+  });
+  it("is 0 without a commission or sales", () => {
+    expect(commissionOwed(2450, null)).toBe(0);
+    expect(commissionOwed(0, 10)).toBe(0);
+    expect(commissionOwed(100, 0)).toBe(0);
+  });
+});
+
+describe("couponInputErrors", () => {
+  const valid: CouponInput = {
+    code: "dana10",
+    influencer_name: "דנה",
+    notes: null,
+    discount_type: "percent",
+    discount_value: 10,
+    free_shipping: false,
+    min_order: null,
+    starts_at: null,
+    ends_at: null,
+    max_uses: null,
+    once_per_customer: false,
+    commission_percent: null,
+    scope: "all",
+    category_ids: [],
+    product_ids: [],
+    apply_to_sale_items: true,
+    confirm_high: false,
+  };
+  it("accepts a valid coupon (the code is normalised first)", () => {
+    expect(couponInputErrors(valid)).toEqual([]);
+  });
+  it("rejects what the database would", () => {
+    expect(couponInputErrors({ ...valid, code: "a!" })).toHaveLength(1);
+    expect(couponInputErrors({ ...valid, discount_value: 95 })).toHaveLength(1);
+    // Above 50% only with the explicit confirmation.
+    expect(couponInputErrors({ ...valid, discount_value: 60 })).toHaveLength(1);
+    expect(couponInputErrors({ ...valid, discount_value: 60, confirm_high: true })).toEqual([]);
+    expect(couponInputErrors({ ...valid, scope: "categories" })).toHaveLength(1);
+    expect(couponInputErrors({ ...valid, scope: "products", product_ids: ["p1"] })).toEqual([]);
+    expect(
+      couponInputErrors({ ...valid, discount_type: "fixed", discount_value: 6000 }),
+    ).toHaveLength(1);
+    expect(
+      couponInputErrors({
+        ...valid,
+        discount_type: "fixed",
+        discount_value: 2500,
+        confirm_high: true,
+      }),
+    ).toEqual([]);
+    expect(couponInputErrors({ ...valid, discount_value: 0 })).toHaveLength(1);
+    expect(couponInputErrors({ ...valid, discount_value: 0, free_shipping: true })).toEqual([]);
+    expect(couponInputErrors({ ...valid, min_order: 0 })).toHaveLength(1);
+    expect(couponInputErrors({ ...valid, max_uses: 1.5 })).toHaveLength(1);
+    expect(couponInputErrors({ ...valid, commission_percent: 0 })).toHaveLength(1);
+    expect(couponInputErrors({ ...valid, commission_percent: 120 })).toHaveLength(1);
+    expect(couponInputErrors({ ...valid, commission_percent: 12.5 })).toEqual([]);
+    expect(
+      couponInputErrors({
+        ...valid,
+        starts_at: "2026-12-01T00:00:00Z",
+        ends_at: "2026-11-01T00:00:00Z",
+      }),
+    ).toHaveLength(1);
+  });
+});
+
+describe("influencer report helpers", () => {
+  it("files an order under its Israel-time month", () => {
+    // 22:30 UTC on 31 Oct is already 1 Nov in Israel (UTC+2).
+    expect(monthKey("2026-10-31T22:30:00Z")).toBe("2026-11");
+    expect(monthKey("2026-10-31T21:30:00Z")).toBe("2026-10");
+    expect(monthKey("not a date")).toBeNull();
+  });
+  it("groups paid orders by month, newest first, with the commission", () => {
+    const months = partnerMonths(
+      [
+        { created_at: "2026-10-05T10:00:00Z", subtotal: 100 },
+        { created_at: "2026-11-02T10:00:00Z", subtotal: "250" },
+        { created_at: "2026-11-20T10:00:00Z", subtotal: 150 },
+      ],
+      10,
+    );
+    expect(months).toEqual([
+      { month: "2026-11", orders: 2, sales: 400, commission: 40 },
+      { month: "2026-10", orders: 1, sales: 100, commission: 10 },
+    ]);
+    expect(partnerMonths([], 10)).toEqual([]);
+  });
+  it("names the month in Hebrew", () => {
+    expect(hebrewMonth("2026-11")).toMatch(/נובמבר.*2026/);
+  });
+  it("works out the balance to the agora", () => {
+    expect(payoutBalance(245, 200)).toBe(45);
+    expect(payoutBalance(245, 300)).toBe(-55);
+    expect(payoutBalance(34.2, 0.1)).toBe(34.1);
+  });
+});
+
+describe("coupon scope", () => {
+  const lines = [
+    { productId: "tallit", lineTotal: 300, promoted: false },
+    { productId: "kippa", lineTotal: 100, promoted: true },
+    { productId: "siddur", lineTotal: 50, promoted: false },
+  ];
+  it("adds up the lines the coupon covers", () => {
+    expect(couponEligibleTotal(lines, { eligibleProductIds: null, applyToSaleItems: true })).toBe(
+      450,
+    );
+    expect(couponEligibleTotal(lines, { eligibleProductIds: null, applyToSaleItems: false })).toBe(
+      350,
+    );
+    expect(
+      couponEligibleTotal(lines, {
+        eligibleProductIds: ["tallit", "kippa"],
+        applyToSaleItems: true,
+      }),
+    ).toBe(400);
+    expect(
+      couponEligibleTotal(lines, { eligibleProductIds: ["kippa"], applyToSaleItems: false }),
+    ).toBe(0);
+  });
+  it("takes the coupon off the eligible part only", () => {
+    const t = computeOrderTotals({
+      itemsTotal: 450,
+      eligibleTotal: 300,
+      isMember: false,
+      fulfillment: "delivery",
+      coupon: pct(10),
+    });
+    expect(t.couponDiscount).toBe(30);
+    expect(t.subtotal).toBe(420);
+    expect(t.couponIssue).toBeNull();
+  });
+  it("applies the member's 5% to the eligible part before the coupon", () => {
+    const t = computeOrderTotals({
+      itemsTotal: 400,
+      eligibleTotal: 200,
+      isMember: true,
+      fulfillment: "pickup",
+      coupon: pct(10),
+    });
+    // member: 400 → 380; eligible 200 → 190; 10% of 190 = 19
+    expect(t.couponDiscount).toBe(19);
+    expect(t.subtotal).toBe(361);
+  });
+  it("caps a fixed coupon at the eligible part", () => {
+    const t = computeOrderTotals({
+      itemsTotal: 500,
+      eligibleTotal: 40,
+      isMember: false,
+      fulfillment: "pickup",
+      coupon: { ...pct(0), discountType: "fixed", discountValue: 100 },
+    });
+    expect(t.couponDiscount).toBe(40);
+  });
+  it("says why a coupon with nothing to cover does not apply", () => {
+    const t = computeOrderTotals({
+      itemsTotal: 450,
+      eligibleTotal: 0,
+      isMember: false,
+      fulfillment: "delivery",
+      coupon: pct(10, { scope: "products" }),
+    });
+    expect(t.couponApplied).toBe(false);
+    expect(t.couponIssue).toBe("no_eligible_items");
+    expect(noEligibleHint({ scope: "products" }).startsWith(COUPON_MESSAGE_PREFIX)).toBe(true);
+    // A free-shipping coupon still gives its free shipping.
+    const free = computeOrderTotals({
+      itemsTotal: 450,
+      eligibleTotal: 0,
+      isMember: false,
+      fulfillment: "delivery",
+      coupon: pct(0, { freeShipping: true, scope: "products" }),
+    });
+    expect(free.couponApplied).toBe(true);
+    expect(free.shipping).toBe(0);
+  });
+  it("reports the minimum before anything else", () => {
+    const t = computeOrderTotals({
+      itemsTotal: 100,
+      eligibleTotal: 0,
+      isMember: false,
+      fulfillment: "delivery",
+      coupon: pct(10, { minOrder: 200 }),
+    });
+    expect(t.couponIssue).toBe("min_order");
+  });
+  it("describes the scope", () => {
+    expect(couponScopeText({ scope: "all" })).toBe("על כל האתר");
+    expect(couponScopeText({ scope: "categories" }, { categories: 3 })).toBe("על 3 קטגוריות");
+    expect(couponScopeText({ scope: "products", applyToSaleItems: false }, { products: 1 })).toBe(
+      "על מוצר אחד · לא על מוצרים במבצע",
+    );
+  });
+  it("flags high discounts for confirmation", () => {
+    expect(isHighCouponDiscount({ discount_type: "percent", discount_value: 50 })).toBe(false);
+    expect(isHighCouponDiscount({ discount_type: "percent", discount_value: 51 })).toBe(true);
+    expect(isHighCouponDiscount({ discount_type: "fixed", discount_value: 1001 })).toBe(true);
+  });
+  it("couponTerms exposes only the cart's covered products", () => {
+    const t = couponTerms(
+      record({ scope: "categories", category_ids: ["c1"], apply_to_sale_items: false }),
+      ["p1"],
+    );
+    expect(t.scope).toBe("categories");
+    expect(t.applyToSaleItems).toBe(false);
+    expect(t.eligibleProductIds).toEqual(["p1"]);
+    expect(couponTerms(record()).eligibleProductIds).toBeNull();
+  });
+});
+
+describe("refused codes: kept or dropped", () => {
+  it("keeps a personal code waiting on the email, and one hit by the IP cap", () => {
+    expect(couponWaitsForEmail("needs_email")).toBe(true);
+    expect(couponWaitsForEmail("not_for_you")).toBe(true);
+    expect(couponWaitsForEmail("rate_limited")).toBe(false);
+    expect(keepRefusedCoupon("needs_email")).toBe(true);
+    expect(keepRefusedCoupon("not_for_you")).toBe(true);
+    expect(keepRefusedCoupon("rate_limited")).toBe(true);
+  });
+  it("drops a code on a final refusal", () => {
+    for (const r of [
+      "not_found",
+      "inactive",
+      "not_started",
+      "expired",
+      "used_up",
+      "already_used",
+      "disabled",
+    ] as const) {
+      expect(keepRefusedCoupon(r)).toBe(false);
+    }
+    expect(keepRefusedCoupon(undefined)).toBe(false);
+  });
+  it("explains a waiting personal code without naming it", () => {
+    expect(waitingCouponNote("needs_email")).toContain("יוחל מעצמו");
+    expect(waitingCouponNote("not_for_you")).toContain("כתובת אימייל אחרת");
+    expect(waitingCouponNote("rate_limited")).toBeNull();
+    expect(waitingCouponNote("expired")).toBeNull();
+  });
+});
+
+describe("personal coupons", () => {
+  const personal = record({ allowed_email: "rachel@example.com" });
+  it("is only for the customer's own email", () => {
+    expect(couponRejection(personal, { now: NOW })).toBe("needs_email");
+    expect(couponRejection(personal, { now: NOW, email: " Rachel@Example.com " })).toBeNull();
+    expect(couponRejection(personal, { now: NOW, email: "other@example.com" })).toBe("not_for_you");
+    expect(couponRejectionMessage("needs_email").startsWith(COUPON_MESSAGE_PREFIX)).toBe(true);
+    expect(couponRejectionMessage("not_for_you").startsWith(COUPON_MESSAGE_PREFIX)).toBe(true);
+  });
+  it("an expired personal coupon says expired, not whose it is", () => {
+    expect(
+      couponRejection(
+        { ...personal, ends_at: "2026-11-01T00:00:00Z" },
+        { now: NOW, email: "x@y.co" },
+      ),
+    ).toBe("expired");
+  });
+  it("generates a readable code, with a prefix", () => {
+    let i = 0;
+    const seq = [0, 0.5, 0.99, 0.1, 0.2, 0.3];
+    const code = generateCouponCode("gift", 6, () => seq[i++ % seq.length]);
+    expect(code).toMatch(/^GIFT-[A-Z2-9]{6}$/);
+    // No look-alike characters (0/O, 1/I/L) in the random part.
+    expect(code.slice("GIFT-".length)).not.toMatch(/[01OIL]/);
+    expect(isValidCouponCode(code)).toBe(true);
+    expect(generateCouponCode()).toMatch(/^[A-Z2-9]{6}$/);
+  });
+  it("writes the customer's message", () => {
+    const m = personalCouponMessage({
+      name: "רחל אברהם",
+      code: "GIFT-K7P3QX",
+      offer: "10% הנחה",
+      until: "15.12.26",
+      shopLink: "https://orzadik.com/?coupon=GIFT-K7P3QX",
+    });
+    expect(m).toContain("שלום רחל");
+    expect(m).toContain("GIFT-K7P3QX (בתוקף עד 15.12.26)");
+    expect(m).toContain("https://orzadik.com/?coupon=GIFT-K7P3QX");
+  });
+  it("writes the influencer's kit, with the report only when there is one", () => {
+    const base = {
+      name: "דנה כהן",
+      code: "DANA10",
+      offer: "10% הנחה",
+      shopLink: "https://orzadik.com/?coupon=DANA10",
+    };
+    expect(influencerKitMessage({ ...base, reportLink: null })).not.toContain("הדוח שלך");
+    expect(
+      influencerKitMessage({ ...base, reportLink: "https://orzadik.com/partner/x" }),
+    ).toContain("https://orzadik.com/partner/x");
+  });
+  it("builds a WhatsApp link from an Israeli number", () => {
+    expect(whatsappLink("050-123-4567", "שלום")).toBe(
+      `https://wa.me/972501234567?text=${encodeURIComponent("שלום")}`,
+    );
+    expect(whatsappLink(null, "hi")).toBe("https://wa.me/?text=hi");
+  });
+});
+
+describe("a cap per order, and codes for new customers only", () => {
+  it("caps a percent coupon at its most shekels", () => {
+    expect(couponDiscount(2500, pct(20, { maxDiscount: 100 }))).toBe(100);
+    expect(couponDiscount(300, pct(20, { maxDiscount: 100 }))).toBe(60);
+    expect(couponDiscount(2500, pct(20))).toBe(500);
+  });
+
+  it("never caps a fixed coupon", () => {
+    expect(
+      couponDiscount(500, { discountType: "fixed", discountValue: 150, maxDiscount: 100 }),
+    ).toBe(150);
+  });
+
+  it("reads the cap from the record only for a percent coupon", () => {
+    expect(couponTerms(record({ max_discount: "100.00" })).maxDiscount).toBe(100);
+    expect(
+      couponTerms(record({ discount_type: "fixed", discount_value: 50, max_discount: 100 }))
+        .maxDiscount,
+    ).toBeUndefined();
+    // No cap: the terms keep their old shape.
+    expect("maxDiscount" in couponTerms(record())).toBe(false);
+  });
+
+  it("names the cap in the offer", () => {
+    expect(describeCoupon(pct(10, { maxDiscount: 100 }))).toMatch(/^10% הנחה \(עד .*100.*₪\)$/);
+    expect(offerText(pct(10, { maxDiscount: 100, scope: "categories" }))).toContain(
+      "על מוצרים נבחרים",
+    );
+  });
+
+  it("charges the capped amount, the way placeOrder does", () => {
+    const t = computeOrderTotals({
+      itemsTotal: 2500,
+      isMember: false,
+      fulfillment: "delivery",
+      coupon: pct(20, { maxDiscount: 100 }),
+    });
+    expect(t.couponDiscount).toBe(100);
+  });
+
+  it("refuses a returning customer on a new-customers-only code", () => {
+    const r = record({ new_customers_only: true });
+    expect(couponRejection(r, { now: NOW, previousPaidOrders: 2 })).toBe("not_new_customer");
+    expect(couponRejection(r, { now: NOW, previousPaidOrders: 0 })).toBeNull();
+    // Not known yet (no email or phone): placeOrder checks again.
+    expect(couponRejection(r, { now: NOW })).toBeNull();
+    expect(couponRejection(record(), { now: NOW, previousPaidOrders: 5 })).toBeNull();
+    expect(couponRejectionMessage("not_new_customer").startsWith(COUPON_MESSAGE_PREFIX)).toBe(true);
+  });
+
+  it("checks the cap in the CRM form", () => {
+    const valid: CouponInput = {
+      code: "dana10",
+      influencer_name: null,
+      notes: null,
+      discount_type: "percent",
+      discount_value: 10,
+      free_shipping: false,
+      min_order: null,
+      starts_at: null,
+      ends_at: null,
+      max_uses: null,
+      once_per_customer: false,
+      commission_percent: null,
+      scope: "all",
+      category_ids: [],
+      product_ids: [],
+      apply_to_sale_items: true,
+      confirm_high: false,
+    };
+    expect(couponInputErrors({ ...valid, max_discount: 100 })).toEqual([]);
+    expect(couponInputErrors({ ...valid, max_discount: 0 })).toHaveLength(1);
+    expect(couponInputErrors({ ...valid, max_discount: 6000 })).toHaveLength(1);
+    // A fixed coupon has no cap to check.
+    expect(
+      couponInputErrors({ ...valid, discount_type: "fixed", discount_value: 50, max_discount: 0 }),
+    ).toEqual([]);
+  });
+});
+
+describe("visitConversion", () => {
+  it("gives paid orders per 100 link visits", () => {
+    expect(visitConversion(3, 120)).toBe(3);
+    expect(visitConversion(0, 40)).toBe(0);
+    expect(visitConversion(1, 3)).toBe(33);
+  });
+  it("says nothing without visits, or when the code was also typed by hand", () => {
+    expect(visitConversion(2, 0)).toBeNull();
+    expect(visitConversion(5, 3)).toBeNull();
+  });
+});

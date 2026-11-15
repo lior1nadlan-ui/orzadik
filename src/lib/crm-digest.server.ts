@@ -34,7 +34,7 @@ const ORIGIN = process.env.APP_URL || "https://orzadik.com";
 const DAY = 24 * 60 * 60 * 1000;
 
 const ORDER_COLUMNS =
-  "id, order_number, customer_name, customer_email, customer_phone, total, status, payment_status, created_at, paid_at, shipped_at";
+  "id, order_number, customer_name, customer_email, customer_phone, total, status, payment_status, created_at, paid_at, shipped_at, coupon_code";
 
 /** Reviews older than this that are still unapproved were most likely hidden
  *  on purpose (approval is a toggle; "hide" writes the same false). */

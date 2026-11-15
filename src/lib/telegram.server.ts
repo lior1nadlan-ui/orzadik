@@ -17,6 +17,7 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { orderItemImageUrl } from "@/lib/order-item-photo";
 import { ils } from "@/lib/email.server";
+import { orderBreakdown } from "@/lib/coupons";
 import { orderKeyboard } from "@/lib/telegram-actions";
 
 /** Path the webhook is registered on (/admin/telegram → "חיבור כפתורים"). */
@@ -150,6 +151,8 @@ export function buildOrderMessage(order: any, paid: boolean): string {
   msg += line("אימייל", order.customer_email);
   msg += line("כתובת", [order.customer_address, order.customer_city].filter(Boolean).join(", "));
   msg += line("הערות", order.notes);
+  // Who brought the sale — the influencer's code, when one was used.
+  msg += line("קופון", order.coupon_code);
 
   if (order.is_gift) {
     msg += `\n🎁 <b>מתנה</b>\n`;
@@ -167,11 +170,19 @@ export function buildOrderMessage(order: any, paid: boolean): string {
   // Same arithmetic the receipt prints: orders.subtotal is ALREADY reduced by
   // the 5% member discount while order_items keep their pre-discount totals, so
   // printing subtotal straight under the lines would not add up.
-  const itemsSum = items.reduce((s, it) => s + Number(it.line_total ?? 0), 0);
-  const memberBenefit = itemsSum - Number(order.subtotal ?? itemsSum);
+  // orderBreakdown splits a coupon's shekels from the member's 5%. An order
+  // read without its subtotal counts as having no member discount.
+  const linesSum = items.reduce((s, it) => s + Number(it.line_total ?? 0), 0);
+  const { itemsSum, memberBenefit, couponDiscount, couponCode } = orderBreakdown(
+    { ...order, subtotal: order.subtotal ?? linesSum },
+    items,
+  );
 
   msg += `\n<b>סכום פריטים:</b> ${esc(ils(itemsSum))}\n`;
   if (memberBenefit > 0) msg += `<b>הטבת חבר מועדון:</b> -${esc(ils(memberBenefit))}\n`;
+  if (couponDiscount > 0) {
+    msg += `<b>קופון ${esc(couponCode ?? "")}:</b> -${esc(ils(couponDiscount))}\n`;
+  }
   msg += `<b>משלוח:</b> ${Number(order.shipping) === 0 ? "חינם" : esc(ils(order.shipping))}\n`;
   msg += `<b>סך הכל:</b> ${esc(ils(order.total))}\n`;
 
@@ -213,7 +224,7 @@ export async function sendOrderTelegramAlert(orderId: string, paid: boolean): Pr
     const { data: order } = await supabaseAdmin
       .from("orders")
       .select(
-        "id, order_number, customer_name, customer_email, customer_phone, customer_address, customer_city, notes, subtotal, shipping, total, is_gift, gift_note, gift_wrap, fulfillment, payment_status, status, shipping_status, shipped_at, order_items(product_name, quantity, line_total, variant_label, custom_text, products(slug, thumbnail_url))",
+        "id, order_number, customer_name, customer_email, customer_phone, customer_address, customer_city, notes, subtotal, shipping, total, coupon_code, coupon_discount, is_gift, gift_note, gift_wrap, fulfillment, payment_status, status, shipping_status, shipped_at, order_items(product_name, quantity, line_total, variant_label, custom_text, products(slug, thumbnail_url))",
       )
       .eq("id", orderId)
       .single();

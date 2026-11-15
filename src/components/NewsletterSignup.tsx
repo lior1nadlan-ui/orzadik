@@ -1,6 +1,8 @@
 import { useId, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { subscribeNewsletter } from "@/lib/newsletter.functions";
+import { getWelcomeOffer, subscribeNewsletter } from "@/lib/newsletter.functions";
+import { welcomeOfferLine } from "@/lib/welcome-coupon";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -25,6 +27,16 @@ export function NewsletterSignup({ source = "footer" }: { source?: NewsletterSou
   // and the client, so this does not reintroduce a hydration mismatch.
   const emailId = useId();
   const subscribe = useServerFn(subscribeNewsletter);
+  // The welcome gift, when the CRM offers one (/admin/coupons). Asked once per
+  // visit after hydration; while it loads, or if it fails, the form simply
+  // promises nothing.
+  const loadOffer = useServerFn(getWelcomeOffer);
+  const { data: offer } = useQuery({
+    queryKey: ["welcome-offer"],
+    queryFn: () => loadOffer(),
+    staleTime: 30 * 60 * 1000,
+    retry: false,
+  });
   const [email, setEmail] = useState("");
   const [website, setWebsite] = useState(""); // honeypot
   const [busy, setBusy] = useState(false);
@@ -50,6 +62,11 @@ export function NewsletterSignup({ source = "footer" }: { source?: NewsletterSou
     return (
       <p className="text-[15px] text-accent" role="status">
         תודה! נרשמת לרשימת התפוצה ✨
+        {offer && (
+          <span className="mt-1 block text-sm text-muted-foreground">
+            מי שמצטרף בפעם הראשונה מקבל את קוד ההנחה במייל.
+          </span>
+        )}
       </p>
     );
   }
@@ -65,6 +82,9 @@ export function NewsletterSignup({ source = "footer" }: { source?: NewsletterSou
   // under it is anything but pure white. accent-strong has real margin.
   return (
     <form onSubmit={onSubmit} className="space-y-2">
+      {offer && (
+        <p className="text-sm font-semibold text-accent">🎁 {welcomeOfferLine(offer.percent)}</p>
+      )}
       <div className="flex gap-2">
         <label htmlFor={emailId} className="sr-only">
           כתובת דוא"ל להרשמה לרשימת התפוצה

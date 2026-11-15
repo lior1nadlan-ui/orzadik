@@ -37,8 +37,10 @@ import {
   MessageCircle,
   Clock,
   ShoppingCart,
+  TicketPercent,
   Trash2,
 } from "lucide-react";
+import { PersonalCouponDialog } from "@/components/admin/PersonalCouponDialog";
 
 export const Route = createFileRoute("/admin/customers")({
   // Deep-linkable search: the orders dialog links here with the customer email.
@@ -212,6 +214,12 @@ function AdminCustomers() {
   const [segment, setSegment] = useState<CustomerFilter>("all");
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<any>(null);
+  // "קופון אישי" for the customer whose card is open.
+  const [couponFor, setCouponFor] = useState<{
+    email: string;
+    name: string | null;
+    phone: string | null;
+  } | null>(null);
   const [noteText, setNoteText] = useState("");
   const [savingNote, setSavingNote] = useState(false);
 
@@ -602,6 +610,21 @@ function AdminCustomers() {
                     {!selected.phone && "אימייל"}
                   </a>
                 </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  aria-label="קופון אישי"
+                  title="קופון אישי ללקוח — שימוש אחד, רק עם האימייל שלו"
+                  onClick={() =>
+                    setCouponFor({
+                      email: selected.email,
+                      name: selected.name ?? null,
+                      phone: selected.phone ?? null,
+                    })
+                  }
+                >
+                  <TicketPercent className="h-4 w-4" />
+                </Button>
               </div>
             }
           >
@@ -624,6 +647,21 @@ function AdminCustomers() {
                     אישר/ה יצירת קשר
                   </span>
                 )}
+                {/* The coupons (influencers) this customer bought through. */}
+                {[
+                  ...new Set(
+                    (cust?.orders ?? [])
+                      .map((o: any) => o.coupon_code as string | null)
+                      .filter(Boolean),
+                  ),
+                ].map((code) => (
+                  <span
+                    key={code}
+                    className="text-[11px] rounded-full bg-amber-100 px-2 py-0.5 font-semibold text-amber-900"
+                  >
+                    קופון <bdi dir="ltr">{code}</bdi>
+                  </span>
+                ))}
               </div>
               <div className="grid grid-cols-4 gap-1.5 text-center sm:gap-2">
                 <div className="rounded-lg border px-1 py-2 sm:p-3">
@@ -756,6 +794,12 @@ function AdminCustomers() {
                               <span className="text-[11px] rounded-full bg-muted px-2 py-0.5">
                                 {paymentStatusHe(o.payment_status)}
                               </span>
+                              {/* Which coupon (influencer) this order came through. */}
+                              {o.coupon_code && (
+                                <span className="ms-1 text-[11px] rounded-full bg-amber-100 px-2 py-0.5 font-semibold text-amber-900">
+                                  קופון <bdi dir="ltr">{o.coupon_code}</bdi>
+                                </span>
+                              )}
                             </div>
                             <div className="font-bold">{formatILS(Number(o.total))}</div>
                           </div>
@@ -781,6 +825,13 @@ function AdminCustomers() {
           </AdminSheetContent>
         )}
       </AdminSheet>
+      {couponFor && (
+        <PersonalCouponDialog
+          open
+          onOpenChange={(o) => !o && setCouponFor(null)}
+          customer={couponFor}
+        />
+      )}
     </div>
   );
 }

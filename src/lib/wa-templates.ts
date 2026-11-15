@@ -108,15 +108,19 @@ export function waFollowUpUnpaid(o: Recordish, payUrl?: string): string | null {
   return waMessage(pick(o, "customerPhone", "customer_phone", "phone"), text);
 }
 
-/** Post-delivery: ask how it went and invite a review. */
-export function waReviewRequest(o: Recordish): string | null {
+/** Post-delivery: ask how it went and invite a review. With `reviewUrl` (the
+ *  order's signed link, reviewUrl() in reviews.functions) the message carries
+ *  the form itself; without one it only asks. Worded for anyone, not "אתה". */
+export function waReviewRequest(o: Recordish, reviewUrl?: string): string | null {
   const name = pick(o, "customerName", "customer_name", "name");
   const orderNumber = pick(o, "orderNumber", "order_number");
+  const linkLine = reviewUrl ? `\nלכתיבת חוות דעת (לוקח דקה): ${reviewUrl}` : "";
   const text =
     `${greet(name)}! 😊\n` +
-    `מקווים שההזמנה${orderRef(orderNumber)} הגיעה אליך בשלום ושאתה נהנה ממנה. ` +
-    `נשמח מאוד לשמוע איך היה — חוות דעת קטנה שלך עוזרת לנו ולקונים הבאים המון. ` +
-    `תודה שאתה חלק מהמשפחה של "${SHOP}". 💛`;
+    `מקווים שההזמנה${orderRef(orderNumber)} הגיעה אליך בשלום ושהיא משמחת. ` +
+    `נשמח מאוד לשמוע איך היה — כמה מילים ממך עוזרות לנו ולקונים הבאים המון.` +
+    linkLine +
+    `\nתודה שבחרת ב"${SHOP}". 💛`;
   return waMessage(pick(o, "customerPhone", "customer_phone", "phone"), text);
 }
 
