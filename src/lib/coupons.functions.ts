@@ -11,6 +11,7 @@ import {
   couponRejection,
   couponRejectionMessage,
   couponTerms,
+  type CouponCheckFailure,
   type CouponTerms,
 } from "@/lib/coupons";
 import {
@@ -32,23 +33,35 @@ const CheckSchema = z.object({
   product_ids: z.array(z.string().uuid()).max(100).optional(),
 });
 
-export type CouponCheckResult = { ok: true; terms: CouponTerms } | { ok: false; message: string };
+// `reason` lets the site tell a final "no" (dropped) from a code that only
+// waits on the shopper's email or on the per-IP cap (kept): keepRefusedCoupon.
+export type CouponCheckResult =
+  | { ok: true; terms: CouponTerms }
+  | { ok: false; message: string; reason: CouponCheckFailure };
 
 export const checkCoupon = createServerFn({ method: "POST" })
   .validator((input: unknown) => CheckSchema.parse(input))
   .handler(async ({ data }): Promise<CouponCheckResult> => {
     const { limited } = await checkCouponRateLimitByIp(getClientIp(getRequest()));
     if (limited) {
-      return { ok: false, message: "יותר מדי ניסיונות. נסו שוב בעוד כמה דקות." };
+      return {
+        ok: false,
+        message: "יותר מדי ניסיונות. נסו שוב בעוד כמה דקות.",
+        reason: "rate_limited",
+      };
     }
-    if (!(await couponsEnabled())) return { ok: false, message: COUPONS_DISABLED_MESSAGE };
+    if (!(await couponsEnabled())) {
+      return { ok: false, message: COUPONS_DISABLED_MESSAGE, reason: "disabled" };
+    }
     const record = await findCoupon(data.code);
     const usage = record
       ? await couponUsage(record, data.email, data.phone)
       : { totalUses: 0, customerUses: 0 };
-    const rejection = couponRejection(record, usage);
+    // Without the email yet, a personal coupon asks for it first.
+    const rejection = couponRejection(record, { ...usage, email: data.email });
     if (rejection || !record) {
-      return { ok: false, message: couponRejectionMessage(rejection ?? "not_found") };
+      const reason = rejection ?? "not_found";
+      return { ok: false, message: couponRejectionMessage(reason), reason };
     }
     const eligible = await couponEligibleProducts(record, data.product_ids ?? []);
     return { ok: true, terms: couponTerms(record, eligible) };

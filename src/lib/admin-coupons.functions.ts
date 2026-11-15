@@ -10,6 +10,7 @@ import {
   commissionOwed,
   couponInputErrors,
   couponStatus,
+  generateCouponCode,
   normalizeCouponCode,
   payoutBalance,
   type CouponRecord,
@@ -107,6 +108,8 @@ const InputSchema = z.object({
   product_ids: z.array(z.string().uuid()).max(500),
   apply_to_sale_items: z.boolean(),
   confirm_high: z.boolean(),
+  allowed_email: z.string().trim().max(255).nullable().optional(),
+  influencer_phone: z.string().trim().max(30).nullable().optional(),
 });
 
 export const saveCoupon = createServerFn({ method: "POST" })
@@ -142,6 +145,8 @@ export const saveCoupon = createServerFn({ method: "POST" })
       category_ids: data.scope === "categories" ? data.category_ids : [],
       product_ids: data.scope === "products" ? data.product_ids : [],
       apply_to_sale_items: data.apply_to_sale_items,
+      allowed_email: data.allowed_email ? data.allowed_email.trim().toLowerCase() : null,
+      influencer_phone: data.influencer_phone?.trim() || null,
       updated_at: new Date().toISOString(),
       updated_by: adminId,
     };
@@ -395,4 +400,78 @@ export const setCouponsEnabled = createServerFn({ method: "POST" })
       throw new Error("לא ניתן לעדכן את ההגדרה.");
     }
     return { enabled: data.enabled };
+  });
+
+/**
+ * "קופון אישי" from a customer's CRM card: a one-time code only that
+ * customer's email can use — an apology, a thank-you, a birthday. The code is
+ * generated (retried on the rare clash) and comes back for the owner to send.
+ */
+export const createPersonalCoupon = createServerFn({ method: "POST" })
+  .validator((input: unknown) =>
+    z
+      .object({
+        email: z.string().trim().email().max(255),
+        name: z.string().trim().max(120).nullable(),
+        discount_type: z.enum(["percent", "fixed"]),
+        discount_value: z.number(),
+        free_shipping: z.boolean(),
+        days: z.number().int().min(1).max(365),
+        confirm_high: z.boolean(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data }) => {
+    const adminId = await requireAdmin();
+    const email = data.email.toLowerCase();
+    const endsAt = new Date(Date.now() + data.days * 24 * 60 * 60 * 1000);
+    const base = {
+      influencer_name: data.name?.trim() || email,
+      notes: "קופון אישי — נוצר מכרטיס הלקוח",
+      discount_type: data.discount_type,
+      discount_value: data.discount_value,
+      free_shipping: data.free_shipping,
+      min_order: null,
+      starts_at: new Date().toISOString(),
+      ends_at: endsAt.toISOString(),
+      max_uses: 1,
+      once_per_customer: true,
+      commission_percent: null,
+      scope: "all" as const,
+      category_ids: [],
+      product_ids: [],
+      apply_to_sale_items: true,
+      allowed_email: email,
+    };
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const code = generateCouponCode("GIFT");
+      const errors = couponInputErrors({
+        ...base,
+        code,
+        confirm_high: data.confirm_high,
+        influencer_phone: null,
+      });
+      if (errors.length) throw new Error(errors.join(" "));
+      const { error } = await supabaseAdmin.from("coupons").insert({
+        ...base,
+        code,
+        is_active: true,
+        created_by: adminId,
+        updated_by: adminId,
+      });
+      if (!error) {
+        // On the customer's timeline, like a phone order.
+        await supabaseAdmin.from("crm_customer_notes").insert({
+          customer_email: email,
+          note: `נוצר קופון אישי ${code}`,
+          created_by: adminId,
+        });
+        return { code, ends_at: endsAt.toISOString() };
+      }
+      if (error.code !== "23505") {
+        console.error("[coupons] personal:", error);
+        throw new Error("לא ניתן ליצור את הקופון.");
+      }
+    }
+    throw new Error("לא ניתן ליצור קוד ייחודי — נסו שוב.");
   });

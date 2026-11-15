@@ -2,7 +2,7 @@
 // amount it changes — on a phone the summary column is far below the form, so
 // the button is where the shopper sees the new total. Collapsed behind a link
 // until wanted: an open, empty code box sends shoppers away hunting for a code.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { TicketPercent } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,8 +10,16 @@ import { Label } from "@/components/ui/label";
 import { formatILS } from "@/lib/cart";
 import { minimumHint, noEligibleHint, offerText, type CouponTerms } from "@/lib/coupons";
 
+/**
+ * A code that is good but not usable yet — a personal one waiting for its
+ * customer's email, or one refused only by the per-IP cap. It sits in the box,
+ * ready, with a line on what it waits for.
+ */
+export type PendingCoupon = { code: string; note: string };
+
 export function CouponField({
   coupon,
+  pending,
   applied,
   issue,
   visible = true,
@@ -24,6 +32,8 @@ export function CouponField({
 }: {
   /** The code in use, or null. */
   coupon: CouponTerms | null;
+  /** A code waiting on the shopper (shown when no code is in use). */
+  pending?: PendingCoupon | null;
   /** Whether the code gives something on this cart. */
   applied: boolean;
   /** Why it does not (computeOrderTotals' couponIssue). */
@@ -43,6 +53,11 @@ export function CouponField({
 }) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
+  // A waiting code is put in the box, so applying it is one press away.
+  const pendingCode = pending?.code ?? "";
+  useEffect(() => {
+    if (pendingCode) setText(pendingCode);
+  }, [pendingCode]);
 
   if (coupon) {
     return (
@@ -79,11 +94,11 @@ export function CouponField({
   }
 
   // No code to be had anywhere: no box (it would only send shoppers hunting).
-  if (!visible && !error) return null;
+  if (!visible && !error && !pending) return null;
 
-  // An error (a code from a link that has expired, say) opens the box so the
-  // shopper sees why no discount appears.
-  if (!open && !error) {
+  // An error (a code from a link that has expired, say) or a waiting code
+  // opens the box, so the shopper sees why no discount appears yet.
+  if (!open && !error && !pending) {
     return (
       <button
         type="button"
@@ -119,7 +134,7 @@ export function CouponField({
             }
           }}
           aria-invalid={!!error}
-          aria-describedby={error ? "coupon-code-error" : undefined}
+          aria-describedby={error ? "coupon-code-error" : pending ? "coupon-code-note" : undefined}
           disabled={disabled}
         />
         <Button
@@ -133,10 +148,16 @@ export function CouponField({
           {busy ? "בודקים…" : "החלה"}
         </Button>
       </div>
-      {error && (
+      {error ? (
         <p id="coupon-code-error" role="alert" className="text-xs text-destructive">
           {error}
         </p>
+      ) : (
+        pending && (
+          <p id="coupon-code-note" role="status" className="text-xs text-muted-foreground">
+            {pending.note}
+          </p>
+        )
       )}
     </div>
   );

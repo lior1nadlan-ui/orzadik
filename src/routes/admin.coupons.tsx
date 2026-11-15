@@ -12,7 +12,18 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Copy, CopyPlus, Download, Link2, Plus, TicketPercent, Trash2, Users } from "lucide-react";
+import {
+  Copy,
+  CopyPlus,
+  Download,
+  Link2,
+  MessageCircle,
+  Plus,
+  Shuffle,
+  TicketPercent,
+  Trash2,
+  Users,
+} from "lucide-react";
 import {
   listCoupons,
   listCouponOrders,
@@ -33,6 +44,10 @@ import {
   COUPON_FIXED_MAX,
   COUPON_PERCENT_MAX,
   COUPON_STATUS_HE,
+  generateCouponCode,
+  influencerKitMessage,
+  offerText,
+  whatsappLink,
   COUPON_FIXED_HIGH,
   COUPON_PERCENT_HIGH,
   couponScopeOf,
@@ -97,6 +112,8 @@ const emptyForm = (): FormState => ({
   product_ids: [],
   apply_to_sale_items: true,
   confirm_high: false,
+  allowed_email: null,
+  influencer_phone: null,
 });
 
 /** The form for a coupon — to edit it, or (duplicate) as a new one with an empty code. */
@@ -124,6 +141,9 @@ function formFromCoupon(c: CouponListItem, duplicate = false): FormState {
       discount_type: c.discount_type === "fixed" ? "fixed" : "percent",
       discount_value: Number(c.discount_value),
     }),
+    // A duplicate of a personal coupon is a fresh, open coupon.
+    allowed_email: duplicate ? null : (c.allowed_email ?? null),
+    influencer_phone: c.influencer_phone ?? null,
   };
   return duplicate ? f : { ...f, id: c.id };
 }
@@ -164,6 +184,9 @@ function AdminCoupons() {
   const [usersOf, setUsersOf] = useState<CouponListItem | null>(null);
   const [payoutsOf, setPayoutsOf] = useState<CouponListItem | null>(null);
   const [linksOf, setLinksOf] = useState<CouponListItem | null>(null);
+  const [q, setQ] = useState("");
+  const [filter, setFilter] = useState<"all" | "active" | "off" | "personal">("all");
+  const [sort, setSort] = useState<"new" | "sales" | "code">("new");
 
   const toggleMut = useMutation({
     mutationFn: (v: { id: string; active: boolean }) => toggle({ data: v }),
@@ -178,6 +201,28 @@ function AdminCoupons() {
     (t, c) => ({ orders: t.orders + c.paid_orders, sales: t.sales + c.sales }),
     { orders: 0, sales: 0 },
   );
+
+  // Search (code, name, personal email), a status filter and the order.
+  const needle = q.trim().toLowerCase();
+  const shown = coupons
+    .filter((c) => {
+      if (filter === "active" && c.status !== "active") return false;
+      if (filter === "off" && c.status === "active") return false;
+      if (filter === "personal" && !c.allowed_email) return false;
+      if (!needle) return true;
+      return [c.code, c.influencer_name, c.allowed_email, c.notes].some((v) =>
+        String(v ?? "")
+          .toLowerCase()
+          .includes(needle),
+      );
+    })
+    .sort((a, b) =>
+      sort === "sales"
+        ? b.sales - a.sales || b.paid_orders - a.paid_orders
+        : sort === "code"
+          ? a.code.localeCompare(b.code, "he")
+          : b.created_at.localeCompare(a.created_at),
+    );
 
   return (
     <div className="space-y-6">
@@ -211,27 +256,71 @@ function AdminCoupons() {
           עוד לא נוצרו קופונים. לחצו על "קופון חדש" כדי ליצור קוד ראשון.
         </div>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
-          {coupons.map((c) => (
-            <CouponCard
-              key={c.id}
-              c={c}
-              onEdit={() => setEditing(formFromCoupon(c))}
-              onToggle={() => {
-                if (
-                  c.is_active &&
-                  !window.confirm(`לכבות את הקופון ${c.code}? הוא יפסיק לעבוד באתר מיד.`)
-                )
-                  return;
-                toggleMut.mutate({ id: c.id, active: !c.is_active });
-              }}
-              toggling={toggleMut.isPending && toggleMut.variables?.id === c.id}
-              onUsers={() => setUsersOf(c)}
-              onPayouts={() => setPayoutsOf(c)}
-              onLinks={() => setLinksOf(c)}
+        <>
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="חיפוש לפי קוד, שם או אימייל…"
+              aria-label="חיפוש קופון"
+              className="max-w-xs"
             />
-          ))}
-        </div>
+            <div className="flex flex-wrap gap-1" role="group" aria-label="סינון">
+              {(
+                [
+                  ["all", "הכל"],
+                  ["active", "פעילים"],
+                  ["off", "לא פעילים"],
+                  ["personal", "אישיים"],
+                ] as const
+              ).map(([v, label]) => (
+                <button
+                  key={v}
+                  type="button"
+                  aria-pressed={filter === v}
+                  onClick={() => setFilter(v)}
+                  className={`rounded-full border px-3 py-1 text-xs ${filter === v ? "border-primary bg-primary/10 font-semibold" : "hover:bg-muted"}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value as typeof sort)}
+              aria-label="מיון"
+              className="min-h-9 rounded-md border bg-background px-2 text-xs"
+            >
+              <option value="new">החדשים קודם</option>
+              <option value="sales">המוכרים ביותר</option>
+              <option value="code">לפי קוד</option>
+            </select>
+          </div>
+          {shown.length === 0 && (
+            <p className="text-sm text-muted-foreground">אין קופונים שמתאימים לחיפוש.</p>
+          )}
+          <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
+            {shown.map((c) => (
+              <CouponCard
+                key={c.id}
+                c={c}
+                onEdit={() => setEditing(formFromCoupon(c))}
+                onToggle={() => {
+                  if (
+                    c.is_active &&
+                    !window.confirm(`לכבות את הקופון ${c.code}? הוא יפסיק לעבוד באתר מיד.`)
+                  )
+                    return;
+                  toggleMut.mutate({ id: c.id, active: !c.is_active });
+                }}
+                toggling={toggleMut.isPending && toggleMut.variables?.id === c.id}
+                onUsers={() => setUsersOf(c)}
+                onPayouts={() => setPayoutsOf(c)}
+                onLinks={() => setLinksOf(c)}
+              />
+            ))}
+          </div>
+        </>
       )}
 
       {editing && (
@@ -321,6 +410,11 @@ function CouponCard({
           </button>
           {c.influencer_name && (
             <div className="mt-0.5 text-sm font-medium">{c.influencer_name}</div>
+          )}
+          {c.allowed_email && (
+            <div className="mt-0.5 text-[11px] text-sky-800">
+              קופון אישי · <bdi dir="ltr">{c.allowed_email}</bdi>
+            </div>
           )}
         </div>
         <span
@@ -644,18 +738,30 @@ function CouponDialog({
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <Label htmlFor="cp-code">קוד הקופון</Label>
-              <Input
-                id="cp-code"
-                dir="ltr"
-                autoComplete="off"
-                spellCheck={false}
-                maxLength={30}
-                placeholder="DANA10"
-                value={form.code}
-                onChange={(e) => set("code", e.target.value)}
-                onBlur={(e) => set("code", normalizeCouponCode(e.target.value))}
-                className="font-mono"
-              />
+              <div className="flex gap-1.5">
+                <Input
+                  id="cp-code"
+                  dir="ltr"
+                  autoComplete="off"
+                  spellCheck={false}
+                  maxLength={30}
+                  placeholder="DANA10"
+                  value={form.code}
+                  onChange={(e) => set("code", e.target.value)}
+                  onBlur={(e) => set("code", normalizeCouponCode(e.target.value))}
+                  className="font-mono"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  title="קוד אקראי"
+                  aria-label="קוד אקראי"
+                  onClick={() => set("code", generateCouponCode())}
+                >
+                  <Shuffle className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
             <div>
               <Label htmlFor="cp-name">שם המפורסם / למי שייך</Label>
@@ -665,6 +771,19 @@ function CouponDialog({
                 placeholder="למשל דנה כהן"
                 value={form.influencer_name ?? ""}
                 onChange={(e) => set("influencer_name", e.target.value)}
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <Label htmlFor="cp-phone">טלפון של המפורסם (לשליחה בוואטסאפ)</Label>
+              <Input
+                id="cp-phone"
+                dir="ltr"
+                type="tel"
+                inputMode="tel"
+                maxLength={30}
+                placeholder="050-0000000"
+                value={form.influencer_phone ?? ""}
+                onChange={(e) => set("influencer_phone", e.target.value || null)}
               />
             </div>
           </div>
@@ -836,6 +955,17 @@ function CouponDialog({
               />
               פעם אחת לכל לקוח (לפי אימייל או טלפון)
             </label>
+            <div>
+              <Label htmlFor="cp-allowed">קופון אישי — רק לאימייל הזה</Label>
+              <Input
+                id="cp-allowed"
+                dir="ltr"
+                type="email"
+                placeholder="ריק = לכל לקוח"
+                value={form.allowed_email ?? ""}
+                onChange={(e) => set("allowed_email", e.target.value || null)}
+              />
+            </div>
           </fieldset>
 
           <div>
@@ -1183,6 +1313,39 @@ function LinksDialog({
               {createMut.isPending ? "יוצרים…" : "יצירת קישור לדוח"}
             </Button>
           )}
+        </section>
+
+        <section className="space-y-1.5 border-t pt-3">
+          <div className="text-sm font-medium">ערכה למפורסם בוואטסאפ</div>
+          <p className="text-xs text-muted-foreground">
+            הודעה אחת עם הקוד, מה הוא נותן, קישור הקנייה
+            {report ? " והקישור לדוח" : ""}.
+            {c.influencer_phone ? "" : " אין טלפון בקופון — וואטסאפ יבקש לבחור איש קשר."}
+          </p>
+          <Button asChild className="bg-emerald-700 text-white hover:bg-emerald-800">
+            <a
+              href={whatsappLink(
+                c.influencer_phone,
+                influencerKitMessage({
+                  name: c.influencer_name,
+                  code: c.code,
+                  offer: offerText({
+                    discountType: c.discount_type === "fixed" ? "fixed" : "percent",
+                    discountValue: Number(c.discount_value),
+                    freeShipping: c.free_shipping,
+                    scope: couponScopeOf(c),
+                    applyToSaleItems: c.apply_to_sale_items !== false,
+                  }),
+                  shopLink: shop,
+                  reportLink: report,
+                }),
+              )}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <MessageCircle className="ms-1 h-4 w-4" /> שליחה בוואטסאפ
+            </a>
+          </Button>
         </section>
       </DialogContent>
     </Dialog>

@@ -20,6 +20,7 @@ import { emailLine } from "@/lib/email-price";
 import { promoFor } from "@/lib/promotions";
 import { loadPromoIndexServer } from "@/lib/promotions.server";
 import { requireAdmin } from "@/lib/admin-authz.server";
+import { liveCouponsForCarts } from "@/lib/coupons.server";
 
 const Schema = z.object({
   email: z.string().trim().email().max(255),
@@ -50,6 +51,9 @@ const Schema = z.object({
   // The checkout's optional marketing box, saved with the cart so a shopper
   // who ticked it and left before paying can still get the reminder.
   marketingConsent: z.boolean().optional(),
+  // The coupon applied at checkout, if any — the reminder re-checks it before
+  // promising it. Absent (an older page) leaves the stored value alone.
+  coupon_code: z.string().trim().max(30).optional().nullable(),
 });
 
 /**
@@ -114,6 +118,7 @@ export const saveAbandonedCart = createServerFn({ method: "POST" })
           subtotal: data.subtotal,
           user_id: authedUserId,
           ...consent,
+          ...(data.coupon_code !== undefined ? { coupon_code: data.coupon_code || null } : {}),
         })
         .eq("id", existing.id);
       return { id: existing.id };
@@ -129,6 +134,7 @@ export const saveAbandonedCart = createServerFn({ method: "POST" })
         items: data.items,
         subtotal: data.subtotal,
         ...consent,
+        coupon_code: data.coupon_code || null,
       })
       .select("id")
       .single();
@@ -216,7 +222,7 @@ export async function runAbandonedCartReminders(): Promise<AbandonedCartRunResul
 
   const { data: firstCarts, error: firstErr } = await supabaseAdmin
     .from("abandoned_carts")
-    .select("id, email, name, items, subtotal, marketing_consent")
+    .select("id, email, name, items, subtotal, marketing_consent, coupon_code")
     .is("converted_order_id", null)
     .is("reminder_1_sent_at", null)
     .eq("unsubscribed", false)
@@ -244,7 +250,7 @@ export async function runAbandonedCartReminders(): Promise<AbandonedCartRunResul
   ).toISOString();
   const { data: secondCarts, error: secondErr } = await supabaseAdmin
     .from("abandoned_carts")
-    .select("id, email, name, items, subtotal, marketing_consent")
+    .select("id, email, name, items, subtotal, marketing_consent, coupon_code")
     .is("converted_order_id", null)
     .not("reminder_1_sent_at", "is", null)
     .is("reminder_2_sent_at", null)
@@ -261,6 +267,22 @@ export async function runAbandonedCartReminders(): Promise<AbandonedCartRunResul
 
   const first = firstCarts ?? [];
   const second = secondCarts ?? [];
+  // A coupon the shopper had applied is named only if it still works for them
+  // now — the reminder must not promise a code the checkout would refuse.
+  const liveCoupons = await liveCouponsForCarts([...first, ...second]);
+  const couponBlock = (cartId: string) => {
+    const c = liveCoupons.get(cartId);
+    if (!c) return "";
+    return `<div style="margin:12px 0;padding:10px 12px;border:1px dashed #A8862A;border-radius:10px;background:#FBF7EC;font-size:14px;color:#1F1915;">
+        🎁 הקוד <strong dir="ltr">${esc(c.code)}</strong> עדיין מחכה לכם — ${esc(c.offer)}. הוא יוחל אוטומטית בעמוד התשלום.
+      </div>`;
+  };
+  const cartLink = (cartId: string) => {
+    const c = liveCoupons.get(cartId);
+    return c
+      ? `https://orzadik.com/cart?coupon=${encodeURIComponent(c.code)}`
+      : "https://orzadik.com/cart";
+  };
   const scanned = first.length + second.length;
 
   // Spam Law §30א: a cart reminder is a marketing message ("פרסומת") and may go
@@ -353,7 +375,7 @@ export async function runAbandonedCartReminders(): Promise<AbandonedCartRunResul
     stampColumn: "reminder_1_sent_at" | "reminder_2_sent_at",
     subject: string,
     buildHtml: (
-      cart: { name: string | null; items: unknown; subtotal: number | string | null },
+      cart: { id: string; name: string | null; items: unknown; subtotal: number | string | null },
       unsub: string,
     ) => string,
   ): Promise<"stop" | "done"> => {
@@ -488,7 +510,8 @@ export async function runAbandonedCartReminders(): Promise<AbandonedCartRunResul
       </p>
       <table style="width:100%;border-collapse:collapse;font-size:14px;">${rows}${subtotalRow}</table>
       <p class="oz-muted" style="font-size:12px;color:#777;margin:6px 0 0;">לא כולל דמי משלוח והטבת חברי מועדון.</p>
-      ${emailButton("https://orzadik.com/cart", "חזרה לעגלה")}
+      ${couponBlock(cart.id)}
+      ${emailButton(cartLink(cart.id), "חזרה לעגלה")}
       <div class="oz-muted" style="font-size:11px;color:#aaa;margin-top:20px;padding-top:12px;border-top:1px solid #eee;line-height:1.7;text-align:center;">
         <div>${esc(sellerIdentityLine())}${BUSINESS.email ? " · " + esc(BUSINESS.email) : ""}</div>
         <div style="margin-top:6px;">
@@ -518,7 +541,8 @@ export async function runAbandonedCartReminders(): Promise<AbandonedCartRunResul
       <p class="oz-muted" style="font-size:14px;color:#555;margin:0 0 16px;">
         ${cart.name ? esc(cart.name) + ", " : ""}רצינו רק להזכיר שהתחלתם הזמנה אצלנו. אם תרצו להשלים אותה — אנחנו כאן בשבילכם.
       </p>
-      ${emailButton("https://orzadik.com/cart", "חזרה לעגלה")}
+      ${couponBlock(cart.id)}
+      ${emailButton(cartLink(cart.id), "חזרה לעגלה")}
       <div class="oz-muted" style="font-size:11px;color:#aaa;margin-top:20px;padding-top:12px;border-top:1px solid #eee;line-height:1.7;text-align:center;">
         <div>${esc(sellerIdentityLine())}${BUSINESS.email ? " · " + esc(BUSINESS.email) : ""}</div>
         <div style="margin-top:6px;">

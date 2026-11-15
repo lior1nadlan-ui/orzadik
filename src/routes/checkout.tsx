@@ -19,13 +19,16 @@ import { checkCoupon, couponBoxVisible } from "@/lib/coupons.functions";
 import {
   computeOrderTotals,
   couponEligibleTotal,
+  couponWaitsForEmail,
+  keepRefusedCoupon,
   normalizeCouponCode,
+  waitingCouponNote,
   COUPON_MESSAGE_PREFIX,
   COUPON_STORAGE_KEY,
   type CouponTerms,
 } from "@/lib/coupons";
-import { CouponField } from "@/components/cart/CouponField";
-import { rememberCoupon } from "@/lib/coupon-session";
+import { CouponField, type PendingCoupon } from "@/components/cart/CouponField";
+import { rememberCoupon, rememberCouponCode } from "@/lib/coupon-session";
 import { createCardcomPayment } from "@/lib/cardcom.functions";
 import { saveAbandonedCart } from "@/lib/abandoned-cart.functions";
 import { Button } from "@/components/ui/button";
@@ -99,6 +102,14 @@ function CheckoutPage() {
   const [coupon, setCoupon] = useState<CouponTerms | null>(null);
   const [couponBusy, setCouponBusy] = useState(false);
   const [couponError, setCouponError] = useState<string | null>(null);
+  // A code that is good but not yet usable here: a personal one waiting for
+  // its customer's email, or one refused only by the per-IP cap. It sits in
+  // the box, and a personal one is tried again as the email changes.
+  const [pendingCoupon, setPendingCoupon] = useState<
+    (PendingCoupon & { waitsForEmail: boolean }) | null
+  >(null);
+  // The email a personal code was last tried with (one try per address).
+  const couponEmailTriedRef = useRef("");
   const consentRef = useRef<HTMLButtonElement>(null);
 
   // Update one field and clear its inline error as the shopper corrects it.
@@ -284,17 +295,41 @@ function CheckoutPage() {
       if (r.ok) {
         setCoupon(r.terms);
         setCouponError(null);
+        setPendingCoupon(null);
         rememberCoupon(r.terms);
+      } else if (keepRefusedCoupon(r.reason)) {
+        // Not a final "no": kept in the box (and the tab) with a line on what
+        // it waits for — a personal code then applies by itself (below).
+        const waitsForEmail = couponWaitsForEmail(r.reason);
+        if (waitsForEmail) couponEmailTriedRef.current = form.email.trim().toLowerCase();
+        setCoupon(null);
+        setCouponError(null);
+        setPendingCoupon({
+          code,
+          note: waitingCouponNote(r.reason) ?? r.message,
+          waitsForEmail,
+        });
+        rememberCouponCode(code);
       } else {
         setCoupon(null);
+        setPendingCoupon(null);
         if (!quiet) setCouponError(r.message);
         rememberCoupon(null);
       }
     } catch (e) {
-      if (!quiet) {
-        setCouponError(
-          hebrewOrFallback((e as Error)?.message, "לא הצלחנו לבדוק את הקופון. נסו שוב."),
-        );
+      const message = hebrewOrFallback(
+        (e as Error)?.message,
+        "לא הצלחנו לבדוק את הקופון. נסו שוב.",
+      );
+      if (!quiet) setCouponError(message);
+      // A code that came back by itself stays in the box, ready to try again
+      // (a personal one still retries when the email changes).
+      else if (!coupon) {
+        setPendingCoupon((p) => ({
+          code,
+          note: message,
+          waitsForEmail: p?.code === code && p.waitsForEmail,
+        }));
       }
     } finally {
       setCouponBusy(false);
@@ -303,6 +338,7 @@ function CheckoutPage() {
   const removeCoupon = () => {
     setCoupon(null);
     setCouponError(null);
+    setPendingCoupon(null);
     rememberCoupon(null);
   };
   // A code from an influencer's link (?coupon=DANA10, captured by the root on
@@ -321,6 +357,22 @@ function CheckoutPage() {
     // Once, on open: later changes go through the box.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  // A personal code waiting for its email: each new valid address gets one
+  // quiet try, a moment after typing stops — so it applies by itself once the
+  // shopper's email is in, and a wrong address is not retried in a loop.
+  useEffect(() => {
+    if (!pendingCoupon?.waitsForEmail || coupon || couponBusy) return;
+    const email = form.email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
+    if (couponEmailTriedRef.current === email) return;
+    const t = setTimeout(() => {
+      couponEmailTriedRef.current = email;
+      void applyCoupon(pendingCoupon.code, true);
+    }, 900);
+    return () => clearTimeout(t);
+    // applyCoupon is re-created each render; these are what it depends on here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingCoupon, form.email, coupon, couponBusy]);
 
   // Save abandoned-cart snapshot 2s after the user types a valid email
   const lastSavedRef = useRef<string>("");
@@ -333,7 +385,8 @@ function CheckoutPage() {
     const phoneDigits = form.phone.replace(/\D/g, "");
     // The marketing box joins it too: ticking it after the email re-saves the
     // cart, so the reminder can rely on that consent.
-    const key = `${email}|${items.length}|${subtotal}|${phoneDigits.length >= 9 ? phoneDigits : ""}|${marketingConsent ? 1 : 0}`;
+    // The applied coupon too: the reminder can then say the code is waiting.
+    const key = `${email}|${items.length}|${subtotal}|${phoneDigits.length >= 9 ? phoneDigits : ""}|${marketingConsent ? 1 : 0}|${coupon?.code ?? ""}`;
     if (lastSavedRef.current === key) return;
     const t = setTimeout(() => {
       lastSavedRef.current = key;
@@ -344,6 +397,7 @@ function CheckoutPage() {
           phone: form.phone.replace(/\D/g, "").length >= 9 ? form.phone : null,
           subtotal,
           marketingConsent,
+          coupon_code: coupon?.code ?? null,
           items: items.map((i) => ({
             product_id: i.productId,
             name: i.name,
@@ -356,7 +410,17 @@ function CheckoutPage() {
       }).catch(() => {});
     }, 2000);
     return () => clearTimeout(t);
-  }, [form.email, form.name, form.phone, items, subtotal, marketingConsent, user?.id, saveCart]);
+  }, [
+    form.email,
+    form.name,
+    form.phone,
+    items,
+    subtotal,
+    marketingConsent,
+    coupon?.code,
+    user?.id,
+    saveCart,
+  ]);
 
   // Empty checkout: the same surface /cart already gives this state, not a
   // thinner one. It was a bare sentence and a link — no heading at all, so this
@@ -829,6 +893,7 @@ function CheckoutPage() {
         {!nothingOrderable && (
           <CouponField
             coupon={coupon}
+            pending={pendingCoupon}
             visible={boxVisible}
             issue={totals.couponIssue}
             applied={totals.couponApplied}

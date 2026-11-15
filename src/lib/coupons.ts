@@ -56,6 +56,10 @@ export type CouponRecord = {
   category_ids?: string[] | null;
   product_ids?: string[] | null;
   apply_to_sale_items?: boolean | null;
+  /** A personal coupon: only an order with this (lower-case) email can use it. */
+  allowed_email?: string | null;
+  /** The influencer's phone, for the WhatsApp kit. CRM only. */
+  influencer_phone?: string | null;
 };
 
 /** Hard caps (the table's CHECK). Above the HIGH marks the CRM asks to confirm. */
@@ -179,17 +183,26 @@ export type CouponRejection =
   | "not_started"
   | "expired"
   | "used_up"
-  | "already_used";
+  | "already_used"
+  | "needs_email"
+  | "not_for_you";
 
 export function couponRejection(
   r: CouponRecord | null,
-  ctx: { now?: Date; totalUses?: number; customerUses?: number } = {},
+  ctx: { now?: Date; totalUses?: number; customerUses?: number; email?: string | null } = {},
 ): CouponRejection | null {
   if (!r) return "not_found";
   if (!r.is_active) return "inactive";
   const now = (ctx.now ?? new Date()).getTime();
   if (new Date(r.starts_at).getTime() > now) return "not_started";
   if (r.ends_at && new Date(r.ends_at).getTime() <= now) return "expired";
+  if (r.allowed_email) {
+    const email = String(ctx.email ?? "")
+      .trim()
+      .toLowerCase();
+    if (!email) return "needs_email";
+    if (email !== r.allowed_email) return "not_for_you";
+  }
   if (r.max_uses != null && (ctx.totalUses ?? 0) >= r.max_uses) return "used_up";
   if (r.once_per_customer && (ctx.customerUses ?? 0) > 0) return "already_used";
   return null;
@@ -223,7 +236,46 @@ export function couponRejectionMessage(reason: CouponRejection): string {
       return "הקופון הגיע למספר השימושים המרבי.";
     case "already_used":
       return "הקופון כבר נוצל עם הפרטים האלה. הוא מיועד לשימוש אחד לכל לקוח.";
+    case "needs_email":
+      return "הקופון הזה אישי — מלאו קודם את כתובת האימייל בטופס, ואז החילו אותו.";
+    case "not_for_you":
+      return "הקופון הזה אישי ומיועד לכתובת אימייל אחרת.";
   }
+}
+
+/** Why checkCoupon refused a code: a rejection, the CRM switch, or the per-IP cap. */
+export type CouponCheckFailure = CouponRejection | "disabled" | "rate_limited";
+
+/**
+ * A refused code that waits only on the shopper's email: a personal coupon
+ * checked before the email was typed, or against another address. The checkout
+ * keeps it in the box and tries it again by itself when the email changes.
+ */
+export function couponWaitsForEmail(reason: CouponCheckFailure | undefined): boolean {
+  return reason === "needs_email" || reason === "not_for_you";
+}
+
+/**
+ * Whether a refused code stays with the tab: one waiting on the email, or one
+ * refused only by the per-IP cap, which passes. Any other refusal is final and
+ * the code is dropped, so it stops coming back by itself.
+ */
+export function keepRefusedCoupon(reason: CouponCheckFailure | undefined): boolean {
+  return couponWaitsForEmail(reason) || reason === "rate_limited";
+}
+
+/**
+ * The checkout's line under a personal code waiting on the email (the code
+ * itself is in the box above, so the line leaves it out). Null otherwise.
+ */
+export function waitingCouponNote(reason: CouponCheckFailure | undefined): string | null {
+  if (reason === "needs_email") {
+    return "זה קוד אישי. הוא יוחל מעצמו אחרי שתמלאו את כתובת האימייל שלכם.";
+  }
+  if (reason === "not_for_you") {
+    return "זה קוד אישי שמיועד לכתובת אימייל אחרת. כדאי לבדוק את כתובת האימייל בטופס — עם הכתובת הנכונה הוא יוחל מעצמו.";
+  }
+  return null;
 }
 
 /** Whether the items amount reaches the coupon's minimum. */
@@ -427,6 +479,73 @@ export function couponScopeText(
 
 // ---- CRM ------------------------------------------------------------------
 
+/** Characters a generated code uses: no 0/O, 1/I/L — easy to read off a message. */
+const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+
+/**
+ * A random code, e.g. "GIFT-K7P3QX" or "M4TQ9R". `random` is injectable for
+ * tests; in the app it is crypto-strong where available.
+ */
+export function generateCouponCode(
+  prefix = "",
+  length = 6,
+  random: () => number = () => {
+    const c = globalThis.crypto;
+    if (c?.getRandomValues) return c.getRandomValues(new Uint32Array(1))[0] / 2 ** 32;
+    return Math.random();
+  },
+): string {
+  let body = "";
+  for (let i = 0; i < length; i++) {
+    body += CODE_ALPHABET[Math.floor(random() * CODE_ALPHABET.length) % CODE_ALPHABET.length];
+  }
+  const p = normalizeCouponCode(prefix).replace(/[^A-Z0-9\u05D0-\u05EA_-]/g, "");
+  return (p ? `${p}-${body}` : body).slice(0, 30);
+}
+
+/** The WhatsApp/email text for a customer's personal coupon. */
+export function personalCouponMessage(o: {
+  name: string;
+  code: string;
+  offer: string;
+  until: string | null;
+  shopLink: string;
+}): string {
+  const first = o.name.trim().split(/\s+/)[0] || "";
+  return [
+    `שלום${first ? ` ${first}` : ""}, כאן אור זרוע לצדיק 🙏`,
+    `הכנו עבורך קופון אישי: ${o.offer}.`,
+    `הקוד: ${o.code}${o.until ? ` (בתוקף עד ${o.until})` : ""}`,
+    `הקוד מוחל אוטומטית דרך הקישור: ${o.shopLink}`,
+    "הקופון אישי ותקף לרכישה אחת עם כתובת האימייל שלך.",
+  ].join("\n");
+}
+
+/** The WhatsApp kit an influencer gets: their code, shopping link and report. */
+export function influencerKitMessage(o: {
+  name: string | null;
+  code: string;
+  offer: string;
+  shopLink: string;
+  reportLink: string | null;
+}): string {
+  const first = (o.name ?? "").trim().split(/\s+/)[0] || "";
+  return [
+    `היי${first ? ` ${first}` : ""}! כאן אור זרוע לצדיק 🙏`,
+    `הקוד האישי שלך: ${o.code} — ${o.offer} לעוקבים שלך.`,
+    `קישור לשיתוף (הקוד מוחל לבד בקופה): ${o.shopLink}`,
+    ...(o.reportLink ? [`הדוח שלך — הזמנות, מכירות ועמלה: ${o.reportLink}`] : []),
+    "תודה על שיתוף הפעולה!",
+  ].join("\n");
+}
+
+/** wa.me link with a prefilled message; with no phone, WhatsApp lets you pick a chat. */
+export function whatsappLink(phone: string | null | undefined, text: string): string {
+  let digits = String(phone ?? "").replace(/\D/g, "");
+  if (digits.startsWith("0")) digits = `972${digits.slice(1)}`;
+  return `https://wa.me/${digits}?text=${encodeURIComponent(text)}`;
+}
+
 export type CouponStatus = "active" | "scheduled" | "expired" | "used_up" | "disabled";
 
 export const COUPON_STATUS_HE: Record<CouponStatus, string> = {
@@ -469,6 +588,9 @@ export type CouponInput = {
   apply_to_sale_items: boolean;
   /** The owner ticked "I mean it" for a discount above the HIGH marks. */
   confirm_high: boolean;
+  /** A personal coupon's customer email, or null. */
+  allowed_email?: string | null;
+  influencer_phone?: string | null;
 };
 
 /** Whether a discount is high enough to ask the owner to confirm it. */
@@ -519,6 +641,13 @@ export function couponInputErrors(i: CouponInput): string[] {
     errors.push("בחרו לפחות מוצר אחד, או החילו את הקופון על כל האתר.");
   if (i.category_ids.length > 200 || i.product_ids.length > 500)
     errors.push("יותר מדי קטגוריות או מוצרים בקופון אחד.");
+  if (i.allowed_email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(i.allowed_email.trim()))
+    errors.push("כתובת האימייל של הלקוח אינה תקינה.");
+  if (
+    i.influencer_phone &&
+    (i.influencer_phone.trim().length < 3 || i.influencer_phone.trim().length > 30)
+  )
+    errors.push("מספר הטלפון אינו תקין.");
   if (i.min_order != null && (!Number.isFinite(i.min_order) || i.min_order <= 0))
     errors.push("סכום מינימום חייב להיות גדול מ-0, או להישאר ריק.");
   if (

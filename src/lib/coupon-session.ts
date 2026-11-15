@@ -25,6 +25,21 @@ export function rememberCoupon(terms: CouponTerms | null): void {
   }
 }
 
+/**
+ * Keep a code whose terms are not known yet: a personal one waiting for the
+ * shopper's email. The checkout tries it again; the strip stays empty, since
+ * it shows only terms the server gave (a stale code's terms are cleared).
+ */
+export function rememberCouponCode(code: string): void {
+  try {
+    sessionStorage.setItem(COUPON_STORAGE_KEY, code);
+    sessionStorage.removeItem(TERMS_KEY);
+    window.dispatchEvent(new Event(EVENT));
+  } catch {
+    /* storage unavailable — the checkout box still works */
+  }
+}
+
 function read(): CouponTerms | null {
   try {
     const raw = sessionStorage.getItem(TERMS_KEY);

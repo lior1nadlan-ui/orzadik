@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
   commissionOwed,
+  generateCouponCode,
+  influencerKitMessage,
+  personalCouponMessage,
+  whatsappLink,
   couponEligibleTotal,
   couponScopeText,
   isHighCouponDiscount,
@@ -16,6 +20,9 @@ import {
   couponRejectionMessage,
   couponStatus,
   couponTerms,
+  couponWaitsForEmail,
+  keepRefusedCoupon,
+  waitingCouponNote,
   describeCoupon,
   isValidCouponCode,
   latinFromHebrewKeyboard,
@@ -485,5 +492,95 @@ describe("coupon scope", () => {
     expect(t.applyToSaleItems).toBe(false);
     expect(t.eligibleProductIds).toEqual(["p1"]);
     expect(couponTerms(record()).eligibleProductIds).toBeNull();
+  });
+});
+
+describe("refused codes: kept or dropped", () => {
+  it("keeps a personal code waiting on the email, and one hit by the IP cap", () => {
+    expect(couponWaitsForEmail("needs_email")).toBe(true);
+    expect(couponWaitsForEmail("not_for_you")).toBe(true);
+    expect(couponWaitsForEmail("rate_limited")).toBe(false);
+    expect(keepRefusedCoupon("needs_email")).toBe(true);
+    expect(keepRefusedCoupon("not_for_you")).toBe(true);
+    expect(keepRefusedCoupon("rate_limited")).toBe(true);
+  });
+  it("drops a code on a final refusal", () => {
+    for (const r of [
+      "not_found",
+      "inactive",
+      "not_started",
+      "expired",
+      "used_up",
+      "already_used",
+      "disabled",
+    ] as const) {
+      expect(keepRefusedCoupon(r)).toBe(false);
+    }
+    expect(keepRefusedCoupon(undefined)).toBe(false);
+  });
+  it("explains a waiting personal code without naming it", () => {
+    expect(waitingCouponNote("needs_email")).toContain("יוחל מעצמו");
+    expect(waitingCouponNote("not_for_you")).toContain("כתובת אימייל אחרת");
+    expect(waitingCouponNote("rate_limited")).toBeNull();
+    expect(waitingCouponNote("expired")).toBeNull();
+  });
+});
+
+describe("personal coupons", () => {
+  const personal = record({ allowed_email: "rachel@example.com" });
+  it("is only for the customer's own email", () => {
+    expect(couponRejection(personal, { now: NOW })).toBe("needs_email");
+    expect(couponRejection(personal, { now: NOW, email: " Rachel@Example.com " })).toBeNull();
+    expect(couponRejection(personal, { now: NOW, email: "other@example.com" })).toBe("not_for_you");
+    expect(couponRejectionMessage("needs_email").startsWith(COUPON_MESSAGE_PREFIX)).toBe(true);
+    expect(couponRejectionMessage("not_for_you").startsWith(COUPON_MESSAGE_PREFIX)).toBe(true);
+  });
+  it("an expired personal coupon says expired, not whose it is", () => {
+    expect(
+      couponRejection(
+        { ...personal, ends_at: "2026-11-01T00:00:00Z" },
+        { now: NOW, email: "x@y.co" },
+      ),
+    ).toBe("expired");
+  });
+  it("generates a readable code, with a prefix", () => {
+    let i = 0;
+    const seq = [0, 0.5, 0.99, 0.1, 0.2, 0.3];
+    const code = generateCouponCode("gift", 6, () => seq[i++ % seq.length]);
+    expect(code).toMatch(/^GIFT-[A-Z2-9]{6}$/);
+    // No look-alike characters (0/O, 1/I/L) in the random part.
+    expect(code.slice("GIFT-".length)).not.toMatch(/[01OIL]/);
+    expect(isValidCouponCode(code)).toBe(true);
+    expect(generateCouponCode()).toMatch(/^[A-Z2-9]{6}$/);
+  });
+  it("writes the customer's message", () => {
+    const m = personalCouponMessage({
+      name: "רחל אברהם",
+      code: "GIFT-K7P3QX",
+      offer: "10% הנחה",
+      until: "15.12.26",
+      shopLink: "https://orzadik.com/?coupon=GIFT-K7P3QX",
+    });
+    expect(m).toContain("שלום רחל");
+    expect(m).toContain("GIFT-K7P3QX (בתוקף עד 15.12.26)");
+    expect(m).toContain("https://orzadik.com/?coupon=GIFT-K7P3QX");
+  });
+  it("writes the influencer's kit, with the report only when there is one", () => {
+    const base = {
+      name: "דנה כהן",
+      code: "DANA10",
+      offer: "10% הנחה",
+      shopLink: "https://orzadik.com/?coupon=DANA10",
+    };
+    expect(influencerKitMessage({ ...base, reportLink: null })).not.toContain("הדוח שלך");
+    expect(
+      influencerKitMessage({ ...base, reportLink: "https://orzadik.com/partner/x" }),
+    ).toContain("https://orzadik.com/partner/x");
+  });
+  it("builds a WhatsApp link from an Israeli number", () => {
+    expect(whatsappLink("050-123-4567", "שלום")).toBe(
+      `https://wa.me/972501234567?text=${encodeURIComponent("שלום")}`,
+    );
+    expect(whatsappLink(null, "hi")).toBe("https://wa.me/?text=hi");
   });
 });

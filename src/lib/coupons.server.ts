@@ -11,12 +11,13 @@ import {
   isValidCouponCode,
   latinFromHebrewKeyboard,
   normalizeCouponCode,
+  offerText,
   type CouponRecord,
   type CouponTerms,
 } from "@/lib/coupons";
 
 const COUPON_COLUMNS =
-  "id, code, influencer_name, notes, discount_type, discount_value, free_shipping, min_order, starts_at, ends_at, max_uses, once_per_customer, is_active, scope, category_ids, product_ids, apply_to_sale_items";
+  "id, code, influencer_name, notes, discount_type, discount_value, free_shipping, min_order, starts_at, ends_at, max_uses, once_per_customer, is_active, scope, category_ids, product_ids, apply_to_sale_items, allowed_email";
 
 /**
  * The CRM switch "קופונים באתר" (site_settings.coupons_enabled). On unless the
@@ -145,9 +146,45 @@ export async function resolveOrderCoupon(
   const usage = record
     ? await couponUsage(record, customer.email, customer.phone)
     : { totalUses: 0, customerUses: 0 };
-  const rejection = couponRejection(record, usage);
+  // The email decides a personal coupon (coupons.allowed_email).
+  const rejection = couponRejection(record, { ...usage, email: customer.email });
   if (rejection || !record) {
     throw new Error(couponRejectionMessage(rejection ?? "not_found"));
   }
   return { record, terms: couponTerms(record) };
+}
+
+/**
+ * For abandoned-cart reminders: of the carts that carried a coupon, the ones
+ * whose code still works for that shopper right now (switch on, dates, limits,
+ * a personal coupon's email) — keyed by cart id, with the offer to name. Never
+ * throws: a code that cannot be checked is simply not mentioned, so a reminder
+ * never promises a code the checkout would then refuse.
+ */
+export async function liveCouponsForCarts(
+  carts: readonly { id: string; email: string; coupon_code?: string | null }[],
+): Promise<Map<string, { code: string; offer: string }>> {
+  const out = new Map<string, { code: string; offer: string }>();
+  const withCode = carts.filter((c) => c.coupon_code);
+  if (withCode.length === 0) return out;
+  try {
+    if (!(await couponsEnabled())) return out;
+  } catch {
+    return out;
+  }
+  const records = new Map<string, CouponRecord | null>();
+  for (const cart of withCode) {
+    try {
+      const key = normalizeCouponCode(cart.coupon_code ?? "");
+      if (!records.has(key)) records.set(key, await findCoupon(key));
+      const record = records.get(key) ?? null;
+      if (!record) continue;
+      const usage = await couponUsage(record, cart.email, null);
+      if (couponRejection(record, { ...usage, email: cart.email })) continue;
+      out.set(cart.id, { code: record.code, offer: offerText(couponTerms(record)) });
+    } catch {
+      /* leave this cart's code out of its reminder */
+    }
+  }
+  return out;
 }

@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
-import { COUPON_STORAGE_KEY, offerText } from "@/lib/coupons";
-import { rememberCoupon } from "@/lib/coupon-session";
+import {
+  COUPON_STORAGE_KEY,
+  couponWaitsForEmail,
+  keepRefusedCoupon,
+  normalizeCouponCode,
+  offerText,
+} from "@/lib/coupons";
+import { rememberCoupon, rememberCouponCode } from "@/lib/coupon-session";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   Outlet,
@@ -608,7 +614,19 @@ function RootComponent() {
               description: offerText(r.terms),
               duration: 6000,
             });
-          } else {
+          } else if (couponWaitsForEmail(r.reason)) {
+            // A personal code (a gift from the CRM's customer card): it works
+            // only with its customer's email, which this page does not know.
+            // Kept for the checkout, which applies it once the email is typed.
+            const saved = normalizeCouponCode(code);
+            rememberCouponCode(saved);
+            toast.success(`הקוד האישי ${saved} שמור לכם`, {
+              description: "הוא יוחל בעמוד התשלום, אחרי מילוי כתובת האימייל שלכם.",
+              duration: 6000,
+            });
+          } else if (!keepRefusedCoupon(r.reason)) {
+            // Final (expired, used up, unknown…). A passing per-IP cap keeps
+            // the code: the checkout asks again.
             rememberCoupon(null);
           }
         })

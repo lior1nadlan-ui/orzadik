@@ -17,6 +17,7 @@ export type Database = {
       abandoned_carts: {
         Row: {
           converted_order_id: string | null
+          coupon_code: string | null
           created_at: string
           email: string
           id: string
@@ -35,6 +36,7 @@ export type Database = {
         }
         Insert: {
           converted_order_id?: string | null
+          coupon_code?: string | null
           created_at?: string
           email: string
           id?: string
@@ -53,6 +55,7 @@ export type Database = {
         }
         Update: {
           converted_order_id?: string | null
+          coupon_code?: string | null
           created_at?: string
           email?: string
           id?: string
@@ -383,6 +386,7 @@ export type Database = {
       }
       coupons: {
         Row: {
+          allowed_email: string | null
           apply_to_sale_items: boolean
           category_ids: string[]
           code: string
@@ -395,6 +399,7 @@ export type Database = {
           free_shipping: boolean
           id: string
           influencer_name: string | null
+          influencer_phone: string | null
           is_active: boolean
           max_uses: number | null
           min_order: number | null
@@ -408,6 +413,7 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
+          allowed_email?: string | null
           apply_to_sale_items?: boolean
           category_ids?: string[]
           code: string
@@ -420,6 +426,7 @@ export type Database = {
           free_shipping?: boolean
           id?: string
           influencer_name?: string | null
+          influencer_phone?: string | null
           is_active?: boolean
           max_uses?: number | null
           min_order?: number | null
@@ -433,6 +440,7 @@ export type Database = {
           updated_by?: string | null
         }
         Update: {
+          allowed_email?: string | null
           apply_to_sale_items?: boolean
           category_ids?: string[]
           code?: string
@@ -445,6 +453,7 @@ export type Database = {
           free_shipping?: boolean
           id?: string
           influencer_name?: string | null
+          influencer_phone?: string | null
           is_active?: boolean
           max_uses?: number | null
           min_order?: number | null

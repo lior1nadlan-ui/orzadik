@@ -37,8 +37,10 @@ import {
   MessageCircle,
   Clock,
   ShoppingCart,
+  TicketPercent,
   Trash2,
 } from "lucide-react";
+import { PersonalCouponDialog } from "@/components/admin/PersonalCouponDialog";
 
 export const Route = createFileRoute("/admin/customers")({
   // Deep-linkable search: the orders dialog links here with the customer email.
@@ -212,6 +214,12 @@ function AdminCustomers() {
   const [segment, setSegment] = useState<CustomerFilter>("all");
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<any>(null);
+  // "קופון אישי" for the customer whose card is open.
+  const [couponFor, setCouponFor] = useState<{
+    email: string;
+    name: string | null;
+    phone: string | null;
+  } | null>(null);
   const [noteText, setNoteText] = useState("");
   const [savingNote, setSavingNote] = useState(false);
 
@@ -602,6 +610,21 @@ function AdminCustomers() {
                     {!selected.phone && "אימייל"}
                   </a>
                 </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  aria-label="קופון אישי"
+                  title="קופון אישי ללקוח — שימוש אחד, רק עם האימייל שלו"
+                  onClick={() =>
+                    setCouponFor({
+                      email: selected.email,
+                      name: selected.name ?? null,
+                      phone: selected.phone ?? null,
+                    })
+                  }
+                >
+                  <TicketPercent className="h-4 w-4" />
+                </Button>
               </div>
             }
           >
@@ -802,6 +825,13 @@ function AdminCustomers() {
           </AdminSheetContent>
         )}
       </AdminSheet>
+      {couponFor && (
+        <PersonalCouponDialog
+          open
+          onOpenChange={(o) => !o && setCouponFor(null)}
+          customer={couponFor}
+        />
+      )}
     </div>
   );
 }
