@@ -17,7 +17,7 @@ import {
 } from "@/lib/coupons";
 
 const COUPON_COLUMNS =
-  "id, code, influencer_name, notes, discount_type, discount_value, free_shipping, min_order, starts_at, ends_at, max_uses, once_per_customer, is_active, scope, category_ids, product_ids, apply_to_sale_items, allowed_email";
+  "id, code, influencer_name, notes, discount_type, discount_value, free_shipping, min_order, starts_at, ends_at, max_uses, once_per_customer, is_active, scope, category_ids, product_ids, apply_to_sale_items, allowed_email, max_discount, new_customers_only";
 
 /**
  * The CRM switch "קופונים באתר" (site_settings.coupons_enabled). On unless the
@@ -133,6 +133,28 @@ export async function couponUsage(
 }
 
 /**
+ * Paid orders the customer already has, by email or phone (matched like
+ * coupon_usage), for a code that is for new customers only. Zero when neither
+ * is known yet: placeOrder checks again with both. A failed read throws rather
+ * than guessing "new".
+ */
+export async function customerPaidOrders(
+  email: string | null | undefined,
+  phone: string | null | undefined,
+): Promise<number> {
+  if (!email?.trim() && !phone?.trim()) return 0;
+  const { data, error } = await supabaseAdmin.rpc("customer_paid_orders", {
+    p_email: email ?? "",
+    p_phone: phone ?? "",
+  });
+  if (error) {
+    console.error("[coupons] customer orders:", error);
+    throw new Error("לא ניתן לבדוק את הקופון כרגע. נסו שוב בעוד רגע.");
+  }
+  return Number(data ?? 0);
+}
+
+/**
  * The coupon for a new order, checked now — or a thrown Hebrew error that
  * starts with "הקופון", which the checkout shows and uses to drop the code so
  * the shopper sees the amount without it before paying.
@@ -146,8 +168,15 @@ export async function resolveOrderCoupon(
   const usage = record
     ? await couponUsage(record, customer.email, customer.phone)
     : { totalUses: 0, customerUses: 0 };
+  const previousPaidOrders = record?.new_customers_only
+    ? await customerPaidOrders(customer.email, customer.phone)
+    : 0;
   // The email decides a personal coupon (coupons.allowed_email).
-  const rejection = couponRejection(record, { ...usage, email: customer.email });
+  const rejection = couponRejection(record, {
+    ...usage,
+    email: customer.email,
+    previousPaidOrders,
+  });
   if (rejection || !record) {
     throw new Error(couponRejectionMessage(rejection ?? "not_found"));
   }
@@ -180,7 +209,10 @@ export async function liveCouponsForCarts(
       const record = records.get(key) ?? null;
       if (!record) continue;
       const usage = await couponUsage(record, cart.email, null);
-      if (couponRejection(record, { ...usage, email: cart.email })) continue;
+      const previousPaidOrders = record.new_customers_only
+        ? await customerPaidOrders(cart.email, null)
+        : 0;
+      if (couponRejection(record, { ...usage, email: cart.email, previousPaidOrders })) continue;
       out.set(cart.id, { code: record.code, offer: offerText(couponTerms(record)) });
     } catch {
       /* leave this cart's code out of its reminder */

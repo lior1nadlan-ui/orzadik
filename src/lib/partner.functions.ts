@@ -18,6 +18,7 @@ import {
   partnerMonths,
   payoutBalance,
   PARTNER_TOKEN_RE,
+  visitConversion,
   type CouponRecord,
   type CouponStatus,
   type PartnerMonth,
@@ -39,6 +40,9 @@ export type PartnerReport = {
   paidOut: number;
   balance: number;
   months: PartnerMonth[];
+  /** Visits that came through the link, and paid orders per 100 of them. */
+  visits: number;
+  conversion: number | null;
   payouts: { paidAt: string; amount: number }[];
   /** The link that applies the code, for the influencer to share. */
   shopLink: string;
@@ -55,7 +59,7 @@ export const getPartnerReport = createServerFn({ method: "POST" })
     const { data: c, error } = await supabaseAdmin
       .from("coupons")
       .select(
-        "id, code, influencer_name, notes, discount_type, discount_value, free_shipping, min_order, starts_at, ends_at, max_uses, once_per_customer, is_active, commission_percent",
+        "id, code, influencer_name, notes, discount_type, discount_value, free_shipping, min_order, starts_at, ends_at, max_uses, once_per_customer, is_active, commission_percent, max_discount, new_customers_only",
       )
       .eq("partner_token", data.token)
       .maybeSingle();
@@ -65,7 +69,11 @@ export const getPartnerReport = createServerFn({ method: "POST" })
     }
     if (!c) return null;
 
-    const [{ data: orders, error: oErr }, { data: payouts, error: pErr }] = await Promise.all([
+    const [
+      { data: orders, error: oErr },
+      { data: payouts, error: pErr },
+      { data: visitRows, error: vErr },
+    ] = await Promise.all([
       supabaseAdmin
         .from("orders")
         .select("created_at, subtotal, coupon_discount")
@@ -79,7 +87,11 @@ export const getPartnerReport = createServerFn({ method: "POST" })
         .eq("coupon_id", c.id)
         .order("paid_at", { ascending: false })
         .limit(500),
+      supabaseAdmin.from("coupon_visits").select("visits").eq("coupon_id", c.id).limit(5000),
     ]);
+    // Visits are a nice-to-have here: a failed read shows none, not an error.
+    if (vErr) console.error("[partner] visits:", vErr);
+    const visits = (visitRows ?? []).reduce((s, v) => s + Number(v.visits), 0);
     if (oErr || pErr) {
       console.error("[partner] data:", oErr ?? pErr);
       throw new Error("לא ניתן לטעון את הדוח כרגע.");
@@ -105,6 +117,8 @@ export const getPartnerReport = createServerFn({ method: "POST" })
       paidOut: Math.round(paidOut * 100) / 100,
       balance: payoutBalance(commission, paidOut),
       months: partnerMonths(rows, c.commission_percent),
+      visits,
+      conversion: visitConversion(rows.length, visits),
       payouts: (payouts ?? []).map((p) => ({ paidAt: p.paid_at, amount: Number(p.amount) })),
       shopLink: `${BUSINESS.site}/?coupon=${encodeURIComponent(c.code)}`,
     };

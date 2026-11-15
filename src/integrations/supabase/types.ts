@@ -384,6 +384,32 @@ export type Database = {
           },
         ]
       }
+      coupon_visits: {
+        Row: {
+          coupon_id: string
+          day: string
+          visits: number
+        }
+        Insert: {
+          coupon_id: string
+          day: string
+          visits?: number
+        }
+        Update: {
+          coupon_id?: string
+          day?: string
+          visits?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coupon_visits_coupon_id_fkey"
+            columns: ["coupon_id"]
+            isOneToOne: false
+            referencedRelation: "coupons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       coupons: {
         Row: {
           allowed_email: string | null
@@ -400,6 +426,8 @@ export type Database = {
           id: string
           influencer_name: string | null
           influencer_phone: string | null
+          max_discount: number | null
+          new_customers_only: boolean
           is_active: boolean
           max_uses: number | null
           min_order: number | null
@@ -427,6 +455,8 @@ export type Database = {
           id?: string
           influencer_name?: string | null
           influencer_phone?: string | null
+          max_discount?: number | null
+          new_customers_only?: boolean
           is_active?: boolean
           max_uses?: number | null
           min_order?: number | null
@@ -454,6 +484,8 @@ export type Database = {
           id?: string
           influencer_name?: string | null
           influencer_phone?: string | null
+          max_discount?: number | null
+          new_customers_only?: boolean
           is_active?: boolean
           max_uses?: number | null
           min_order?: number | null
@@ -1656,6 +1688,14 @@ export type Database = {
       coupon_eligible_products: {
         Args: { p_coupon_id: string; p_product_ids: string[] }
         Returns: string[]
+      }
+      customer_paid_orders: {
+        Args: { p_email: string; p_phone: string }
+        Returns: number
+      }
+      increment_coupon_visit: {
+        Args: { p_coupon_id: string }
+        Returns: undefined
       }
       coupon_usage: {
         Args: { p_coupon_id: string; p_email: string; p_phone: string }

@@ -25,6 +25,7 @@ import {
   waitingCouponNote,
   describeCoupon,
   offerText,
+  visitConversion,
   isValidCouponCode,
   latinFromHebrewKeyboard,
   minimumHint,
@@ -663,5 +664,17 @@ describe("a cap per order, and codes for new customers only", () => {
     expect(
       couponInputErrors({ ...valid, discount_type: "fixed", discount_value: 50, max_discount: 0 }),
     ).toEqual([]);
+  });
+});
+
+describe("visitConversion", () => {
+  it("gives paid orders per 100 link visits", () => {
+    expect(visitConversion(3, 120)).toBe(3);
+    expect(visitConversion(0, 40)).toBe(0);
+    expect(visitConversion(1, 3)).toBe(33);
+  });
+  it("says nothing without visits, or when the code was also typed by hand", () => {
+    expect(visitConversion(2, 0)).toBeNull();
+    expect(visitConversion(5, 3)).toBeNull();
   });
 });

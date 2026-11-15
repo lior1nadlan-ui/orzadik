@@ -134,7 +134,13 @@ function PartnerPage() {
       </section>
 
       <section className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-        <Stat label="הזמנות ששולמו" value={String(r.paidOrders)} />
+        {r.visits > 0 && <Stat label="כניסות דרך הקישור" value={String(r.visits)} />}
+        <Stat
+          label={
+            r.conversion != null ? `הזמנות ששולמו (${r.conversion}% מהכניסות)` : "הזמנות ששולמו"
+          }
+          value={String(r.paidOrders)}
+        />
         <Stat label="מכירות (ללא משלוח)" value={formatILS(r.sales)} />
         <Stat label="הנחה שקיבלו הלקוחות" value={formatILS(r.discountGiven)} />
         {hasCommission && (

@@ -5,7 +5,11 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
-import { checkCouponRateLimitByIp, getClientIp } from "@/lib/rate-limit.server";
+import {
+  checkCouponRateLimitByIp,
+  checkCouponVisitRateLimitByIp,
+  getClientIp,
+} from "@/lib/rate-limit.server";
 import {
   COUPONS_DISABLED_MESSAGE,
   couponRejection,
@@ -18,6 +22,7 @@ import {
   couponEligibleProducts,
   couponsEnabled,
   couponUsage,
+  customerPaidOrders,
   findCoupon,
 } from "@/lib/coupons.server";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
@@ -57,8 +62,17 @@ export const checkCoupon = createServerFn({ method: "POST" })
     const usage = record
       ? await couponUsage(record, data.email, data.phone)
       : { totalUses: 0, customerUses: 0 };
+    // A new-customers-only code is checked against the email or phone when the
+    // shopper has typed one; placeOrder checks again in any case.
+    const previousPaidOrders = record?.new_customers_only
+      ? await customerPaidOrders(data.email, data.phone)
+      : 0;
     // Without the email yet, a personal coupon asks for it first.
-    const rejection = couponRejection(record, { ...usage, email: data.email });
+    const rejection = couponRejection(record, {
+      ...usage,
+      email: data.email,
+      previousPaidOrders,
+    });
     if (rejection || !record) {
       const reason = rejection ?? "not_found";
       return { ok: false, message: couponRejectionMessage(reason), reason };
@@ -83,3 +97,28 @@ export const couponBoxVisible = createServerFn({ method: "POST" }).handler(
     return data !== false;
   },
 );
+
+/**
+ * One visit that arrived through a coupon link (?coupon=CODE), for the CRM's
+ * and the influencer's "כניסות" count. The site calls it once per browser tab
+ * per code. Counts only a live code, answers the same either way, and keeps no
+ * IP or person: one number per coupon per day (coupon_visits).
+ */
+export const logCouponVisit = createServerFn({ method: "POST" })
+  .validator((input: unknown) => z.object({ code: z.string().trim().min(1).max(60) }).parse(input))
+  .handler(async ({ data }) => {
+    try {
+      const { limited } = await checkCouponVisitRateLimitByIp(getClientIp(getRequest()));
+      if (limited) return { ok: true as const };
+      const record = await findCoupon(data.code);
+      if (record?.is_active) {
+        const { error } = await supabaseAdmin.rpc("increment_coupon_visit", {
+          p_coupon_id: record.id,
+        });
+        if (error) console.error("[coupons] visit:", error);
+      }
+    } catch (e) {
+      console.error("[coupons] visit:", e);
+    }
+    return { ok: true as const };
+  });

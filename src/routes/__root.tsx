@@ -607,6 +607,17 @@ function RootComponent() {
       const code = linked.slice(0, 60);
       void import("@/lib/coupons.functions")
         .then(async (fns) => {
+          // One visit per tab per code, for the influencer's "כניסות" count
+          // (coupon_visits: a number per day, no person).
+          try {
+            const seenKey = `oz-coupon-visit:${normalizeCouponCode(code)}`;
+            if (!sessionStorage.getItem(seenKey)) {
+              sessionStorage.setItem(seenKey, "1");
+              void fns.logCouponVisit({ data: { code } }).catch(() => {});
+            }
+          } catch {
+            /* storage unavailable: the visit is simply not counted */
+          }
           const r = await fns.checkCoupon({ data: { code } });
           if (r.ok) {
             rememberCoupon(r.terms);

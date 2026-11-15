@@ -632,6 +632,16 @@ export type CouponInput = {
   new_customers_only?: boolean;
 };
 
+/**
+ * Paid orders per 100 visits that came through the coupon's link, in whole
+ * percent. Null with no visits yet, or when more orders than visits came in:
+ * the code was also typed by hand, and the ratio would mislead.
+ */
+export function visitConversion(paidOrders: number, visits: number): number | null {
+  if (!(visits > 0) || !(paidOrders >= 0) || paidOrders > visits) return null;
+  return Math.round((paidOrders / visits) * 100);
+}
+
 /** Whether a discount is high enough to ask the owner to confirm it. */
 export function isHighCouponDiscount(
   i: Pick<CouponInput, "discount_type" | "discount_value">,

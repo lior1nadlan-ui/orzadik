@@ -60,6 +60,7 @@ import {
   couponInputErrors,
   describeCoupon,
   normalizeCouponCode,
+  visitConversion,
   type CouponInput,
   type CouponStatus,
 } from "@/lib/coupons";
@@ -117,6 +118,8 @@ const emptyForm = (): FormState => ({
   confirm_high: false,
   allowed_email: null,
   influencer_phone: null,
+  max_discount: null,
+  new_customers_only: false,
 });
 
 /** The form for a coupon — to edit it, or (duplicate) as a new one with an empty code. */
@@ -147,6 +150,8 @@ function formFromCoupon(c: CouponListItem, duplicate = false): FormState {
     // A duplicate of a personal coupon is a fresh, open coupon.
     allowed_email: duplicate ? null : (c.allowed_email ?? null),
     influencer_phone: c.influencer_phone ?? null,
+    max_discount: c.max_discount == null ? null : Number(c.max_discount),
+    new_customers_only: !!c.new_customers_only,
   };
   return duplicate ? f : { ...f, id: c.id };
 }
@@ -372,6 +377,7 @@ function conditions(c: CouponListItem): string[] {
   if (new Date(c.starts_at).getTime() > Date.now()) out.push(`מ-${dateIL(c.starts_at)}`);
   if (c.max_uses != null) out.push(`עד ${c.max_uses} שימושים`);
   if (c.once_per_customer) out.push("פעם אחת לכל לקוח");
+  if (c.new_customers_only) out.push("ללקוחות חדשים בלבד");
   return out;
 }
 
@@ -396,6 +402,7 @@ function CouponCard({
     discountType: c.discount_type === "fixed" ? ("fixed" as const) : ("percent" as const),
     discountValue: Number(c.discount_value),
     freeShipping: c.free_shipping,
+    maxDiscount: c.max_discount == null ? null : Number(c.max_discount),
   };
   const conds = conditions(c);
   return (
@@ -454,6 +461,13 @@ function CouponCard({
           <div className="text-[11px] text-muted-foreground">הנחה שניתנה</div>
         </div>
       </div>
+      {c.visits > 0 && (
+        <div className="mt-1.5 text-center text-xs text-muted-foreground">
+          {c.visits === 1 ? "כניסה אחת מהקישור" : `${c.visits} כניסות מהקישור`}
+          {visitConversion(c.paid_orders, c.visits) != null &&
+            ` · ${visitConversion(c.paid_orders, c.visits)}% מהן הזמינו`}
+        </div>
+      )}
       {c.commission_percent != null && (
         <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
           <div className="flex items-center justify-between">
@@ -716,6 +730,7 @@ function CouponDialog({
   const exampleOff = couponDiscount(example, {
     discountType: form.discount_type,
     discountValue: Number(form.discount_value) || 0,
+    maxDiscount: form.discount_type === "percent" ? form.max_discount : null,
   });
 
   return (
@@ -858,6 +873,25 @@ function CouponDialog({
               />
               גם משלוח חינם
             </label>
+            {form.discount_type === "percent" && (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <Label htmlFor="cp-max-discount" className="shrink-0">
+                  הנחה מרבית להזמנה
+                </Label>
+                <Input
+                  id="cp-max-discount"
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  max={COUPON_FIXED_MAX}
+                  placeholder="בלי תקרה"
+                  value={form.max_discount ?? ""}
+                  onChange={(e) => set("max_discount", num(e.target.value))}
+                  className="w-28"
+                />
+                <span className="text-sm text-muted-foreground">₪ (לא חובה)</span>
+              </div>
+            )}
             {exampleOff > 0 && (
               <p className="mt-1.5 text-xs text-muted-foreground">
                 לדוגמה: בהזמנה של {formatILS(example)} הלקוח יקבל {formatILS(exampleOff)} הנחה
@@ -959,6 +993,13 @@ function CouponDialog({
                 onCheckedChange={(v) => set("once_per_customer", v === true)}
               />
               פעם אחת לכל לקוח (לפי אימייל או טלפון)
+            </label>
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
+              <Checkbox
+                checked={!!form.new_customers_only}
+                onCheckedChange={(v) => set("new_customers_only", v === true)}
+              />
+              רק ללקוחות חדשים (בלי הזמנה קודמת ששולמה)
             </label>
             <div>
               <Label htmlFor="cp-allowed">קופון אישי — רק לאימייל הזה</Label>

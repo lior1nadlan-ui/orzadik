@@ -56,6 +56,9 @@ function read(): CouponTerms | null {
       applyToSaleItems: t.applyToSaleItems !== false,
       // Display only: which cart products it covers is re-asked at checkout.
       eligibleProductIds: null,
+      ...(typeof t.maxDiscount === "number" && t.maxDiscount > 0
+        ? { maxDiscount: t.maxDiscount }
+        : {}),
     };
   } catch {
     return null;

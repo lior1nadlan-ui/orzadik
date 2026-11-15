@@ -209,6 +209,32 @@ export async function checkCouponRateLimitByIp(
 }
 
 /**
+ * IP-based rate limiter for counting visits that came through a coupon link.
+ * Its own `couponvisit:` namespace, so counting never eats into a shopper's
+ * budget for checking codes; the cap only keeps a script from inflating an
+ * influencer's numbers.
+ */
+export async function checkCouponVisitRateLimitByIp(
+  ip: string,
+  maxPerWindow = 10,
+  windowSeconds = 10 * 60,
+): Promise<{ limited: boolean }> {
+  if (!ip || ip === "unknown") return { limited: false };
+  try {
+    const bucket = Math.floor(Date.now() / (windowSeconds * 1000));
+    const key = `couponvisit:${ip}:${bucket}`;
+    const { data, error } = await supabaseAdmin.rpc("increment_rate_limit", {
+      p_key: key,
+      p_ttl_seconds: windowSeconds * 2,
+    });
+    if (error) return { limited: false };
+    return { limited: (data as number) > maxPerWindow };
+  } catch {
+    return { limited: false };
+  }
+}
+
+/**
  * IP-based rate limiter for an influencer's report page (/partner/<token>).
  * Its own `partner:` namespace: the token is 128 random bits, so this is not
  * what keeps it secret — it only stops a script from hammering the lookup.

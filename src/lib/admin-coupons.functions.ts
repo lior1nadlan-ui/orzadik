@@ -41,26 +41,34 @@ export type CouponListItem = CouponRecord & {
   /** Orders with the code that are not (yet) paid. */
   unpaid_orders: number;
   last_order_at: string | null;
+  /** Visits that arrived through the code's link (coupon_visits), all time. */
+  visits: number;
 };
 
 export const listCoupons = createServerFn({ method: "POST" }).handler(async () => {
   await requireAdmin();
-  const [{ data: rows, error }, { data: stats, error: sErr }, { data: payouts, error: pErr }] =
-    await Promise.all([
-      supabaseAdmin
-        .from("coupons")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(500),
-      supabaseAdmin.rpc("admin_coupon_stats"),
-      supabaseAdmin.from("coupon_payouts").select("coupon_id, amount").limit(10000),
-    ]);
+  const [
+    { data: rows, error },
+    { data: stats, error: sErr },
+    { data: payouts, error: pErr },
+    { data: visitRows, error: vErr },
+  ] = await Promise.all([
+    supabaseAdmin.from("coupons").select("*").order("created_at", { ascending: false }).limit(500),
+    supabaseAdmin.rpc("admin_coupon_stats"),
+    supabaseAdmin.from("coupon_payouts").select("coupon_id, amount").limit(10000),
+    supabaseAdmin.from("coupon_visits").select("coupon_id, visits").limit(20000),
+  ]);
   if (error) {
     console.error("[coupons] list:", error);
     throw new Error("שגיאה בטעינת הקופונים.");
   }
   if (sErr) console.error("[coupons] stats:", sErr);
   if (pErr) console.error("[coupons] payouts:", pErr);
+  if (vErr) console.error("[coupons] visits:", vErr);
+  const visitsBy = new Map<string, number>();
+  for (const v of visitRows ?? []) {
+    visitsBy.set(v.coupon_id, (visitsBy.get(v.coupon_id) ?? 0) + Number(v.visits));
+  }
   const byCoupon = new Map((stats ?? []).map((s) => [s.coupon_id, s]));
   const paidOut = new Map<string, number>();
   for (const p of payouts ?? []) {
@@ -87,6 +95,8 @@ export const listCoupons = createServerFn({ method: "POST" }).handler(async () =
       customers: Number(s?.customers ?? 0),
       unpaid_orders: Number(s?.unpaid_orders ?? 0),
       last_order_at: s?.last_order_at ?? null,
+      visits: visitsBy.get(r.id) ?? 0,
+      max_discount: r.max_discount == null ? null : Number(r.max_discount),
     };
   });
 });
@@ -112,6 +122,8 @@ const InputSchema = z.object({
   confirm_high: z.boolean(),
   allowed_email: z.string().trim().max(255).nullable().optional(),
   influencer_phone: z.string().trim().max(30).nullable().optional(),
+  max_discount: z.number().nullable().optional(),
+  new_customers_only: z.boolean().optional(),
 });
 
 export const saveCoupon = createServerFn({ method: "POST" })
@@ -149,6 +161,9 @@ export const saveCoupon = createServerFn({ method: "POST" })
       apply_to_sale_items: data.apply_to_sale_items,
       allowed_email: data.allowed_email ? data.allowed_email.trim().toLowerCase() : null,
       influencer_phone: data.influencer_phone?.trim() || null,
+      // A cap only means something on a percent coupon.
+      max_discount: data.discount_type === "percent" ? (data.max_discount ?? null) : null,
+      new_customers_only: !!data.new_customers_only,
       updated_at: new Date().toISOString(),
       updated_by: adminId,
     };
