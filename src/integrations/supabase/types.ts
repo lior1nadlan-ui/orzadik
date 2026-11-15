@@ -1747,6 +1747,14 @@ export type Database = {
         }[]
       }
       norm_he: { Args: { t: string }; Returns: string }
+      search_phrase_hits: {
+        Args: { p_terms: string[] }
+        Returns: Json
+      }
+      search_vocabulary: {
+        Args: never
+        Returns: Json
+      }
       search_products: {
         Args: {
           p_limit?: number

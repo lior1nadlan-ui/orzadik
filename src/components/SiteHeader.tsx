@@ -23,6 +23,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { normalizeSearchTerm, sanitizeTerm } from "@/routes/shop";
 import { resolveSearchQuery } from "@/lib/search-redirects";
+import { suggestSearch, type SearchSuggestion as SpellingSuggestion } from "@/lib/search-suggest";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { CartDrawer } from "@/components/cart/CartDrawer";
 import { ClubBadge } from "@/components/ClubBadge";
@@ -469,7 +470,12 @@ export function SiteHeader({ hideOnMobile = false }: { hideOnMobile?: boolean } 
     queryKey: ["header-search", debounced],
     enabled: suggestionsEnabled,
     staleTime: 60_000,
-    queryFn: async () => {
+    queryFn: async (): Promise<{
+      rows: SearchSuggestion[];
+      total: number;
+      /** Set when the typed words found nothing and these rows are for this phrase. */
+      corrected?: SpellingSuggestion;
+    }> => {
       // Suggestions call the SAME RPC /shop uses (list_products_collapsed), so a
       // preview row maps 1:1 to a tile on the results page: one collapsed row per
       // name group with its own count, instead of six near-identical rows and a
@@ -481,31 +487,46 @@ export function SiteHeader({ hideOnMobile = false }: { hideOnMobile?: boolean } 
       // redirects, then the spelling fixes), or the preview would say "nothing
       // found" for מצוה / a redirected phrase while the results page lists them.
       const effective = normalizeSearchTerm(await resolveSearchQuery(debounced));
-      const { data: rpcRows, error: rpcErr } = await supabase.rpc("list_products_collapsed", {
-        p_term: effective.slice(0, 100),
-        p_category_id: null as unknown as string | undefined,
-        p_limit: 6,
-        p_offset: 0,
-        p_sort: "relevance",
-      });
-      if (!rpcErr) {
-        const rows = (rpcRows ?? []) as Array<SearchSuggestion & { total_count: number }>;
-        return { rows: rows as SearchSuggestion[], total: Number(rows[0]?.total_count ?? 0) };
-      }
-      console.warn(
-        "[header] list_products_collapsed RPC unavailable, using ILIKE fallback:",
-        rpcErr,
-      );
+      const fetchRows = async (
+        phrase: string,
+      ): Promise<{ rows: SearchSuggestion[]; total: number }> => {
+        const { data: rpcRows, error: rpcErr } = await supabase.rpc("list_products_collapsed", {
+          p_term: phrase.slice(0, 100),
+          p_category_id: null as unknown as string | undefined,
+          p_limit: 6,
+          p_offset: 0,
+          p_sort: "relevance",
+        });
+        if (!rpcErr) {
+          const rows = (rpcRows ?? []) as Array<SearchSuggestion & { total_count: number }>;
+          return { rows: rows as SearchSuggestion[], total: Number(rows[0]?.total_count ?? 0) };
+        }
+        console.warn(
+          "[header] list_products_collapsed RPC unavailable, using ILIKE fallback:",
+          rpcErr,
+        );
 
-      const like = `%${sanitizeTerm(effective)}%`;
-      const { data, error, count } = await supabase
-        .from("products")
-        .select("id, slug, name, price, sale_price, thumbnail_url", { count: "exact" })
-        .eq("is_active", true)
-        .or(`name.ilike.${like},sku.ilike.${like}`)
-        .limit(6);
-      if (error) throw error;
-      return { rows: (data ?? []) as SearchSuggestion[], total: count ?? 0 };
+        const like = `%${sanitizeTerm(phrase)}%`;
+        const { data, error, count } = await supabase
+          .from("products")
+          .select("id, slug, name, price, sale_price, thumbnail_url", { count: "exact" })
+          .eq("is_active", true)
+          .or(`name.ilike.${like},sku.ilike.${like}`)
+          .limit(6);
+        if (error) throw error;
+        return { rows: (data ?? []) as SearchSuggestion[], total: count ?? 0 };
+      };
+
+      const found = await fetchRows(effective);
+      if (found.rows.length > 0) return found;
+      // Nothing as typed: preview the same "did you mean" phrase the results
+      // page will show for these words (src/lib/search-suggest.ts), so the
+      // dropdown and /shop agree. "All results" still opens the typed words;
+      // /shop corrects them the same way and says so.
+      const corrected: SpellingSuggestion | null = await suggestSearch(effective);
+      if (!corrected) return found;
+      const fixed = await fetchRows(corrected.term).catch(() => null);
+      return fixed && fixed.rows.length > 0 ? { ...fixed, corrected } : found;
     },
   });
 
@@ -543,7 +564,8 @@ export function SiteHeader({ hideOnMobile = false }: { hideOnMobile?: boolean } 
     navigate({ to: "/shop", search: { q: t } as any });
   };
 
-  const goToAllResults = () => runSearch(q, suggestions?.total ?? 0);
+  // A corrected preview is reported as what the typed words found: nothing.
+  const goToAllResults = () => runSearch(q, suggestions?.corrected ? 0 : (suggestions?.total ?? 0));
 
   const submitSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1131,7 +1153,9 @@ export function SiteHeader({ hideOnMobile = false }: { hideOnMobile?: boolean } 
                   {suggestionsEnabled && suggestionsReady
                     ? noResults
                       ? "לא נמצאו מוצרים מתאימים"
-                      : `נמצאו ${totalSuggestions} תוצאות`
+                      : suggestions?.corrected
+                        ? `נמצאו ${totalSuggestions} תוצאות עבור "${suggestions.corrected.term}"`
+                        : `נמצאו ${totalSuggestions} תוצאות`
                     : ""}
                 </div>
 
@@ -1181,6 +1205,17 @@ export function SiteHeader({ hideOnMobile = false }: { hideOnMobile?: boolean } 
                 <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
                   {suggestionsEnabled ? (
                     <div className="border-t border-gold/25">
+                      {/* Outside the listbox: a sentence, not an option. */}
+                      {suggestions?.corrected && productRows.length > 0 ? (
+                        <p className="border-b border-border/40 px-4 py-2.5 text-xs text-muted-foreground">
+                          {suggestions.corrected.kind === "spelling"
+                            ? "לא מצאנו בדיוק את מה שהקלדתם. מציגים תוצאות עבור "
+                            : "אין מוצר שמתאים לכל המילים. מציגים תוצאות עבור "}
+                          <span className="font-semibold text-foreground">
+                            "{suggestions.corrected.term}"
+                          </span>
+                        </p>
+                      ) : null}
                       <div id="search-listbox" role="listbox" aria-label="הצעות חיפוש">
                         {catSuggestions.length > 0 && (
                           <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 border-b border-border/40">

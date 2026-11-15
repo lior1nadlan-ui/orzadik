@@ -9,7 +9,12 @@ import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { requireAdmin } from "@/lib/admin-authz.server";
 import { checkOrderRateLimitByIp, getClientIp } from "@/lib/rate-limit.server";
-import { normalizeSearchTerm, summarizeSearches, type SearchInsights } from "@/lib/search-terms";
+import {
+  isPlaceholderTerm,
+  normalizeSearchTerm,
+  summarizeSearches,
+  type SearchInsights,
+} from "@/lib/search-terms";
 
 /** Public: record one settled search. Best effort — never throws to the page. */
 export const logSearch = createServerFn({ method: "POST" })
@@ -23,7 +28,8 @@ export const logSearch = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     const term = normalizeSearchTerm(data.term);
-    if (!term) return { ok: false };
+    // A crawler requesting the SearchAction template is not a search.
+    if (!term || isPlaceholderTerm(term)) return { ok: false };
     // A person searches a few dozen times an hour at most; a bot filling the
     // table should run out quickly. Its own bucket, so it never eats the
     // order quota.

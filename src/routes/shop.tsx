@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { trackSearch } from "@/lib/analytics";
 import { logSearch } from "@/lib/search-log.functions";
 import { resolveSearchQuery } from "@/lib/search-redirects";
+import { suggestSearch, type SuggestionKind } from "@/lib/search-suggest";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -204,17 +205,64 @@ export function normalizeSearchTerm(raw: string): string {
   );
 }
 
-type ShopPageData = { rows: ProductCardData[]; total: number; next: number };
+/** What the shopper typed and what the page shows instead, when the search
+ *  found nothing as typed (see fetchShopPage). */
+export type SearchCorrection = { from: string; to: string; kind: SuggestionKind };
 
-// Single source of truth for a page of /shop results, shared by the SSR route
-// loader and the client-side infinite query so both produce byte-identical
-// pages (same filter, same order, same size).
-async function fetchShopPage(opts: {
+type ShopPageData = {
+  rows: ProductCardData[];
+  total: number;
+  next: number;
+  corrected?: SearchCorrection;
+};
+
+/** The infinite query's page param: where the page starts, and the corrected
+ *  phrase once page 1 was corrected. */
+type ShopPageParam = { offset: number; q?: string };
+
+type ShopPageOpts = {
   rawQ: string;
   sort: ShopSort;
   offset: number;
   rung?: { lo: number; hi: number } | null;
-}): Promise<ShopPageData> {
+  /** false: the words exactly as typed, never a suggestion instead. */
+  correct?: boolean;
+};
+
+// Single source of truth for a page of /shop results, shared by the SSR route
+// loader and the client-side infinite query so both produce byte-identical
+// pages (same filter, same order, same size).
+//
+// "האם התכוונתם ל...": a search that finds NOTHING as typed shows the closest
+// phrase the catalogue uses instead (src/lib/did-you-mean.ts), and the page
+// says so above the grid. Of the 25 terms that found nothing by 15.11.2026, most
+// were spelling, not missing stock: "תיק לתלית" (81 results as "תיק לטלית"),
+// "בירכונים", "גבע מכסף". Only on the first page and with no price range — a
+// range can empty a perfectly good term, and its own empty state offers to
+// clear it. The later pages of a corrected search ask for the corrected phrase
+// directly (the infinite query's page param carries it).
+async function fetchShopPage(opts: ShopPageOpts): Promise<ShopPageData> {
+  const page = await fetchShopPageExact(opts);
+  const typed = opts.rawQ.trim();
+  if (opts.correct === false || !typed || opts.offset !== 0 || opts.rung) return page;
+  if (page.rows.length > 0) return page;
+  try {
+    const suggestion = await suggestSearch(
+      normalizeSearchTerm(await resolveSearchQuery(opts.rawQ)),
+    );
+    if (!suggestion) return page;
+    const fixed = await fetchShopPageExact({ ...opts, rawQ: suggestion.term });
+    if (fixed.rows.length === 0) return page;
+    return { ...fixed, corrected: { from: typed, to: suggestion.term, kind: suggestion.kind } };
+  } catch (err) {
+    // A suggestion is a bonus: on any failure the shopper gets the honest
+    // empty state, never an error page.
+    console.warn("[shop] search suggestion failed:", err);
+    return page;
+  }
+}
+
+async function fetchShopPageExact(opts: ShopPageOpts): Promise<ShopPageData> {
   const { sort, offset, rung = null } = opts;
   // The owner's redirects (set from the /admin search card) come first, then
   // spelling normalisation, so both search paths below (the RPC and the ILIKE
@@ -504,7 +552,16 @@ export const Route = createFileRoute("/shop")({
         // Probed with the SAME rung: the end of the listing moves when a price
         // range is on, and probing the unfiltered listing would send a shopper
         // past the end of their own filtered one.
-        const probe = await fetchShopPage({ rawQ: deps.q, sort: deps.sort, offset: 0, rung });
+        // As typed (correct: false): a corrected total would describe a
+        // different search, and send the shopper to a page of it that, asked
+        // for by the typed words, is empty again.
+        const probe = await fetchShopPage({
+          rawQ: deps.q,
+          sort: deps.sort,
+          offset: 0,
+          rung,
+          correct: false,
+        });
         lastPage = Math.max(1, Math.ceil(probe.total / PAGE));
       } catch (err) {
         console.warn("[shop] out-of-range probe failed, redirecting to page 1:", err);
@@ -555,7 +612,7 @@ export const Route = createFileRoute("/shop")({
     // A ?q= search is a facet of /shop, so its title reflects the term. The
     // canonical still points at the bare /shop below (paged is false when
     // filtered), so this affects the SERP/tab title only, not indexing.
-    const searchTerm = (loaderData?.q ?? "").trim();
+    const searchTerm = (loaderData?.first?.corrected?.to ?? loaderData?.q ?? "").trim();
     const title = searchTerm
       ? `תוצאות עבור "${searchTerm}" | אור זרוע לצדיק`
       : page > 1
@@ -758,16 +815,29 @@ function ShopPage() {
     // are two different result sets and must not share a cache entry.
     queryKey: ["shop-products", term, sort, pageStart, priceFromUrl ?? ""],
     placeholderData: keepPreviousData,
-    initialPageParam: pageStart,
-    queryFn: ({ pageParam }) => fetchShopPage({ rawQ: debouncedQ, sort, offset: pageParam, rung }),
-    getNextPageParam: (last) => (last.next < last.total ? last.next : undefined),
+    // `q` is set once the first page came back corrected: "load more" then asks
+    // for the corrected phrase itself, or page 2 of the typed words would be
+    // empty (they found nothing — that is why page 1 was corrected).
+    initialPageParam: { offset: pageStart } as ShopPageParam,
+    queryFn: ({ pageParam }) =>
+      fetchShopPage({
+        rawQ: pageParam.q ?? debouncedQ,
+        sort,
+        offset: pageParam.offset,
+        rung,
+        correct: pageParam.q === undefined,
+      }),
+    getNextPageParam: (last, _pages, lastParam): ShopPageParam | undefined =>
+      last.next < last.total
+        ? { offset: last.next, q: lastParam.q ?? last.corrected?.to }
+        : undefined,
     // Hand the SSR loader's page to react-query so the server HTML and the
     // hydrated app render the same 24 cards with no extra round-trip. Returns
     // undefined (→ normal client fetch) as soon as the live term/page drifts
     // from what the loader was asked for.
     initialData: () =>
       seededFromUrl && loaderData.first
-        ? { pages: [loaderData.first], pageParams: [pageStart] }
+        ? { pages: [loaderData.first], pageParams: [{ offset: pageStart } as ShopPageParam] }
         : undefined,
   });
 
@@ -777,6 +847,16 @@ function ShopPage() {
   // Echo the user's raw input in copy — the sanitized term may contain
   // injected % wildcards that should never be shown.
   const rawTerm = debouncedQ.trim();
+  // The suggestion the first page came back with, when the typed words found
+  // nothing. Only while it belongs to the words in the box: placeholderData
+  // keeps the previous term's pages on screen while the next term loads.
+  const firstCorrection = data?.pages[0]?.corrected;
+  const corrected = firstCorrection?.from === rawTerm ? firstCorrection : undefined;
+  // Take the suggestion into the box, so the shopper refines from there.
+  const searchSuggestion = (t: string) => {
+    setQ(t);
+    setDebouncedQ(t);
+  };
 
   // Report the search to analytics once the results for a term have SETTLED —
   // including a zero-result term (the highest-signal input: unmet demand or a
@@ -793,11 +873,15 @@ function ShopPage() {
     const key = `${activeQ}::${total}`;
     if (lastTrackedSearchRef.current === key) return;
     lastTrackedSearchRef.current = key;
-    trackSearch(activeQ, total);
+    // A corrected search is recorded as what the typed words found: nothing.
+    // That keeps it on the owner's "searched and did not find" list, where the
+    // dashboard shows the suggestion the shop used next to it.
+    const found = corrected ? 0 : total;
+    trackSearch(activeQ, found);
     // Also keep a first-party copy for the owner's dashboard (/admin). Fire and
     // forget: a failed log must never surface on the shop.
-    void logSearch({ data: { term: activeQ, results_count: total } }).catch(() => {});
-  }, [activeQ, total, isLoading, isFetching]);
+    void logSearch({ data: { term: activeQ, results_count: found } }).catch(() => {});
+  }, [activeQ, total, isLoading, isFetching, corrected]);
 
   // The denominator can never sit below the page being displayed. `total` is 0
   // while the client query is still in flight AND whenever the SSR loader had to
@@ -813,7 +897,9 @@ function ShopPage() {
   const pageSearch = (
     n: number,
   ): { q?: string; sort?: ShopSort; price?: string; page?: number } => ({
-    q: activeQ || undefined,
+    // A corrected search pages through the corrected phrase: page 2 of the
+    // typed words is empty, and the loader would bounce it back to page 1.
+    q: corrected?.to ?? (activeQ || undefined),
     sort: sort === "recommended" ? undefined : sort,
     // Page links carry the rung, so paging stays inside the range the shopper
     // chose instead of dropping them back into the whole catalogue.
@@ -845,7 +931,7 @@ function ShopPage() {
             heading. Uses the URL term (urlQ), so the H1 agrees with the SSR
             head/canonical on first paint. */}
         <h1 className="font-display text-3xl md:text-4xl tracking-wide text-foreground">
-          {urlQ ? <>תוצאות עבור "{urlQ}"</> : "כל המוצרים"}
+          {urlQ ? <>תוצאות עבור "{corrected?.to ?? urlQ}"</> : "כל המוצרים"}
         </h1>
         <p className="mt-3 text-sm md:text-base text-muted-foreground max-w-xl mx-auto">
           {urlQ
@@ -877,7 +963,7 @@ function ShopPage() {
       <div className="glass mb-8 flex flex-col gap-4 p-5 md:p-6 [--glass-radius:1.25rem]">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <p className="text-sm text-muted-foreground" role="status" aria-live="polite">
-            {term ? `${total} תוצאות עבור "${rawTerm}"` : `${total} מוצרים`}
+            {term ? `${total} תוצאות עבור "${corrected?.to ?? rawTerm}"` : `${total} מוצרים`}
           </p>
           <div className="flex flex-wrap items-center gap-4">
             {/* A real <form>: without one the input had no ancestor form, so pressing
@@ -978,6 +1064,49 @@ function ShopPage() {
           </div>
         )}
       </div>
+      {corrected && !isLoading && !isError && products.length > 0 ? (
+        // "האם התכוונתם ל...": said plainly above the grid, so nobody wonders
+        // why their words are not in the results. Ink on glass like the
+        // toolbar: /shop stays gold-free (see pageLinkClass).
+        <div
+          role="status"
+          className="glass mb-6 p-4 md:p-5 text-sm leading-relaxed [--glass-radius:1rem]"
+        >
+          <p className="text-foreground">
+            {corrected.kind === "spelling" ? (
+              <>
+                לא מצאנו תוצאות עבור <span className="font-semibold">"{corrected.from}"</span>, אז
+                אנחנו מציגים תוצאות עבור <span className="font-semibold">"{corrected.to}"</span>.
+              </>
+            ) : (
+              <>
+                לא מצאנו מוצר שמתאים לכל המילים בחיפוש{" "}
+                <span className="font-semibold">"{corrected.from}"</span>, אז אנחנו מציגים תוצאות
+                עבור <span className="font-semibold">"{corrected.to}"</span>.
+              </>
+            )}
+          </p>
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => searchSuggestion(corrected.to)}
+              className={pageLinkClass}
+            >
+              חיפוש "{corrected.to}"
+            </button>
+            <a
+              href={`https://wa.me/${BUSINESS.whatsapp}?text=${encodeURIComponent(
+                `שלום, חיפשתי באתר "${corrected.from}" ולא מצאתי בדיוק את מה שחיפשתי. אפשר עזרה?`,
+              )}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm font-medium text-foreground underline underline-offset-4"
+            >
+              לא מה שחיפשתם? שאלו אותנו בוואטסאפ
+            </a>
+          </div>
+        </div>
+      ) : null}
       {isLoading ? (
         // Shared product-grid skeleton: same columns + tile height as the real
         // grid, so real cards drop in with zero CLS. animate-pulse animates
