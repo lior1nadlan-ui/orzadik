@@ -32,6 +32,7 @@ import {
 } from "@/lib/crm-tasks";
 import { LIKELY_DELIVERED_AFTER_DAYS, shippedAtFromDateInput } from "@/lib/fulfilment";
 import { reviewAskContext } from "@/lib/review-ask";
+import { recipientLine } from "@/lib/gift-recipient";
 import { reviewToken, reviewUrl } from "@/lib/reviews.functions";
 
 const PAGE_SIZE = 25;
@@ -762,7 +763,7 @@ export const exportOrdersCsv = createServerFn({ method: "POST" })
         // sheet the owner packs and engraves from. Without them the export said
         // "טלית x1" for a line whose whole value is the size and the wording —
         // the two fields that make the order non-returnable once produced.
-        "order_number, created_at, customer_name, customer_phone, customer_email, customer_address, customer_city, subtotal, shipping, total, coupon_code, coupon_discount, status, payment_status, tracking_number, shipping_carrier, notes, is_gift, gift_note, gift_wrap, order_items(product_name, quantity, line_total, variant_label, custom_text)",
+        "order_number, created_at, customer_name, customer_phone, customer_email, customer_address, customer_city, subtotal, shipping, total, coupon_code, coupon_discount, status, payment_status, tracking_number, shipping_carrier, notes, is_gift, gift_note, gift_wrap, recipient_name, recipient_phone, order_items(product_name, quantity, line_total, variant_label, custom_text)",
       );
       query = applyOrderFilters(query, f);
       const { data, error } = await query
@@ -795,6 +796,7 @@ export const exportOrdersCsv = createServerFn({ method: "POST" })
       "עטיפה",
       "קופון",
       "הנחת קופון",
+      "מקבל המתנה",
     ];
     const lines = rows.map((o) =>
       [
@@ -829,6 +831,7 @@ export const exportOrdersCsv = createServerFn({ method: "POST" })
         o.gift_wrap ? "כן" : "לא",
         o.coupon_code ?? "",
         Number(o.coupon_discount ?? 0) || "",
+        recipientLine(o) ?? "",
       ]
         .map(csvEsc)
         .join(","),
@@ -1814,7 +1817,7 @@ export const getPackingSlip = createServerFn({ method: "POST" })
     const { data: order, error } = await supabaseAdmin
       .from("orders")
       .select(
-        "id, order_number, created_at, paid_at, payment_status, status, customer_name, customer_phone, customer_email, customer_address, customer_city, notes, is_gift, gift_note, gift_wrap, shipping_carrier, tracking_number, cardcom_document_number, order_items(id, product_name, product_sku, quantity, variant_label, custom_text, products(slug, thumbnail_url))",
+        "id, order_number, created_at, paid_at, payment_status, status, customer_name, customer_phone, customer_email, customer_address, customer_city, notes, is_gift, gift_note, gift_wrap, recipient_name, recipient_phone, shipping_carrier, tracking_number, cardcom_document_number, order_items(id, product_name, product_sku, quantity, variant_label, custom_text, products(slug, thumbnail_url))",
       )
       .eq("id", data.id)
       .maybeSingle();

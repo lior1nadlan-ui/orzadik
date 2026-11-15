@@ -14,6 +14,16 @@ export function normalizeSearchTerm(raw: string): string {
     .slice(0, 100);
 }
 
+/**
+ * A URL template a crawler filled in literally, not a person's search: the
+ * shop's SearchAction advertises /shop?q={search_term_string}, and some bots
+ * request exactly that (5 times by 15.11.2026, top of "searched and did not
+ * find"). Braces never appear in a real Hebrew search.
+ */
+export function isPlaceholderTerm(term: string): boolean {
+  return /[{}]/.test(term);
+}
+
 export type SearchRow = { term: string; results_count: number; created_at: string };
 
 export type TermStat = {
@@ -35,9 +45,11 @@ export type SearchInsights = {
 
 export function summarizeSearches(rows: SearchRow[], limit = 15): SearchInsights {
   const byTerm = new Map<string, TermStat>();
+  let total = 0;
   for (const r of rows) {
     const term = normalizeSearchTerm(r.term);
-    if (!term) continue;
+    if (!term || isPlaceholderTerm(term)) continue;
+    total += 1;
     const cur = byTerm.get(term);
     if (!cur) {
       byTerm.set(term, {
@@ -58,7 +70,7 @@ export function summarizeSearches(rows: SearchRow[], limit = 15): SearchInsights
     (a, b) => b.count - a.count || b.lastAt.localeCompare(a.lastAt),
   );
   return {
-    total: rows.length,
+    total,
     missed: all.filter((t) => t.lastResults === 0).slice(0, limit),
     top: all.slice(0, limit),
   };

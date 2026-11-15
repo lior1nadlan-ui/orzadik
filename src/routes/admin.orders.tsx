@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { recipientLine } from "@/lib/gift-recipient";
 import { paymentStatusHe } from "@/lib/order-labels";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -1109,6 +1110,11 @@ function AdminOrders() {
                     <div className="mt-1">
                       {selected.gift_wrap ? "עטיפת מתנה חגיגית" : "ללא עטיפה"}
                     </div>
+                    {recipientLine(selected) && (
+                      <div className="mt-1">
+                        מקבל המתנה: <bdi>{recipientLine(selected)}</bdi>
+                      </div>
+                    )}
                     {selected.gift_note && (
                       <div className="mt-1">
                         הקדשה להדפסה:

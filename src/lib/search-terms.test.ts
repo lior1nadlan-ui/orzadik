@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeSearchTerm, summarizeSearches } from "./search-terms";
+import { isPlaceholderTerm, normalizeSearchTerm, summarizeSearches } from "./search-terms";
 
 describe("normalizeSearchTerm", () => {
   it("collapses spacing, case and Hebrew quote marks", () => {
@@ -42,5 +42,22 @@ describe("summarizeSearches", () => {
       row("שופר תימני", 0, "2026-09-26T10:00:00Z"),
     ]);
     expect(s.missed.map((t) => t.term)).toEqual(["שופר תימני"]);
+  });
+});
+
+describe("isPlaceholderTerm", () => {
+  it("spots a crawler's unfilled URL template, never a real search", () => {
+    expect(isPlaceholderTerm("{search_term_string}")).toBe(true);
+    expect(isPlaceholderTerm('ס"מ טלית')).toBe(false);
+  });
+
+  it("keeps it out of the insights", () => {
+    const s = summarizeSearches([
+      { term: "{search_term_string}", results_count: 0, created_at: "2026-10-28T10:00:00Z" },
+      { term: "טלית", results_count: 40, created_at: "2026-10-28T11:00:00Z" },
+    ]);
+    expect(s.total).toBe(1);
+    expect(s.missed).toEqual([]);
+    expect(s.top.map((t) => t.term)).toEqual(["טלית"]);
   });
 });

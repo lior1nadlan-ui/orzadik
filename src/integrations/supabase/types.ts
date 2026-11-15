@@ -845,6 +845,8 @@ export type Database = {
           payment_txn_id: string | null
           review_request_sent_at: string | null
           review_whatsapp_at: string | null
+          recipient_name: string | null
+          recipient_phone: string | null
           shipped_at: string | null
           shipping: number
           shipping_carrier: string | null
@@ -895,6 +897,8 @@ export type Database = {
           payment_txn_id?: string | null
           review_request_sent_at?: string | null
           review_whatsapp_at?: string | null
+          recipient_name?: string | null
+          recipient_phone?: string | null
           shipped_at?: string | null
           shipping?: number
           shipping_carrier?: string | null
@@ -945,6 +949,8 @@ export type Database = {
           payment_txn_id?: string | null
           review_request_sent_at?: string | null
           review_whatsapp_at?: string | null
+          recipient_name?: string | null
+          recipient_phone?: string | null
           shipped_at?: string | null
           shipping?: number
           shipping_carrier?: string | null
@@ -1741,6 +1747,14 @@ export type Database = {
         }[]
       }
       norm_he: { Args: { t: string }; Returns: string }
+      search_phrase_hits: {
+        Args: { p_terms: string[] }
+        Returns: Json
+      }
+      search_vocabulary: {
+        Args: never
+        Returns: Json
+      }
       search_products: {
         Args: {
           p_limit?: number

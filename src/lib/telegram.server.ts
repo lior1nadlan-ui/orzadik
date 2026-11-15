@@ -15,6 +15,7 @@
 // order or release the confirmation latch. A failure logs and returns false.
 
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { recipientLine } from "@/lib/gift-recipient";
 import { orderItemImageUrl } from "@/lib/order-item-photo";
 import { ils } from "@/lib/email.server";
 import { orderBreakdown } from "@/lib/coupons";
@@ -156,6 +157,8 @@ export function buildOrderMessage(order: any, paid: boolean): string {
 
   if (order.is_gift) {
     msg += `\n🎁 <b>מתנה</b>\n`;
+    const recipient = recipientLine(order);
+    if (recipient) msg += `מקבל המתנה: ${esc(recipient)}\n`;
     if (order.gift_wrap) msg += `עטיפת מתנה חגיגית\n`;
     if (order.gift_note) msg += `הקדשה: ${esc(order.gift_note)}\n`;
   }
@@ -224,7 +227,7 @@ export async function sendOrderTelegramAlert(orderId: string, paid: boolean): Pr
     const { data: order } = await supabaseAdmin
       .from("orders")
       .select(
-        "id, order_number, customer_name, customer_email, customer_phone, customer_address, customer_city, notes, subtotal, shipping, total, coupon_code, coupon_discount, is_gift, gift_note, gift_wrap, fulfillment, payment_status, status, shipping_status, shipped_at, order_items(product_name, quantity, line_total, variant_label, custom_text, products(slug, thumbnail_url))",
+        "id, order_number, customer_name, customer_email, customer_phone, customer_address, customer_city, notes, subtotal, shipping, total, coupon_code, coupon_discount, is_gift, gift_note, gift_wrap, recipient_name, recipient_phone, fulfillment, payment_status, status, shipping_status, shipped_at, order_items(product_name, quantity, line_total, variant_label, custom_text, products(slug, thumbnail_url))",
       )
       .eq("id", orderId)
       .single();
