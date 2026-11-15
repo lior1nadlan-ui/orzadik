@@ -1,4 +1,14 @@
-import type { CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { thumbUrl } from "@/lib/img";
+import {
+  colorFromName,
+  dominantColor,
+  nameSize,
+  surfaceFor,
+  swatchStyle,
+  type Rgb,
+  type Technique,
+} from "@/lib/personalization-surface";
 import { cn } from "@/lib/utils";
 
 /**
@@ -8,75 +18,112 @@ import { cn } from "@/lib/utils";
  * WHY it renders on a MATERIAL SWATCH and not on the product photo: we cannot
  * know the real placement, scale or perspective on any given item, so overlaying
  * on the photo would be a lie dressed up as accuracy. Instead we show the name on
- * a small, neutral material panel — fabric-toned for embroidery, wood/metal-toned
- * for laser — and label it clearly as a simulation. The site already tells the
- * buyer "we'll coordinate font + colour after the order"; this panel echoes that
- * in its caption so nothing here is oversold.
+ * a small panel of the product's OWN material and colour (src/lib/
+ * personalization-surface.ts): black velvet for a black velvet bag, a leather
+ * cover with gold foil for a stamped siddur, a pale laser mark on dark faux
+ * leather. The material and colour come from the product's name; when the name
+ * has no colour, from its photo, sampled once in the browser when the panel
+ * comes into view. A product the name says nothing about keeps the neutral
+ * swatch it always had. Labelled clearly as a simulation either way.
  *
- * SSR-safe by construction: no window / document / canvas at module or render
- * scope. The whole thing is pure CSS — static gradients + text-shadow — computed
- * from props. The one motion is a short (<300ms) opacity/transform reveal via the
- * global `orz-reveal` keyframe, gated behind `motion-safe:` so it stays still for
- * users who ask for reduced motion.
+ * SSR-safe by construction: the first render uses only the name, so server and
+ * client agree; the photo sample happens after hydration and only fades the
+ * panel's colour. The one motion is a short (<300ms) opacity/transform reveal
+ * via the global `orz-reveal` keyframe, gated behind `motion-safe:`.
  */
 
 type Method = "embroidery" | "laser";
 
-// Per-method material styling. Kept as static style objects (not canvas, not a
-// generated image) so it renders identically on the server and the client.
-const MATERIAL: Record<Method, { panel: CSSProperties; text: CSSProperties }> = {
-  // Soft linen / fabric. The name reads as raised gold thread: a top highlight
-  // and a soft drop below give the stitch its lift. A faint cross-hatch stands
-  // in for the weave.
-  embroidery: {
-    panel: {
-      backgroundColor: "#EEE7D6",
-      backgroundImage: [
-        "repeating-linear-gradient(45deg, rgba(126,97,30,0.05) 0 1px, transparent 1px 5px)",
-        "repeating-linear-gradient(-45deg, rgba(126,97,30,0.04) 0 1px, transparent 1px 5px)",
-        "linear-gradient(160deg, #F2EBDC, #E5D9C0)",
-      ].join(", "),
-      boxShadow:
-        "inset 0 1px 0 rgba(255,255,255,0.55), inset 0 0 0 1px rgba(126,97,30,0.14), 0 10px 30px -16px rgba(22,24,29,0.18)",
-    },
-    text: {
-      color: "var(--accent)",
-      textShadow: "0 -1px 0 rgba(255,255,255,0.5), 0 1px 2px rgba(75,58,34,0.42)",
-    },
-  },
-  // Warm wood. Laser marking burns darker than the surface, so the name is a
-  // deep espresso incised INTO the grain: a light bottom highlight + a dark inner
-  // top edge read as a carved groove. Vertical lines suggest the grain.
-  laser: {
-    panel: {
-      backgroundColor: "#CDB389",
-      backgroundImage: [
-        "repeating-linear-gradient(90deg, rgba(74,58,34,0.06) 0 1px, transparent 1px 7px)",
-        "linear-gradient(160deg, #DAC6A2, #C1A578)",
-      ].join(", "),
-      boxShadow:
-        "inset 0 1px 0 rgba(255,255,255,0.4), inset 0 0 0 1px rgba(74,58,34,0.18), 0 10px 30px -16px rgba(22,24,29,0.2)",
-    },
-    text: {
-      color: "#43341E",
-      textShadow: "0 1px 0 rgba(255,255,255,0.5), 0 -1px 1px rgba(0,0,0,0.3)",
-    },
-  },
-};
+const SIZE_CLASS = {
+  xl: "text-2xl sm:text-3xl",
+  lg: "text-xl sm:text-2xl",
+  md: "text-lg sm:text-xl",
+  sm: "text-base sm:text-lg",
+} as const;
+
+/** The photo's colour, read once the panel is near the viewport; null until then or on failure. */
+function usePhotoColor(
+  panel: React.RefObject<HTMLDivElement | null>,
+  imageUrl: string | null | undefined,
+  wanted: boolean,
+): Rgb | null {
+  const [photo, setPhoto] = useState<{ url: string; color: Rgb } | null>(null);
+
+  useEffect(() => {
+    const el = panel.current;
+    if (!wanted || !imageUrl || !el || typeof IntersectionObserver === "undefined") return;
+    let cancelled = false;
+    const sample = () => {
+      const img = new Image();
+      // The product-images bucket answers with Access-Control-Allow-Origin: *,
+      // which is what lets the canvas be read. An image without it taints the
+      // canvas, getImageData throws, and the neutral swatch simply stays.
+      img.crossOrigin = "anonymous";
+      img.decoding = "async";
+      img.onload = () => {
+        if (cancelled) return;
+        try {
+          const size = 32;
+          const canvas = document.createElement("canvas");
+          canvas.width = size;
+          canvas.height = size;
+          const ctx = canvas.getContext("2d", { willReadFrequently: true });
+          if (!ctx) return;
+          ctx.drawImage(img, 0, 0, size, size);
+          const color = dominantColor(ctx.getImageData(0, 0, size, size).data, size, size);
+          if (color && !cancelled) setPhoto({ url: imageUrl, color });
+        } catch {
+          /* tainted canvas: keep the neutral swatch */
+        }
+      };
+      // A 64px rendition: a couple of KB, and only for products whose name
+      // gives no colour.
+      img.src = thumbUrl(imageUrl, 64) ?? imageUrl;
+    };
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          io.disconnect();
+          sample();
+        }
+      },
+      { rootMargin: "200px" },
+    );
+    io.observe(el);
+    return () => {
+      cancelled = true;
+      io.disconnect();
+    };
+  }, [panel, imageUrl, wanted]);
+
+  // A colour read for a previous product never paints this one.
+  return photo && photo.url === imageUrl ? photo.color : null;
+}
 
 export function PersonalizationPreview({
   text,
   method,
   embroideryLabel = "רקמה",
+  productName,
+  imageUrl,
 }: {
   text: string;
   method: Method;
   embroideryLabel?: string;
+  /** The product's name: its material, colour and trim are read from it. */
+  productName?: string | null;
+  /** The product's main photo, for its colour when the name has none. */
+  imageUrl?: string | null;
 }) {
   const trimmed = text.trim();
   const hasText = trimmed.length > 0;
-  const material = MATERIAL[method];
+  const technique: Technique =
+    method === "laser" ? "laser" : embroideryLabel === "הטבעה" ? "print" : "embroidery";
   const methodLabel = method === "laser" ? "חריטת לייזר" : embroideryLabel;
+
+  const panelRef = useRef<HTMLDivElement>(null);
+  const photoColor = usePhotoColor(panelRef, imageUrl, colorFromName(productName) === null);
+  const style = swatchStyle(surfaceFor(productName, technique, photoColor), technique);
 
   // Re-key the content so the short reveal replays on the two INFREQUENT
   // transitions — first character typed, and switching method (the panel material
@@ -87,24 +134,26 @@ export function PersonalizationPreview({
   return (
     <div dir="rtl" className="mt-3">
       <div
+        ref={panelRef}
         aria-hidden="true"
-        style={material.panel}
-        className="relative flex min-h-[104px] items-center justify-center overflow-hidden rounded-xl px-5 py-6 text-center"
+        style={style.panel as CSSProperties}
+        className="relative flex min-h-[104px] items-center justify-center overflow-hidden rounded-xl px-5 py-6 text-center motion-safe:transition-[background-color] motion-safe:duration-300"
       >
         {/* Honesty marker, pinned to the panel corner. In RTL the far corner is
             top-left. Kept quiet so it never competes with the name. */}
         <span className="absolute left-2.5 top-2.5 rounded-full bg-white/85 px-2 py-0.5 text-[10px] font-medium tracking-wide text-accent">
           הדמיה · {methodLabel}
+          {style.onMaterial ? ` ${style.onMaterial}` : ""}
         </span>
 
         <span
           key={revealKey}
-          style={hasText ? material.text : undefined}
+          style={hasText ? (style.text as CSSProperties) : undefined}
           className={cn(
             "font-display leading-tight [overflow-wrap:anywhere] motion-safe:[animation:orz-reveal_220ms_var(--ease-out)_both]",
             hasText
-              ? "text-2xl font-semibold sm:text-3xl"
-              : "px-6 text-lg italic text-muted-foreground/70",
+              ? cn("font-semibold", SIZE_CLASS[nameSize(trimmed)])
+              : "rounded-full bg-white/80 px-4 py-1 text-base italic text-muted-foreground",
           )}
         >
           {hasText ? trimmed : "הקלידו שם כדי לראות הדמיה"}

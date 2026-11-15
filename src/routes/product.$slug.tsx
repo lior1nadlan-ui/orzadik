@@ -2110,14 +2110,18 @@ function ProductPage() {
                 </div>
               )}
               {/* Live הדמיה — as the buyer types their name it appears on a
-                  material swatch (fabric for רקמה/הטבעה, wood for חריטה). The
-                  component labels itself clearly as a simulation and reflects the
-                  chosen method. It reads state only — the cart payload
-                  (customText / customMethod) is unchanged. */}
+                  swatch of THIS product's material and colour (read from its
+                  name, or its photo when the name has no colour), in the chosen
+                  technique: thread for רקמה, foil for הטבעה, a burn for חריטה.
+                  The component labels itself clearly as a simulation. It reads
+                  state only — the cart payload (customText / customMethod) is
+                  unchanged. */}
               <PersonalizationPreview
                 text={customText}
                 method={effectiveMethod}
                 embroideryLabel={embroideryLabel}
+                productName={product.name}
+                imageUrl={product.thumbnail_url}
               />
               <p className="text-xs text-accent mt-2 font-medium">ההתאמה האישית ללא תוספת תשלום.</p>
               <p className="text-xs text-muted-foreground mt-2">
