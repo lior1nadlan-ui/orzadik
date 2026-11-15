@@ -268,7 +268,13 @@ function PersonalizedCollectionPage() {
               רקמה בחוט עדין על כיסויי טלית ותפילין, תיקים וכיסויי חלה — שם, ברכה או הקדשה, בהתאמה
               לאירוע ולסגנון.
             </p>
-            <PersonalizationPreview text="משפחת לוי" method="embroidery" />
+            {/* Drawn on a real material, as on a product page: gold thread on
+                navy velvet, the look of the store's velvet tallit bags. */}
+            <PersonalizationPreview
+              text="משפחת לוי"
+              method="embroidery"
+              productName="תיק טלית ותפילין קטיפה כחול כהה"
+            />
           </div>
 
           <div className="glass h-full p-6 md:p-7 [--glass-radius:1.25rem]">
@@ -282,7 +288,7 @@ function PersonalizedCollectionPage() {
               חריטה מדויקת על מעמדי בנצ'ר, סטים ומתנות עץ — לשם, לתאריך או להקדשה שנשמרים לאורך
               שנים.
             </p>
-            <PersonalizationPreview text="יוסף" method="laser" />
+            <PersonalizationPreview text="יוסף" method="laser" productName="מעמד לבנצ'ר מעץ" />
           </div>
         </div>
 
