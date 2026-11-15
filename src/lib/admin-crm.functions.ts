@@ -31,6 +31,8 @@ import {
   type ActionVisibility,
 } from "@/lib/crm-tasks";
 import { LIKELY_DELIVERED_AFTER_DAYS, shippedAtFromDateInput } from "@/lib/fulfilment";
+import { reviewAskContext } from "@/lib/review-ask";
+import { reviewToken, reviewUrl } from "@/lib/reviews.functions";
 
 const PAGE_SIZE = 25;
 // PostgREST caps unbounded selects at 1000 — the same silent cap that hid 79%
@@ -390,6 +392,8 @@ type ActionRow = {
   customerPhone?: string;
   /** Collected from the shop rather than shipped. */
   pickup?: boolean;
+  /** review_request rows: the order's signed review link, for the message. */
+  reviewUrl?: string;
   context: string;
   createdAt: string;
 };
@@ -400,7 +404,7 @@ export const getActionQueue = createServerFn({ method: "POST" }).handler(async (
   const now = Date.now();
   const [orders, statesRes, followUpsRes] = await Promise.all([
     fetchAllOrders(
-      "id, order_number, customer_name, customer_email, customer_phone, status, payment_status, created_at, paid_at, shipped_at, review_request_sent_at, payment_reminder_sent_at, fulfillment, shipping_status",
+      "id, order_number, customer_name, customer_email, customer_phone, status, payment_status, created_at, paid_at, shipped_at, review_request_sent_at, review_whatsapp_at, payment_reminder_sent_at, fulfillment, shipping_status",
     ),
     supabaseAdmin
       .from("crm_action_state")
@@ -425,7 +429,6 @@ export const getActionQueue = createServerFn({ method: "POST" }).handler(async (
 
   const rows: ActionRow[] = [];
   const paidAt = (o: any) => new Date(o.paid_at ?? o.created_at).getTime();
-  const daysSince = (iso: string) => Math.floor((now - new Date(iso).getTime()) / DAY);
   const recovered = recoveredBy(orders);
   const withState = (row: Omit<ActionRow, "state" | "snoozedUntil">): ActionRow => {
     const st = stateByKey.get(row.id);
@@ -467,6 +470,22 @@ export const getActionQueue = createServerFn({ method: "POST" }).handler(async (
         createdAt: f.due_at,
       }),
     );
+  }
+
+  // Orders that already have a review (verified reviews carry order_id): no
+  // review ask for them. A failed read asks anyway — a second ask is mild,
+  // a missing one costs a review.
+  const reviewed = new Set<string>();
+  const deliveredIds = orders
+    .filter((o) => o.payment_status === "paid" && o.shipped_at)
+    .map((o) => o.id as string);
+  if (deliveredIds.length > 0) {
+    const { data: rv, error: rvErr } = await supabaseAdmin
+      .from("reviews")
+      .select("order_id")
+      .in("order_id", deliveredIds.slice(0, 500));
+    if (rvErr) console.error("[getActionQueue] reviews:", rvErr);
+    for (const r of rv ?? []) if (r.order_id) reviewed.add(String(r.order_id));
   }
 
   for (const o of orders) {
@@ -549,23 +568,18 @@ export const getActionQueue = createServerFn({ method: "POST" }).handler(async (
       continue;
     }
 
-    // Shipped ~5+ days ago and never nudged for feedback → personal review ask.
-    // "no review" is approximated by review_request_sent_at IS NULL — the only
-    // per-order signal available without a schema change.
-    if (
-      o.payment_status === "paid" &&
-      ["shipped", "completed"].includes(o.status) &&
-      o.shipped_at &&
-      !o.review_request_sent_at &&
-      now - new Date(o.shipped_at).getTime() >= 5 * DAY
-    ) {
-      rows.push(
-        rowFor(
-          "review_request",
-          o.shipped_at,
-          `נשלחה לפני ${daysSince(o.shipped_at)} ימים — שאלו איך היה ובקשו חוות דעת ⭐`,
-        ),
-      );
+    // Delivered 5-60 days ago, no review yet → a personal WhatsApp ask with the
+    // order's signed review link: for orders never emailed, and as a follow-up
+    // five days after an email that got no answer (review-ask.ts). Tapping
+    // WhatsApp records review_whatsapp_at (markReviewWhatsapp), which takes
+    // the row out and makes the link valid for an order that was never emailed.
+    const reviewLine = reviewAskContext(o, reviewed.has(String(o.id)), now);
+    if (reviewLine && o.shipped_at) {
+      const sig = await reviewToken(String(o.id));
+      rows.push({
+        ...rowFor("review_request", o.shipped_at, reviewLine),
+        ...(sig ? { reviewUrl: reviewUrl(String(o.id), sig) } : {}),
+      });
       continue;
     }
   }
@@ -2245,4 +2259,25 @@ export const markOrdersDelivered = createServerFn({ method: "POST" })
       }
     }
     return { done, failed };
+  });
+
+// The owner tapped WhatsApp on a review_request row in the action queue:
+// record it, so the row leaves the queue, the email job does not ask again,
+// and the order's signed review link works even if no email was ever sent
+// (getOrderForReview honours review_request_sent_at OR review_whatsapp_at).
+const MarkReviewWhatsappSchema = z.object({ order_id: z.string().uuid() });
+export const markReviewWhatsapp = createServerFn({ method: "POST" })
+  .validator((i: unknown) => MarkReviewWhatsappSchema.parse(i))
+  .handler(async ({ data }) => {
+    await requireAdmin();
+    const { error } = await supabaseAdmin
+      .from("orders")
+      .update({ review_whatsapp_at: new Date().toISOString() })
+      .eq("id", data.order_id)
+      .eq("payment_status", "paid");
+    if (error) {
+      console.error("[markReviewWhatsapp]:", error);
+      throw new Error("לא ניתן לרשום את הבקשה כרגע.");
+    }
+    return { ok: true as const };
   });

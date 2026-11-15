@@ -158,11 +158,16 @@ export const getOrderForReview = createServerFn({ method: "POST" })
 
       const { data: order, error } = await supabaseAdmin
         .from("orders")
-        .select("id, review_request_sent_at, order_items(product_id, product_name)")
+        .select(
+          "id, review_request_sent_at, review_whatsapp_at, order_items(product_id, product_name)",
+        )
         .eq("id", data.order)
         .maybeSingle();
-      // Only honour links for orders that actually received a review request.
-      if (error || !order || !order.review_request_sent_at) return null;
+      // Only honour links for orders that actually received a review request:
+      // the email, or the owner's WhatsApp message from the CRM queue.
+      if (error || !order || !(order.review_request_sent_at || order.review_whatsapp_at)) {
+        return null;
+      }
 
       // Dedupe products (an order can list the same product on two lines) and
       // expose only display-safe fields.
@@ -208,10 +213,10 @@ export const submitVerifiedReview = createServerFn({ method: "POST" })
     // review a product the buyer never purchased.
     const { data: order, error } = await supabaseAdmin
       .from("orders")
-      .select("id, review_request_sent_at, order_items(product_id)")
+      .select("id, review_request_sent_at, review_whatsapp_at, order_items(product_id)")
       .eq("id", data.order)
       .maybeSingle();
-    if (error || !order || !order.review_request_sent_at) {
+    if (error || !order || !(order.review_request_sent_at || order.review_whatsapp_at)) {
       throw new Error("הקישור אינו תקין או שפג תוקפו.");
     }
     const belongs = ((order.order_items as any[]) ?? []).some(
