@@ -35,6 +35,8 @@ import {
   deleteCouponPayout,
   getCouponSettings,
   setCouponsEnabled,
+  getWelcomeCouponAdmin,
+  setWelcomeCoupon,
   listCouponPayouts,
   removePartnerLink,
   type CouponListItem,
@@ -61,6 +63,7 @@ import {
   type CouponInput,
   type CouponStatus,
 } from "@/lib/coupons";
+import { isWelcomeCode, WELCOME_DAYS_MAX, WELCOME_PERCENT_MAX } from "@/lib/welcome-coupon";
 import { toLocalInput, fromLocalInput } from "@/lib/admin-promotions";
 import { formatILS } from "@/lib/cart";
 import { downloadCsv, toCsv } from "@/lib/csv";
@@ -240,6 +243,7 @@ function AdminCoupons() {
       </div>
 
       <CouponsSwitch />
+      <WelcomeCouponCard />
 
       {totals.orders > 0 && (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
@@ -413,7 +417,8 @@ function CouponCard({
           )}
           {c.allowed_email && (
             <div className="mt-0.5 text-[11px] text-sky-800">
-              קופון אישי · <bdi dir="ltr">{c.allowed_email}</bdi>
+              {isWelcomeCode(c.code) ? "קופון הצטרפות" : "קופון אישי"} ·{" "}
+              <bdi dir="ltr">{c.allowed_email}</bdi>
             </div>
           )}
         </div>
@@ -1394,6 +1399,99 @@ function CouponsSwitch() {
         }}
         aria-label="קופונים באתר"
       />
+    </div>
+  );
+}
+
+/**
+ * "קופון הצטרפות לניוזלטר": each new subscriber gets a personal, single-use
+ * code by email (welcome-coupon.ts). Off until the owner turns it on; the
+ * signup forms on the site promise it only while it is on.
+ */
+function WelcomeCouponCard() {
+  const qc = useQueryClient();
+  const load = useServerFn(getWelcomeCouponAdmin);
+  const save = useServerFn(setWelcomeCoupon);
+  const { data } = useQuery({ queryKey: ["admin-welcome-coupon"], queryFn: () => load() });
+  const [percent, setPercent] = useState<string | null>(null);
+  const [days, setDays] = useState<string | null>(null);
+  const mut = useMutation({
+    mutationFn: (v: { enabled: boolean; percent: number; days: number }) => save({ data: v }),
+    onSuccess: (v) => {
+      toast.success(
+        v.enabled
+          ? `קופון ההצטרפות פעיל: ${v.percent}% הנחה, בתוקף ${v.days} ימים.`
+          : "קופון ההצטרפות כובה.",
+      );
+      setPercent(null);
+      setDays(null);
+      void qc.invalidateQueries({ queryKey: ["admin-welcome-coupon"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  if (!data) return null;
+  const p = percent ?? String(data.percent);
+  const d = days ?? String(data.days);
+  const dirty = percent !== null || days !== null;
+  const submit = (enabled: boolean) =>
+    mut.mutate({ enabled, percent: Number(p), days: Math.round(Number(d)) });
+  return (
+    <div className="space-y-2 rounded-lg border bg-card p-3 text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="font-semibold">
+            קופון הצטרפות לניוזלטר: {data.enabled ? `פעיל, ${data.percent}%` : "כבוי"}
+          </div>
+          <div className="text-xs text-muted-foreground">
+            מי שנרשם לרשימת התפוצה מקבל במייל קוד אישי לשימוש אחד, שלא חל על מוצרים במבצע.
+            {data.issued > 0 && ` נשלחו ${data.issued} קודים, נוצלו ${data.redeemed}.`}
+          </div>
+        </div>
+        <Switch
+          checked={data.enabled}
+          disabled={mut.isPending}
+          onCheckedChange={(v) => submit(v)}
+          aria-label="קופון הצטרפות לניוזלטר"
+        />
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <Label htmlFor="welcome-percent">הנחה</Label>
+        <Input
+          id="welcome-percent"
+          type="number"
+          inputMode="numeric"
+          min={1}
+          max={WELCOME_PERCENT_MAX}
+          value={p}
+          onChange={(e) => setPercent(e.target.value)}
+          className="w-20"
+        />
+        <span className="text-muted-foreground">%</span>
+        <Label htmlFor="welcome-days" className="ms-2">
+          תוקף
+        </Label>
+        <Input
+          id="welcome-days"
+          type="number"
+          inputMode="numeric"
+          min={1}
+          max={WELCOME_DAYS_MAX}
+          value={d}
+          onChange={(e) => setDays(e.target.value)}
+          className="w-20"
+        />
+        <span className="text-muted-foreground">ימים</span>
+        {dirty && (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={mut.isPending}
+            onClick={() => submit(data.enabled)}
+          >
+            שמירה
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

@@ -168,17 +168,24 @@ function OrderConfirmationPage() {
       }
     }
     if (typeof w.fbq === "function") {
-      w.fbq("track", "Purchase", {
-        value,
-        currency: "ILS",
-        num_items: items.reduce((n, it) => n + (Number(it.quantity) || 1), 0),
-        content_type: "product",
-        contents: items.map((it: any) => ({
-          id: String(it.product_id ?? it.product_name ?? ""),
-          quantity: Number(it.quantity) || 1,
-          item_price: unitPrice(it),
-        })),
-      });
+      w.fbq(
+        "track",
+        "Purchase",
+        {
+          value,
+          currency: "ILS",
+          num_items: items.reduce((n, it) => n + (Number(it.quantity) || 1), 0),
+          content_type: "product",
+          contents: items.map((it: any) => ({
+            id: String(it.product_id ?? it.product_name ?? ""),
+            quantity: Number(it.quantity) || 1,
+            item_price: unitPrice(it),
+          })),
+        },
+        // One id per order: Meta counts a purchase once even if it is reported
+        // again (another device, or later from the server via Conversions API).
+        { eventID: `purchase-${id}` },
+      );
     }
   }, [isPaid, order, id]);
 

@@ -6,6 +6,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { requireAdmin } from "@/lib/admin-authz.server";
+import { readWelcomeCouponSettings } from "@/lib/welcome-coupon.server";
+import { welcomeCouponErrors, WELCOME_CODE_PREFIX, WELCOME_COUPON_KEY } from "@/lib/welcome-coupon";
 import {
   commissionOwed,
   couponInputErrors,
@@ -400,6 +402,53 @@ export const setCouponsEnabled = createServerFn({ method: "POST" })
       throw new Error("לא ניתן לעדכן את ההגדרה.");
     }
     return { enabled: data.enabled };
+  });
+
+// ---- The newsletter's welcome coupon ("קופון הצטרפות") ---------------------
+
+/** The setting, plus how many welcome codes went out and how many were used. */
+export const getWelcomeCouponAdmin = createServerFn({ method: "POST" }).handler(async () => {
+  await requireAdmin();
+  const [settings, issuedRes, redeemedRes] = await Promise.all([
+    readWelcomeCouponSettings(),
+    supabaseAdmin
+      .from("coupons")
+      .select("id", { count: "exact", head: true })
+      .like("code", `${WELCOME_CODE_PREFIX}-%`),
+    supabaseAdmin
+      .from("orders")
+      .select("id", { count: "exact", head: true })
+      .eq("payment_status", "paid")
+      .like("coupon_code", `${WELCOME_CODE_PREFIX}-%`),
+  ]);
+  return {
+    ...settings,
+    issued: issuedRes.count ?? 0,
+    redeemed: redeemedRes.count ?? 0,
+  };
+});
+
+/** Turn the welcome gift on or off, and size it (caps in welcome-coupon.ts). */
+export const setWelcomeCoupon = createServerFn({ method: "POST" })
+  .validator((input: unknown) =>
+    z.object({ enabled: z.boolean(), percent: z.number(), days: z.number() }).parse(input),
+  )
+  .handler(async ({ data }) => {
+    const adminId = await requireAdmin();
+    const errors = welcomeCouponErrors(data);
+    if (errors.length) throw new Error(errors.join(" "));
+    const value = { enabled: data.enabled, percent: data.percent, days: data.days };
+    const { error } = await supabaseAdmin.from("site_settings").upsert({
+      key: WELCOME_COUPON_KEY,
+      value,
+      updated_at: new Date().toISOString(),
+      updated_by: adminId,
+    });
+    if (error) {
+      console.error("[coupons] welcome settings write:", error);
+      throw new Error("לא ניתן לשמור את ההגדרה.");
+    }
+    return value;
   });
 
 /**

@@ -26,6 +26,7 @@ import {
   listUnsubscribeHeaders,
 } from "@/lib/email.server";
 import { sellerIdentityLine, BUSINESS } from "@/lib/business";
+import { issueWelcomeCoupon, liveWelcomeOffer } from "@/lib/welcome-coupon.server";
 
 const Schema = z.object({
   email: z.string().trim().email().max(255),
@@ -109,13 +110,39 @@ export async function recordNewsletterConsent(opts: {
   return { suppressed: false };
 }
 
-/** Best-effort welcome mail. Never throws — signup already succeeded. */
-export async function sendNewsletterWelcome(email: string, name?: string | null): Promise<void> {
+const dateIL = (iso: string) =>
+  new Intl.DateTimeFormat("he-IL", {
+    timeZone: "Asia/Jerusalem",
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+  }).format(new Date(iso));
+
+/** Best-effort welcome mail. Never throws — signup already succeeded. With
+ *  `gift` (issueWelcomeCoupon) it carries the subscriber's personal code: the
+ *  mail is the only place the code is shown, so owning the inbox earns it. */
+export async function sendNewsletterWelcome(
+  email: string,
+  name?: string | null,
+  gift?: { code: string; percent: number; endsAt: string } | null,
+): Promise<void> {
   try {
     if (!isEmailConfigured()) return;
     const token = await unsubscribeToken(email);
     if (!token) return; // no secret → no compliant unsubscribe → don't send
     const unsub = unsubscribeUrl(email, token);
+    // The shop link carries the code: the site keeps it for the tab and the
+    // checkout applies it once this email address is typed in.
+    const shopHref = gift
+      ? `https://orzadik.com/shop?coupon=${encodeURIComponent(gift.code)}`
+      : "https://orzadik.com/shop";
+    const giftHtml = gift
+      ? `<div style="margin:0 0 16px;padding:14px 12px;border:1px dashed #A8862A;border-radius:10px;background:#FBF7EC;text-align:center;">
+          <div style="font-size:14px;color:#1F1915;">מתנת הצטרפות: ${gift.percent}% הנחה על ההזמנה הבאה</div>
+          <div dir="ltr" style="font-size:22px;font-weight:700;letter-spacing:1px;margin:6px 0;color:#1F1915;">${esc(gift.code)}</div>
+          <div class="oz-muted" style="font-size:12px;color:#777;line-height:1.6;">בתוקף עד ${esc(dateIL(gift.endsAt))}, לשימוש אחד עם כתובת האימייל הזו. לא חל על מוצרים שכבר במבצע.</div>
+        </div>`
+      : "";
     await sendEmail({
       to: email,
       subject: "פרסומת: נרשמת לעדכונים של אור זרוע לצדיק ✨",
@@ -127,7 +154,8 @@ export async function sendNewsletterWelcome(email: string, name?: string | null)
           נרשמת לרשימת התפוצה של אור זרוע לצדיק. נשלח מדי פעם מדריכים ותוכן לקראת
           החגים, פריטים חדשים ועדכונים — בלי ספאם, ואפשר להסיר בכל רגע.
         </p>
-        ${emailButton("https://orzadik.com/shop", "לחנות")}
+        ${giftHtml}
+        ${emailButton(shopHref, gift ? "לחנות, עם הקוד" : "לחנות")}
         <div class="oz-muted" style="font-size:11px;color:#aaa;margin-top:20px;padding-top:12px;border-top:1px solid #eee;line-height:1.7;text-align:center;">
           <div>${esc(sellerIdentityLine())}${BUSINESS.email ? " · " + esc(BUSINESS.email) : ""}</div>
           <div style="margin-top:6px;">
@@ -180,6 +208,25 @@ export const subscribeNewsletter = createServerFn({ method: "POST" })
     // whether an address is on the suppression list.
     if (suppressed) return { ok: true as const };
 
-    await sendNewsletterWelcome(email, data.name);
+    // The welcome gift, when the CRM offers one: a personal code for a new
+    // address only (welcome-coupon.server.ts). It goes out in the mail and is
+    // never returned here, so the form says nothing about who got one.
+    const gift = await issueWelcomeCoupon(email);
+    await sendNewsletterWelcome(email, data.name, gift);
     return { ok: true as const };
   });
+
+/**
+ * What the signup form may promise ("הצטרפו וקבלו 10% הנחה…"), or null while
+ * the offer or the coupons are off. Public; reveals only the percent.
+ */
+export const getWelcomeOffer = createServerFn({ method: "POST" }).handler(
+  async (): Promise<{ percent: number } | null> => {
+    try {
+      const offer = await liveWelcomeOffer();
+      return offer ? { percent: offer.percent } : null;
+    } catch {
+      return null;
+    }
+  },
+);
