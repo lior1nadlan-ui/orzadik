@@ -41,6 +41,7 @@ const STATIC: Array<{ path: string; freq: string; pri: string }> = [
 // category and a monthly refresh cadence.
 const COLLECTIONS: Array<{ path: string; freq: string; pri: string }> = [
   { path: "/collection/personalized", freq: "monthly", pri: "0.7" },
+  { path: "/gift-finder", freq: "monthly", pri: "0.6" },
   ...OCCASION_COLLECTIONS.map((c) => ({
     path: `/collection/${c.slug}`,
     freq: "monthly",

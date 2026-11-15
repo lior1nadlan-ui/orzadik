@@ -22,6 +22,7 @@ import { Route as ClubRouteImport } from './routes/club'
 import { Route as ContactRouteImport } from './routes/contact'
 import { Route as FavoritesRouteImport } from './routes/favorites'
 import { Route as FeedDotxmlRouteImport } from './routes/feed[.]xml'
+import { Route as GiftFinderRouteImport } from './routes/gift-finder'
 import { Route as MivtzaimRouteImport } from './routes/mivtzaim'
 import { Route as OrZaruaLatzadikRouteImport } from './routes/or-zarua-latzadik'
 import { Route as PrivacyRouteImport } from './routes/privacy'
@@ -127,6 +128,11 @@ const FavoritesRoute = FavoritesRouteImport.update({
 const FeedDotxmlRoute = FeedDotxmlRouteImport.update({
   id: '/feed.xml',
   path: '/feed.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GiftFinderRoute = GiftFinderRouteImport.update({
+  id: '/gift-finder',
+  path: '/gift-finder',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MivtzaimRoute = MivtzaimRouteImport.update({
@@ -351,6 +357,7 @@ export interface FileRoutesByFullPath {
   '/contact': typeof ContactRoute
   '/favorites': typeof FavoritesRoute
   '/feed.xml': typeof FeedDotxmlRoute
+  '/gift-finder': typeof GiftFinderRoute
   '/mivtzaim': typeof MivtzaimRoute
   '/or-zarua-latzadik': typeof OrZaruaLatzadikRoute
   '/privacy': typeof PrivacyRoute
@@ -406,6 +413,7 @@ export interface FileRoutesByTo {
   '/contact': typeof ContactRoute
   '/favorites': typeof FavoritesRoute
   '/feed.xml': typeof FeedDotxmlRoute
+  '/gift-finder': typeof GiftFinderRoute
   '/mivtzaim': typeof MivtzaimRoute
   '/or-zarua-latzadik': typeof OrZaruaLatzadikRoute
   '/privacy': typeof PrivacyRoute
@@ -463,6 +471,7 @@ export interface FileRoutesById {
   '/contact': typeof ContactRoute
   '/favorites': typeof FavoritesRoute
   '/feed.xml': typeof FeedDotxmlRoute
+  '/gift-finder': typeof GiftFinderRoute
   '/mivtzaim': typeof MivtzaimRoute
   '/or-zarua-latzadik': typeof OrZaruaLatzadikRoute
   '/privacy': typeof PrivacyRoute
@@ -521,6 +530,7 @@ export interface FileRouteTypes {
     | '/contact'
     | '/favorites'
     | '/feed.xml'
+    | '/gift-finder'
     | '/mivtzaim'
     | '/or-zarua-latzadik'
     | '/privacy'
@@ -576,6 +586,7 @@ export interface FileRouteTypes {
     | '/contact'
     | '/favorites'
     | '/feed.xml'
+    | '/gift-finder'
     | '/mivtzaim'
     | '/or-zarua-latzadik'
     | '/privacy'
@@ -632,6 +643,7 @@ export interface FileRouteTypes {
     | '/contact'
     | '/favorites'
     | '/feed.xml'
+    | '/gift-finder'
     | '/mivtzaim'
     | '/or-zarua-latzadik'
     | '/privacy'
@@ -689,6 +701,7 @@ export interface RootRouteChildren {
   ContactRoute: typeof ContactRoute
   FavoritesRoute: typeof FavoritesRoute
   FeedDotxmlRoute: typeof FeedDotxmlRoute
+  GiftFinderRoute: typeof GiftFinderRoute
   MivtzaimRoute: typeof MivtzaimRoute
   OrZaruaLatzadikRoute: typeof OrZaruaLatzadikRoute
   PrivacyRoute: typeof PrivacyRoute
@@ -809,6 +822,13 @@ declare module '@tanstack/react-router' {
       path: '/feed.xml'
       fullPath: '/feed.xml'
       preLoaderRoute: typeof FeedDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/gift-finder': {
+      id: '/gift-finder'
+      path: '/gift-finder'
+      fullPath: '/gift-finder'
+      preLoaderRoute: typeof GiftFinderRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/mivtzaim': {
@@ -1151,6 +1171,7 @@ const rootRouteChildren: RootRouteChildren = {
   ContactRoute: ContactRoute,
   FavoritesRoute: FavoritesRoute,
   FeedDotxmlRoute: FeedDotxmlRoute,
+  GiftFinderRoute: GiftFinderRoute,
   MivtzaimRoute: MivtzaimRoute,
   OrZaruaLatzadikRoute: OrZaruaLatzadikRoute,
   PrivacyRoute: PrivacyRoute,
