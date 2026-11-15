@@ -19,6 +19,7 @@ import {
   openingHoursLabel,
   sellerIdentityLine,
 } from "@/lib/business";
+import { recipientLine } from "@/lib/gift-recipient";
 import { orderItemImageUrl } from "@/lib/order-item-photo";
 import { sendOrderTelegramAlert } from "@/lib/telegram.server";
 import { getStaffRecipients } from "@/lib/staff-recipients.server";
@@ -76,6 +77,8 @@ export function itemsRows(items: any[]): string {
 function giftBlock(order: any, prominent = false): string {
   if (!order?.is_gift) return "";
   const lines: string[] = [];
+  const recipient = recipientLine(order ?? {});
+  if (recipient) lines.push(`למסירה ל: ${esc(recipient)}`);
   if (order.gift_wrap) lines.push("עטיפת מתנה חגיגית");
   if (order.gift_note) {
     lines.push(
@@ -107,7 +110,7 @@ export async function sendOrderConfirmationEmails(orderId: string): Promise<bool
   const { data: order } = await supabaseAdmin
     .from("orders")
     .select(
-      "id, order_number, customer_name, customer_email, customer_phone, customer_address, customer_city, fulfillment, subtotal, shipping, total, coupon_code, coupon_discount, is_gift, gift_note, gift_wrap, order_items(product_name, quantity, line_total, variant_label, custom_text, products(slug, thumbnail_url))",
+      "id, order_number, customer_name, customer_email, customer_phone, customer_address, customer_city, fulfillment, subtotal, shipping, total, coupon_code, coupon_discount, is_gift, gift_note, gift_wrap, recipient_name, recipient_phone, order_items(product_name, quantity, line_total, variant_label, custom_text, products(slug, thumbnail_url))",
     )
     .eq("id", orderId)
     .single();
@@ -270,7 +273,7 @@ export async function sendOrderCreatedOwnerAlert(orderId: string) {
   const { data: order } = await supabaseAdmin
     .from("orders")
     .select(
-      "order_number, customer_name, customer_email, customer_phone, customer_address, customer_city, notes, subtotal, shipping, total, coupon_code, coupon_discount, is_gift, gift_note, gift_wrap, order_items(product_name, quantity, line_total, variant_label, custom_text, products(slug, thumbnail_url))",
+      "order_number, customer_name, customer_email, customer_phone, customer_address, customer_city, notes, subtotal, shipping, total, coupon_code, coupon_discount, is_gift, gift_note, gift_wrap, recipient_name, recipient_phone, order_items(product_name, quantity, line_total, variant_label, custom_text, products(slug, thumbnail_url))",
     )
     .eq("id", orderId)
     .single();
@@ -323,7 +326,7 @@ export async function sendOrderShippedEmail(orderId: string) {
   const { data: order } = await supabaseAdmin
     .from("orders")
     .select(
-      "order_number, customer_name, customer_email, customer_address, customer_city, tracking_number, shipping_carrier, is_gift, gift_note, gift_wrap, order_items(product_name, quantity, line_total, variant_label, custom_text, products(slug, thumbnail_url))",
+      "order_number, customer_name, customer_email, customer_address, customer_city, tracking_number, shipping_carrier, is_gift, gift_note, gift_wrap, recipient_name, recipient_phone, order_items(product_name, quantity, line_total, variant_label, custom_text, products(slug, thumbnail_url))",
     )
     .eq("id", orderId)
     .single();
@@ -383,7 +386,7 @@ export async function sendOrderReadyForPickupEmail(orderId: string): Promise<boo
   const { data: order } = await supabaseAdmin
     .from("orders")
     .select(
-      "order_number, customer_name, customer_email, is_gift, gift_note, gift_wrap, order_items(product_name, quantity, line_total, variant_label, custom_text, products(slug, thumbnail_url))",
+      "order_number, customer_name, customer_email, is_gift, gift_note, gift_wrap, recipient_name, recipient_phone, order_items(product_name, quantity, line_total, variant_label, custom_text, products(slug, thumbnail_url))",
     )
     .eq("id", orderId)
     .single();

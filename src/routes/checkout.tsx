@@ -29,6 +29,7 @@ import {
 } from "@/lib/coupons";
 import { CouponField, type PendingCoupon } from "@/components/cart/CouponField";
 import { rememberCoupon, rememberCouponCode } from "@/lib/coupon-session";
+import { isRecipientPhone } from "@/lib/gift-recipient";
 import { createCardcomPayment } from "@/lib/cardcom.functions";
 import { saveAbandonedCart } from "@/lib/abandoned-cart.functions";
 import { Button } from "@/components/ui/button";
@@ -83,6 +84,9 @@ function CheckoutPage() {
   const isPickup = fulfillment === "pickup";
   const [giftNote, setGiftNote] = useState("");
   const [giftWrap, setGiftWrap] = useState(false);
+  // A delivered gift's recipient, when it is not the buyer (gift-recipient.ts).
+  const [recipientName, setRecipientName] = useState("");
+  const [recipientPhone, setRecipientPhone] = useState("");
   const [form, setForm] = useState({
     name: "",
     email: user?.email ?? "",
@@ -132,6 +136,9 @@ function CheckoutPage() {
     // too-short. Real IL numbers carry >= 9 digits; do NOT tighten this into a
     // strict format check that could reject a valid number.
     else if (form.phone.replace(/\D/g, "").length < 9) e.phone = "מספר הטלפון אינו תקין";
+    if (isGift && !isPickup && recipientPhone.trim() && !isRecipientPhone(recipientPhone)) {
+      e.recipient_phone = "מספר הטלפון של מקבל המתנה אינו תקין";
+    }
     if (!isPickup && !form.address.trim()) e.address = "יש להזין כתובת מלאה למשלוח";
     // עיר is now required HERE, not in CheckoutSchema. The server keeps accepting
     // a null city on purpose: tightening the zod schema would make a stale cached
@@ -516,6 +523,8 @@ function CheckoutPage() {
           is_gift: isGift,
           gift_note: isGift ? giftNote || null : null,
           gift_wrap: isGift ? giftWrap : false,
+          recipient_name: isGift && !isPickup ? recipientName.trim() || null : null,
+          recipient_phone: isGift && !isPickup ? recipientPhone.trim() || null : null,
           // The amount this page showed for the items. placeOrder refuses to
           // charge more — e.g. a promotion that ended while the form was open.
           expected_items_total: itemsTotal,
@@ -802,6 +811,57 @@ function CheckoutPage() {
           </label>
           {isGift && (
             <div className="mt-3 space-y-3 border-t border-glass-line pt-3">
+              {!isPickup && (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <Label htmlFor="recipient-name">שם מקבל המתנה</Label>
+                    <Input
+                      id="recipient-name"
+                      maxLength={120}
+                      autoComplete="off"
+                      value={recipientName}
+                      onChange={(e) => setRecipientName(e.target.value)}
+                      aria-describedby="recipient-hint"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="recipient-phone">הטלפון של מקבל המתנה</Label>
+                    <Input
+                      id="recipient-phone"
+                      type="tel"
+                      inputMode="tel"
+                      maxLength={30}
+                      autoComplete="off"
+                      aria-invalid={!!errors.recipient_phone}
+                      aria-describedby={
+                        errors.recipient_phone ? "recipient-phone-error" : "recipient-hint"
+                      }
+                      value={recipientPhone}
+                      onChange={(e) => {
+                        setRecipientPhone(e.target.value);
+                        setErrors((prev) =>
+                          prev.recipient_phone ? { ...prev, recipient_phone: "" } : prev,
+                        );
+                      }}
+                    />
+                    {errors.recipient_phone && (
+                      <p
+                        id="recipient-phone-error"
+                        role="alert"
+                        className="mt-1 text-xs text-destructive"
+                      >
+                        {errors.recipient_phone}
+                      </p>
+                    )}
+                  </div>
+                  <p
+                    id="recipient-hint"
+                    className="text-[11px] text-muted-foreground sm:col-span-2"
+                  >
+                    לא חובה. השליח יתקשר למקבל המתנה לתיאום, והמשלוח יגיע לכתובת שמילאתם למעלה.
+                  </p>
+                </div>
+              )}
               <div>
                 <Label htmlFor="gift-note">הקדשה אישית (תודפס ותצורף למתנה)</Label>
                 <Textarea

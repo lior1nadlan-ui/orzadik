@@ -42,6 +42,11 @@ export async function notifyShippingCompany(orderId: string) {
       gift_wrap: order.gift_wrap ?? false,
       gift_note: order.gift_note ?? null,
     },
+    // A gift's recipient, when it is not the buyer: the courier calls them.
+    recipient: {
+      name: order.recipient_name ?? null,
+      phone: order.recipient_phone ?? null,
+    },
   };
 
   // TODO: replace with real carrier API call or transactional email.

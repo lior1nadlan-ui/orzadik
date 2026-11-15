@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
+import { giftRecipientFor } from "@/lib/gift-recipient";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getOptionalUserId } from "@/integrations/supabase/optional-auth";
 import { checkOrderRateLimit, checkOrderRateLimitByIp, getClientIp } from "@/lib/rate-limit.server";
@@ -38,6 +39,9 @@ const CheckoutSchema = z.object({
   is_gift: z.boolean().optional(),
   gift_note: z.string().trim().max(300).transform(stripHtml).optional().nullable(),
   gift_wrap: z.boolean().optional(),
+  // A delivered gift's recipient (gift-recipient.ts): the courier calls them.
+  recipient_name: z.string().trim().max(120).transform(stripHtml).optional().nullable(),
+  recipient_phone: z.string().trim().max(30).optional().nullable(),
   // The items amount the checkout page showed (after promotions, before the
   // member discount and shipping). Optional so an older cached bundle can still
   // order; when present, placeOrder will not charge more than it.
@@ -172,6 +176,13 @@ export const placeOrder = createServerFn({ method: "POST" })
         is_gift: data.is_gift ?? false,
         gift_wrap: data.is_gift ? (data.gift_wrap ?? false) : false,
         gift_note: data.is_gift ? data.gift_note || null : null,
+        // Who the courier calls — only on a gift that is delivered.
+        ...giftRecipientFor({
+          isGift: !!data.is_gift,
+          fulfillment,
+          name: data.recipient_name,
+          phone: data.recipient_phone,
+        }),
         // Which coupon this order used — the CRM's "who bought with which code".
         // Recorded only when it applied (a code under its minimum gave nothing).
         coupon_id: coupon && totals.couponApplied ? coupon.record.id : null,

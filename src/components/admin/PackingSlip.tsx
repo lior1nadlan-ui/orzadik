@@ -12,6 +12,8 @@ export type PackingSlipOrder = {
   is_gift: boolean | null;
   gift_note: string | null;
   gift_wrap: boolean | null;
+  recipient_name?: string | null;
+  recipient_phone?: string | null;
   shipping_carrier: string | null;
   tracking_number: string | null;
   cardcom_document_number: string | null;
@@ -67,12 +69,22 @@ export function PackingSlip({ o }: { o: PackingSlipOrder }) {
       <section className="grid grid-cols-2 gap-6 border-b border-black/40 py-4">
         <div>
           <div className="mb-1 text-xs font-bold">משלוח אל</div>
-          <div className="text-base font-bold">{o.customer_name}</div>
+          {/* A gift goes to its recipient: their name and phone on the label,
+              the buyer underneath (gift-recipient.ts). */}
+          <div className="text-base font-bold">{o.recipient_name || o.customer_name}</div>
           <div>{o.customer_address}</div>
           <div>{o.customer_city}</div>
           <div dir="ltr" className="text-right font-mono">
-            {o.customer_phone}
+            {o.recipient_phone || o.customer_phone}
           </div>
+          {(o.recipient_name || o.recipient_phone) && (
+            <div className="mt-1 text-xs">
+              הוזמן על ידי: {o.customer_name} ·{" "}
+              <span dir="ltr" className="font-mono">
+                {o.customer_phone}
+              </span>
+            </div>
+          )}
         </div>
         <div>
           <div className="mb-1 text-xs font-bold">לאריזה</div>
