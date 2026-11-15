@@ -33,6 +33,8 @@ export type CouponTerms = {
    * the server for a categories/products scope; null/absent = every product.
    */
   eligibleProductIds?: string[] | null;
+  /** Percent coupons: the most shekels it takes off one order; absent = no cap. */
+  maxDiscount?: number | null;
 };
 
 /** A row of public.coupons, as the server reads it. */
@@ -60,6 +62,10 @@ export type CouponRecord = {
   allowed_email?: string | null;
   /** The influencer's phone, for the WhatsApp kit. CRM only. */
   influencer_phone?: string | null;
+  /** Percent coupons: the most shekels off one order, or null for no cap. */
+  max_discount?: number | string | null;
+  /** Only for a customer with no paid order yet (by email or phone). */
+  new_customers_only?: boolean | null;
 };
 
 /** Hard caps (the table's CHECK). Above the HIGH marks the CRM asks to confirm. */
@@ -145,6 +151,7 @@ export function couponScopeOf(r: Pick<CouponRecord, "scope">): CouponScope {
 export function couponTerms(r: CouponRecord, eligibleProductIds?: string[] | null): CouponTerms {
   const min = r.min_order == null ? null : Number(r.min_order);
   const scope = couponScopeOf(r);
+  const cap = r.max_discount == null ? null : Number(r.max_discount);
   return {
     code: r.code,
     discountType: r.discount_type === "fixed" ? "fixed" : "percent",
@@ -154,6 +161,11 @@ export function couponTerms(r: CouponRecord, eligibleProductIds?: string[] | nul
     scope,
     applyToSaleItems: r.apply_to_sale_items !== false,
     eligibleProductIds: scope === "all" ? null : (eligibleProductIds ?? []),
+    // Only a percent coupon has a cap; absent rather than null keeps older
+    // terms (and the strip's stored copy) the same shape.
+    ...(r.discount_type !== "fixed" && cap != null && Number.isFinite(cap) && cap > 0
+      ? { maxDiscount: cap }
+      : {}),
   };
 }
 
@@ -185,11 +197,20 @@ export type CouponRejection =
   | "used_up"
   | "already_used"
   | "needs_email"
-  | "not_for_you";
+  | "not_for_you"
+  | "not_new_customer";
 
 export function couponRejection(
   r: CouponRecord | null,
-  ctx: { now?: Date; totalUses?: number; customerUses?: number; email?: string | null } = {},
+  ctx: {
+    now?: Date;
+    totalUses?: number;
+    customerUses?: number;
+    email?: string | null;
+    /** Paid orders this customer already has (customer_paid_orders), for a
+     *  new-customers-only code. Unknown (no email or phone yet) = 0. */
+    previousPaidOrders?: number;
+  } = {},
 ): CouponRejection | null {
   if (!r) return "not_found";
   if (!r.is_active) return "inactive";
@@ -205,6 +226,7 @@ export function couponRejection(
   }
   if (r.max_uses != null && (ctx.totalUses ?? 0) >= r.max_uses) return "used_up";
   if (r.once_per_customer && (ctx.customerUses ?? 0) > 0) return "already_used";
+  if (r.new_customers_only && (ctx.previousPaidOrders ?? 0) > 0) return "not_new_customer";
   return null;
 }
 
@@ -240,6 +262,8 @@ export function couponRejectionMessage(reason: CouponRejection): string {
       return "הקופון הזה אישי — מלאו קודם את כתובת האימייל בטופס, ואז החילו אותו.";
     case "not_for_you":
       return "הקופון הזה אישי ומיועד לכתובת אימייל אחרת.";
+    case "not_new_customer":
+      return "הקופון הזה מיועד ללקוחות חדשים בלבד, בהזמנה הראשונה.";
   }
 }
 
@@ -291,7 +315,8 @@ export function meetsCouponMinimum(itemsTotal: number, terms: CouponTerms): bool
  */
 export function couponDiscount(
   itemsAfterMember: number,
-  terms: Pick<CouponTerms, "discountType" | "discountValue">,
+  terms: Pick<CouponTerms, "discountType" | "discountValue"> &
+    Partial<Pick<CouponTerms, "maxDiscount">>,
   /** The amount the coupon applies to, when it is not the whole items amount. */
   base: number = itemsAfterMember,
 ): number {
@@ -304,7 +329,14 @@ export function couponDiscount(
     terms.discountType === "fixed"
       ? Math.round(value)
       : Math.round((b * Math.min(value, COUPON_PERCENT_MAX)) / 100);
-  return Math.max(0, Math.min(raw, b, itemsAfterMember - 1));
+  // A percent coupon's cap per order ("עד ₪100"): 20% of a ₪2,500 tallit is
+  // still ₪100 when the owner capped it there.
+  const cap = Number(terms.maxDiscount);
+  const capped =
+    terms.discountType !== "fixed" && Number.isFinite(cap) && cap > 0
+      ? Math.min(raw, Math.round(cap))
+      : raw;
+  return Math.max(0, Math.min(capped, b, itemsAfterMember - 1));
 }
 
 /** The order's money, the way placeOrder charges it and the checkout shows it. */
@@ -416,14 +448,17 @@ const shekels = (n: number) =>
 
 /** "10% הנחה", "₪50 הנחה", "10% הנחה + משלוח חינם", "משלוח חינם". */
 export function describeCoupon(
-  t: Pick<CouponTerms, "discountType" | "discountValue" | "freeShipping">,
+  t: Pick<CouponTerms, "discountType" | "discountValue" | "freeShipping"> &
+    Partial<Pick<CouponTerms, "maxDiscount">>,
 ): string {
   const parts: string[] = [];
   if (t.discountValue > 0) {
+    const cap = Number(t.maxDiscount);
     parts.push(
       t.discountType === "fixed"
         ? `${shekels(t.discountValue)} הנחה`
-        : `${Number(t.discountValue.toFixed(2))}% הנחה`,
+        : `${Number(t.discountValue.toFixed(2))}% הנחה` +
+            (Number.isFinite(cap) && cap > 0 ? ` (עד ${shekels(cap)})` : ""),
     );
   }
   if (t.freeShipping) parts.push("משלוח חינם");
@@ -436,7 +471,7 @@ export function describeCoupon(
  */
 export function offerText(
   t: Pick<CouponTerms, "discountType" | "discountValue" | "freeShipping"> &
-    Partial<Pick<CouponTerms, "scope" | "applyToSaleItems">>,
+    Partial<Pick<CouponTerms, "scope" | "applyToSaleItems" | "maxDiscount">>,
 ): string {
   let text = describeCoupon(t);
   if (t.scope && t.scope !== "all") text += " על מוצרים נבחרים";
@@ -591,6 +626,10 @@ export type CouponInput = {
   /** A personal coupon's customer email, or null. */
   allowed_email?: string | null;
   influencer_phone?: string | null;
+  /** Percent coupons: the most shekels off one order, or null for no cap. */
+  max_discount?: number | null;
+  /** Only for customers with no paid order yet. */
+  new_customers_only?: boolean;
 };
 
 /** Whether a discount is high enough to ask the owner to confirm it. */
@@ -635,6 +674,11 @@ export function couponInputErrors(i: CouponInput): string[] {
         ? `הנחה של יותר מ-${shekels(COUPON_FIXED_HIGH)} — סמנו את האישור כדי לשמור.`
         : `הנחה של יותר מ-${COUPON_PERCENT_HIGH}% — סמנו את האישור כדי לשמור.`,
     );
+  if (i.discount_type === "percent" && i.max_discount != null) {
+    const cap = Number(i.max_discount);
+    if (!Number.isFinite(cap) || cap < 1 || cap > COUPON_FIXED_MAX)
+      errors.push(`הנחה מרבית להזמנה: בין ₪1 ל-${shekels(COUPON_FIXED_MAX)}.`);
+  }
   if (i.scope === "categories" && i.category_ids.length === 0)
     errors.push("בחרו לפחות קטגוריה אחת, או החילו את הקופון על כל האתר.");
   if (i.scope === "products" && i.product_ids.length === 0)

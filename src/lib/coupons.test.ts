@@ -24,6 +24,7 @@ import {
   keepRefusedCoupon,
   waitingCouponNote,
   describeCoupon,
+  offerText,
   isValidCouponCode,
   latinFromHebrewKeyboard,
   minimumHint,
@@ -582,5 +583,85 @@ describe("personal coupons", () => {
       `https://wa.me/972501234567?text=${encodeURIComponent("שלום")}`,
     );
     expect(whatsappLink(null, "hi")).toBe("https://wa.me/?text=hi");
+  });
+});
+
+describe("a cap per order, and codes for new customers only", () => {
+  it("caps a percent coupon at its most shekels", () => {
+    expect(couponDiscount(2500, pct(20, { maxDiscount: 100 }))).toBe(100);
+    expect(couponDiscount(300, pct(20, { maxDiscount: 100 }))).toBe(60);
+    expect(couponDiscount(2500, pct(20))).toBe(500);
+  });
+
+  it("never caps a fixed coupon", () => {
+    expect(
+      couponDiscount(500, { discountType: "fixed", discountValue: 150, maxDiscount: 100 }),
+    ).toBe(150);
+  });
+
+  it("reads the cap from the record only for a percent coupon", () => {
+    expect(couponTerms(record({ max_discount: "100.00" })).maxDiscount).toBe(100);
+    expect(
+      couponTerms(record({ discount_type: "fixed", discount_value: 50, max_discount: 100 }))
+        .maxDiscount,
+    ).toBeUndefined();
+    // No cap: the terms keep their old shape.
+    expect("maxDiscount" in couponTerms(record())).toBe(false);
+  });
+
+  it("names the cap in the offer", () => {
+    expect(describeCoupon(pct(10, { maxDiscount: 100 }))).toMatch(/^10% הנחה \(עד .*100.*₪\)$/);
+    expect(offerText(pct(10, { maxDiscount: 100, scope: "categories" }))).toContain(
+      "על מוצרים נבחרים",
+    );
+  });
+
+  it("charges the capped amount, the way placeOrder does", () => {
+    const t = computeOrderTotals({
+      itemsTotal: 2500,
+      isMember: false,
+      fulfillment: "delivery",
+      coupon: pct(20, { maxDiscount: 100 }),
+    });
+    expect(t.couponDiscount).toBe(100);
+  });
+
+  it("refuses a returning customer on a new-customers-only code", () => {
+    const r = record({ new_customers_only: true });
+    expect(couponRejection(r, { now: NOW, previousPaidOrders: 2 })).toBe("not_new_customer");
+    expect(couponRejection(r, { now: NOW, previousPaidOrders: 0 })).toBeNull();
+    // Not known yet (no email or phone): placeOrder checks again.
+    expect(couponRejection(r, { now: NOW })).toBeNull();
+    expect(couponRejection(record(), { now: NOW, previousPaidOrders: 5 })).toBeNull();
+    expect(couponRejectionMessage("not_new_customer").startsWith(COUPON_MESSAGE_PREFIX)).toBe(true);
+  });
+
+  it("checks the cap in the CRM form", () => {
+    const valid: CouponInput = {
+      code: "dana10",
+      influencer_name: null,
+      notes: null,
+      discount_type: "percent",
+      discount_value: 10,
+      free_shipping: false,
+      min_order: null,
+      starts_at: null,
+      ends_at: null,
+      max_uses: null,
+      once_per_customer: false,
+      commission_percent: null,
+      scope: "all",
+      category_ids: [],
+      product_ids: [],
+      apply_to_sale_items: true,
+      confirm_high: false,
+    };
+    expect(couponInputErrors({ ...valid, max_discount: 100 })).toEqual([]);
+    expect(couponInputErrors({ ...valid, max_discount: 0 })).toHaveLength(1);
+    expect(couponInputErrors({ ...valid, max_discount: 6000 })).toHaveLength(1);
+    // A fixed coupon has no cap to check.
+    expect(
+      couponInputErrors({ ...valid, discount_type: "fixed", discount_value: 50, max_discount: 0 }),
+    ).toEqual([]);
   });
 });
