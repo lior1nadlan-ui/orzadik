@@ -32,6 +32,8 @@ import { thumbUrl } from "@/lib/img";
 import { openCookieSettings } from "@/components/CookieConsent";
 import { BUSINESS, SOCIAL_PROFILES } from "@/lib/business";
 import { trackSearch } from "@/lib/analytics";
+import { useActiveCoupon } from "@/lib/coupon-session";
+import { CouponStrip } from "@/components/CouponStrip";
 import logoUrl from "@/assets/logo.webp";
 
 // Persisted recent search terms (last few submitted, most-recent first). Read
@@ -307,7 +309,10 @@ export function SiteHeader({ hideOnMobile = false }: { hideOnMobile?: boolean } 
   // Whether a 36px strip sits above the bar at all: the club strip hides itself
   // for a signed-in shopper (ClubBadge), and the promotion strip shows to
   // everyone. The header's sticky offset must follow it — see below.
-  const stripShown = promoLive || !user;
+  // A coupon this tab carries (an influencer's link, or a code applied at
+  // checkout) takes the slot ahead of both: it is this shopper's own offer.
+  const activeCoupon = useActiveCoupon();
+  const stripShown = !!activeCoupon || promoLive || !user;
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [q, setQ] = useState("");
@@ -612,7 +617,13 @@ export function SiteHeader({ hideOnMobile = false }: { hideOnMobile?: boolean } 
       <header
         className={`sticky ${stripShown ? "-top-9" : "top-0"} z-40 w-full ${hideOnMobile ? "max-lg:hidden" : ""}`}
       >
-        {promoLive ? <PromoStrip /> : <ClubBadge variant="strip" />}
+        {activeCoupon ? (
+          <CouponStrip terms={activeCoupon} />
+        ) : promoLive ? (
+          <PromoStrip />
+        ) : (
+          <ClubBadge variant="strip" />
+        )}
         {/* Main bar: white glass, gold hairline at rest, soft shadow after scroll.
           .glass-strong (94% white) and NOT .glass — this bar scrolls over the
           hero video, and at 72% the gold --accent inside it would drop to

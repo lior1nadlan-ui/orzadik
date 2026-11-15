@@ -21,6 +21,7 @@ import { SearchInsightsCard } from "@/components/admin/SearchInsightsCard";
 import { listPromotions } from "@/lib/admin-promotions.functions";
 import { STATUS_LABEL, scopeSummary } from "@/lib/admin-promotions";
 import { formatPromoEnd } from "@/lib/promotions";
+import { listCoupons } from "@/lib/admin-coupons.functions";
 
 export const Route = createFileRoute("/admin/")({
   component: AdminHome,
@@ -188,6 +189,7 @@ function AdminHome() {
       </div>
 
       <PromotionsCard />
+      <CouponsCard />
 
       {/* Abandoned carts KPI + catalog health */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -755,6 +757,71 @@ function PromotionsCard() {
       {current.length > shown.length ? (
         <p className="mt-1 text-xs text-muted-foreground">ועוד {current.length - shown.length}</p>
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * Coupons at a glance: the codes that sold the most, and the commission still
+ * owed to the people behind them — the one number here somebody has to act
+ * on. Shares its query with /admin/coupons. Nothing at all until a coupon
+ * exists, so the overview does not grow an empty card for a feature not used.
+ */
+function CouponsCard() {
+  const load = useServerFn(listCoupons);
+  const { data } = useQuery({
+    queryKey: ["admin-coupons"],
+    queryFn: () => load(),
+    staleTime: 60_000,
+  });
+  if (!data || data.length === 0) return null;
+  const top = [...data]
+    .filter((c) => c.paid_orders > 0)
+    .sort((a, b) => b.sales - a.sales)
+    .slice(0, 3);
+  const active = data.filter((c) => c.status === "active").length;
+  const owed = data.reduce((s, c) => s + (c.balance > 0 ? c.balance : 0), 0);
+  const owedTo = data.filter((c) => c.balance > 0).length;
+
+  return (
+    <div className="rounded-lg border bg-card p-5">
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-sm font-semibold">קופונים</div>
+        <Link to="/admin/coupons" className="text-xs text-primary underline underline-offset-4">
+          לניהול הקופונים ←
+        </Link>
+      </div>
+      <p className="mt-1 text-xs text-muted-foreground">
+        {active === 1 ? "קוד אחד פעיל" : `${active} קודים פעילים`}
+        {owed > 0 && (
+          <>
+            {" · "}
+            <span className="font-semibold text-amber-800">
+              עמלות לתשלום {formatILS(owed)}
+              {owedTo > 1 ? ` (${owedTo} מפורסמים)` : ""}
+            </span>
+          </>
+        )}
+      </p>
+      {top.length === 0 ? (
+        <p className="mt-2 text-sm text-muted-foreground">עוד לא היו הזמנות ששולמו עם קופון.</p>
+      ) : (
+        <ul className="mt-2 divide-y">
+          {top.map((c) => (
+            <li key={c.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm">
+              <bdi dir="ltr" className="font-mono font-bold">
+                {c.code}
+              </bdi>
+              {c.influencer_name && (
+                <span className="text-xs text-muted-foreground">{c.influencer_name}</span>
+              )}
+              <span className="ms-auto text-xs text-muted-foreground">
+                {c.paid_orders} הזמנות · {formatILS(c.sales)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

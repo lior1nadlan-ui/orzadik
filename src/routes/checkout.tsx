@@ -24,6 +24,7 @@ import {
   type CouponTerms,
 } from "@/lib/coupons";
 import { CouponField } from "@/components/cart/CouponField";
+import { rememberCoupon } from "@/lib/coupon-session";
 import { createCardcomPayment } from "@/lib/cardcom.functions";
 import { saveAbandonedCart } from "@/lib/abandoned-cart.functions";
 import { Button } from "@/components/ui/button";
@@ -247,19 +248,11 @@ function CheckoutPage() {
       if (r.ok) {
         setCoupon(r.terms);
         setCouponError(null);
-        try {
-          sessionStorage.setItem(COUPON_STORAGE_KEY, r.terms.code);
-        } catch {
-          /* storage unavailable — the code still applies for this page */
-        }
+        rememberCoupon(r.terms);
       } else {
         setCoupon(null);
         if (!quiet) setCouponError(r.message);
-        try {
-          sessionStorage.removeItem(COUPON_STORAGE_KEY);
-        } catch {
-          /* ignore */
-        }
+        rememberCoupon(null);
       }
     } catch (e) {
       if (!quiet) {
@@ -274,11 +267,7 @@ function CheckoutPage() {
   const removeCoupon = () => {
     setCoupon(null);
     setCouponError(null);
-    try {
-      sessionStorage.removeItem(COUPON_STORAGE_KEY);
-    } catch {
-      /* ignore */
-    }
+    rememberCoupon(null);
   };
   // A code from an influencer's link (?coupon=DANA10, captured by the root on
   // any page) or applied earlier in this tab comes back by itself. A link that

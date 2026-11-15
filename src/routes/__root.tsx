@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { COUPON_STORAGE_KEY, describeCoupon } from "@/lib/coupons";
+import { rememberCoupon } from "@/lib/coupon-session";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   Outlet,
@@ -602,12 +603,13 @@ function RootComponent() {
         .then(async (fns) => {
           const r = await fns.checkCoupon({ data: { code } });
           if (r.ok) {
+            rememberCoupon(r.terms);
             toast.success(`הקוד ${r.terms.code} יוחל אוטומטית בעמוד התשלום`, {
               description: describeCoupon(r.terms),
               duration: 6000,
             });
           } else {
-            sessionStorage.removeItem(COUPON_STORAGE_KEY);
+            rememberCoupon(null);
           }
         })
         .catch(() => {

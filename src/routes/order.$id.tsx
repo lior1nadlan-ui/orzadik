@@ -7,6 +7,7 @@ import { createCardcomPayment } from "@/lib/cardcom.functions";
 import { formatILS, useCart } from "@/lib/cart";
 import { BUSINESS } from "@/lib/business";
 import { orderBreakdown } from "@/lib/coupons";
+import { rememberCoupon } from "@/lib/coupon-session";
 import { Button } from "@/components/ui/button";
 import { CardSkeleton } from "@/components/Skeletons";
 import { CheckCircle2, Clock, Mail, Truck, Package, MessageCircle, Loader2 } from "lucide-react";
@@ -103,7 +104,11 @@ function OrderConfirmationPage() {
 
   // Clear the cart only once payment is confirmed — never before.
   useEffect(() => {
-    if (isPaid) clear();
+    if (isPaid) {
+      clear();
+      // The code did its job on this order; the strip and checkout drop it.
+      rememberCoupon(null);
+    }
   }, [isPaid, clear]);
 
   // Fire the `purchase` conversion once when payment is confirmed — to BOTH GA4
