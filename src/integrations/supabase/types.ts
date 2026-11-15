@@ -383,6 +383,8 @@ export type Database = {
       }
       coupons: {
         Row: {
+          apply_to_sale_items: boolean
+          category_ids: string[]
           code: string
           commission_percent: number | null
           created_at: string
@@ -399,11 +401,15 @@ export type Database = {
           notes: string | null
           once_per_customer: boolean
           partner_token: string | null
+          product_ids: string[]
+          scope: string
           starts_at: string
           updated_at: string
           updated_by: string | null
         }
         Insert: {
+          apply_to_sale_items?: boolean
+          category_ids?: string[]
           code: string
           commission_percent?: number | null
           created_at?: string
@@ -420,11 +426,15 @@ export type Database = {
           notes?: string | null
           once_per_customer?: boolean
           partner_token?: string | null
+          product_ids?: string[]
+          scope?: string
           starts_at?: string
           updated_at?: string
           updated_by?: string | null
         }
         Update: {
+          apply_to_sale_items?: boolean
+          category_ids?: string[]
           code?: string
           commission_percent?: number | null
           created_at?: string
@@ -441,6 +451,8 @@ export type Database = {
           notes?: string | null
           once_per_customer?: boolean
           partner_token?: string | null
+          product_ids?: string[]
+          scope?: string
           starts_at?: string
           updated_at?: string
           updated_by?: string | null
@@ -708,6 +720,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      site_settings: {
+        Row: {
+          key: string
+          updated_at: string
+          updated_by: string | null
+          value: Json
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          updated_by?: string | null
+          value: Json
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          updated_by?: string | null
+          value?: Json
+        }
+        Relationships: []
       }
       staff_alert_prefs: {
         Row: {
@@ -1607,6 +1640,11 @@ export type Database = {
         Returns: boolean
       }
       he_variants: { Args: { w: string }; Returns: string[] }
+      coupon_box_visible: { Args: never; Returns: boolean }
+      coupon_eligible_products: {
+        Args: { p_coupon_id: string; p_product_ids: string[] }
+        Returns: string[]
+      }
       coupon_usage: {
         Args: { p_coupon_id: string; p_email: string; p_phone: string }
         Returns: {

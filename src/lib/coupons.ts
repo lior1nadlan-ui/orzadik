@@ -12,15 +12,27 @@ import { applyMemberDiscount, getShipping, type Fulfillment } from "@/lib/pricin
 
 export type CouponDiscountType = "percent" | "fixed";
 
+/** What a coupon applies to — mirrors coupons.scope. */
+export type CouponScope = "all" | "categories" | "products";
+
 /** What a code gives — all the checkout and placeOrder price with. */
 export type CouponTerms = {
   code: string;
   discountType: CouponDiscountType;
-  /** Percent (0-50) or shekels (0-2000). 0 only for a free-shipping coupon. */
+  /** Percent (0-90) or shekels (0-5000). 0 only for a free-shipping coupon. */
   discountValue: number;
   freeShipping: boolean;
   /** Minimum items amount (before the member discount), or null. */
   minOrder: number | null;
+  /** What the code applies to. Optional so terms saved by an older page still read. */
+  scope?: CouponScope;
+  /** Whether items already priced by a promotion count. Default true. */
+  applyToSaleItems?: boolean;
+  /**
+   * Of the cart the code was checked against, the products it covers — set by
+   * the server for a categories/products scope; null/absent = every product.
+   */
+  eligibleProductIds?: string[] | null;
 };
 
 /** A row of public.coupons, as the server reads it. */
@@ -40,10 +52,17 @@ export type CouponRecord = {
   is_active: boolean;
   /** Share of the coupon's sales owed to the person behind it, or null. Reporting only. */
   commission_percent?: number | string | null;
+  scope?: string | null;
+  category_ids?: string[] | null;
+  product_ids?: string[] | null;
+  apply_to_sale_items?: boolean | null;
 };
 
-export const COUPON_PERCENT_MAX = 50;
-export const COUPON_FIXED_MAX = 2000;
+/** Hard caps (the table's CHECK). Above the HIGH marks the CRM asks to confirm. */
+export const COUPON_PERCENT_MAX = 90;
+export const COUPON_FIXED_MAX = 5000;
+export const COUPON_PERCENT_HIGH = 50;
+export const COUPON_FIXED_HIGH = 1000;
 /** Mirrors the CHECK on coupons.code: capital Latin, Hebrew letters, digits, - and _. */
 export const COUPON_CODE_RE = /^[A-Z0-9א-ת_-]{3,30}$/;
 
@@ -110,16 +129,47 @@ export function latinFromHebrewKeyboard(code: string): string | null {
   return isValidCouponCode(out) ? out : null;
 }
 
-/** The terms a record carries, for the checkout. Never includes the id or limits. */
-export function couponTerms(r: CouponRecord): CouponTerms {
+export function couponScopeOf(r: Pick<CouponRecord, "scope">): CouponScope {
+  return r.scope === "categories" || r.scope === "products" ? r.scope : "all";
+}
+
+/**
+ * The terms a record carries, for the checkout. Never includes the id, the
+ * limits or the scope's own lists — only, when given, which of the cart's
+ * products the code covers.
+ */
+export function couponTerms(r: CouponRecord, eligibleProductIds?: string[] | null): CouponTerms {
   const min = r.min_order == null ? null : Number(r.min_order);
+  const scope = couponScopeOf(r);
   return {
     code: r.code,
     discountType: r.discount_type === "fixed" ? "fixed" : "percent",
     discountValue: Number(r.discount_value) || 0,
     freeShipping: !!r.free_shipping,
     minOrder: min != null && Number.isFinite(min) && min > 0 ? min : null,
+    scope,
+    applyToSaleItems: r.apply_to_sale_items !== false,
+    eligibleProductIds: scope === "all" ? null : (eligibleProductIds ?? []),
   };
+}
+
+/** One cart line as the coupon sees it. `promoted` = a promotion lowered its price. */
+export type CouponLine = { productId: string; lineTotal: number; promoted: boolean };
+
+/**
+ * The part of the items amount the coupon applies to: lines of products in its
+ * scope, and — unless it applies to sale items — not priced by a promotion.
+ */
+export function couponEligibleTotal(
+  lines: readonly CouponLine[],
+  terms: Pick<CouponTerms, "eligibleProductIds" | "applyToSaleItems">,
+): number {
+  const ids = terms.eligibleProductIds ? new Set(terms.eligibleProductIds) : null;
+  return lines.reduce((s, l) => {
+    if (ids && !ids.has(l.productId)) return s;
+    if (terms.applyToSaleItems === false && l.promoted) return s;
+    return s + (Number(l.lineTotal) || 0);
+  }, 0);
 }
 
 /** Why a code cannot be used now (min order is decided against the cart, below). */
@@ -156,6 +206,9 @@ export const COUPON_STORAGE_KEY = "oz-coupon";
 /** Every coupon message starts with "הקופון" — the checkout keys on it to drop a dead code. */
 export const COUPON_MESSAGE_PREFIX = "הקופון";
 
+/** The CRM switch "קופונים באתר" is off (site_settings.coupons_enabled). */
+export const COUPONS_DISABLED_MESSAGE = "הקופונים אינם פעילים באתר כרגע.";
+
 export function couponRejectionMessage(reason: CouponRejection): string {
   switch (reason) {
     case "not_found":
@@ -187,15 +240,19 @@ export function meetsCouponMinimum(itemsTotal: number, terms: CouponTerms): bool
 export function couponDiscount(
   itemsAfterMember: number,
   terms: Pick<CouponTerms, "discountType" | "discountValue">,
+  /** The amount the coupon applies to, when it is not the whole items amount. */
+  base: number = itemsAfterMember,
 ): number {
   if (!Number.isFinite(itemsAfterMember) || itemsAfterMember <= 1) return 0;
+  const b = Math.min(Number.isFinite(base) ? base : 0, itemsAfterMember);
+  if (b <= 0) return 0;
   const value = Number(terms.discountValue);
   if (!Number.isFinite(value) || value <= 0) return 0;
   const raw =
     terms.discountType === "fixed"
       ? Math.round(value)
-      : Math.round((itemsAfterMember * Math.min(value, COUPON_PERCENT_MAX)) / 100);
-  return Math.max(0, Math.min(raw, itemsAfterMember - 1));
+      : Math.round((b * Math.min(value, COUPON_PERCENT_MAX)) / 100);
+  return Math.max(0, Math.min(raw, b, itemsAfterMember - 1));
 }
 
 /** The order's money, the way placeOrder charges it and the checkout shows it. */
@@ -208,6 +265,8 @@ export type OrderTotals = {
   couponDiscount: number;
   /** True when a coupon was given and reaches its minimum — it is then recorded on the order. */
   couponApplied: boolean;
+  /** Why a given coupon does not apply, for the checkout's hint. */
+  couponIssue: "min_order" | "no_eligible_items" | null;
   /** The shipping fee the coupon waived (0 when none). */
   shippingWaived: number;
   /** orders.subtotal: items after every discount. */
@@ -221,11 +280,26 @@ export function computeOrderTotals(input: {
   isMember: boolean;
   fulfillment: Fulfillment;
   coupon: CouponTerms | null;
+  /** The items amount the coupon applies to (couponEligibleTotal). Default: all of it. */
+  eligibleTotal?: number;
 }): OrderTotals {
   const { itemsTotal, isMember, fulfillment, coupon } = input;
   const memberSubtotal = applyMemberDiscount(itemsTotal, isMember);
-  const couponApplied = !!coupon && itemsTotal > 0 && meetsCouponMinimum(itemsTotal, coupon);
-  const cDiscount = couponApplied && coupon ? couponDiscount(memberSubtotal, coupon) : 0;
+  const eligible = Math.max(0, Math.min(input.eligibleTotal ?? itemsTotal, itemsTotal));
+  const meetsMin = !!coupon && meetsCouponMinimum(itemsTotal, coupon);
+  const couponIssue: OrderTotals["couponIssue"] =
+    !coupon || itemsTotal <= 0
+      ? null
+      : !meetsMin
+        ? "min_order"
+        : eligible <= 0 && !coupon.freeShipping
+          ? "no_eligible_items"
+          : null;
+  const couponApplied = !!coupon && itemsTotal > 0 && meetsMin && couponIssue === null;
+  // The member's 5% applies to the eligible part too, so the coupon is worked
+  // out on what those items actually cost this shopper.
+  const base = applyMemberDiscount(eligible, isMember);
+  const cDiscount = couponApplied && coupon ? couponDiscount(memberSubtotal, coupon, base) : 0;
   const subtotal = memberSubtotal - cDiscount;
   const fee = getShipping(subtotal, fulfillment);
   const shippingWaived = couponApplied && coupon?.freeShipping ? fee : 0;
@@ -235,6 +309,7 @@ export function computeOrderTotals(input: {
     memberBenefit: itemsTotal - memberSubtotal,
     couponDiscount: cDiscount,
     couponApplied,
+    couponIssue,
     shippingWaived,
     subtotal,
     shipping,
@@ -303,11 +378,51 @@ export function describeCoupon(
   return parts.join(" + ");
 }
 
+/**
+ * The offer as a shopper reads it: "10% הנחה על מוצרים נבחרים" — the scope is
+ * named only when it is not the whole shop, and sale items only when excluded.
+ */
+export function offerText(
+  t: Pick<CouponTerms, "discountType" | "discountValue" | "freeShipping"> &
+    Partial<Pick<CouponTerms, "scope" | "applyToSaleItems">>,
+): string {
+  let text = describeCoupon(t);
+  if (t.scope && t.scope !== "all") text += " על מוצרים נבחרים";
+  if (t.applyToSaleItems === false) text += " (לא על מוצרים במבצע)";
+  return text;
+}
+
 /** "הקופון חל בקנייה של ₪200 ומעלה" — the hint under a code the cart does not reach yet. */
 export function minimumHint(terms: CouponTerms): string {
   return terms.minOrder == null
     ? ""
     : `${COUPON_MESSAGE_PREFIX} חל בקנייה של ${shekels(terms.minOrder)} ומעלה.`;
+}
+
+/** The hint for a code that covers none of the cart's items. */
+export function noEligibleHint(terms: Pick<CouponTerms, "scope" | "applyToSaleItems">): string {
+  return terms.scope && terms.scope !== "all"
+    ? `${COUPON_MESSAGE_PREFIX} חל על מוצרים נבחרים, ואף אחד מהם אינו בעגלה.`
+    : `${COUPON_MESSAGE_PREFIX} אינו חל על מוצרים שכבר במבצע.`;
+}
+
+/** "על כל האתר" / "על קטגוריות נבחרות" / "על מוצרים נבחרים" (+ "· לא על מוצרים במבצע"). */
+export function couponScopeText(
+  t: { scope?: CouponScope | string | null; applyToSaleItems?: boolean | null },
+  counts?: { categories?: number; products?: number },
+): string {
+  const scope = t.scope === "categories" || t.scope === "products" ? t.scope : "all";
+  const what =
+    scope === "categories"
+      ? counts?.categories
+        ? `על ${counts.categories === 1 ? "קטגוריה אחת" : `${counts.categories} קטגוריות`}`
+        : "על קטגוריות נבחרות"
+      : scope === "products"
+        ? counts?.products
+          ? `על ${counts.products === 1 ? "מוצר אחד" : `${counts.products} מוצרים`}`
+          : "על מוצרים נבחרים"
+        : "על כל האתר";
+  return t.applyToSaleItems === false ? `${what} · לא על מוצרים במבצע` : what;
 }
 
 // ---- CRM ------------------------------------------------------------------
@@ -348,7 +463,21 @@ export type CouponInput = {
   max_uses: number | null;
   once_per_customer: boolean;
   commission_percent: number | null;
+  scope: CouponScope;
+  category_ids: string[];
+  product_ids: string[];
+  apply_to_sale_items: boolean;
+  /** The owner ticked "I mean it" for a discount above the HIGH marks. */
+  confirm_high: boolean;
 };
+
+/** Whether a discount is high enough to ask the owner to confirm it. */
+export function isHighCouponDiscount(
+  i: Pick<CouponInput, "discount_type" | "discount_value">,
+): boolean {
+  const v = Number(i.discount_value);
+  return i.discount_type === "fixed" ? v > COUPON_FIXED_HIGH : v > COUPON_PERCENT_HIGH;
+}
 
 /**
  * What the shop owes the person behind a coupon: their percentage of the
@@ -378,6 +507,18 @@ export function couponInputErrors(i: CouponInput): string[] {
     errors.push(`הנחה בשקלים עד ${shekels(COUPON_FIXED_MAX)}.`);
   else if (v === 0 && !i.free_shipping)
     errors.push("קופון צריך לתת משהו: הנחה, משלוח חינם, או שניהם.");
+  else if (isHighCouponDiscount(i) && !i.confirm_high)
+    errors.push(
+      i.discount_type === "fixed"
+        ? `הנחה של יותר מ-${shekels(COUPON_FIXED_HIGH)} — סמנו את האישור כדי לשמור.`
+        : `הנחה של יותר מ-${COUPON_PERCENT_HIGH}% — סמנו את האישור כדי לשמור.`,
+    );
+  if (i.scope === "categories" && i.category_ids.length === 0)
+    errors.push("בחרו לפחות קטגוריה אחת, או החילו את הקופון על כל האתר.");
+  if (i.scope === "products" && i.product_ids.length === 0)
+    errors.push("בחרו לפחות מוצר אחד, או החילו את הקופון על כל האתר.");
+  if (i.category_ids.length > 200 || i.product_ids.length > 500)
+    errors.push("יותר מדי קטגוריות או מוצרים בקופון אחד.");
   if (i.min_order != null && (!Number.isFinite(i.min_order) || i.min_order <= 0))
     errors.push("סכום מינימום חייב להיות גדול מ-0, או להישאר ריק.");
   if (

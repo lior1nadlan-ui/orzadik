@@ -12,7 +12,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Copy, Download, Link2, Plus, TicketPercent, Trash2, Users } from "lucide-react";
+import { Copy, CopyPlus, Download, Link2, Plus, TicketPercent, Trash2, Users } from "lucide-react";
 import {
   listCoupons,
   listCouponOrders,
@@ -20,7 +20,10 @@ import {
   setCouponActive,
   addCouponPayout,
   createPartnerLink,
+  deleteCoupon,
   deleteCouponPayout,
+  getCouponSettings,
+  setCouponsEnabled,
   listCouponPayouts,
   removePartnerLink,
   type CouponListItem,
@@ -30,6 +33,11 @@ import {
   COUPON_FIXED_MAX,
   COUPON_PERCENT_MAX,
   COUPON_STATUS_HE,
+  COUPON_FIXED_HIGH,
+  COUPON_PERCENT_HIGH,
+  couponScopeOf,
+  couponScopeText,
+  isHighCouponDiscount,
   commissionOwed,
   couponDiscount,
   couponInputErrors,
@@ -43,6 +51,8 @@ import { formatILS } from "@/lib/cart";
 import { downloadCsv, toCsv } from "@/lib/csv";
 import { BUSINESS } from "@/lib/business";
 import { AdminSheet, AdminSheetContent } from "@/components/admin/AdminSheet";
+import { CouponScopePicker } from "@/components/admin/CouponScopePicker";
+import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -82,7 +92,41 @@ const emptyForm = (): FormState => ({
   max_uses: null,
   once_per_customer: false,
   commission_percent: null,
+  scope: "all",
+  category_ids: [],
+  product_ids: [],
+  apply_to_sale_items: true,
+  confirm_high: false,
 });
+
+/** The form for a coupon — to edit it, or (duplicate) as a new one with an empty code. */
+function formFromCoupon(c: CouponListItem, duplicate = false): FormState {
+  const scope = couponScopeOf(c);
+  const f: FormState = {
+    code: duplicate ? "" : c.code,
+    influencer_name: c.influencer_name ?? "",
+    notes: c.notes ?? "",
+    discount_type: c.discount_type === "fixed" ? "fixed" : "percent",
+    discount_value: Number(c.discount_value),
+    free_shipping: c.free_shipping,
+    min_order: c.min_order == null ? null : Number(c.min_order),
+    starts_at: duplicate ? null : c.starts_at,
+    ends_at: c.ends_at,
+    max_uses: c.max_uses,
+    once_per_customer: c.once_per_customer,
+    commission_percent: c.commission_percent == null ? null : Number(c.commission_percent),
+    scope,
+    category_ids: scope === "categories" ? (c.category_ids ?? []) : [],
+    product_ids: scope === "products" ? (c.product_ids ?? []) : [],
+    apply_to_sale_items: c.apply_to_sale_items !== false,
+    // An existing high discount was confirmed when it was saved.
+    confirm_high: isHighCouponDiscount({
+      discount_type: c.discount_type === "fixed" ? "fixed" : "percent",
+      discount_value: Number(c.discount_value),
+    }),
+  };
+  return duplicate ? f : { ...f, id: c.id };
+}
 
 const dateIL = (iso: string) =>
   new Intl.DateTimeFormat("he-IL", {
@@ -150,6 +194,8 @@ function AdminCoupons() {
         </Button>
       </div>
 
+      <CouponsSwitch />
+
       {totals.orders > 0 && (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
           <TicketPercent className="me-1 inline h-4 w-4" />
@@ -170,24 +216,7 @@ function AdminCoupons() {
             <CouponCard
               key={c.id}
               c={c}
-              onEdit={() =>
-                setEditing({
-                  id: c.id,
-                  code: c.code,
-                  influencer_name: c.influencer_name ?? "",
-                  notes: c.notes ?? "",
-                  discount_type: c.discount_type === "fixed" ? "fixed" : "percent",
-                  discount_value: Number(c.discount_value),
-                  free_shipping: c.free_shipping,
-                  min_order: c.min_order == null ? null : Number(c.min_order),
-                  starts_at: c.starts_at,
-                  ends_at: c.ends_at,
-                  max_uses: c.max_uses,
-                  once_per_customer: c.once_per_customer,
-                  commission_percent:
-                    c.commission_percent == null ? null : Number(c.commission_percent),
-                })
-              }
+              onEdit={() => setEditing(formFromCoupon(c))}
               onToggle={() => {
                 if (
                   c.is_active &&
@@ -207,12 +236,16 @@ function AdminCoupons() {
 
       {editing && (
         <CouponDialog
+          // A fresh dialog for a duplicate, not the edited coupon's state.
+          key={editing.id ?? `new-${editing.code}-${editing.influencer_name}`}
           initial={editing}
+          existing={editing.id ? coupons.find((x) => x.id === editing.id) : undefined}
           onClose={() => setEditing(null)}
           onSaved={() => {
             setEditing(null);
             void qc.invalidateQueries({ queryKey: ["admin-coupons"] });
           }}
+          onDuplicate={(c) => setEditing(formFromCoupon(c, true))}
         />
       )}
 
@@ -298,6 +331,12 @@ function CouponCard({
       </div>
 
       <div className="mt-2 text-sm font-semibold text-accent">{describeCoupon(terms)}</div>
+      <div className="text-xs text-muted-foreground">
+        {couponScopeText(
+          { scope: couponScopeOf(c), applyToSaleItems: c.apply_to_sale_items !== false },
+          { categories: c.category_ids?.length, products: c.product_ids?.length },
+        )}
+      </div>
       {conds.length > 0 && (
         <div className="mt-0.5 text-xs text-muted-foreground">{conds.join(" · ")}</div>
       )}
@@ -523,14 +562,31 @@ function CouponOrdersSheet({ c }: { c: CouponListItem }) {
 
 function CouponDialog({
   initial,
+  existing,
   onClose,
   onSaved,
+  onDuplicate,
 }: {
   initial: FormState;
+  /** The coupon being edited, for duplicate and delete. */
+  existing?: CouponListItem;
   onClose: () => void;
   onSaved: () => void;
+  onDuplicate: (c: CouponListItem) => void;
 }) {
   const save = useServerFn(saveCoupon);
+  const remove = useServerFn(deleteCoupon);
+  const removeMut = useMutation({
+    mutationFn: (id: string) => remove({ data: { id } }),
+    onSuccess: () => {
+      toast.success("הקופון נמחק.");
+      onSaved();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  // Only a code nobody used can go; one with history is turned off instead.
+  const deletable =
+    !!existing && existing.paid_orders + existing.unpaid_orders === 0 && existing.paid_out === 0;
   const [form, setForm] = useState<FormState>(initial);
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
@@ -684,6 +740,46 @@ function CouponDialog({
                 {form.free_shipping ? " ומשלוח חינם" : ""}.
               </p>
             )}
+            {isHighCouponDiscount(form) && (
+              <label className="mt-2 flex cursor-pointer items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-2 text-sm text-amber-900">
+                <Checkbox
+                  checked={form.confirm_high}
+                  onCheckedChange={(v) => set("confirm_high", v === true)}
+                  className="mt-0.5"
+                />
+                <span>
+                  זו הנחה גבוהה (מעל{" "}
+                  {form.discount_type === "fixed"
+                    ? formatILS(COUPON_FIXED_HIGH)
+                    : `${COUPON_PERCENT_HIGH}%`}
+                  ). אני מאשר/ת שזה הסכום הנכון.
+                </span>
+              </label>
+            )}
+          </fieldset>
+
+          <fieldset className="space-y-2">
+            <legend className="mb-1.5 text-sm font-medium">על מה הקופון חל</legend>
+            <CouponScopePicker
+              scope={form.scope}
+              categoryIds={form.category_ids}
+              productIds={form.product_ids}
+              onChange={(n) =>
+                setForm((f) => ({
+                  ...f,
+                  ...(n.scope ? { scope: n.scope } : {}),
+                  ...(n.categoryIds ? { category_ids: n.categoryIds } : {}),
+                  ...(n.productIds ? { product_ids: n.productIds } : {}),
+                }))
+              }
+            />
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
+              <Checkbox
+                checked={form.apply_to_sale_items}
+                onCheckedChange={(v) => set("apply_to_sale_items", v === true)}
+              />
+              חל גם על מוצרים שכבר במבצע
+            </label>
           </fieldset>
 
           <fieldset className="space-y-3 rounded-lg border p-3">
@@ -765,13 +861,44 @@ function CouponDialog({
             </ul>
           )}
 
-          <DialogFooter className="gap-2">
-            <Button type="button" variant="ghost" onClick={onClose}>
-              ביטול
-            </Button>
-            <Button type="submit" disabled={mut.isPending}>
-              {mut.isPending ? "שומרים…" : isNew ? "יצירת הקופון" : "שמירה"}
-            </Button>
+          <DialogFooter className="flex-wrap gap-2 sm:justify-between">
+            {existing ? (
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onDuplicate(existing)}
+                >
+                  <CopyPlus className="ms-1 h-4 w-4" /> שכפול
+                </Button>
+                {deletable && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive"
+                    disabled={removeMut.isPending}
+                    onClick={() => {
+                      if (window.confirm(`למחוק את הקופון ${existing.code}? אי אפשר לבטל.`))
+                        removeMut.mutate(existing.id);
+                    }}
+                  >
+                    <Trash2 className="ms-1 h-4 w-4" /> מחיקה
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <span />
+            )}
+            <div className="flex gap-2">
+              <Button type="button" variant="ghost" onClick={onClose}>
+                ביטול
+              </Button>
+              <Button type="submit" disabled={mut.isPending}>
+                {mut.isPending ? "שומרים…" : isNew ? "יצירת הקופון" : "שמירה"}
+              </Button>
+            </div>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -1059,5 +1186,51 @@ function LinksDialog({
         </section>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * "קופונים באתר": one switch for every coupon on the site. Off = the checkout
+ * box disappears and codes are refused (a link's code too); each coupon keeps
+ * its own settings and comes back as it was when the switch is turned on.
+ */
+function CouponsSwitch() {
+  const qc = useQueryClient();
+  const load = useServerFn(getCouponSettings);
+  const save = useServerFn(setCouponsEnabled);
+  const { data } = useQuery({ queryKey: ["admin-coupon-settings"], queryFn: () => load() });
+  const mut = useMutation({
+    mutationFn: (enabled: boolean) => save({ data: { enabled } }),
+    onSuccess: ({ enabled }) => {
+      toast.success(enabled ? "הקופונים הופעלו באתר." : "כל הקופונים הושבתו באתר.");
+      void qc.invalidateQueries({ queryKey: ["admin-coupon-settings"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  if (!data) return null;
+  return (
+    <div
+      className={`flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3 text-sm ${
+        data.enabled ? "bg-card" : "border-destructive/40 bg-destructive/5"
+      }`}
+    >
+      <div>
+        <div className="font-semibold">קופונים באתר: {data.enabled ? "פעילים" : "מושבתים"}</div>
+        <div className="text-xs text-muted-foreground">
+          {data.enabled
+            ? "שדה הקופון מופיע בקופה כשיש לפחות קופון פעיל אחד."
+            : "שדה הקופון מוסתר והקודים לא מתקבלים — גם מקישורים. ההגדרות של כל קופון נשמרות."}
+        </div>
+      </div>
+      <Switch
+        checked={data.enabled}
+        disabled={mut.isPending}
+        onCheckedChange={(v) => {
+          if (!v && !window.confirm("להשבית את כל הקופונים באתר?")) return;
+          mut.mutate(v);
+        }}
+        aria-label="קופונים באתר"
+      />
+    </div>
   );
 }

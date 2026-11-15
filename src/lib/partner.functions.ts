@@ -14,7 +14,7 @@ import {
   commissionOwed,
   couponStatus,
   couponTerms,
-  describeCoupon,
+  offerText,
   partnerMonths,
   payoutBalance,
   PARTNER_TOKEN_RE,
@@ -93,7 +93,7 @@ export const getPartnerReport = createServerFn({ method: "POST" })
     return {
       code: c.code,
       influencerName: c.influencer_name,
-      offer: describeCoupon(terms),
+      offer: offerText(terms),
       minOrder: terms.minOrder,
       endsAt: c.ends_at,
       status: couponStatus(c, rows.length),

@@ -9,7 +9,7 @@ import { recordNewsletterConsent } from "@/lib/newsletter.functions";
 import { priceOrderLines } from "@/lib/order-pricing.server";
 import { PICKUP } from "@/lib/business";
 import { computeOrderTotals } from "@/lib/coupons";
-import { resolveOrderCoupon } from "@/lib/coupons.server";
+import { orderEligibleTotal, resolveOrderCoupon } from "@/lib/coupons.server";
 
 // Price math (SITE_DISCOUNT / MEMBER_DISCOUNT / SHIPPING_FLAT / effectivePrice /
 // applyMember) now comes from the shared src/lib/pricing.ts — no more duplicated
@@ -126,6 +126,11 @@ export const placeOrder = createServerFn({ method: "POST" })
       isMember,
       fulfillment,
       coupon: coupon?.terms ?? null,
+      // Only the lines the coupon covers (its categories/products, and sale
+      // items only if it allows them) — read from the database here too.
+      eligibleTotal: coupon
+        ? await orderEligibleTotal(coupon.record, coupon.terms, lineItems)
+        : undefined,
     });
     if (coupon && data.expected_total !== undefined && totals.total > data.expected_total) {
       throw new Error(

@@ -12,7 +12,7 @@ import { requireAdmin } from "@/lib/admin-authz.server";
 import { priceOrderLines } from "@/lib/order-pricing.server";
 import { getEffectivePrice } from "@/lib/pricing";
 import { computeOrderTotals } from "@/lib/coupons";
-import { resolveOrderCoupon } from "@/lib/coupons.server";
+import { orderEligibleTotal, resolveOrderCoupon } from "@/lib/coupons.server";
 import { PICKUP } from "@/lib/business";
 import { orderPaymentUrl } from "@/lib/wa-templates";
 import { logOrderEvent } from "@/lib/order-events.server";
@@ -126,6 +126,11 @@ export const createPhoneOrder = createServerFn({ method: "POST" })
       isMember,
       fulfillment: data.fulfillment,
       coupon: coupon?.terms ?? null,
+      // Only the lines the coupon covers (its categories/products, and sale
+      // items only if it allows them) — read from the database here too.
+      eligibleTotal: coupon
+        ? await orderEligibleTotal(coupon.record, coupon.terms, lineItems)
+        : undefined,
     });
     const { subtotal, shipping, total } = totals;
 
@@ -185,8 +190,9 @@ export const createPhoneOrder = createServerFn({ method: "POST" })
       id: order.id as string,
       orderNumber: order.order_number as string,
       total,
-      // Set when a coupon was given but the order does not reach its minimum.
+      // Set when a coupon was given but gives nothing on this order, and why.
       couponNotApplied: !!coupon && !totals.couponApplied,
+      couponIssue: coupon ? totals.couponIssue : null,
       payUrl: orderPaymentUrl(order.id),
     };
   });

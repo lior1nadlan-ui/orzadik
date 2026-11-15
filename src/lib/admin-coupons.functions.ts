@@ -102,6 +102,11 @@ const InputSchema = z.object({
   max_uses: z.number().nullable(),
   once_per_customer: z.boolean(),
   commission_percent: z.number().nullable(),
+  scope: z.enum(["all", "categories", "products"]),
+  category_ids: z.array(z.string().uuid()).max(200),
+  product_ids: z.array(z.string().uuid()).max(500),
+  apply_to_sale_items: z.boolean(),
+  confirm_high: z.boolean(),
 });
 
 export const saveCoupon = createServerFn({ method: "POST" })
@@ -131,6 +136,12 @@ export const saveCoupon = createServerFn({ method: "POST" })
       max_uses: data.max_uses,
       once_per_customer: data.once_per_customer,
       commission_percent: data.commission_percent,
+      scope: data.scope,
+      // Only the list the scope uses is kept (like promotions), so a coupon
+      // switched to the whole shop does not carry a dead category list.
+      category_ids: data.scope === "categories" ? data.category_ids : [],
+      product_ids: data.scope === "products" ? data.product_ids : [],
+      apply_to_sale_items: data.apply_to_sale_items,
       updated_at: new Date().toISOString(),
       updated_by: adminId,
     };
@@ -317,4 +328,71 @@ export const removePartnerLink = createServerFn({ method: "POST" })
       throw new Error("לא ניתן לבטל את הקישור.");
     }
     return { ok: true };
+  });
+
+/**
+ * Delete a coupon that was never used. One with orders or commission payments
+ * is history the CRM reports on — those are turned off ("כיבוי"), not deleted.
+ */
+export const deleteCoupon = createServerFn({ method: "POST" })
+  .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .handler(async ({ data }) => {
+    await requireAdmin();
+    const [{ count: orders, error: oErr }, { count: payouts, error: pErr }] = await Promise.all([
+      supabaseAdmin
+        .from("orders")
+        .select("id", { count: "exact", head: true })
+        .eq("coupon_id", data.id),
+      supabaseAdmin
+        .from("coupon_payouts")
+        .select("id", { count: "exact", head: true })
+        .eq("coupon_id", data.id),
+    ]);
+    if (oErr || pErr) {
+      console.error("[coupons] delete check:", oErr ?? pErr);
+      throw new Error("לא ניתן למחוק את הקופון כרגע.");
+    }
+    if ((orders ?? 0) > 0 || (payouts ?? 0) > 0) {
+      throw new Error("לקופון יש הזמנות או תשלומים — אפשר לכבות אותו, אבל לא למחוק.");
+    }
+    const { error } = await supabaseAdmin.from("coupons").delete().eq("id", data.id);
+    if (error) {
+      console.error("[coupons] delete:", error);
+      throw new Error("לא ניתן למחוק את הקופון.");
+    }
+    return { ok: true };
+  });
+
+// ---- The shop-wide switch ("קופונים באתר") -----------------------------------
+
+export const getCouponSettings = createServerFn({ method: "POST" }).handler(async () => {
+  await requireAdmin();
+  const { data, error } = await supabaseAdmin
+    .from("site_settings")
+    .select("value, updated_at")
+    .eq("key", "coupons_enabled")
+    .maybeSingle();
+  if (error) {
+    console.error("[coupons] settings read:", error);
+    throw new Error("שגיאה בטעינת הגדרות הקופונים.");
+  }
+  return { enabled: data?.value !== false, updatedAt: data?.updated_at ?? null };
+});
+
+/** Turn every coupon off on the site (box hidden, codes refused) — or back on. */
+export const setCouponsEnabled = createServerFn({ method: "POST" })
+  .validator((input: unknown) => z.object({ enabled: z.boolean() }).parse(input))
+  .handler(async ({ data }) => {
+    const adminId = await requireAdmin();
+    const { error } = await supabaseAdmin.from("site_settings").upsert({
+      key: "coupons_enabled",
+      value: data.enabled,
+      updated_at: new Date().toISOString(),
+      updated_by: adminId,
+    });
+    if (error) {
+      console.error("[coupons] settings write:", error);
+      throw new Error("לא ניתן לעדכן את ההגדרה.");
+    }
+    return { enabled: data.enabled };
   });

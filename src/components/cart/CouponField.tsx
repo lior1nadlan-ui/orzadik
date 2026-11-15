@@ -8,11 +8,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatILS } from "@/lib/cart";
-import { describeCoupon, minimumHint, type CouponTerms } from "@/lib/coupons";
+import { minimumHint, noEligibleHint, offerText, type CouponTerms } from "@/lib/coupons";
 
 export function CouponField({
   coupon,
   applied,
+  issue,
+  visible = true,
   saved,
   busy,
   error,
@@ -22,8 +24,15 @@ export function CouponField({
 }: {
   /** The code in use, or null. */
   coupon: CouponTerms | null;
-  /** Whether the cart reaches the code's minimum (it gives nothing otherwise). */
+  /** Whether the code gives something on this cart. */
   applied: boolean;
+  /** Why it does not (computeOrderTotals' couponIssue). */
+  issue?: "min_order" | "no_eligible_items" | null;
+  /**
+   * Whether to offer the box at all (coupons on and one live). A code already
+   * in play, or an error to explain, shows regardless.
+   */
+  visible?: boolean;
   /** Shekels the code saves on this order: items discount plus waived shipping. */
   saved: number;
   busy: boolean;
@@ -46,7 +55,7 @@ export function CouponField({
               <bdi dir="ltr" className="font-semibold">
                 {coupon.code}
               </bdi>{" "}
-              · {describeCoupon(coupon)}
+              · {offerText(coupon)}
             </span>
           </span>
           <button
@@ -61,11 +70,16 @@ export function CouponField({
         {applied ? (
           saved > 0 && <p className="mt-1 text-meta text-argaman">חוסכים {formatILS(saved)}</p>
         ) : (
-          <p className="mt-1 text-meta text-muted-foreground">{minimumHint(coupon)}</p>
+          <p className="mt-1 text-meta text-muted-foreground">
+            {issue === "no_eligible_items" ? noEligibleHint(coupon) : minimumHint(coupon)}
+          </p>
         )}
       </div>
     );
   }
+
+  // No code to be had anywhere: no box (it would only send shoppers hunting).
+  if (!visible && !error) return null;
 
   // An error (a code from a link that has expired, say) opens the box so the
   // shopper sees why no discount appears.

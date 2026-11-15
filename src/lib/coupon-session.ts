@@ -37,6 +37,10 @@ function read(): CouponTerms | null {
       discountValue: t.discountValue,
       freeShipping: !!t.freeShipping,
       minOrder: typeof t.minOrder === "number" ? t.minOrder : null,
+      scope: t.scope === "categories" || t.scope === "products" ? t.scope : "all",
+      applyToSaleItems: t.applyToSaleItems !== false,
+      // Display only: which cart products it covers is re-asked at checkout.
+      eligibleProductIds: null,
     };
   } catch {
     return null;

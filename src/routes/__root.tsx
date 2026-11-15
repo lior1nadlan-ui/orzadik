@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { COUPON_STORAGE_KEY, describeCoupon } from "@/lib/coupons";
+import { COUPON_STORAGE_KEY, offerText } from "@/lib/coupons";
 import { rememberCoupon } from "@/lib/coupon-session";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
@@ -605,7 +605,7 @@ function RootComponent() {
           if (r.ok) {
             rememberCoupon(r.terms);
             toast.success(`הקוד ${r.terms.code} יוחל אוטומטית בעמוד התשלום`, {
-              description: describeCoupon(r.terms),
+              description: offerText(r.terms),
               duration: 6000,
             });
           } else {

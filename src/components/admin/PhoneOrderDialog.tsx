@@ -34,6 +34,7 @@ type Created = {
   total: number;
   payUrl: string;
   couponNotApplied?: boolean;
+  couponIssue?: "min_order" | "no_eligible_items" | null;
 };
 
 const EMPTY = { name: "", email: "", phone: "", city: "", address: "", notes: "", coupon: "" };
@@ -183,7 +184,11 @@ export function PhoneOrderDialog({
       onCreated();
       toast.success(`הזמנה ${r.orderNumber} נוצרה`);
       if (r.couponNotApplied) {
-        toast.warning("הקופון לא הוחל: ההזמנה לא מגיעה לסכום המינימום שלו.");
+        toast.warning(
+          r.couponIssue === "no_eligible_items"
+            ? "הקופון לא הוחל: הוא לא חל על המוצרים שבהזמנה."
+            : "הקופון לא הוחל: ההזמנה לא מגיעה לסכום המינימום שלו.",
+        );
       }
     } catch (e: any) {
       toast.error(e?.message ?? "יצירת ההזמנה נכשלה");

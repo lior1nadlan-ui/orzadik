@@ -15,9 +15,10 @@ import { useCartRevalidation, isBlocking } from "@/lib/cart-revalidation";
 import { trackBeginCheckout } from "@/lib/analytics";
 import { useAuth } from "@/lib/auth";
 import { placeOrder } from "@/lib/checkout.functions";
-import { checkCoupon } from "@/lib/coupons.functions";
+import { checkCoupon, couponBoxVisible } from "@/lib/coupons.functions";
 import {
   computeOrderTotals,
+  couponEligibleTotal,
   normalizeCouponCode,
   COUPON_MESSAGE_PREFIX,
   COUPON_STORAGE_KEY,
@@ -221,7 +222,35 @@ function CheckoutPage() {
   // then the coupon, then shipping (SHIPPING_FLAT on a positive subtotal unless
   // the coupon waives it) — computed from the revalidated subtotal rather than
   // the stale cart's shipping so a fully-blocked cart never quotes a phantom fee.
-  const totals = computeOrderTotals({ itemsTotal, isMember, fulfillment, coupon });
+  // The part of the items the coupon covers — its products/categories, and
+  // sale items only if it allows them — exactly what placeOrder works out.
+  const eligibleTotal = coupon
+    ? couponEligibleTotal(
+        items
+          .filter((i) => {
+            const c = checks.get(lineKey(i));
+            return !(c && isBlocking(c));
+          })
+          .map((i) => ({
+            productId: i.productId,
+            lineTotal: linePrice(i) * i.quantity,
+            promoted: linePrice(i) < lineRegular(i),
+          })),
+        coupon,
+      )
+    : undefined;
+  const totals = computeOrderTotals({ itemsTotal, isMember, fulfillment, coupon, eligibleTotal });
+  // Offer the code box only while there is a code to be had (the CRM switch is
+  // on and a coupon is live) — or one is already in play on this page.
+  const boxFn = useServerFn(couponBoxVisible);
+  const boxQuery = useQuery({
+    queryKey: ["coupon-box-visible"],
+    queryFn: () => boxFn(),
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+  // Hidden while the answer loads; a failed check shows the box (the lesser harm).
+  const boxVisible = boxQuery.data ?? boxQuery.isError;
   const memberBenefit = totals.memberBenefit;
   const memberSubtotal = itemsTotal - memberBenefit;
   const shipping = totals.shipping;
@@ -243,7 +272,14 @@ function CheckoutPage() {
     if (!quiet) setCouponError(null);
     try {
       const r = await checkCouponFn({
-        data: { code, email: form.email.trim() || null, phone: form.phone.trim() || null },
+        data: {
+          code,
+          email: form.email.trim() || null,
+          phone: form.phone.trim() || null,
+          // For a coupon limited to categories/products, the server answers
+          // which of these it covers.
+          product_ids: [...new Set(items.map((i) => i.productId))].slice(0, 100),
+        },
       });
       if (r.ok) {
         setCoupon(r.terms);
@@ -793,6 +829,8 @@ function CheckoutPage() {
         {!nothingOrderable && (
           <CouponField
             coupon={coupon}
+            visible={boxVisible}
+            issue={totals.couponIssue}
             applied={totals.couponApplied}
             saved={totals.couponDiscount + totals.shippingWaived}
             busy={couponBusy}

@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { describeCoupon, type CouponTerms } from "@/lib/coupons";
+import { offerText, type CouponTerms } from "@/lib/coupons";
 
 /**
  * The site-wide strip while this tab carries a coupon — typically a shopper
@@ -30,7 +30,7 @@ export function CouponStrip({ terms }: { terms: CouponTerms }) {
         </bdi>
         <span> פעיל</span>
         {sep}
-        <span className="font-bold text-argaman">{describeCoupon(terms)}</span>
+        <span className="font-bold text-argaman">{offerText(terms)}</span>
         <span className="hidden sm:inline">{sep}יוחל אוטומטית בקופה</span>
       </span>
     </Link>
