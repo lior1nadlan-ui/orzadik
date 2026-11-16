@@ -28,6 +28,8 @@ import { runDataRetentionSweep } from "@/lib/retention.server";
 import { runDailyDigest } from "@/lib/crm-digest.server";
 import { runPaymentReminders } from "@/lib/payment-reminder.server";
 import { runLeadAlerts } from "@/lib/lead-alerts.server";
+import { runUnpaidNudges } from "@/lib/unpaid-nudge.server";
+import { runReferralRewards } from "@/lib/referral.server";
 import { runEndDueSales } from "@/lib/sales.server";
 
 type NitroAppLike = {
@@ -68,6 +70,8 @@ async function runHourlyRecovery() {
   for (const [name, run] of [
     ["abandoned-cart-reminders", runAbandonedCartReminders],
     ["payment-reminders", runPaymentReminders],
+    // "חבר מביא חבר": thank the referrer of a friend's settled order.
+    ["referral-rewards", runReferralRewards],
   ] as const) {
     try {
       out[name] = await run();
@@ -81,14 +85,17 @@ async function runHourlyRecovery() {
 
 /**
  * The 10-minute slot: CardCom reconciliation FIRST (money on it), then the
- * staff alert for new abandoned carts. Caught separately, so a Telegram or
- * Resend failure can never cost a settlement.
+ * staff alert for new abandoned carts, then the owner's push for a payment
+ * still stuck an hour after the order (unpaid-nudge.ts) — after the
+ * reconciliation, so an order it just settled is never nudged. Caught
+ * separately, so a Telegram or Resend failure can never cost a settlement.
  */
 async function runTenMinuteJobs() {
   const out: Record<string, unknown> = {};
   for (const [name, run] of [
     ["cardcom-reconcile", runCardcomReconciliation],
     ["lead-alerts", runLeadAlerts],
+    ["unpaid-nudges", runUnpaidNudges],
     // Timed sales end within 10 minutes of their date.
     ["end-due-sales", runEndDueSales],
   ] as const) {
@@ -109,14 +116,17 @@ async function runTenMinuteJobs() {
 const JOBS: Record<string, { name: string; run: () => Promise<unknown> }> = {
   "0 7 * * *": { name: "morning (review-requests + daily-digest)", run: runMorningJobs },
   "*/5 * * * *": { name: "campaign-tick", run: runCampaignTick },
-  "15 * * * *": { name: "hourly recovery (cart + payment reminders)", run: runHourlyRecovery },
+  "15 * * * *": {
+    name: "hourly recovery (cart + payment reminders) + referral rewards",
+    run: runHourlyRecovery,
+  },
   // Safety net for every path that ends CardCom's retry ladder without settling the
   // order — a 200 on order-not-found / ReturnValue mismatch / integrity block, or a
   // plain Worker error. Without this, a charged card can sit against an unpaid order
   // forever and nothing notices. 10 minutes is well clear of the 15-minute grace
   // window inside the job, so it never races a webhook that is merely in flight.
   "*/10 * * * *": {
-    name: "cardcom-reconcile + lead-alerts + end-due-sales",
+    name: "cardcom-reconcile + lead-alerts + unpaid-nudges + end-due-sales",
     run: runTenMinuteJobs,
   },
   // The first job here that DELETES. Until it existed nothing in the system ever

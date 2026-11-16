@@ -65,6 +65,13 @@ import {
   type CouponStatus,
 } from "@/lib/coupons";
 import { isWelcomeCode, WELCOME_DAYS_MAX, WELCOME_PERCENT_MAX } from "@/lib/welcome-coupon";
+import {
+  isThanksCode,
+  REFERRAL_PERCENT_MAX,
+  REWARD_DAYS_MAX,
+  REWARD_DAYS_MIN,
+} from "@/lib/referral";
+import { getReferralAdmin, setReferralProgram } from "@/lib/referral.functions";
 import { toLocalInput, fromLocalInput } from "@/lib/admin-promotions";
 import { formatILS } from "@/lib/cart";
 import { downloadCsv, toCsv } from "@/lib/csv";
@@ -249,6 +256,7 @@ function AdminCoupons() {
 
       <CouponsSwitch />
       <WelcomeCouponCard />
+      <ReferralCard />
 
       {totals.orders > 0 && (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
@@ -424,8 +432,12 @@ function CouponCard({
           )}
           {c.allowed_email && (
             <div className="mt-0.5 text-[11px] text-sky-800">
-              {isWelcomeCode(c.code) ? "קופון הצטרפות" : "קופון אישי"} ·{" "}
-              <bdi dir="ltr">{c.allowed_email}</bdi>
+              {isWelcomeCode(c.code)
+                ? "קופון הצטרפות"
+                : isThanksCode(c.code)
+                  ? "קופון תודה, חבר מביא חבר"
+                  : "קופון אישי"}{" "}
+              · <bdi dir="ltr">{c.allowed_email}</bdi>
             </div>
           )}
         </div>
@@ -1449,6 +1461,134 @@ function CouponsSwitch() {
  * code by email (welcome-coupon.ts). Off until the owner turns it on; the
  * signup forms on the site promise it only while it is on.
  */
+/**
+ * "חבר מביא חבר" (src/lib/referral.ts): off until switched on here. Every
+ * customer who has paid gets a FRIEND- code on their order page; a friend's
+ * first order with it gets `friendPercent`, and once that order is paid and
+ * has stood two days, the customer who shared it gets a personal THANKS-
+ * coupon. Changing the friend's percent or switching off updates every code
+ * already shared.
+ */
+function ReferralCard() {
+  const qc = useQueryClient();
+  const load = useServerFn(getReferralAdmin);
+  const save = useServerFn(setReferralProgram);
+  const { data } = useQuery({ queryKey: ["admin-referral"], queryFn: () => load() });
+  const [friend, setFriend] = useState<string | null>(null);
+  const [reward, setReward] = useState<string | null>(null);
+  const [days, setDays] = useState<string | null>(null);
+  const mut = useMutation({
+    mutationFn: (v: {
+      enabled: boolean;
+      friendPercent: number;
+      rewardPercent: number;
+      rewardDays: number;
+    }) => save({ data: v }),
+    onSuccess: (v) => {
+      toast.success(
+        v.enabled
+          ? `חבר מביא חבר פעיל: ${v.friendPercent}% לחבר, ${v.rewardPercent}% תודה למי שהביא אותו.`
+          : "חבר מביא חבר כובה. הקודים שכבר שותפו הפסיקו לעבוד.",
+      );
+      setFriend(null);
+      setReward(null);
+      setDays(null);
+      void qc.invalidateQueries({ queryKey: ["admin-referral"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  if (!data) return null;
+  const f = friend ?? String(data.friendPercent);
+  const r = reward ?? String(data.rewardPercent);
+  const d = days ?? String(data.rewardDays);
+  const dirty = friend !== null || reward !== null || days !== null;
+  const submit = (enabled: boolean) =>
+    mut.mutate({
+      enabled,
+      friendPercent: Number(f),
+      rewardPercent: Number(r),
+      rewardDays: Math.round(Number(d)),
+    });
+  return (
+    <div className="space-y-2 rounded-lg border bg-card p-3 text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="font-semibold">
+            חבר מביא חבר:{" "}
+            {data.enabled
+              ? `פעיל, ${data.friendPercent}% לחבר ו-${data.rewardPercent}% תודה`
+              : "כבוי"}
+          </div>
+          <div className="text-xs text-muted-foreground">
+            כל לקוח ששילם מקבל בעמוד ההזמנה קוד לשתף. חבר חדש מקבל הנחה על ההזמנה הראשונה, ומי שהביא
+            אותו מקבל קופון תודה אישי יומיים אחרי שההזמנה שולמה.
+            {data.codes > 0 &&
+              ` שותפו ${data.codes} קודים · ${data.friendOrders} הזמנות מחברים (${formatILS(data.friendRevenue)}) · ${data.rewards} קופוני תודה, ${data.rewardsUsed} נוצלו.`}
+          </div>
+        </div>
+        <Switch
+          checked={data.enabled}
+          disabled={mut.isPending}
+          onCheckedChange={(v) => submit(v)}
+          aria-label="חבר מביא חבר"
+        />
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <Label htmlFor="ref-friend">הנחה לחבר</Label>
+        <Input
+          id="ref-friend"
+          type="number"
+          inputMode="numeric"
+          min={1}
+          max={REFERRAL_PERCENT_MAX}
+          value={f}
+          onChange={(e) => setFriend(e.target.value)}
+          className="w-20"
+        />
+        <span className="text-muted-foreground">%</span>
+        <Label htmlFor="ref-reward" className="ms-2">
+          תודה למביא
+        </Label>
+        <Input
+          id="ref-reward"
+          type="number"
+          inputMode="numeric"
+          min={1}
+          max={REFERRAL_PERCENT_MAX}
+          value={r}
+          onChange={(e) => setReward(e.target.value)}
+          className="w-20"
+        />
+        <span className="text-muted-foreground">%</span>
+        <Label htmlFor="ref-days" className="ms-2">
+          תוקף התודה
+        </Label>
+        <Input
+          id="ref-days"
+          type="number"
+          inputMode="numeric"
+          min={REWARD_DAYS_MIN}
+          max={REWARD_DAYS_MAX}
+          value={d}
+          onChange={(e) => setDays(e.target.value)}
+          className="w-20"
+        />
+        <span className="text-muted-foreground">ימים</span>
+        {dirty && (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={mut.isPending}
+            onClick={() => submit(data.enabled)}
+          >
+            שמירה
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function WelcomeCouponCard() {
   const qc = useQueryClient();
   const load = useServerFn(getWelcomeCouponAdmin);

@@ -10,6 +10,7 @@ import { orderBreakdown } from "@/lib/coupons";
 import { rememberCoupon } from "@/lib/coupon-session";
 import { Button } from "@/components/ui/button";
 import { CardSkeleton } from "@/components/Skeletons";
+import { ReferralShareBox } from "@/components/engagement/ReferralShareBox";
 import { CheckCircle2, Clock, Mail, Truck, Package, MessageCircle, Loader2 } from "lucide-react";
 
 export const Route = createFileRoute("/order/$id")({
@@ -477,6 +478,8 @@ function OrderConfirmationPage() {
           </div>
         </div>
       )}
+      {/* "חבר מביא חבר": renders nothing while the program is off. */}
+      {isPaid && <ReferralShareBox orderId={id} />}
       <div className="mt-6 text-center">
         <Link to="/shop">
           <Button variant="outline" className="press">

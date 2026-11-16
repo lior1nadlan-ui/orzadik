@@ -76,7 +76,7 @@ export async function checkOrderRateLimitByIp(
   ip: string,
   maxPerWindow = 15,
   windowSeconds = 60 * 60, // 1 hour
-  namespace: "order" | "cart" | "review" | "search" = "order",
+  namespace: "order" | "cart" | "review" | "search" | "referral" = "order",
 ): Promise<{ limited: boolean }> {
   if (!ip || ip === "unknown") return { limited: false };
   try {

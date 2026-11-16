@@ -428,6 +428,8 @@ export type Database = {
           influencer_phone: string | null
           max_discount: number | null
           new_customers_only: boolean
+          referrer_email: string | null
+          referrer_notify: boolean
           is_active: boolean
           max_uses: number | null
           min_order: number | null
@@ -457,6 +459,8 @@ export type Database = {
           influencer_phone?: string | null
           max_discount?: number | null
           new_customers_only?: boolean
+          referrer_email?: string | null
+          referrer_notify?: boolean
           is_active?: boolean
           max_uses?: number | null
           min_order?: number | null
@@ -486,6 +490,8 @@ export type Database = {
           influencer_phone?: string | null
           max_discount?: number | null
           new_customers_only?: boolean
+          referrer_email?: string | null
+          referrer_notify?: boolean
           is_active?: boolean
           max_uses?: number | null
           min_order?: number | null
@@ -839,6 +845,8 @@ export type Database = {
           order_number: string
           paid_at: string | null
           payment_reminder_sent_at: string | null
+          payment_nudge_sent_at: string | null
+          referral_reward_coupon_id: string | null
           payment_method: string | null
           payment_provider: string | null
           payment_status: string
@@ -891,6 +899,8 @@ export type Database = {
           order_number?: string
           paid_at?: string | null
           payment_reminder_sent_at?: string | null
+          payment_nudge_sent_at?: string | null
+          referral_reward_coupon_id?: string | null
           payment_method?: string | null
           payment_provider?: string | null
           payment_status?: string
@@ -943,6 +953,8 @@ export type Database = {
           order_number?: string
           paid_at?: string | null
           payment_reminder_sent_at?: string | null
+          payment_nudge_sent_at?: string | null
+          referral_reward_coupon_id?: string | null
           payment_method?: string | null
           payment_provider?: string | null
           payment_status?: string
