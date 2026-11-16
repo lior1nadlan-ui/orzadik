@@ -226,7 +226,8 @@ export function SearchInsightsCard() {
   const deadEndCount = openTerms.filter((t) => !hints?.[t]).length;
 
   return (
-    <div className="rounded-lg border bg-card p-5">
+    // The anchor the growth goals' "הפניות חיפוש" link scrolls to.
+    <div id="search-insights" className="scroll-mt-24 rounded-lg border bg-card p-5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div className="text-sm font-semibold">מה חיפשו באתר · {data.days} ימים אחרונים</div>
         <div className="text-xs text-muted-foreground">{data.total} חיפושים</div>

@@ -23,6 +23,9 @@ export const logSearch = createServerFn({ method: "POST" })
       .object({
         term: z.string().max(200),
         results_count: z.number().int().min(0).max(100_000),
+        // The "did you mean" phrase shown instead, when the typed words found
+        // nothing (src/lib/did-you-mean.ts).
+        corrected_to: z.string().trim().min(1).max(100).optional(),
       })
       .parse(d),
   )
@@ -40,9 +43,11 @@ export const logSearch = createServerFn({ method: "POST" })
       "search",
     );
     if (limited) return { ok: false };
-    const { error } = await supabaseAdmin
-      .from("site_searches")
-      .insert({ term, results_count: data.results_count });
+    const { error } = await supabaseAdmin.from("site_searches").insert({
+      term,
+      results_count: data.results_count,
+      corrected_to: data.corrected_to ?? null,
+    });
     return { ok: !error };
   });
 

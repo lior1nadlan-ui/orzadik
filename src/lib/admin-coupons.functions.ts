@@ -53,7 +53,14 @@ export const listCoupons = createServerFn({ method: "POST" }).handler(async () =
     { data: payouts, error: pErr },
     { data: visitRows, error: vErr },
   ] = await Promise.all([
-    supabaseAdmin.from("coupons").select("*").order("created_at", { ascending: false }).limit(500),
+    // A customer's "חבר מביא חבר" code is one row per customer: listed in
+    // aggregate on the program's card, never one by one here.
+    supabaseAdmin
+      .from("coupons")
+      .select("*")
+      .is("referrer_email", null)
+      .order("created_at", { ascending: false })
+      .limit(500),
     supabaseAdmin.rpc("admin_coupon_stats"),
     supabaseAdmin.from("coupon_payouts").select("coupon_id, amount").limit(10000),
     supabaseAdmin.from("coupon_visits").select("coupon_id, visits").limit(20000),

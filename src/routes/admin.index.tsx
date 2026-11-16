@@ -18,6 +18,7 @@ import { ActionCockpit } from "@/components/admin/ActionCockpit";
 import { pct, type Funnel } from "@/lib/funnel";
 import { getSystemHealth } from "@/lib/system-health.functions";
 import { SearchInsightsCard } from "@/components/admin/SearchInsightsCard";
+import { GrowthGoalsCard } from "@/components/admin/GrowthGoalsCard";
 import { listPromotions } from "@/lib/admin-promotions.functions";
 import { STATUS_LABEL, scopeSummary } from "@/lib/admin-promotions";
 import { formatPromoEnd } from "@/lib/promotions";
@@ -187,6 +188,9 @@ function AdminHome() {
           </Link>
         ))}
       </div>
+
+      {/* The growth plan's targets for February 2027, and what moves each. */}
+      <GrowthGoalsCard />
 
       <PromotionsCard />
       <CouponsCard />
