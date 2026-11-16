@@ -880,7 +880,9 @@ function ShopPage() {
     trackSearch(activeQ, found);
     // Also keep a first-party copy for the owner's dashboard (/admin). Fire and
     // forget: a failed log must never surface on the shop.
-    void logSearch({ data: { term: activeQ, results_count: found } }).catch(() => {});
+    void logSearch({
+      data: { term: activeQ, results_count: found, corrected_to: corrected?.to },
+    }).catch(() => {});
   }, [activeQ, total, isLoading, isFetching, corrected]);
 
   // The denominator can never sit below the page being displayed. `total` is 0

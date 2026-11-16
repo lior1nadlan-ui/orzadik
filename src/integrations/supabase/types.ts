@@ -1525,18 +1525,21 @@ export type Database = {
       }
       site_searches: {
         Row: {
+          corrected_to: string | null
           created_at: string
           id: number
           results_count: number
           term: string
         }
         Insert: {
+          corrected_to?: string | null
           created_at?: string
           id?: never
           results_count: number
           term: string
         }
         Update: {
+          corrected_to?: string | null
           created_at?: string
           id?: never
           results_count?: number

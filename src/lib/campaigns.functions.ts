@@ -384,8 +384,12 @@ export const searchCampaignProducts = createServerFn({ method: "POST" })
 
 // ---- Admin: audience + lifecycle -------------------------------------------
 
-/** Every consented address, minus the global suppression list. */
-async function buildAudience(): Promise<Array<{ email: string; name: string | null }>> {
+/**
+ * Every consented address, minus the global suppression list. Exported for the
+ * growth goals' mailing-list count (growth-goals.functions.ts), so the card and
+ * a campaign always agree on who is on the list.
+ */
+export async function buildAudience(): Promise<Array<{ email: string; name: string | null }>> {
   const byEmail = new Map<string, { email: string; name: string | null }>();
 
   // Profiles with explicit marketing consent.
